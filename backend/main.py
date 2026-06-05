@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import ast
 import os
@@ -75,6 +76,25 @@ async def migrate(file: UploadFile = File(...)):
     result = migrate_code(source)
     result["filename"] = file.filename
     return result
+
+
+@app.post("/download")
+async def download(file: UploadFile = File(...)):
+    content = await file.read()
+    source = content.decode("utf-8")
+    result = migrate_code(source)
+    migrated = result.get("migrated_code", "")
+    filename = file.filename
+    if filename.endswith('.py'):
+        filename = filename.replace('.py', '_migrated.py')
+    else:
+        filename = f"{filename}_migrated"
+
+    return Response(
+        content=migrated.encode('utf-8'),
+        media_type='application/octet-stream',
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 @app.get("/")
 def root():
