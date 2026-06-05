@@ -11,13 +11,31 @@ function App() {
     setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch('http://127.0.0.1:8000/' + mode, {
+    const res = await fetch('https://backlight-upstairs-chili.ngrok-free.dev/' + mode, {
       method: 'POST',
       body: formData,
     });
     const data = await res.json();
     setResult(data);
     setLoading(false);
+  };
+
+  const handleDownload = async () => {
+    if (!file) return alert('Please select a file first!');
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('https://backlight-upstairs-chili.ngrok-free.dev/download', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) return alert('Download failed');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name.replace('.py', '_migrated.py');
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -33,6 +51,12 @@ function App() {
         <button onClick={handleSubmit} disabled={loading} style={{width:'100%',padding:'12px',background:'#38bdf8',border:'none',borderRadius:'8px',color:'#0f172a',fontWeight:'bold',fontSize:'16px',cursor:'pointer'}}>
           {loading ? 'Processing...' : mode==='analyze' ? 'Analyze Now' : 'Migrate Now'}
         </button>
+        {mode === 'migrate' && (
+          <button onClick={handleDownload}
+            style={{width:'100%',padding:'12px',background:'#22c55e',border:'none',borderRadius:'8px',color:'white',fontWeight:'bold',fontSize:'16px',cursor:'pointer',marginTop:'10px'}}>
+            Download Migrated Code
+          </button>
+        )}
       </div>
       {result && (
         <div style={{maxWidth:'600px',margin:'0 auto',background:'#1e293b',padding:'30px',borderRadius:'12px'}}>
