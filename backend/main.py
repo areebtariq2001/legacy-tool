@@ -96,6 +96,82 @@ async def download(file: UploadFile = File(...)):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
+def migrate_java(source: str):
+    changes = []
+    migrated = source
+
+    # detect presence of main
+    if 'public static void main' in migrated:
+        changes.append("main method detected")
+
+    # convert simple String local variable declarations to `var` (Java 10+)
+    migrated = re.sub(r"\bString\s+(\w+)\s*=", r"var \1 =", migrated)
+    if re.search(r"\bvar\s+\w+\s*=", migrated):
+        changes.append("String declarations -> var (Java 10+)")
+
+    # Logging recommendation
+    if 'System.out.println' in migrated:
+        changes.append("System.out.println detected - consider using Logger")
+
+    # for-loop patterns
+    if re.search(r"for\s*\(\s*int\s+\w+\s*=\s*0", migrated):
+        changes.append("Old-style for loop detected - consider enhanced for loop or streams")
+
+    # StringBuffer -> StringBuilder
+    if 'StringBuffer' in migrated:
+        migrated = migrated.replace('StringBuffer', 'StringBuilder')
+        changes.append("StringBuffer -> StringBuilder")
+
+    # new Integer() -> Integer.valueOf()
+    if 'new Integer(' in migrated:
+        migrated = migrated.replace('new Integer(', 'Integer.valueOf(')
+        changes.append("new Integer() -> Integer.valueOf()")
+
+    return {"migrated_code": migrated, "changes": changes}
+
+
+def analyze_java(source: str):
+    issues = []
+
+    if re.search(r"\bStringBuffer\b", source):
+        issues.append("Use StringBuilder instead of StringBuffer when single-threaded")
+    if re.search(r"\bnew\s+Integer\s*\(", source):
+        issues.append("Use Integer.valueOf() or autoboxing instead of new Integer()")
+    if re.search(r"\bSystem\.out\.println\b", source):
+        issues.append("Consider using a logging framework (java.util.logging, SLF4J, Log4j)")
+    if re.search(r"for\s*\(\s*int\s+\w+\s*=\s*0", source):
+        issues.append("Old-style for loop found — consider enhanced for loop or streams API")
+    if re.search(r"\b(Vector|Hashtable)\b", source):
+        issues.append("Consider using ArrayList/HashMap instead of Vector/Hashtable")
+    if re.search(r"\b\bDate\b", source) and not re.search(r"\b(LocalDate|LocalDateTime|java\.time)\b", source):
+        issues.append("Consider using java.time APIs instead of Date")
+    if re.search(r"\bpublic\s+static\s+void\s+main\s*\(", source):
+        issues.append("Contains main method — consider separating application entrypoint from library code")
+
+    # quick heuristic for missing try-with-resources when using streams/readers
+    if re.search(r"new\s+File(InputStream|Reader)|BufferedReader\(|FileInputStream\(|FileReader\(|BufferedWriter\(|FileWriter\(", source) and 'try (' not in source:
+        issues.append("Resource handling detected — consider try-with-resources to ensure proper closing")
+
+    return {"issues": issues}
+
+
+@app.post("/migrate-java")
+async def migrate_java_endpoint(file: UploadFile = File(...)):
+    content = await file.read()
+    source = content.decode("utf-8", errors='ignore')
+    result = migrate_java(source)
+    result["filename"] = file.filename
+    return result
+
+
+@app.post("/analyze-java")
+async def analyze_java_endpoint(file: UploadFile = File(...)):
+    content = await file.read()
+    source = content.decode("utf-8", errors='ignore')
+    result = analyze_java(source)
+    result["filename"] = file.filename
+    return result
+
 @app.get("/")
 def root():
     return {"message": "Legacy Migration Tool API is running!"}
