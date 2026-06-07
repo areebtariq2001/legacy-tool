@@ -15,6 +15,7 @@ function App() {
     if (language === "python") endpoint = mode === "analyze" ? "/analyze" : "/migrate";
     if (language === "java") endpoint = mode === "analyze" ? "/analyze-java" : "/migrate-java";
     if (language === "php") endpoint = mode === "analyze" ? "/analyze-php" : "/migrate-php";
+    if (language === "cobol") endpoint = mode === "analyze" ? "/analyze-cobol" : "/migrate-cobol";
     const res = await fetch(API + endpoint, { method: "POST", body: formData });
     const data = await res.json();
     setResult(data);
@@ -27,6 +28,7 @@ function App() {
     let endpoint = "/download";
     if (language === "java") endpoint = "/migrate-java";
     if (language === "php") endpoint = "/migrate-php";
+    if (language === "cobol") endpoint = "/migrate-cobol";
     const res = await fetch(API + endpoint, { method: "POST", body: formData });
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -41,16 +43,17 @@ function App() {
       <h1 style={{ color: "#38bdf8", textAlign: "center" }}>Legacy Code Migration Tool</h1>
       <p style={{ textAlign: "center", color: "#94a3b8" }}>Analyze and migrate your legacy code</p>
       <div style={{ maxWidth: "600px", margin: "40px auto", background: "#1e293b", padding: "30px", borderRadius: "12px" }}>
-        <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+        <div style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button onClick={() => setLanguage("python")} style={btn(language === "python", "#7c3aed")}>Python</button>
           <button onClick={() => setLanguage("java")} style={btn(language === "java", "#7c3aed")}>Java</button>
           <button onClick={() => setLanguage("php")} style={btn(language === "php", "#7c3aed")}>PHP</button>
+          <button onClick={() => setLanguage("cobol")} style={btn(language === "cobol", "#7c3aed")}>COBOL</button>
         </div>
         <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
           <button onClick={() => setMode("analyze")} style={btn(mode === "analyze", "#38bdf8")}>Analyze</button>
           <button onClick={() => setMode("migrate")} style={btn(mode === "migrate", "#38bdf8")}>Migrate</button>
         </div>
-        <input type="file" accept={language === "java" ? ".java" : language === "php" ? ".php" : ".py"} onChange={(e) => setFile(e.target.files[0])} style={{ width: "100%", padding: "10px", marginBottom: "20px", background: "#334155", border: "none", borderRadius: "8px", color: "white" }} />
+        <input type="file" accept={language === "java" ? ".java" : language === "php" ? ".php" : language === "cobol" ? ".cbl,.cob" : ".py"} onChange={(e) => setFile(e.target.files[0])} style={{ width: "100%", padding: "10px", marginBottom: "20px", background: "#334155", border: "none", borderRadius: "8px", color: "white" }} />
         <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "12px", background: "#38bdf8", border: "none", borderRadius: "8px", color: "#0f172a", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
           {loading ? "Processing..." : mode === "analyze" ? "Analyze Now" : "Migrate Now"}
         </button>
@@ -81,4 +84,3 @@ function App() {
   );
 }
 export default App;
-           
