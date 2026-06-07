@@ -1,6 +1,3 @@
-Ab **Ctrl+A** dabao — sab select karo, **Delete** karo, phir ye code paste karo:
-
-```jsx
 import { useState } from "react";
 function App() {
   const [file, setFile] = useState(null);
@@ -84,6 +81,4 @@ function App() {
   );
 }
 export default App;
-```
-
-Paste karne ke baad **"Commit changes"** button pe click karo! 🚀
+           
