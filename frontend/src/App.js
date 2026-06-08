@@ -6,6 +6,7 @@ function App() {
   const [mode, setMode] = useState("analyze");
   const [language, setLanguage] = useState("python");
   const [page, setPage] = useState("home");
+  const [copied, setCopied] = useState(false);
   const API = "https://legacy-migration-tool-1.onrender.com";
   const handleSubmit = async () => {
     if (!file) return alert("Please select a file first!");
@@ -39,6 +40,13 @@ function App() {
     a.download = file.name;
     a.click();
   };
+  const handleCopy = () => {
+    if (result && result.migrated_code) {
+      navigator.clipboard.writeText(result.migrated_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
   const langs = ["python","java","php","cobol"];
   const langColors = { python:"#3b82f6", java:"#f59e0b", php:"#8b5cf6", cobol:"#10b981" };
   const langIcons = { python:"🐍", java:"☕", php:"🐘", cobol:"🖥️" };
@@ -48,7 +56,7 @@ function App() {
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#0f172a 100%)", color:"white", fontFamily:"'Segoe UI',Arial,sans-serif" }}>
       <nav style={navStyle}>
         <div style={{ fontSize:"20px", fontWeight:"700", background:"linear-gradient(90deg,#38bdf8,#818cf8)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-          LegacyMigrate
+          StarBuild
         </div>
         <div style={{ display:"flex", gap:"10px" }}>
           <button onClick={() => setPage("home")} style={navBtnStyle(page==="home")}>Tool</button>
@@ -60,7 +68,7 @@ function App() {
           <div style={{ textAlign:"center", padding:"60px 20px 40px" }}>
             <div style={{ fontSize:"48px", marginBottom:"10px" }}>🚀</div>
             <h1 style={{ fontSize:"36px", fontWeight:"700", background:"linear-gradient(90deg,#38bdf8,#818cf8)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", margin:"0 0 10px" }}>
-              Legacy Code Migration Tool
+              StarBuild
             </h1>
             <p style={{ color:"#94a3b8", fontSize:"16px", margin:"0" }}>
               Transform your legacy code to modern standards using AI
@@ -111,7 +119,12 @@ function App() {
                 {result.changes && <div style={{ marginBottom:"12px" }}><span style={{ color:"#94a3b8", fontSize:"13px" }}>Changes: </span><span style={{ color:"#4ade80" }}>{result.changes.length > 0 ? result.changes.join(", ") : "No changes needed!"}</span></div>}
                 {result.migrated_code && (
                   <div>
-                    <h4 style={{ color:"#38bdf8", marginBottom:"10px" }}>Migrated Code:</h4>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                      <h4 style={{ color:"#38bdf8", margin:"0" }}>Migrated Code:</h4>
+                      <button onClick={handleCopy} style={{ padding:"6px 16px", borderRadius:"8px", border:"1px solid #38bdf8", background: copied ? "#38bdf8" : "transparent", color: copied ? "#0f172a" : "#38bdf8", cursor:"pointer", fontSize:"13px", fontWeight:"600" }}>
+                        {copied ? "Copied!" : "Copy Code"}
+                      </button>
+                    </div>
                     <pre style={{ background:"#0f172a", padding:"15px", borderRadius:"10px", overflow:"auto", fontSize:"13px", border:"1px solid rgba(255,255,255,0.1)" }}>{result.migrated_code}</pre>
                   </div>
                 )}
