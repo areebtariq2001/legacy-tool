@@ -241,9 +241,7 @@ async def analyze_java_endpoint(file: UploadFile = File(...)):
     return result
 
 @app.get("/")
-def root():
-    return {"message": "Legacy Migration Tool API is running!"}
-    from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -254,5 +252,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
