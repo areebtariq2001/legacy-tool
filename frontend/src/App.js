@@ -31,6 +31,7 @@ let endpoint="/analyze";
 if(language==="python")endpoint=mode==="analyze"?"/analyze":"/migrate";
 if(language==="java")endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";
 if(language==="php")endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";
+if(language==="cobol")endpoint=mode==="analyze"?"/analyze-cobol":"/migrate-cobol";
 try{
 const res=await fetch(API+endpoint,{method:"POST",body:formData});
 const data=await res.json();
