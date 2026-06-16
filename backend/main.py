@@ -3,6 +3,8 @@ from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import ast
 import re
+import os
+import requests
 
 app = FastAPI()
 
@@ -163,6 +165,32 @@ def migrate_cobol(source: str):
         changes.append("DISPLAY -> print()")
     return {"migrated_code": migrated, "changes": changes}
 
+def ai_suggest(source: str, language: str):
+    HF_TOKEN = os.environ.get("HF_TOKEN", "")
+    prompt = f"Review this {language} code and suggest improvements in 3 bullet points:\n\n{source[:500]}\n\nSuggestions:"
+    
+    try:
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        payload = {
+            "inputs": prompt,
+            "parameters": {"max_new_tokens": 200, "temperature": 0.7}
+        }
+        response = requests.post(
+            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        result = response.json()
+        if isinstance(result, list) and len(result) > 0:
+            text = result[0].get("generated_text", "")
+            suggestions = text.replace(prompt, "").strip()
+            return {"suggestions": suggestions}
+        else:
+            return {"suggestions": "Could not generate suggestions. Try again."}
+    except Exception as e:
+        return {"suggestions": f"AI service error: {str(e)}"}
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     content = await file.read()
@@ -239,6 +267,14 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
     content = await file.read()
     source = content.decode("utf-8", errors='ignore')
     result = migrate_cobol(source)
+    result["filename"] = file.filename
+    return result
+
+@app.post("/ai-suggest")
+async def ai_suggest_endpoint(file: UploadFile = File(...), language: str = "python"):
+    content = await file.read()
+    source = content.decode("utf-8", errors='ignore')
+    result = ai_suggest(source, language)
     result["filename"] = file.filename
     return result
 
