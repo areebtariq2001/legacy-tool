@@ -1,7 +1,9 @@
 import { useState } from "react";
+import ReactDiffViewer from "react-diff-viewer-continued";
 
 function App() {
   const [files, setFiles] = useState([]);
+  const [fileContents, setFileContents] = useState({}); // Original code store karne ke liye
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("analyze");
@@ -18,6 +20,22 @@ function App() {
   const subtext = darkMode ? "#94a3b8" : "#64748b";
   const codebg = darkMode ? "#0f172a" : "#e2e8f0";
 
+  // File select hote hi uska text read karne ka function
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(selectedFiles);
+
+    const contents = {};
+    selectedFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        contents[file.name] = event.target.result;
+        setFileContents({ ...contents });
+      };
+      reader.readAsText(file);
+    });
+  };
+
   const handleSubmit = async () => {
     if (files.length === 0) return alert("Please select files first!");
     setLoading(true);
@@ -32,7 +50,6 @@ function App() {
       
       let endpoint = "/analyze";
       
-      // Fixed AI Endpoint with dynamic language query parameter
       if (mode === "ai") {
         endpoint = `/ai-suggest?language=${language}`;
       } else if (language === "python") {
@@ -57,6 +74,7 @@ function App() {
       setProgress(Math.round(((i + 1) / files.length) * 100));
       setResults([...allResults]);
     }
+    loading(false);
     setLoading(false);
   };
 
@@ -82,6 +100,30 @@ function App() {
   const langs = ["python", "java", "php", "cobol"];
   const lc = { python: "#3b82f6", java: "#f59e0b", php: "#8b5cf6", cobol: "#10b981" };
 
+  // Diff Viewer Ke Styles Theme Ke Mutabiq
+  const diffStyles = {
+    variables: {
+      dark: {
+        diffViewerBackground: "#1e293b",
+        diffViewerColor: "#e2e8f0",
+        addedBackground: "rgba(34, 197, 94, 0.2)",
+        addedColor: "#4ade80",
+        removedBackground: "rgba(239, 68, 68, 0.2)",
+        removedColor: "#f87171",
+        wordAddedBackground: "rgba(34, 197, 94, 0.35)",
+        wordRemovedBackground: "rgba(239, 68, 68, 0.35)",
+      },
+      light: {
+        diffViewerBackground: "#ffffff",
+        diffViewerColor: "#0f172a",
+        addedBackground: "rgba(34, 197, 94, 0.15)",
+        addedColor: "#15803d",
+        removedBackground: "rgba(239, 68, 68, 0.15)",
+        removedColor: "#b91c1c",
+      }
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: bg, color: text, fontFamily: "Arial", transition: "all 0.3s" }}>
       <div style={{ textAlign: "center", padding: "40px 20px", position: "relative" }}>
@@ -91,7 +133,7 @@ function App() {
         <h1 style={{ color: "#38bdf8" }}>StarBuild</h1>
         <p style={{ color: subtext }}>Transform your legacy code to modern standards</p>
       </div>
-      <div style={{ maxWidth: "700px", margin: "0 auto", padding: "0 20px 40px" }}>
+      <div style={{ maxWidth: "750px", margin: "0 auto", padding: "0 20px 40px" }}>
         <div style={{ background: card, border: "1px solid " + border, borderRadius: "12px", padding: "24px", marginBottom: "16px" }}>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
             {langs.map(lang => (
@@ -108,7 +150,7 @@ function App() {
             ))}
           </div>
           <div style={{ border: "2px dashed " + border, borderRadius: "8px", padding: "20px", textAlign: "center", marginBottom: "16px" }}>
-            <input type="file" multiple accept=".py,.java,.php,.cbl" onChange={e => setFiles(Array.from(e.target.files))} id="fileInput" style={{ display: "none" }} />
+            <input type="file" multiple accept=".py,.java,.php,.cbl" onChange={handleFileChange} id="fileInput" style={{ display: "none" }} />
             <label htmlFor="fileInput" style={{ cursor: "pointer", color: "#38bdf8" }}>
               Click to select files (multiple allowed)
             </label>
@@ -116,7 +158,7 @@ function App() {
           </div>
           {loading && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyEncoding: "space-between", marginBottom: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                 <span style={{ color: subtext, fontSize: "13px" }}>Processing files...</span>
                 <span style={{ color: "#38bdf8", fontSize: "13px" }}>{progress}%</span>
               </div>
@@ -125,7 +167,7 @@ function App() {
               </div>
             </div>
           )}
-          <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "none", background: loading ? "#334155" : "#38bdf8", color: loading ? "#94a3b8" : "#0f172a", fontWeight: "700", cursor: "pointer" }}>
+          <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "none", background: loading ? "#334155" : "#38bdf8", color: loading ? "#0f172a" : "#0f172a", fontWeight: "700", cursor: "pointer" }}>
             {loading ? `Processing ${results.length}/${files.length} files...` : mode === "analyze" ? "Analyze Files" : mode === "migrate" ? "Migrate Files" : "Get AI Suggestions"}
           </button>
         </div>
@@ -163,20 +205,35 @@ function App() {
                     <pre style={{ background: codebg, color: text, padding: "12px", borderRadius: "8px", overflow: "auto", fontSize: "11px", maxHeight: "200px", whiteSpace: "pre-wrap" }}>{result.suggestions}</pre>
                   </div>
                 )}
-                {result.migrated_code && (
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                      <span style={{ color: "#38bdf8", fontSize: "13px" }}>Migrated Code:</span>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <button onClick={() => handleCopy(idx, result.migrated_code)} style={{ padding: "4px 12px", borderRadius: "6px", border: "1px solid #38bdf8", background: copied[idx] ? "#38bdf8" : "transparent", color: copied[idx] ? "#0f172a" : "#38bdf8", cursor: "pointer", fontSize: "12px" }}>
-                          {copied[idx] ? "Copied!" : "Copy"}
-                        </button>
-                        <button onClick={() => handleDownload(result)} style={{ padding: "4px 12px", borderRadius: "6px", border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: "12px" }}>
-                          Download
-                        </button>
-                      </div>
+                
+                {/* DYNAMIC DIFF VIEWER: Sirf tab dikhega jab migrated_code ya suggestions ho */}
+                {(result.migrated_code || result.suggestions) && (
+                  <div style={{ marginTop: "20px", borderTop: "1px solid " + border, paddingTop: "15px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                      <span style={{ color: "#38bdf8", fontSize: "14px", fontWeight: "bold" }}>Side-by-Side Comparison:</span>
+                      {result.migrated_code && (
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button onClick={() => handleCopy(idx, result.migrated_code)} style={{ padding: "4px 12px", borderRadius: "6px", border: "1px solid #38bdf8", background: copied[idx] ? "#38bdf8" : "transparent", color: copied[idx] ? "#0f172a" : "#38bdf8", cursor: "pointer", fontSize: "12px" }}>
+                            {copied[idx] ? "Copied!" : "Copy Code"}
+                          </button>
+                          <button onClick={() => handleDownload(result)} style={{ padding: "4px 12px", borderRadius: "6px", border: "1px solid #22c55e", background: "transparent", color: "#22c55e", cursor: "pointer", fontSize: "12px" }}>
+                            Download
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <pre style={{ background: codebg, color: text, padding: "12px", borderRadius: "8px", overflow: "auto", fontSize: "11px", maxHeight: "200px" }}>{result.migrated_code}</pre>
+                    
+                    <div style={{ borderRadius: "8px", overflow: "hidden", fontSize: "12px" }}>
+                      <ReactDiffViewer
+                        oldValue={fileContents[result.filename] || ""}
+                        newValue={result.migrated_code || result.suggestions || ""}
+                        splitView={true}
+                        leftTitle="Original Code"
+                        rightTitle="AI Processed / Modernized Output"
+                        useDarkTheme={darkMode}
+                        styles={diffStyles}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
