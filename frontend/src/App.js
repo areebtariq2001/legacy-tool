@@ -6,6 +6,9 @@ function App() {
   const [result, setResult] = useState({});
   const [loading, setLoading] = useState(false);
 
+  // YE HAI AAPKA NAYA BACKEND URL JO RAILWAY SE MILA HAI
+  const API_BASE_URL = "https://legacy-migration-tool-production.up.railway.app";
+
   const handleFileChange = (e) => setFiles(e.target.files);
 
   const handleAction = async (endpoint) => {
@@ -17,14 +20,18 @@ function App() {
     }
 
     try {
-      const response = await fetch(`https://legacy-migration-tool-1.onrender.com/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
         method: "POST",
         body: formData,
       });
+      
+      if (!response.ok) throw new Error("Server response was not ok");
+      
       const data = await response.json();
       setResult(data);
     } catch (error) {
       console.error("Error:", error);
+      alert("Error connecting to server. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -55,7 +62,12 @@ function App() {
             <strong>Side-by-Side Comparison</strong>
             <button onClick={copyToClipboard} style={{ padding: "4px 10px", cursor: "pointer" }}>Copy Code</button>
           </div>
-          <ReactDiffViewer oldValue={result.original_code} newValue={result.migrated_code} splitView={true} styles={{ variables: { diffViewerBackground: "#0d1117", addedBackground: "#1e3a1e", removedBackground: "#4a1c1c" } }} />
+          <ReactDiffViewer 
+            oldValue={result.original_code} 
+            newValue={result.migrated_code} 
+            splitView={true} 
+            styles={{ variables: { diffViewerBackground: "#0d1117", addedBackground: "#1e3a1e", removedBackground: "#4a1c1c" } }} 
+          />
         </div>
       )}
 
