@@ -177,10 +177,10 @@ def ai_suggest(source: str, language: str):
             "messages": [
                 {
                     "role": "user",
-                    "content": f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}:\n\n{source[:500]}"
+                    "content": f"You are an expert {language} code reviewer. Analyze the provided {language} code below and give exactly 3 specific optimization or modernization suggestions for {language}. Do NOT output generic Python code, template placeholders, or greetings. Here is the code:\n\n{source}"
                 }
             ],
-            "max_tokens": 300
+            "max_tokens": 500
         }
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -281,7 +281,7 @@ async def ai_suggest_endpoint(file: UploadFile = File(...)):
     content = await file.read()
     source = content.decode("utf-8", errors='ignore')
     ext = file.filename.split('.')[-1].lower()
-    lang_map = {"py": "python", "java": "java", "php": "php", "cbl": "cobol"}
+    lang_map = {"py": "python", "java": "java", "php": "php", "cbl": "cobol", "cob": "cobol"}
     language = lang_map.get(ext, "python")
     result = ai_suggest(source, language)
     result["filename"] = file.filename
