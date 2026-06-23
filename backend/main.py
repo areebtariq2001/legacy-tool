@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 
@@ -12,17 +12,14 @@ app.add_middleware(
 )
 
 @app.post("/migrate")
-async def migrate_endpoint(files: List[UploadFile] = File(...), target_lang: str = Form("python")):
-    # Hum pehli file ko process kar rahe hain
+async def migrate_endpoint(files: List[UploadFile] = File(...)):
     content = await files[0].read()
     source = content.decode("utf-8", errors='ignore')
-    return {"migrated_code": f"// Migrated to {target_lang}\n\n" + source, "original_code": source}
+    return {"migrated_code": "// Migrated code result\n\n" + source, "original_code": source}
 
 @app.post("/ai-suggest")
-async def ai_suggest_endpoint(files: List[UploadFile] = File(...), language: str = Form("python")):
-    content = await files[0].read()
-    source = content.decode("utf-8", errors='ignore')
-    return {"suggestions": "AI Suggestion logic here", "filename": files[0].filename}
+async def ai_suggest_endpoint(files: List[UploadFile] = File(...)):
+    return {"suggestions": "AI Suggestion: Ye code kaafi purana hai, ise update karna chahiye!"}
 
 @app.get("/")
 def root():
