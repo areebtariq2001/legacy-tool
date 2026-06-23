@@ -1,7 +1,58 @@
-import{useState}from"react";
+import{useState,useEffect}from"react";
 import ReactDiffViewer from"react-diff-viewer-continued";
 import JSZip from"jszip";
 import jsPDF from"jspdf";
+
+const API="https://legacy-migration-tool-1.onrender.com";
+
+function StatsPage({onBack}){
+const[stats,setStats]=useState(null);
+const[loading,setLoading]=useState(true);
+useEffect(()=>{
+fetch(API+"/stats").then(r=>r.json()).then(d=>{setStats(d);setLoading(false);}).catch(()=>setLoading(false));
+},[]);
+return(
+<div style={{minHeight:"100vh",background:"#0f172a",color:"white",fontFamily:"Arial",padding:"40px 20px"}}>
+<div style={{maxWidth:"800px",margin:"0 auto"}}>
+<button onClick={onBack} style={{padding:"8px 16px",borderRadius:"20px",border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",cursor:"pointer",marginBottom:"24px"}}>
+Back to Home
+</button>
+<h1 style={{color:"#38bdf8",marginBottom:"8px"}}>Usage Dashboard</h1>
+<p style={{color:"#94a3b8",marginBottom:"32px"}}>Real-time statistics across all users.</p>
+{loading&&<p style={{color:"#94a3b8"}}>Loading stats...</p>}
+{stats&&(
+<div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"16px",marginBottom:"32px"}}>
+<div style={{background:"rgba(56,189,248,0.1)",border:"1px solid #38bdf8",borderRadius:"12px",padding:"24px",textAlign:"center"}}>
+<div style={{fontSize:"36px",fontWeight:"700",color:"#38bdf8"}}>{stats.total_files}</div>
+<div style={{fontSize:"13px",color:"#94a3b8"}}>Total Files Processed</div>
+</div>
+<div style={{background:"rgba(34,197,94,0.1)",border:"1px solid #22c55e",borderRadius:"12px",padding:"24px",textAlign:"center"}}>
+<div style={{fontSize:"36px",fontWeight:"700",color:"#22c55e"}}>{stats.total_migrations}</div>
+<div style={{fontSize:"13px",color:"#94a3b8"}}>Total Migrations</div>
+</div>
+<div style={{background:"rgba(245,158,11,0.1)",border:"1px solid #f59e0b",borderRadius:"12px",padding:"24px",textAlign:"center"}}>
+<div style={{fontSize:"36px",fontWeight:"700",color:"#f59e0b"}}>{stats.total_analyses}</div>
+<div style={{fontSize:"13px",color:"#94a3b8"}}>Total Analyses</div>
+</div>
+</div>
+<h2 style={{color:"#38bdf8",fontSize:"20px",marginBottom:"12px"}}>Recent Activity (Audit Log)</h2>
+<div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"12px",padding:"16px"}}>
+{stats.logs&&stats.logs.length>0?stats.logs.map((log,idx)=>(
+<div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:idx<stats.logs.length-1?"1px solid rgba(255,255,255,0.1)":"none"}}>
+<span style={{color:"#38bdf8",fontSize:"13px"}}>{log.action}</span>
+<span style={{color:"white",fontSize:"13px"}}>{log.filename}</span>
+<span style={{color:"#64748b",fontSize:"12px"}}>{log.time}</span>
+</div>
+)):<p style={{color:"#94a3b8"}}>No activity yet.</p>}
+</div>
+</div>
+)}
+<div style={{color:"#64748b",fontSize:"13px",marginTop:"40px",textAlign:"center"}}>2026 StarBuild - Usage Dashboard</div>
+</div>
+</div>
+);
+}
 
 function ApiDocs({onBack}){
 const codeStyle={background:"#1e293b",color:"#e2e8f0",padding:"16px",borderRadius:"8px",overflow:"auto",fontSize:"13px",fontFamily:"monospace",whiteSpace:"pre-wrap"};
@@ -13,10 +64,8 @@ Back to Home
 </button>
 <h1 style={{color:"#38bdf8",marginBottom:"8px"}}>StarBuild API Documentation</h1>
 <p style={{color:"#94a3b8",marginBottom:"32px"}}>Integrate StarBuild into your CI/CD pipeline or applications.</p>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",marginBottom:"12px"}}>Base URL</h2>
 <div style={codeStyle}>https://legacy-migration-tool-1.onrender.com</div>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Endpoints</h2>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#22c55e",fontWeight:"bold"}}>POST /analyze</p>
@@ -42,12 +91,10 @@ Back to Home
 <p style={{color:"#f59e0b",fontWeight:"bold"}}>POST /ai-suggest</p>
 <p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Get AI-powered code improvement suggestions</p>
 </div>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Example: cURL</h2>
 <div style={codeStyle}>{`curl -X POST \\
   https://legacy-migration-tool-1.onrender.com/migrate \\
   -F "file=@myscript.py"`}</div>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Example: Python</h2>
 <div style={codeStyle}>{`import requests
 
@@ -55,7 +102,6 @@ url = "https://legacy-migration-tool-1.onrender.com/migrate"
 files = {"file": open("myscript.py", "rb")}
 response = requests.post(url, files=files)
 print(response.json())`}</div>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Example: JavaScript</h2>
 <div style={codeStyle}>{`const formData = new FormData();
 formData.append("file", fileInput.files[0]);
@@ -66,21 +112,19 @@ fetch("https://legacy-migration-tool-1.onrender.com/migrate", {
 })
 .then(res => res.json())
 .then(data => console.log(data));`}</div>
-
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Response Format</h2>
 <div style={codeStyle}>{`{
   "migrated_code": "...",
   "changes": ["xrange -> range", "raw_input -> input"],
   "filename": "myscript.py"
 }`}</div>
-
 <div style={{color:"#64748b",fontSize:"13px",marginTop:"40px",textAlign:"center"}}>2026 StarBuild - API Documentation</div>
 </div>
 </div>
 );
 }
 
-function LandingPage({onLaunch,onApiDocs}){
+function LandingPage({onLaunch,onApiDocs,onStats}){
 return(
 <div style={{minHeight:"100vh",background:"linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",color:"white",fontFamily:"Arial",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"40px 20px"}}>
 <div style={{background:"rgba(56,189,248,0.1)",border:"1px solid #38bdf8",color:"#38bdf8",padding:"6px 16px",borderRadius:"20px",fontSize:"13px",marginBottom:"24px"}}>
@@ -97,6 +141,9 @@ Launch Tool Free
 <button onClick={onApiDocs} style={{background:"transparent",color:"#38bdf8",padding:"16px 40px",borderRadius:"8px",fontSize:"18px",fontWeight:"700",border:"1px solid #38bdf8",cursor:"pointer"}}>
 API Docs
 </button>
+<button onClick={onStats} style={{background:"transparent",color:"#f59e0b",padding:"16px 40px",borderRadius:"8px",fontSize:"18px",fontWeight:"700",border:"1px solid #f59e0b",cursor:"pointer"}}>
+Dashboard
+</button>
 </div>
 <div style={{display:"flex",gap:"12px",justifyContent:"center",marginBottom:"60px",flexWrap:"wrap"}}>
 {[["Python","#3b82f6"],["Java","#f59e0b"],["PHP","#8b5cf6"],["COBOL","#10b981"]].map(([lang,color])=>(
@@ -112,7 +159,7 @@ API Docs
 ["Batch Processing","Migrate multiple files at once"],
 ["AI Suggestions","Get intelligent improvement suggestions"],
 ["PDF Reports","Download professional migration reports"],
-["100% Free","No credit card required"]
+["Usage Dashboard","Track all migrations with audit logs"]
 ].map(([title,desc])=>(
 <div key={title} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"12px",padding:"24px"}}>
 <div style={{color:"#38bdf8",fontSize:"16px",fontWeight:"700",marginBottom:"8px"}}>{title}</div>
@@ -143,7 +190,6 @@ const[language,setLanguage]=useState("python");
 const[progress,setProgress]=useState(0);
 const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
-const API="https://legacy-migration-tool-1.onrender.com";
 
 const bg=darkMode?"#0f172a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
@@ -152,8 +198,9 @@ const text=darkMode?"white":"#0f172a";
 const subtext=darkMode?"#94a3b8":"#64748b";
 const codebg=darkMode?"#0f172a":"#e2e8f0";
 
-if(view==="landing")return <LandingPage onLaunch={()=>setView("tool")} onApiDocs={()=>setView("apidocs")}/>;
+if(view==="landing")return <LandingPage onLaunch={()=>setView("tool")} onApiDocs={()=>setView("apidocs")} onStats={()=>setView("stats")}/>;
 if(view==="apidocs")return <ApiDocs onBack={()=>setView("landing")}/>;
+if(view==="stats")return <StatsPage onBack={()=>setView("landing")}/>;
 
 const handleSubmit=async()=>{
 if(files.length===0)return alert("Please select files first!");
@@ -231,10 +278,10 @@ doc.setTextColor(0,0,0);
 doc.text("Summary",14,40);
 doc.setFontSize(10);
 doc.text("Total Files: "+results.length,14,48);
-const totalIssues=results.reduce((acc,r)=>acc+(r.issues?r.issues.length:0),0);
-const totalChanges=results.reduce((acc,r)=>acc+(r.changes?r.changes.length:0),0);
-doc.text("Total Issues Found: "+totalIssues,14,54);
-doc.text("Total Changes Made: "+totalChanges,14,60);
+const ti=results.reduce((acc,r)=>acc+(r.issues?r.issues.length:0),0);
+const tc=results.reduce((acc,r)=>acc+(r.changes?r.changes.length:0),0);
+doc.text("Total Issues Found: "+ti,14,54);
+doc.text("Total Changes Made: "+tc,14,60);
 let y=74;
 results.forEach((result,idx)=>{
 if(y>270){doc.addPage();y=20;}
