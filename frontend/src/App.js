@@ -5,7 +5,7 @@ function App() {
   const [files, setFiles] = useState(null);
   const [result, setResult] = useState({});
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(0); // Kaunsa tab active hai
+  const [activeTab, setActiveTab] = useState(0); 
   
   const API_BASE_URL = "https://legacy-migration-tool-production.up.railway.app";
 
@@ -27,7 +27,7 @@ function App() {
       });
       const data = await response.json();
       setResult(data);
-      setActiveTab(0); // Nayi request par pehla tab select karein
+      setActiveTab(0);
     } catch (error) {
       alert("Error: " + error.message);
     } finally {
@@ -45,14 +45,11 @@ function App() {
         <button onClick={() => handleAction("ai-suggest")}>AI Suggest</button>
       </div>
 
-      {/* Migration Result - Tabbed UI */}
       {result.migrated_code && (
         <div>
           <h3>AI Analysis/Migration</h3>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-             {/* Yahan hum sirf ek hi result dikha rahe hain, 
-                 agar backend har file ka alag object dega to hum tabs map kar sakte hain */}
-             <button onClick={() => setActiveTab(0)}>Result View</button>
+              <button onClick={() => setActiveTab(0)}>Result View</button>
           </div>
           <ReactDiffViewer 
             oldValue={result.original_code} 
@@ -62,7 +59,6 @@ function App() {
         </div>
       )}
 
-      {/* AI Suggestions (Emoji Removed) */}
       {result.suggestions && (
         <div style={{ marginTop: "30px", padding: "20px", backgroundColor: "#161b22", border: "1px solid #30363d" }}>
           <h3>AI Suggestions</h3>
