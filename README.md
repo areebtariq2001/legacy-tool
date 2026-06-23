@@ -1,46 +1,145 @@
-#  StarBuild: AI-Powered Legacy Code Modernization Suite
+# StarBuild - AI-Powered Legacy Code Migration Tool
 
-StarBuild is an enterprise-grade execution suite designed to safely automate the transformation of legacy codebases into modern, cloud-native, and secure application standards. 
+Transform your legacy code to modern standards instantly. StarBuild analyzes, migrates, and explains legacy code across Python, Java, PHP, and COBOL using AI.
 
-Whether it's migrating old financial modules or modernizing outdated frameworks, StarBuild optimizes code structures while maintaining 100% architectural integrity.
+**Live Demo:** https://areebtariq2001.github.io/legacy-migration-tool
 
----
-
-##  Features
-
-- **Multi-Language Support:** Handles `COBOL`, `Java`, `PHP`, and `Python`.
-- **Intelligent Migration:** Powered by advanced AI inference (Groq/Gemini Integration) to translate and refactor code instantly.
-- **Enterprise Suggestions:** Analyzes code for namespace pollution, security leaks, and suggests modern patterns like migrating from raw prints to enterprise logging.
-- **Secure Architecture:** Built with secure infrastructure practices ready for SOC 2 and ISO 27001 data isolation environments.
+**API:** https://legacy-migration-tool-1.onrender.com
 
 ---
 
-##  Roadmap & Progress
+## Features
 
-###  Phase 1: Core Automation (Live)
-- [x] Modern Dashboard Frontend Interface
-- [x] Secure Cloud API Core (FastAPI/Python Backend Deployed on Render/Railway)
-- [x] Dynamic File Upload & Ingest Engine
-- [x] Real-time AI Suggestion Suite
-
-###  Phase 2: Enterprise Deep Integration (In Progress 🛠️)
-- [ ] **Side-by-Side Diff Viewer:** Visual split-screen comparison of Legacy vs. Modernized code.
-- [ ] **Automated Dependency Mapping:** Graphing connections to ensure "link-to-link" structural stability.
-- [ ] **One-Click Download:** Instantly package and export modernized code components.
-
----
-
-##  Tech Stack
-
-- **Frontend:** React / Modern Web Suite
-- **Backend:** Python Web Server (Uvicorn / FastAPI framework)
-- **AI Engine:** Groq API Core (`llama-3.1-8b-instant` / `llama-3.3-70b-versatile`)
-- **Hosting & Deployment:** Render Engine / Railway Pipeline
+- **Multi-Language Support** - Python, Java, PHP, and COBOL
+- **Analyze** - Detect legacy patterns and deprecated functions
+- **Migrate** - Automatically convert code to modern standards
+- **AI Suggest** - Get intelligent improvement suggestions (powered by Groq)
+- **Explain Mode** - Understand legacy code with AI explanations
+- **Test Generator** - Auto-generate unit tests
+- **Diff Viewer** - Side-by-side comparison of original vs migrated code
+- **Batch Processing** - Migrate multiple files at once
+- **ZIP Download** - Download all migrated files together
+- **PDF Reports** - Generate professional migration reports
+- **Usage Dashboard** - Track all migrations with audit logs
+- **Dark/Light Mode** - Comfortable viewing in any environment
+- **REST API** - Integrate into your CI/CD pipeline
+- **VS Code Extension** - Migrate code directly from your editor
 
 ---
 
-##  Getting Started Local Development
+## Tech Stack
 
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/areebtariq2001/legacy-migration-tool.git](https://github.com/areebtariq2001/legacy-migration-tool.git)
+**Frontend:**
+- React
+- react-diff-viewer-continued (diff viewer)
+- jsPDF (PDF reports)
+- JSZip (ZIP downloads)
+- Deployed on GitHub Pages
+
+**Backend:**
+- FastAPI (Python)
+- Groq AI (llama-3.1-8b-instant)
+- Deployed on Render
+
+---
+
+## Supported Migrations
+
+### Python (2 to 3)
+- `xrange()` to `range()`
+- `raw_input()` to `input()`
+- `print` statement to `print()`
+- `unicode()` to `str()`
+
+### Java
+- `StringBuffer` to `StringBuilder`
+- `new Integer()` to `Integer.valueOf()`
+- Old-style loops detection
+- Vector/Hashtable recommendations
+
+### PHP
+- `mysql_*` to `mysqli_*`
+- `ereg()` to `preg_match()`
+- `split()` to `explode()`
+- PHP4-style properties to modern syntax
+
+### COBOL
+- DISPLAY to print()
+- DIVISION structure conversion
+- PERFORM and GOTO detection
+
+---
+
+## API Usage
+
+### Migrate a file (cURL)
+```bash
+curl -X POST \
+  https://legacy-migration-tool-1.onrender.com/migrate \
+  -F "file=@myscript.py"
+```
+
+### Python
+```python
+import requests
+
+url = "https://legacy-migration-tool-1.onrender.com/migrate"
+files = {"file": open("myscript.py", "rb")}
+response = requests.post(url, files=files)
+print(response.json())
+```
+
+### Endpoints
+| Endpoint | Description |
+|----------|-------------|
+| POST /analyze | Analyze Python code |
+| POST /migrate | Migrate Python 2 to 3 |
+| POST /analyze-java, /migrate-java | Java analysis and migration |
+| POST /analyze-php, /migrate-php | PHP analysis and migration |
+| POST /analyze-cobol, /migrate-cobol | COBOL analysis and migration |
+| POST /ai-suggest | AI improvement suggestions |
+| POST /explain | AI code explanation |
+| POST /generate-tests | Auto-generate unit tests |
+| GET /stats | Usage statistics |
+
+---
+
+## Local Development
+
+### Backend
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm start
+```
+
+---
+
+## Project Structure
+---
+
+## Environment Variables
+
+Backend requires:
+- `GROQ_API_KEY` - For AI features (get free key at console.groq.com)
+
+---
+
+## License
+
+MIT License - feel free to use and modify.
+
+---
+
+## Author
+
+Built by Areeb Tariq
+
+2026 StarBuild
