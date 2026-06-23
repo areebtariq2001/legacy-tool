@@ -1,25 +1,51 @@
-const handleAction = async (endpoint) => {
+import React, { useState } from 'react';
+import ReactDiffViewer from 'react-diff-viewer-continued';
+
+function App() {
+  const [files, setFiles] = useState(null);
+  const [result, setResult] = useState({});
+  const [loading, setLoading] = useState(false);
+  const API_BASE_URL = "https://legacy-migration-tool-production.up.railway.app";
+
+  const handleFileChange = (e) => setFiles(e.target.files);
+
+  const handleAction = async (endpoint) => {
     if (!files || files.length === 0) return alert("Please select files first!");
     setLoading(true);
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
       formData.append("files", files[i]);
     }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
         method: "POST",
-        body: formData, // Ab sirf files bhej rahe hain
+        body: formData,
       });
-      
       if (!response.ok) throw new Error("Server error: " + response.status);
-      
       const data = await response.json();
       setResult(data);
     } catch (error) {
-      console.error("Error:", error);
       alert("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  return (
+    <div style={{ padding: "40px", backgroundColor: "#0d1117", color: "#c9d1d9", minHeight: "100vh" }}>
+      <h1 style={{ textAlign: "center" }}>Legacy Migration Tool</h1>
+      <div style={{ textAlign: "center", marginBottom: "30px", padding: "20px", border: "1px solid #30363d" }}>
+        <input type="file" multiple onChange={handleFileChange} />
+        <button onClick={() => handleAction("migrate")} disabled={loading}>Migrate</button>
+        <button onClick={() => handleAction("ai-suggest")} disabled={loading}>AI Suggest</button>
+      </div>
+      {result.suggestions && (
+        <div style={{ padding: "20px", backgroundColor: "#161b22", border: "1px solid #30363d" }}>
+          <h3>💡 AI Suggestions</h3>
+          <pre style={{ whiteSpace: "pre-wrap" }}>{result.suggestions}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+export default App;
