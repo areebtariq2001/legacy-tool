@@ -149,7 +149,6 @@ def analyze_code(source):
 def migrate_code(source):
     changes = []
     migrated = source
-    # Simple word/pattern replacements: (find, replace, label)
     rules = [
         (r'\bxrange\b', 'range', "xrange -> range"),
         (r'\braw_input\b', 'input', "raw_input -> input"),
@@ -172,7 +171,6 @@ def migrate_code(source):
         if re.search(pattern, migrated):
             migrated = re.sub(pattern, repl, migrated)
             changes.append(label)
-    # print statement -> print() (line by line, handles indentation)
     new_lines = []
     for line in migrated.split('\n'):
         m = re.match(r'^(\s*)print\s+(?!\()(.+?)\s*$', line)
@@ -183,11 +181,9 @@ def migrate_code(source):
         else:
             new_lines.append(line)
     migrated = '\n'.join(new_lines)
-    # dict.has_key("x") -> "x" in dict
     if re.search(r'(\w+)\.has_key\(([^)]+)\)', migrated):
         migrated = re.sub(r'(\w+)\.has_key\(([^)]+)\)', r'\2 in \1', migrated)
         changes.append("has_key() -> in operator")
-    # except X, e -> except X as e
     if re.search(r'except\s+(\w+)\s*,\s*(\w+)', migrated):
         migrated = re.sub(r'except\s+(\w+)\s*,\s*(\w+)', r'except \1 as \2', migrated)
         changes.append("except X, e -> except X as e")
@@ -215,7 +211,6 @@ def analyze_java(source):
         (r"\.resume\(\)", "Thread.resume() found - deprecated and unsafe"),
         (r"\bSystem\.out\.println\b", "System.out.println - consider a logging framework"),
         (r"\bprintStackTrace\(\)", "printStackTrace() found - use a logger"),
-        (r"\bDate\s*\(\s*\)", "new Date() found - consider java.time.LocalDate"),
         (r"\b\.finalize\(\)", "finalize() found - deprecated, use try-with-resources"),
     ]
     for pattern, msg in java_checks:
@@ -253,13 +248,22 @@ def analyze_php(source):
         (r"\bmysql_\w+\b", "Deprecated mysql_* functions - use mysqli or PDO"),
         (r'\bereg\(', "ereg() found - use preg_match()"),
         (r'\beregi\(', "eregi() found - use preg_match()"),
+        (r'\bereg_replace\(', "ereg_replace() found - use preg_replace()"),
         (r'\bsplit\(', "split() found - use explode() or preg_split()"),
+        (r'\bspliti\(', "spliti() found - use preg_split()"),
         (r'\bsession_register\b', "session_register() found - use $_SESSION"),
+        (r'\bsession_unregister\b', "session_unregister() found - use unset($_SESSION[...])"),
+        (r'\bsession_is_registered\b', "session_is_registered() found - use isset($_SESSION[...])"),
         (r"\bvar\s+\$\w+", "PHP4-style 'var' property - use public/protected/private"),
         (r'\bmagic_quotes\b', "magic_quotes found - removed in PHP 5.4+"),
         (r'\bcreate_function\b', "create_function() found - use anonymous functions"),
         (r'\bmcrypt_\w+\b', "mcrypt_* found - use openssl or sodium"),
         (r'\beach\(', "each() found - use foreach loop"),
+        (r'\bset_magic_quotes_runtime\b', "set_magic_quotes_runtime() found - removed"),
+        (r'\bcall_user_method\b', "call_user_method() found - use call_user_func()"),
+        (r'\bis_dst\b', "is_dst parameter found - removed from date functions"),
+        (r'\bmoney_format\b', "money_format() found - use NumberFormatter"),
+        (r'\bgmp_random\b', "gmp_random() found - use gmp_random_bits()"),
     ]
     for pattern, msg in php_checks:
         if re.search(pattern, source):
@@ -275,13 +279,20 @@ def migrate_php(source):
         (r'\bmysql_fetch_array\b', 'mysqli_fetch_array', "mysql_fetch_array -> mysqli_fetch_array"),
         (r'\bmysql_fetch_assoc\b', 'mysqli_fetch_assoc', "mysql_fetch_assoc -> mysqli_fetch_assoc"),
         (r'\bmysql_fetch_row\b', 'mysqli_fetch_row', "mysql_fetch_row -> mysqli_fetch_row"),
+        (r'\bmysql_fetch_object\b', 'mysqli_fetch_object', "mysql_fetch_object -> mysqli_fetch_object"),
         (r'\bmysql_num_rows\b', 'mysqli_num_rows', "mysql_num_rows -> mysqli_num_rows"),
+        (r'\bmysql_num_fields\b', 'mysqli_num_fields', "mysql_num_fields -> mysqli_num_fields"),
+        (r'\bmysql_insert_id\b', 'mysqli_insert_id', "mysql_insert_id -> mysqli_insert_id"),
         (r'\bmysql_close\b', 'mysqli_close', "mysql_close -> mysqli_close"),
         (r'\bmysql_error\b', 'mysqli_error', "mysql_error -> mysqli_error"),
+        (r'\bmysql_affected_rows\b', 'mysqli_affected_rows', "mysql_affected_rows -> mysqli_affected_rows"),
         (r'\bmysql_real_escape_string\b', 'mysqli_real_escape_string', "mysql_real_escape_string -> mysqli_real_escape_string"),
         (r'\bereg\(', 'preg_match(', "ereg() -> preg_match()"),
         (r'\beregi\(', 'preg_match(', "eregi() -> preg_match()"),
+        (r'\bereg_replace\(', 'preg_replace(', "ereg_replace() -> preg_replace()"),
         (r'\bsplit\(', 'explode(', "split() -> explode()"),
+        (r'\bspliti\(', 'preg_split(', "spliti() -> preg_split()"),
+        (r'\bcall_user_method\(', 'call_user_func(', "call_user_method() -> call_user_func()"),
     ]
     for pattern, repl, label in rules:
         if re.search(pattern, migrated):
@@ -296,7 +307,7 @@ def migrate_php(source):
 def analyze_cobol(source):
     issues = []
     cobol_checks = [
-        ('PERFORM', "PERFORM found - convert to functions"),
+        ('PERFORM', "PERFORM found - convert to functions/loops"),
         ('GOTO', "GOTO found - use structured programming"),
         ('GO TO', "GO TO found - use structured programming"),
         ('PIC 9', "PIC 9 numeric fields - convert to int/float"),
@@ -306,6 +317,11 @@ def analyze_cobol(source):
         ('ACCEPT', "ACCEPT found - use input()"),
         ('STOP RUN', "STOP RUN found - use return/exit"),
         ('REDEFINES', "REDEFINES found - needs manual review"),
+        ('OCCURS', "OCCURS found - convert to Python list"),
+        ('COPY ', "COPY statement found - inline the copybook"),
+        ('CALL ', "CALL found - convert to function call"),
+        ('EVALUATE', "EVALUATE found - use if/elif or match"),
+        ('PERFORM UNTIL', "PERFORM UNTIL found - convert to while loop"),
     ]
     for pattern, msg in cobol_checks:
         if pattern in source:
@@ -329,6 +345,10 @@ def migrate_cobol(source):
         changes.append("ACCEPT -> input()")
     if 'STOP RUN' in source:
         changes.append("STOP RUN -> return")
+    if 'PERFORM UNTIL' in source:
+        changes.append("PERFORM UNTIL -> while loop")
+    if 'EVALUATE' in source:
+        changes.append("EVALUATE -> if/elif")
     return {"migrated_code": migrated, "changes": changes}
 
 # ---------- AI ----------
