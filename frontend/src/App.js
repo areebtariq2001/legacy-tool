@@ -12,9 +12,9 @@ useEffect(()=>{
 fetch(API+"/stats").then(r=>r.json()).then(d=>{setStats(d);setLoading(false);}).catch(()=>setLoading(false));
 },[]);
 return(
-<div style={{minHeight:"100vh",background:"#0f172a",color:"white",fontFamily:"Arial",padding:"40px 20px"}}>
+<div style={{minHeight:"100vh",background:"#0a0e1a",color:"white",fontFamily:"Arial",padding:"40px 20px"}}>
 <div style={{maxWidth:"800px",margin:"0 auto"}}>
-<button onClick={onBack} style={{padding:"8px 16px",borderRadius:"20px",border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",cursor:"pointer",marginBottom:"24px"}}>
+<button onClick={onBack} style={{padding:"8px 16px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",cursor:"pointer",marginBottom:"24px"}}>
 Back to Home
 </button>
 <h1 style={{color:"#38bdf8",marginBottom:"8px"}}>Usage Dashboard</h1>
@@ -55,11 +55,11 @@ Back to Home
 }
 
 function ApiDocs({onBack}){
-const codeStyle={background:"#1e293b",color:"#e2e8f0",padding:"16px",borderRadius:"8px",overflow:"auto",fontSize:"13px",fontFamily:"monospace",whiteSpace:"pre-wrap"};
+const codeStyle={background:"#0a0e1a",color:"#e2e8f0",padding:"16px",borderRadius:"8px",overflow:"auto",fontSize:"13px",fontFamily:"monospace",whiteSpace:"pre-wrap",border:"1px solid rgba(255,255,255,0.1)"};
 return(
-<div style={{minHeight:"100vh",background:"#0f172a",color:"white",fontFamily:"Arial",padding:"40px 20px"}}>
+<div style={{minHeight:"100vh",background:"#0a0e1a",color:"white",fontFamily:"Arial",padding:"40px 20px"}}>
 <div style={{maxWidth:"800px",margin:"0 auto"}}>
-<button onClick={onBack} style={{padding:"8px 16px",borderRadius:"20px",border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",cursor:"pointer",marginBottom:"24px"}}>
+<button onClick={onBack} style={{padding:"8px 16px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",cursor:"pointer",marginBottom:"24px"}}>
 Back to Home
 </button>
 <h1 style={{color:"#38bdf8",marginBottom:"8px"}}>StarBuild API Documentation</h1>
@@ -103,49 +103,128 @@ print(response.json())`}</div>
 }
 
 function LandingPage({onLaunch,onApiDocs,onStats}){
+const beforeCode=`# Python 2 (legacy)
+print "Processing..."
+for i in xrange(10):
+    data = raw_input()
+    if d.has_key(i):
+        print d[i]`;
+const afterCode=`# Python 3 (modern)
+print("Processing...")
+for i in range(10):
+    data = input()
+    if i in d:
+        print(d[i])`;
 return(
-<div style={{minHeight:"100vh",background:"linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",color:"white",fontFamily:"Arial",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"40px 20px"}}>
-<div style={{background:"rgba(56,189,248,0.1)",border:"1px solid #38bdf8",color:"#38bdf8",padding:"6px 16px",borderRadius:"20px",fontSize:"13px",marginBottom:"24px"}}>
-AI-Powered Code Migration
+<div style={{minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0",fontFamily:"system-ui, Arial, sans-serif"}}>
+<style>{`
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.sb-fade{animation:fadeUp 0.6s ease both}
+.sb-btn-primary{transition:all 0.2s ease}
+.sb-btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(56,189,248,0.4)}
+.sb-btn-ghost{transition:all 0.2s ease}
+.sb-btn-ghost:hover{background:rgba(56,189,248,0.1);border-color:#38bdf8}
+.sb-feature{transition:all 0.2s ease}
+.sb-feature:hover{transform:translateY(-4px);border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.04)}
+.sb-lang:hover{transform:scale(1.05)}
+`}</style>
+
+{/* NAV */}
+<div style={{maxWidth:"1100px",margin:"0 auto",padding:"24px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+<div style={{width:"32px",height:"32px",borderRadius:"8px",background:"linear-gradient(135deg,#38bdf8,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"800",color:"#0a0e1a",fontSize:"18px"}}>S</div>
+<span style={{fontWeight:"700",fontSize:"18px",color:"white"}}>StarBuild</span>
 </div>
-<h1 style={{fontSize:"56px",color:"#38bdf8",marginBottom:"16px"}}>StarBuild</h1>
-<p style={{fontSize:"20px",color:"#94a3b8",marginBottom:"40px",maxWidth:"600px"}}>
-Transform your legacy code to modern standards instantly. Supports Python, Java, PHP, and COBOL.
+<div style={{display:"flex",gap:"8px"}}>
+<button className="sb-btn-ghost" onClick={onApiDocs} style={{padding:"8px 16px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.15)",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:"14px"}}>API Docs</button>
+<button className="sb-btn-ghost" onClick={onStats} style={{padding:"8px 16px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.15)",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:"14px"}}>Dashboard</button>
+</div>
+</div>
+
+{/* HERO */}
+<div style={{maxWidth:"1100px",margin:"0 auto",padding:"60px 24px 40px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"48px",alignItems:"center"}}>
+<div className="sb-fade">
+<div style={{display:"inline-block",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.3)",color:"#38bdf8",padding:"6px 14px",borderRadius:"20px",fontSize:"13px",marginBottom:"24px",fontFamily:"monospace"}}>
+rule-based migration + AI assistance
+</div>
+<h1 style={{fontSize:"44px",lineHeight:"1.1",color:"white",marginBottom:"20px",fontWeight:"800"}}>
+Modernize legacy code,<br/><span style={{color:"#38bdf8"}}>predictably.</span>
+</h1>
+<p style={{fontSize:"18px",color:"#94a3b8",marginBottom:"32px",lineHeight:"1.6"}}>
+StarBuild migrates Python, Java, PHP, and COBOL using deterministic rules you can trust to run the same way every time, with AI for explanations and tests.
 </p>
-<div style={{display:"flex",gap:"12px",marginBottom:"60px",flexWrap:"wrap",justifyContent:"center"}}>
-<button onClick={onLaunch} style={{background:"#38bdf8",color:"#0f172a",padding:"16px 40px",borderRadius:"8px",fontSize:"18px",fontWeight:"700",border:"none",cursor:"pointer"}}>
+<div style={{display:"flex",gap:"12px",flexWrap:"wrap"}}>
+<button className="sb-btn-primary" onClick={onLaunch} style={{background:"#38bdf8",color:"#0a0e1a",padding:"14px 32px",borderRadius:"10px",fontSize:"16px",fontWeight:"700",border:"none",cursor:"pointer"}}>
 Launch Tool Free
 </button>
-<button onClick={onApiDocs} style={{background:"transparent",color:"#38bdf8",padding:"16px 40px",borderRadius:"8px",fontSize:"18px",fontWeight:"700",border:"1px solid #38bdf8",cursor:"pointer"}}>
-API Docs
-</button>
-<button onClick={onStats} style={{background:"transparent",color:"#f59e0b",padding:"16px 40px",borderRadius:"8px",fontSize:"18px",fontWeight:"700",border:"1px solid #f59e0b",cursor:"pointer"}}>
-Dashboard
+<button className="sb-btn-ghost" onClick={onApiDocs} style={{background:"transparent",color:"#38bdf8",padding:"14px 32px",borderRadius:"10px",fontSize:"16px",fontWeight:"700",border:"1px solid rgba(56,189,248,0.4)",cursor:"pointer"}}>
+View API
 </button>
 </div>
-<div style={{display:"flex",gap:"12px",justifyContent:"center",marginBottom:"60px",flexWrap:"wrap"}}>
+</div>
+
+{/* CODE WINDOW */}
+<div className="sb-fade" style={{background:"#0d1424",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"12px",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+<div style={{display:"flex",alignItems:"center",gap:"8px",padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.02)"}}>
+<div style={{width:"12px",height:"12px",borderRadius:"50%",background:"#ef4444"}}></div>
+<div style={{width:"12px",height:"12px",borderRadius:"50%",background:"#f59e0b"}}></div>
+<div style={{width:"12px",height:"12px",borderRadius:"50%",background:"#22c55e"}}></div>
+<span style={{color:"#64748b",fontSize:"12px",marginLeft:"8px",fontFamily:"monospace"}}>migration.py</span>
+</div>
+<div style={{padding:"16px",fontFamily:"monospace",fontSize:"12.5px",lineHeight:"1.7"}}>
+<pre style={{margin:0,color:"#f87171",whiteSpace:"pre-wrap"}}>{beforeCode}</pre>
+<div style={{textAlign:"center",color:"#38bdf8",margin:"12px 0",fontSize:"18px"}}>↓</div>
+<pre style={{margin:0,color:"#4ade80",whiteSpace:"pre-wrap"}}>{afterCode}</pre>
+</div>
+</div>
+</div>
+
+{/* LANGUAGES */}
+<div style={{maxWidth:"1100px",margin:"0 auto",padding:"20px 24px 60px"}}>
+<p style={{textAlign:"center",color:"#64748b",fontSize:"13px",marginBottom:"20px",textTransform:"uppercase",letterSpacing:"1px"}}>Supported Languages</p>
+<div style={{display:"flex",gap:"16px",justifyContent:"center",flexWrap:"wrap"}}>
 {[["Python","#3b82f6"],["Java","#f59e0b"],["PHP","#8b5cf6"],["COBOL","#10b981"]].map(([lang,color])=>(
-<span key={lang} style={{padding:"8px 20px",borderRadius:"20px",fontWeight:"700",fontSize:"14px",background:color+"33",color:color,border:"1px solid "+color}}>
+<span key={lang} className="sb-lang" style={{padding:"10px 24px",borderRadius:"10px",fontWeight:"700",fontSize:"15px",background:color+"1a",color:color,border:"1px solid "+color+"55",transition:"transform 0.2s ease",cursor:"default"}}>
 {lang}
 </span>
 ))}
 </div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"24px",maxWidth:"900px",marginBottom:"60px"}}>
+</div>
+
+{/* FEATURES */}
+<div style={{maxWidth:"1100px",margin:"0 auto",padding:"20px 24px 80px"}}>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"20px"}}>
 {[
-["Instant Migration","Upload files and get migrated code in seconds"],
-["AI Explain Mode","Understand legacy code with AI explanations"],
-["Test Generator","Auto-generate unit tests for your code"],
-["Diff Viewer","See exactly what changed side by side"],
-["Batch + ZIP","Migrate multiple files and download as ZIP"],
-["Usage Dashboard","Track all migrations with audit logs"]
+["Deterministic Migration","Rule-based conversions that produce the exact same output every run \u2014 no surprises."],
+["AI Explain Mode","Understand what legacy code does with plain-language, section-by-section explanations."],
+["Test Generator","Auto-generate unit tests so migrated code can be verified, not just trusted."],
+["Diff Viewer","Review every change side by side before you commit anything."],
+["Batch + ZIP","Process many files at once and download the whole set together."],
+["Audit Dashboard","Every action logged with a timestamp \u2014 built for compliance."]
 ].map(([title,desc])=>(
-<div key={title} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"12px",padding:"24px"}}>
-<div style={{color:"#38bdf8",fontSize:"16px",fontWeight:"700",marginBottom:"8px"}}>{title}</div>
-<div style={{color:"#94a3b8",fontSize:"13px"}}>{desc}</div>
+<div key={title} className="sb-feature" style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"12px",padding:"24px"}}>
+<div style={{color:"#38bdf8",fontSize:"16px",fontWeight:"700",marginBottom:"10px"}}>{title}</div>
+<div style={{color:"#94a3b8",fontSize:"14px",lineHeight:"1.6"}}>{desc}</div>
 </div>
 ))}
 </div>
-<div style={{color:"#64748b",fontSize:"13px"}}>2026 StarBuild - Built with AI</div>
+</div>
+
+{/* CTA STRIP */}
+<div style={{maxWidth:"1100px",margin:"0 auto",padding:"0 24px 80px"}}>
+<div style={{background:"linear-gradient(135deg,rgba(56,189,248,0.1),rgba(14,165,233,0.05))",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"16px",padding:"48px",textAlign:"center"}}>
+<h2 style={{color:"white",fontSize:"28px",marginBottom:"12px",fontWeight:"700"}}>Ready to modernize your code?</h2>
+<p style={{color:"#94a3b8",fontSize:"16px",marginBottom:"28px"}}>Free to use. No sign-up. No credit card.</p>
+<button className="sb-btn-primary" onClick={onLaunch} style={{background:"#38bdf8",color:"#0a0e1a",padding:"14px 40px",borderRadius:"10px",fontSize:"16px",fontWeight:"700",border:"none",cursor:"pointer"}}>
+Launch Tool Free
+</button>
+</div>
+</div>
+
+{/* FOOTER */}
+<div style={{borderTop:"1px solid rgba(255,255,255,0.08)",padding:"24px",textAlign:"center",color:"#64748b",fontSize:"13px"}}>
+2026 StarBuild \u2014 Built with AI assistance
+</div>
 </div>
 );
 }
@@ -161,12 +240,12 @@ const[progress,setProgress]=useState(0);
 const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
 
-const bg=darkMode?"#0f172a":"#f1f5f9";
+const bg=darkMode?"#0a0e1a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
 const border=darkMode?"rgba(255,255,255,0.1)":"rgba(0,0,0,0.1)";
 const text=darkMode?"white":"#0f172a";
 const subtext=darkMode?"#94a3b8":"#64748b";
-const codebg=darkMode?"#0f172a":"#e2e8f0";
+const codebg=darkMode?"#0a0e1a":"#e2e8f0";
 
 if(view==="landing")return <LandingPage onLaunch={()=>setView("tool")} onApiDocs={()=>setView("apidocs")} onStats={()=>setView("stats")}/>;
 if(view==="apidocs")return <ApiDocs onBack={()=>setView("landing")}/>;
@@ -343,7 +422,7 @@ Click to select files (multiple allowed)
 </div>
 </div>
 )}
-<button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0f172a",fontWeight:"700",cursor:"pointer"}}>
+<button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
 {loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
@@ -410,7 +489,7 @@ Download PDF Report
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
 <span style={{color:"#38bdf8",fontSize:"13px",fontWeight:"bold"}}>Diff View:</span>
 <div style={{display:"flex",gap:"8px"}}>
-<button onClick={()=>handleCopy(idx,result.migrated_code)} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #38bdf8",background:copied[idx]?"#38bdf8":"transparent",color:copied[idx]?"#0f172a":"#38bdf8",cursor:"pointer",fontSize:"12px"}}>
+<button onClick={()=>handleCopy(idx,result.migrated_code)} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #38bdf8",background:copied[idx]?"#38bdf8":"transparent",color:copied[idx]?"#0a0e1a":"#38bdf8",cursor:"pointer",fontSize:"12px"}}>
 {copied[idx]?"Copied!":"Copy"}
 </button>
 <button onClick={()=>handleDownload(result)} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #22c55e",background:"transparent",color:"#22c55e",cursor:"pointer",fontSize:"12px"}}>
