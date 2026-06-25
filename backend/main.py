@@ -189,7 +189,17 @@ def migrate_code(source):
         changes.append("except X, e -> except X as e")
     return {"migrated_code": migrated, "changes": changes}
 
-# ---------- AI ADVANCED MIGRATION (STRICT PROMPT) ----------
+# ---------- VALIDATOR (NEW - safety check) ----------
+def validate_python(code):
+    try:
+        ast.parse(code)
+        return {"valid": True, "validation_message": "Output is valid Python syntax."}
+    except SyntaxError as e:
+        return {"valid": False, "validation_message": f"Warning: output has a syntax error on line {e.lineno}. Please review carefully before use."}
+    except Exception as e:
+        return {"valid": False, "validation_message": f"Warning: could not verify output ({str(e)}). Please review carefully."}
+
+# ---------- AI ADVANCED MIGRATION (STRICT PROMPT + VALIDATION) ----------
 def ai_advanced_migrate(source, language):
     prompt = (
         f"You are an expert {language} developer. "
@@ -203,7 +213,12 @@ def ai_advanced_migrate(source, language):
     )
     result = call_groq(prompt, max_tokens=2000)
     cleaned = result.replace("```python", "").replace("```", "").strip()
-    return {"migrated_code": cleaned, "ai_powered": True}
+    output = {"migrated_code": cleaned, "ai_powered": True}
+    if language == "python":
+        check = validate_python(cleaned)
+        output["valid"] = check["valid"]
+        output["validation_message"] = check["validation_message"]
+    return output
 
 # ---------- PHP ----------
 def analyze_php(source):
