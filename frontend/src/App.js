@@ -69,11 +69,11 @@ Back to Home
 <h2 style={{color:"#38bdf8",fontSize:"20px",margin:"24px 0 12px"}}>Endpoints</h2>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#22c55e",fontWeight:"bold"}}>POST /analyze, /migrate</p>
-<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Python code analysis and rule-based migration</p>
+<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Python code analysis and rule-based migration with explanations</p>
 </div>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#a78bfa",fontWeight:"bold"}}>POST /ai-migrate</p>
-<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>AI-powered migration with validation, variable-integrity checks, and a confidence score</p>
+<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>AI migration with validation, variable checks, confidence score, and change explanations</p>
 </div>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#22c55e",fontWeight:"bold"}}>POST /analyze-java, /migrate-java, /analyze-php, /migrate-php, /analyze-cobol, /migrate-cobol</p>
@@ -138,7 +138,7 @@ rule-based + AI with guardrails
 Modernize legacy code,<br/><span style={{color:"#38bdf8"}}>predictably.</span>
 </h1>
 <p style={{fontSize:"18px",color:"#94a3b8",marginBottom:"32px",lineHeight:"1.6"}}>
-StarBuild migrates Python, Java, PHP, and COBOL using deterministic rules, plus an AI mode with validation, variable-integrity checks, and a confidence score.
+StarBuild makes legacy migration predictable through transparent confidence scoring and AST-based verification. Python, Java, PHP, and COBOL.
 </p>
 <div style={{display:"flex",gap:"12px",flexWrap:"wrap"}}>
 <button className="sb-btn-primary" onClick={onLaunch} style={{background:"#38bdf8",color:"#0a0e1a",padding:"14px 32px",borderRadius:"10px",fontSize:"16px",fontWeight:"700",border:"none",cursor:"pointer"}}>
@@ -178,8 +178,8 @@ View API
 {[
 ["Deterministic Migration","Rule-based conversions that produce the exact same output every run."],
 ["AI + Confidence Score","AI modernizes your file, with validation, variable checks, and a confidence score for every result."],
-["Batch Summary","Process many files at once and get an overview of which are safe and which need review."],
-["Test Generator","Auto-generate unit tests to verify migrated code."],
+["Why Explanations","Every change comes with a plain-language reason, so senior devs can verify the logic."],
+["Batch Summary","Process many files at once and see which are safe and which need review."],
 ["Diff Viewer","Review every change side by side before you commit."],
 ["Audit Dashboard","Every action logged with a timestamp."]
 ].map(([title,desc])=>(
@@ -216,6 +216,7 @@ const[language,setLanguage]=useState("python");
 const[progress,setProgress]=useState(0);
 const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
+const[showWhy,setShowWhy]=useState({});
 
 const bg=darkMode?"#0a0e1a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
@@ -234,6 +235,7 @@ setLoading(true);
 setResults([]);
 setProgress(0);
 setCopied({});
+setShowWhy({});
 const allResults=[];
 for(let i=0;i<files.length;i++){
 let originalCode="";
@@ -356,7 +358,6 @@ const totalIssues=results.reduce((acc,r)=>acc+(r.issues?r.issues.length:0),0);
 const totalChanges=results.reduce((acc,r)=>acc+(r.changes?r.changes.length:0),0);
 const migratedCount=results.filter(r=>r.migrated_code).length;
 
-// Batch summary (AI Migrate confidence scores)
 const scored=results.filter(r=>r.confidence_score!==undefined);
 const highCount=scored.filter(r=>r.confidence_score>=90).length;
 const medCount=scored.filter(r=>r.confidence_score>=60&&r.confidence_score<90).length;
@@ -400,7 +401,7 @@ Home
 </div>
 {mode==="aimigrate"&&(
 <div style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
-<p style={{color:"#a78bfa",fontSize:"13px",margin:0}}>AI Migrate modernizes your entire file. It runs syntax validation, a variable-integrity check, and assigns a confidence score. Always review results before use.</p>
+<p style={{color:"#a78bfa",fontSize:"13px",margin:0}}>AI Migrate modernizes your entire file. It runs syntax validation, a variable-integrity check, assigns a confidence score, and explains each change. Always review results before use.</p>
 </div>
 )}
 <div style={{border:"2px dashed "+border,borderRadius:"8px",padding:"20px",textAlign:"center",marginBottom:"16px"}}>
@@ -493,6 +494,23 @@ Download PDF Report
 {result.ai_powered&&<p style={{color:"#a78bfa",fontSize:"12px"}}>AI-powered migration — please review carefully before use.</p>}
 {result.validation_message&&<p style={{color:result.valid?"#4ade80":"#f87171",fontSize:"12px",fontWeight:"bold"}}>{result.valid?"✓ ":"⚠ "}{result.validation_message}</p>}
 {result.var_message&&<p style={{color:result.vars_ok?"#4ade80":"#f87171",fontSize:"12px",fontWeight:"bold"}}>{result.vars_ok?"✓ ":"⚠ "}{result.var_message}</p>}
+{result.why_explanations&&result.why_explanations.length>0&&(
+<div style={{marginTop:"10px",marginBottom:"4px"}}>
+<button onClick={()=>setShowWhy(prev=>({...prev,[idx]:!prev[idx]}))} style={{padding:"6px 14px",borderRadius:"8px",border:"1px solid #38bdf8",background:"transparent",color:"#38bdf8",cursor:"pointer",fontSize:"13px",fontWeight:"600"}}>
+{showWhy[idx]?"Hide Why":"Why these changes?"}
+</button>
+{showWhy[idx]&&(
+<div style={{marginTop:"10px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"10px",padding:"14px"}}>
+{result.why_explanations.map((w,wi)=>(
+<div key={wi} style={{marginBottom:wi<result.why_explanations.length-1?"12px":0,paddingBottom:wi<result.why_explanations.length-1?"12px":0,borderBottom:wi<result.why_explanations.length-1?"1px solid rgba(255,255,255,0.08)":"none"}}>
+<div style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700",marginBottom:"4px"}}>{w.change}</div>
+<div style={{color:subtext,fontSize:"12.5px",lineHeight:"1.5"}}>{w.why}</div>
+</div>
+))}
+</div>
+)}
+</div>
+)}
 {result.functions&&result.functions.length>0&&<p style={{fontSize:"13px",color:text}}>Functions: {result.functions.join(", ")}</p>}
 {result.classes&&result.classes.length>0&&<p style={{fontSize:"13px",color:text}}>Classes: {result.classes.join(", ")}</p>}
 {result.imports&&result.imports.length>0&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
