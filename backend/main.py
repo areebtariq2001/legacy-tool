@@ -189,7 +189,7 @@ def migrate_code(source):
         changes.append("except X, e -> except X as e")
     return {"migrated_code": migrated, "changes": changes}
 
-# ---------- VALIDATOR (NEW - safety check) ----------
+# ---------- VALIDATOR (syntax check) ----------
 def validate_python(code):
     try:
         ast.parse(code)
@@ -199,7 +199,41 @@ def validate_python(code):
     except Exception as e:
         return {"valid": False, "validation_message": f"Warning: could not verify output ({str(e)}). Please review carefully."}
 
-# ---------- AI ADVANCED MIGRATION (STRICT PROMPT + VALIDATION) ----------
+# ---------- VARIABLE SCOPE MAPPING (sir's guardrail) ----------
+def extract_variables(code):
+    names = set()
+    try:
+        tree = ast.parse(code)
+    except:
+        return names
+    for node in ast.walk(tree):
+        # variables assigned (targets)
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.FunctionDef):
+            names.add(node.name)
+            for arg in node.args.args:
+                names.add(arg.arg)
+        elif isinstance(node, ast.ClassDef):
+            names.add(node.name)
+    return names
+
+def check_variable_integrity(original, migrated):
+    # only works if both parse cleanly
+    orig_vars = extract_variables(original)
+    new_vars = extract_variables(migrated)
+    if not orig_vars or not new_vars:
+        return {"vars_ok": True, "var_message": ""}
+    # which original names disappeared in the migrated code
+    missing = orig_vars - new_vars
+    # ignore Python 2 built-ins that are SUPPOSED to change
+    expected_changes = {"xrange", "raw_input", "unicode", "basestring", "iteritems", "itervalues", "iterkeys", "has_key"}
+    real_missing = [v for v in missing if v not in expected_changes]
+    if real_missing:
+        return {"vars_ok": False, "var_message": "Warning: AI may have renamed or removed these names: " + ", ".join(sorted(real_missing)) + ". Review required."}
+    return {"vars_ok": True, "var_message": "All original variable names preserved."}
+
+# ---------- AI ADVANCED MIGRATION (STRICT PROMPT + VALIDATION + VAR CHECK) ----------
 def ai_advanced_migrate(source, language):
     prompt = (
         f"You are an expert {language} developer. "
@@ -218,6 +252,9 @@ def ai_advanced_migrate(source, language):
         check = validate_python(cleaned)
         output["valid"] = check["valid"]
         output["validation_message"] = check["validation_message"]
+        var_check = check_variable_integrity(source, cleaned)
+        output["vars_ok"] = var_check["vars_ok"]
+        output["var_message"] = var_check["var_message"]
     return output
 
 # ---------- PHP ----------
