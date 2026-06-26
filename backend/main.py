@@ -321,24 +321,16 @@ def calculate_confidence(source, migrated, valid, vars_ok, verified):
 
 # ---------- AI ADVANCED MIGRATION ----------
 def ai_advanced_migrate(source, language):
-    # Edge case: empty or comment-only file (found during Stage 3 testing)
     code_lines = [ln for ln in source.split("\n") if ln.strip() and not ln.strip().startswith("#")]
     if not code_lines:
         if language == "python":
             return {
-                "migrated_code": source,
-                "ai_powered": True,
-                "valid": True,
+                "migrated_code": source, "ai_powered": True, "valid": True,
                 "validation_message": "File has no executable code (empty or comments only).",
-                "verified": True,
-                "verify_message": "Nothing to verify - no executable code.",
-                "vars_ok": True,
-                "var_message": "",
-                "confidence_score": 100,
-                "confidence_level": "High confidence",
-                "confidence_reason": "no executable code to migrate",
-                "why_explanations": [],
-                "dependencies": []
+                "verified": True, "verify_message": "Nothing to verify - no executable code.",
+                "vars_ok": True, "var_message": "", "confidence_score": 100,
+                "confidence_level": "High confidence", "confidence_reason": "no executable code to migrate",
+                "why_explanations": [], "dependencies": []
             }
         else:
             return {"migrated_code": source, "ai_powered": True, "experimental": True,
@@ -368,8 +360,11 @@ def ai_advanced_migrate(source, language):
         output["var_message"] = var_check["var_message"]
         conf = calculate_confidence(source, cleaned, output["valid"], output["vars_ok"], output["verified"])
         output.update(conf)
-        # Smart fallback: use rule-based if AI confidence is low OR if AI dropped code (output too short)
-        if conf["confidence_score"] < 60:
+        ai_dropped_code = False
+        if len(source.strip()) > 0:
+            if len(cleaned.strip()) / len(source.strip()) < 0.8:
+                ai_dropped_code = True
+        if conf["confidence_score"] < 60 or ai_dropped_code:
             rule_result = migrate_code(source)
             rule_code = rule_result["migrated_code"]
             rule_valid = validate_python(rule_code)
@@ -535,30 +530,65 @@ def detect_language(filename):
     ext = filename.split('.')[-1].lower()
     return {"py": "python", "java": "java", "php": "php", "cbl": "cobol"}.get(ext, "python")
 
+# ---------- ERROR HANDLING (Stage 3: make tool crash-proof) ----------
+MAX_FILE_SIZE = 500000  # 500 KB limit
+
+def safe_read_file(content_bytes, filename):
+    if len(content_bytes) > MAX_FILE_SIZE:
+        return None, f"File too large ({len(content_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes."
+    if len(content_bytes) == 0:
+        return None, "File is empty."
+    try:
+        source = content_bytes.decode("utf-8", errors="ignore")
+    except Exception as e:
+        return None, f"Could not read file (encoding issue): {str(e)}"
+    printable = sum(1 for c in source[:1000] if c.isprintable() or c in "\n\r\t ")
+    if len(source) > 0 and printable / min(len(source), 1000) < 0.7:
+        return None, "File does not appear to be text/code (may be binary)."
+    return source, None
+
 # ---------- ENDPOINTS ----------
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
-    result = analyze_code(source)
-    result["filename"] = file.filename
-    track_usage("analyze", file.filename)
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = analyze_code(source)
+        result["filename"] = file.filename
+        track_usage("analyze", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Analysis failed safely: {str(e)}"}
 
 @app.post("/migrate")
 async def migrate(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
-    result = migrate_code(source)
-    result["filename"] = file.filename
-    track_usage("migrate", file.filename)
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = migrate_code(source)
+        result["filename"] = file.filename
+        track_usage("migrate", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Migration failed safely: {str(e)}"}
 
 @app.post("/ai-migrate")
 async def ai_migrate_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
-    result = ai_advanced_migrate(source, detect_language(file.filename))
-    result["filename"] = file.filename
-    track_usage("ai-migrate", file.filename)
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = ai_advanced_migrate(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("ai-migrate", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Migration failed safely: {str(e)}"}
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
