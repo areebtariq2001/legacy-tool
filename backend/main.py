@@ -433,6 +433,8 @@ def analyze_php(source):
         (r'\bcreate_function\b', "create_function() found - use anonymous functions"),
         (r'\bmcrypt_\w+\b', "mcrypt_* found - use openssl or sodium"),
         (r'\beach\(', "each() found - use foreach loop"),
+        (r'\bcall_user_method\b', "call_user_method() found - use call_user_func()"),
+        (r'\bget_magic_quotes_gpc\b', "get_magic_quotes_gpc() found - removed in PHP 7"),
     ]
     for pattern, msg in php_checks:
         if re.search(pattern, source):
@@ -454,10 +456,15 @@ def migrate_php(source):
         (r'\bmysql_error\b', 'mysqli_error', "mysql_error -> mysqli_error"),
         (r'\bmysql_insert_id\b', 'mysqli_insert_id', "mysql_insert_id -> mysqli_insert_id"),
         (r'\bmysql_real_escape_string\b', 'mysqli_real_escape_string', "mysql_real_escape_string -> mysqli_real_escape_string"),
+        (r'\bmysql_select_db\b', 'mysqli_select_db', "mysql_select_db -> mysqli_select_db"),
+        (r'\bmysql_affected_rows\b', 'mysqli_affected_rows', "mysql_affected_rows -> mysqli_affected_rows"),
         (r'\bereg_replace\(', 'preg_replace(', "ereg_replace() -> preg_replace()"),
+        (r'\beregi_replace\(', 'preg_replace(', "eregi_replace() -> preg_replace()"),
         (r'\bereg\(', 'preg_match(', "ereg() -> preg_match()"),
         (r'\beregi\(', 'preg_match(', "eregi() -> preg_match()"),
         (r'\bsplit\(', 'explode(', "split() -> explode()"),
+        (r'\bspliti\(', 'explode(', "spliti() -> explode()"),
+        (r'\bcall_user_method\b', 'call_user_func', "call_user_method -> call_user_func"),
         (r'\bcreate_function\b', '/* use anonymous function */ function', "create_function -> anonymous function"),
     ]
     for pattern, repl, label in rules:
@@ -480,9 +487,12 @@ def analyze_java(source):
         (r"\bnew\s+Long\s*\(", "new Long() found - use Long.valueOf()"),
         (r"\bnew\s+Float\s*\(", "new Float() found - use Float.valueOf()"),
         (r"\bnew\s+Character\s*\(", "new Character() found - use Character.valueOf()"),
+        (r"\bnew\s+String\s*\(\s*\)", "new String() found - use empty literal"),
         (r"\bVector\b", "Vector found - use ArrayList"),
         (r"\bHashtable\b", "Hashtable found - use HashMap"),
         (r"\bEnumeration\b", "Enumeration found - use Iterator"),
+        (r"\bStack\b", "Stack found - consider Deque/ArrayDeque"),
+        (r"\.getYear\(\)", "Date.getYear() deprecated - use Calendar/LocalDate"),
         (r"\bSystem\.out\.println\b", "System.out.println - consider a logging framework"),
     ]
     for pattern, msg in java_checks:
@@ -500,6 +510,8 @@ def migrate_java(source):
         (r'\bnew\s+Long\(', 'Long.valueOf(', "new Long() -> Long.valueOf()"),
         (r'\bnew\s+Float\(', 'Float.valueOf(', "new Float() -> Float.valueOf()"),
         (r'\bnew\s+Character\(', 'Character.valueOf(', "new Character() -> Character.valueOf()"),
+        (r'\bnew\s+Short\(', 'Short.valueOf(', "new Short() -> Short.valueOf()"),
+        (r'\bnew\s+Byte\(', 'Byte.valueOf(', "new Byte() -> Byte.valueOf()"),
         (r'\bStringBuffer\b', 'StringBuilder', "StringBuffer -> StringBuilder"),
         (r'\bVector\b', 'ArrayList', "Vector -> ArrayList"),
         (r'\bHashtable\b', 'HashMap', "Hashtable -> HashMap"),
@@ -517,12 +529,15 @@ def analyze_cobol(source):
     cobol_checks = [
         ('PERFORM', "PERFORM found - convert to functions/loops"),
         ('GOTO', "GOTO found - use structured programming"),
+        ('GO TO', "GO TO found - use structured programming"),
         ('PIC 9', "PIC 9 numeric fields - convert to int/float"),
         ('PIC X', "PIC X string fields - convert to str"),
         ('MOVE', "MOVE statement - use Python assignment"),
         ('COMPUTE', "COMPUTE found - use Python arithmetic"),
         ('ACCEPT', "ACCEPT found - use input()"),
         ('STOP RUN', "STOP RUN found - use return/exit"),
+        ('WORKING-STORAGE', "WORKING-STORAGE section - convert to variables"),
+        ('PERFORM UNTIL', "PERFORM UNTIL - convert to while loop"),
     ]
     for pattern, msg in cobol_checks:
         if pattern in source:
@@ -534,6 +549,8 @@ def migrate_cobol(source):
     migrated = "# Converted from COBOL\n\n"
     if 'IDENTIFICATION DIVISION' in source:
         changes.append("IDENTIFICATION DIVISION removed")
+    if 'WORKING-STORAGE' in source:
+        changes.append("WORKING-STORAGE -> Python variables")
     if 'DATA DIVISION' in source:
         changes.append("DATA DIVISION -> Python variables")
         migrated += "# Variables\n"
@@ -542,6 +559,10 @@ def migrate_cobol(source):
         migrated += "\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
     if 'DISPLAY' in source:
         changes.append("DISPLAY -> print()")
+    if 'PERFORM UNTIL' in source:
+        changes.append("PERFORM UNTIL -> while loop")
+    if 'ACCEPT' in source:
+        changes.append("ACCEPT -> input()")
     return {"migrated_code": migrated, "changes": changes}
 
 # ---------- AI ----------
@@ -742,7 +763,6 @@ def get_audit_log():
 
 @app.get("/audit-log-json")
 def get_audit_log_json():
-    # Structured JSON audit trail (enterprise compliance format - sir's suggestion)
     entries = []
     try:
         with open("audit_log.txt", "r", encoding="utf-8") as f:
