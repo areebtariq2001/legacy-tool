@@ -368,7 +368,7 @@ def ai_advanced_migrate(source, language):
         output["var_message"] = var_check["var_message"]
         conf = calculate_confidence(source, cleaned, output["valid"], output["vars_ok"], output["verified"])
         output.update(conf)
-        # Smart fallback: if AI result is low confidence, use reliable rule-based migration instead
+        # Smart fallback: use rule-based if AI confidence is low OR if AI dropped code (output too short)
         if conf["confidence_score"] < 60:
             rule_result = migrate_code(source)
             rule_code = rule_result["migrated_code"]
