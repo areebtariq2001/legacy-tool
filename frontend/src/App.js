@@ -79,6 +79,10 @@ Back to Home
 <p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>AI migration. Python and Java include full guardrails (validation, confidence, verification). PHP and COBOL are experimental.</p>
 </div>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
+<p style={{color:"#22c55e",fontWeight:"bold"}}>POST /call-graph</p>
+<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Maps functions, internal call relationships, and external library dependencies within a file</p>
+</div>
+<div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#22c55e",fontWeight:"bold"}}>POST /qa-check</p>
 <p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>AI-as-QA: compares original and migrated code for logical differences</p>
 </div>
@@ -225,7 +229,7 @@ return(
 {[
 ["Deterministic Migration","Rule-based conversions that produce the exact same output every run."],
 ["AI + Confidence Score","For Python and Java, AI migration includes validation, name checks, and a confidence score."],
-["Why Explanations","Every change comes with a plain-language reason, so senior devs can verify the logic."],
+["Call-Graph Analysis","Maps which functions call which, and what external libraries each depends on."],
 ["Dependency Check","Flags libraries and modules that need updating for the target version."],
 ["Batch Summary","Process many files at once and see which are safe and which need review."],
 ["Audit Dashboard","Every action logged with a timestamp."]
@@ -295,6 +299,7 @@ if(mode==="ai"){endpoint="/ai-suggest";}
 else if(mode==="aimigrate"){endpoint="/ai-migrate";}
 else if(mode==="explain"){endpoint="/explain";}
 else if(mode==="tests"){endpoint="/generate-tests";}
+else if(mode==="callgraph"){endpoint="/call-graph";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -459,7 +464,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 
@@ -486,19 +491,16 @@ Home
 </div>
 <div style={{display:"flex",gap:"8px",marginBottom:"16px",flexWrap:"wrap"}}>
 {modes.map(([m,label,color])=>(
-<button key={m} onClick={()=>setMode(m)} style={{flex:"1 1 30%",padding:"10px",borderRadius:"8px",border:mode===m?"2px solid "+color:"1px solid "+border,background:mode===m?color+"22":"transparent",color:mode===m?color:subtext,cursor:"pointer"}}>
+<button key={m} onClick={()=>setMode(m)} style={{flex:"1 1 22%",padding:"10px",borderRadius:"8px",border:mode===m?"2px solid "+color:"1px solid "+border,background:mode===m?color+"22":"transparent",color:mode===m?color:subtext,cursor:"pointer",fontSize:"13px"}}>
 {label}
 </button>
 ))}
 </div>
-<div style={{background:darkMode?"rgba(56,189,248,0.05)":"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"8px",padding:"14px",marginBottom:"16px"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
-<span style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700"}}>Confidence Threshold</span>
-<span style={{color:"#38bdf8",fontSize:"15px",fontWeight:"700"}}>{threshold}%</span>
+{mode==="callgraph"&&(
+<div style={{background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
+<p style={{color:"#ec4899",fontSize:"13px",margin:0}}>Call Graph maps the structure of a Python file: which functions are defined, which functions call which, and what external libraries each function depends on. This helps you understand impact before migrating. (Python files only.)</p>
 </div>
-<input type="range" min="50" max="100" value={threshold} onChange={e=>setThreshold(Number(e.target.value))} style={{width:"100%",accentColor:"#38bdf8",cursor:"pointer"}}/>
-<p style={{color:subtext,fontSize:"12px",margin:"6px 0 0 0"}}>Migrations scoring at or above {threshold}% are auto-accepted. Anything below is flagged for manual review.</p>
-</div>
+)}
 {mode==="aimigrate"&&language==="python"&&(
 <div style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
 <p style={{color:"#a78bfa",fontSize:"13px",margin:0}}>AI Migrate modernizes your entire file. For Python, it runs syntax validation, a variable-integrity check, assigns a confidence score, explains each change, and flags dependency updates. Always review results before use.</p>
@@ -541,7 +543,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -608,6 +610,52 @@ Download Summary PDF
 )}
 </div>
 {result.error&&<p style={{color:"#f87171",fontSize:"13px"}}>{result.error}</p>}
+{result.call_graph_error&&<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid #f87171",borderRadius:"10px",padding:"12px"}}><p style={{color:"#f87171",fontSize:"13px",margin:0}}>{result.call_graph_error}</p></div>}
+{result.total_functions!==undefined&&(
+<div style={{marginTop:"4px"}}>
+<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"12px",marginBottom:"14px"}}>
+<div style={{background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:"10px",padding:"12px",textAlign:"center"}}>
+<div style={{fontSize:"22px",fontWeight:"700",color:"#ec4899"}}>{result.total_functions}</div>
+<div style={{fontSize:"11px",color:subtext}}>Functions Defined</div>
+</div>
+<div style={{background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:"10px",padding:"12px",textAlign:"center"}}>
+<div style={{fontSize:"22px",fontWeight:"700",color:"#38bdf8"}}>{result.imports?result.imports.length:0}</div>
+<div style={{fontSize:"11px",color:subtext}}>External Libraries</div>
+</div>
+</div>
+{result.entry_points&&result.entry_points.length>0&&(
+<div style={{marginBottom:"12px"}}>
+<p style={{color:"#4ade80",fontSize:"13px",fontWeight:"700",margin:"0 0 4px 0"}}>Entry Points (not called by others):</p>
+<p style={{color:subtext,fontSize:"12.5px",margin:0}}>{result.entry_points.join(", ")}</p>
+</div>
+)}
+{result.calls_map&&Object.keys(result.calls_map).length>0&&(
+<div style={{marginBottom:"12px"}}>
+<p style={{color:"#ec4899",fontSize:"13px",fontWeight:"700",margin:"0 0 6px 0"}}>Function Call Map:</p>
+<div style={{background:codebg,borderRadius:"8px",padding:"12px"}}>
+{Object.entries(result.calls_map).map(([fn,calls],ci)=>(
+<div key={ci} style={{fontSize:"12.5px",fontFamily:"monospace",marginBottom:"4px",color:text}}>
+<span style={{color:"#38bdf8"}}>{fn}()</span>
+{calls.length>0?<span style={{color:subtext}}> → calls: {calls.map(c=>c+"()").join(", ")}</span>:<span style={{color:"#64748b"}}> → (no internal calls)</span>}
+</div>
+))}
+</div>
+</div>
+)}
+{result.lib_usage&&Object.keys(result.lib_usage).length>0&&(
+<div style={{marginBottom:"4px"}}>
+<p style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700",margin:"0 0 6px 0"}}>Library Dependencies (which function uses what):</p>
+<div style={{background:codebg,borderRadius:"8px",padding:"12px"}}>
+{Object.entries(result.lib_usage).map(([lib,fns],li)=>(
+<div key={li} style={{fontSize:"12.5px",fontFamily:"monospace",marginBottom:"4px",color:text}}>
+<span style={{color:"#f59e0b"}}>{lib}</span><span style={{color:subtext}}> ← used in: {fns.map(f=>f+"()").join(", ")}</span>
+</div>
+))}
+</div>
+</div>
+)}
+</div>
+)}
 {result.confidence_score!==undefined&&(
 <div style={{background:confColor(result.confidence_score)+"1a",border:"1px solid "+confColor(result.confidence_score),borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -651,7 +699,7 @@ Download Summary PDF
 )}
 {result.functions&&result.functions.length>0&&<p style={{fontSize:"13px",color:text}}>Functions: {result.functions.join(", ")}</p>}
 {result.classes&&result.classes.length>0&&<p style={{fontSize:"13px",color:text}}>Classes: {result.classes.join(", ")}</p>}
-{result.imports&&result.imports.length>0&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
+{result.imports&&result.imports.length>0&&result.total_functions===undefined&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
 {result.issues&&<p style={{color:result.issues.length>0?"#f87171":"#4ade80",fontSize:"13px"}}>Issues: {result.issues.length>0?result.issues.join(", "):"No issues!"}</p>}
 {result.changes&&<p style={{color:"#4ade80",fontSize:"13px"}}>Changes: {result.changes.length>0?result.changes.join(", "):"No changes needed!"}</p>}
 {result.suggestions&&(
