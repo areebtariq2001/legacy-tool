@@ -198,7 +198,6 @@ def check_java_integrity(original, migrated):
     if not orig or not new:
         return {"vars_ok": True, "var_message": ""}
     missing = orig - new
-    # Expected Java migration changes (old type names that get replaced)
     expected = {"StringBuffer", "Vector", "Hashtable", "Enumeration"}
     real_missing = [v for v in missing if v not in expected]
     if real_missing:
@@ -466,7 +465,6 @@ def ai_advanced_migrate(source, language):
         output["why_explanations"] = get_why_explanations(source)
         output["dependencies"] = check_dependencies(source)
     elif language == "java":
-        # Java guardrails via javalang (syntax-level)
         check = validate_java(cleaned)
         output["valid"] = check["valid"]
         output["validation_message"] = check["validation_message"]
@@ -475,7 +473,6 @@ def ai_advanced_migrate(source, language):
         output["var_message"] = var_check["var_message"]
         conf = calculate_confidence_java(source, cleaned, output["valid"], output["vars_ok"])
         output.update(conf)
-        # Smart fallback: if AI is low confidence, use rule-based Java migration
         if conf["confidence_score"] < 60:
             rule_result = migrate_java(source)
             rule_code = rule_result["migrated_code"]
@@ -516,6 +513,63 @@ def ai_qa_compare(original, migrated):
         elif after.upper().startswith("DIFFERENT"):
             verdict = "DIFFERENT"
     return {"qa_verdict": verdict, "qa_full_response": response}
+
+# ---------- CALL GRAPH ANALYSIS ----------
+def analyze_call_graph(source):
+    try:
+        tree = ast.parse(source)
+    except:
+        return {"call_graph_error": "Could not parse file (may be Python 2 syntax). Try migrating it to Python 3 first, then run call-graph analysis."}
+    defined_functions = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            defined_functions.append(node.name)
+    calls_map = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            inner_calls = []
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call):
+                    fname = None
+                    if isinstance(sub.func, ast.Name):
+                        fname = sub.func.id
+                    elif isinstance(sub.func, ast.Attribute):
+                        fname = sub.func.attr
+                    if fname and fname in defined_functions and fname != node.name:
+                        if fname not in inner_calls:
+                            inner_calls.append(fname)
+            calls_map[node.name] = inner_calls
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                imports.append(a.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.append(node.module.split(".")[0])
+    imports = sorted(set(imports))
+    lib_usage = {}
+    for lib in imports:
+        usage = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name):
+                        if sub.value.id == lib and node.name not in usage:
+                            usage.append(node.name)
+                    elif isinstance(sub, ast.Name) and sub.id == lib and node.name not in usage:
+                        usage.append(node.name)
+        if usage:
+            lib_usage[lib] = usage
+    entry_points = [f for f in defined_functions if all(f not in calls for calls in calls_map.values())]
+    return {
+        "defined_functions": defined_functions,
+        "calls_map": calls_map,
+        "imports": imports,
+        "lib_usage": lib_usage,
+        "entry_points": entry_points,
+        "total_functions": len(defined_functions)
+    }
 
 # ---------- PHP ----------
 def analyze_php(source):
@@ -751,6 +805,21 @@ async def qa_check(req: QARequest):
         return result
     except Exception as e:
         return {"qa_verdict": "ERROR", "qa_full_response": f"QA check failed safely: {str(e)}"}
+
+@app.post("/call-graph")
+async def call_graph_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = analyze_call_graph(source)
+        result["filename"] = file.filename
+        track_usage("call-graph", file.filename)
+        write_audit_log("call-graph", file.filename, "functions=" + str(result.get("total_functions", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Call-graph analysis failed safely: {str(e)}"}
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
