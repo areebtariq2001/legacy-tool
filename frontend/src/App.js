@@ -264,6 +264,7 @@ const[progress,setProgress]=useState(0);
 const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
 const[showWhy,setShowWhy]=useState({});
+const[threshold,setThreshold]=useState(85);
 
 const bg=darkMode?"#0a0e1a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
@@ -348,7 +349,6 @@ if(results.length===0)return alert("No results to generate report!");
 const doc=new jsPDF();
 const pageW=210;
 const date=new Date().toLocaleString();
-// Header band
 doc.setFillColor(14,165,233);
 doc.rect(0,0,pageW,30,"F");
 doc.setTextColor(255,255,255);
@@ -356,14 +356,11 @@ doc.setFontSize(20);
 doc.text("StarBuild Migration Report",pageW/2,14,{align:"center"});
 doc.setFontSize(9);
 doc.text("Audit-ready summary  |  Generated: "+date,pageW/2,23,{align:"center"});
-
-// Summary stats
 const scoredR=results.filter(r=>r.confidence_score!==undefined);
 const high=scoredR.filter(r=>r.confidence_score>=90).length;
 const med=scoredR.filter(r=>r.confidence_score>=60&&r.confidence_score<90).length;
 const low=scoredR.filter(r=>r.confidence_score<60).length;
 const avg=scoredR.length>0?Math.round(scoredR.reduce((a,r)=>a+r.confidence_score,0)/scoredR.length):0;
-
 let y=42;
 doc.setTextColor(15,23,42);
 doc.setFontSize(13);
@@ -371,41 +368,38 @@ doc.text("Summary",14,y);
 y+=8;
 doc.setDrawColor(203,213,225);
 doc.setFillColor(241,245,249);
-doc.roundedRect(14,y-5,182,30,2,2,"FD");
+doc.roundedRect(14,y-5,182,37,2,2,"FD");
 doc.setFontSize(10);
 doc.setTextColor(51,65,85);
 doc.text("Total files processed: "+results.length,20,y+2);
 doc.text("Files with confidence score: "+scoredR.length,20,y+9);
 doc.text("Average confidence: "+avg+"%",20,y+16);
+doc.text("Acceptance threshold: "+threshold+"%",20,y+23);
 doc.setTextColor(22,163,74);
 doc.text("High: "+high,120,y+2);
 doc.setTextColor(217,119,6);
 doc.text("Need review: "+med,120,y+9);
 doc.setTextColor(220,38,38);
 doc.text("Low: "+low,120,y+16);
-y+=36;
-
-// Per-file detail
+y+=43;
 doc.setTextColor(15,23,42);
 doc.setFontSize(13);
 doc.text("Per-file details",14,y);
 y+=8;
-
 results.forEach((result,idx)=>{
 if(y>262){doc.addPage();y=20;}
-// file name
 doc.setFontSize(11);
 doc.setTextColor(14,165,233);
 doc.text((idx+1)+". "+result.filename,14,y);
 y+=6;
 doc.setFontSize(9);
-// status / confidence
 if(result.confidence_score!==undefined){
 let col=[22,163,74];
 if(result.confidence_score<90&&result.confidence_score>=60)col=[217,119,6];
 if(result.confidence_score<60)col=[220,38,38];
 doc.setTextColor(col[0],col[1],col[2]);
-doc.text("Status: "+result.confidence_score+"%  ("+(result.confidence_level||"")+")",18,y);
+const decision=result.confidence_score>=threshold?"ACCEPTED":"MANUAL REVIEW";
+doc.text("Status: "+result.confidence_score+"%  ("+(result.confidence_level||"")+")  ->  "+decision,18,y);
 y+=5;
 }
 doc.setTextColor(71,85,105);
@@ -435,8 +429,6 @@ doc.setDrawColor(226,232,240);
 doc.line(14,y,196,y);
 y+=6;
 });
-
-// Footer note on every page
 const pageCount=doc.internal.getNumberOfPages();
 for(let p=1;p<=pageCount;p++){
 doc.setPage(p);
@@ -444,7 +436,6 @@ doc.setFontSize(8);
 doc.setTextColor(148,163,184);
 doc.text("StarBuild - Predictable, AST-verified, audit-ready legacy migration.  Page "+p+" of "+pageCount,pageW/2,290,{align:"center"});
 }
-
 doc.save("StarBuild_Migration_Summary_"+new Date().toISOString().slice(0,10)+".pdf");
 };
 
@@ -463,7 +454,8 @@ const highCount=scored.filter(r=>r.confidence_score>=90).length;
 const medCount=scored.filter(r=>r.confidence_score>=60&&r.confidence_score<90).length;
 const lowCount=scored.filter(r=>r.confidence_score<60).length;
 const avgScore=scored.length>0?Math.round(scored.reduce((a,r)=>a+r.confidence_score,0)/scored.length):0;
-const reviewFiles=scored.filter(r=>r.confidence_score<90).map(r=>r.filename);
+const acceptedCount=scored.filter(r=>r.confidence_score>=threshold).length;
+const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
@@ -498,6 +490,14 @@ Home
 {label}
 </button>
 ))}
+</div>
+<div style={{background:darkMode?"rgba(56,189,248,0.05)":"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"8px",padding:"14px",marginBottom:"16px"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+<span style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700"}}>Confidence Threshold</span>
+<span style={{color:"#38bdf8",fontSize:"15px",fontWeight:"700"}}>{threshold}%</span>
+</div>
+<input type="range" min="50" max="100" value={threshold} onChange={e=>setThreshold(Number(e.target.value))} style={{width:"100%",accentColor:"#38bdf8",cursor:"pointer"}}/>
+<p style={{color:subtext,fontSize:"12px",margin:"6px 0 0 0"}}>Migrations scoring at or above {threshold}% are auto-accepted. Anything below is flagged for manual review.</p>
 </div>
 {mode==="aimigrate"&&language==="python"&&(
 <div style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
@@ -559,8 +559,12 @@ Click to select files (multiple allowed)
 <span style={{color:subtext,fontSize:"13px"}}>Average confidence</span>
 <span style={{color:confColor(avgScore),fontSize:"18px",fontWeight:"700"}}>{avgScore}%</span>
 </div>
-{reviewFiles.length>0&&(
-<p style={{color:subtext,fontSize:"12px",margin:"10px 0 0 0"}}>Flagged for manual review: {reviewFiles.join(", ")}</p>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"8px"}}>
+<span style={{color:subtext,fontSize:"13px"}}>At {threshold}% threshold</span>
+<span style={{fontSize:"13px",fontWeight:"700"}}><span style={{color:"#4ade80"}}>{acceptedCount} accepted</span><span style={{color:subtext}}> / </span><span style={{color:"#f59e0b"}}>{reviewCount} review</span></span>
+</div>
+{reviewCount>0&&(
+<p style={{color:subtext,fontSize:"12px",margin:"10px 0 0 0"}}>Flagged for manual review: {scored.filter(r=>r.confidence_score<threshold).map(r=>r.filename).join(", ")}</p>
 )}
 </div>
 )}
@@ -595,7 +599,14 @@ Download Summary PDF
 <h3 style={{color:"#38bdf8"}}>Results ({results.length} files)</h3>
 {results.map((result,idx)=>(
 <div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px"}}>
-<h4 style={{color:"#38bdf8",margin:"0 0 8px 0"}}>{result.filename}</h4>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+<h4 style={{color:"#38bdf8",margin:0}}>{result.filename}</h4>
+{result.confidence_score!==undefined&&(
+<span style={{padding:"3px 10px",borderRadius:"12px",fontSize:"11px",fontWeight:"700",background:result.confidence_score>=threshold?"rgba(74,222,128,0.15)":"rgba(245,158,11,0.15)",color:result.confidence_score>=threshold?"#4ade80":"#f59e0b",border:"1px solid "+(result.confidence_score>=threshold?"#4ade80":"#f59e0b")}}>
+{result.confidence_score>=threshold?"ACCEPTED":"MANUAL REVIEW"}
+</span>
+)}
+</div>
 {result.error&&<p style={{color:"#f87171",fontSize:"13px"}}>{result.error}</p>}
 {result.confidence_score!==undefined&&(
 <div style={{background:confColor(result.confidence_score)+"1a",border:"1px solid "+confColor(result.confidence_score),borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
