@@ -157,8 +157,69 @@ def check_dependencies(source):
             deps.append(note)
     return deps
 
+# ---------- TECHNICAL DEBT SCORE ----------
+# Each item: (pattern, label, minutes_per_occurrence) - effort is an ESTIMATE
+DEBT_RULES = [
+    (r'\bprint\s+[^(]', "print statement", 5),
+    (r'\bxrange\b', "xrange()", 5),
+    (r'\braw_input\b', "raw_input()", 5),
+    (r'\.has_key\(', "dict.has_key()", 5),
+    (r'\.iteritems\(\)', "iteritems()", 5),
+    (r'\.itervalues\(\)', "itervalues()", 5),
+    (r'\.iterkeys\(\)', "iterkeys()", 5),
+    (r'\bunicode\(', "unicode()", 5),
+    (r'\bbasestring\b', "basestring", 5),
+    (r'\bexcept\s+\w+\s*,', "old except syntax", 10),
+    (r'\burllib2\b', "urllib2 (network)", 20),
+    (r'\bcPickle\b', "cPickle", 10),
+    (r'\bStringIO\b', "StringIO", 10),
+    (r'\bMySQLdb\b', "MySQLdb (database)", 60),
+    (r'\bcommands\b', "commands module", 15),
+    (r'\bxmlrpclib\b', "xmlrpclib", 20),
+    (r'\bhttplib\b', "httplib", 20),
+    (r'\bboto\b', "boto (AWS legacy)", 90),
+]
+
+def calculate_tech_debt(source):
+    items = []
+    total_count = 0
+    total_minutes = 0
+    for pattern, label, mins in DEBT_RULES:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            items.append({
+                "issue": label,
+                "occurrences": count,
+                "minutes_each": mins,
+                "estimated_minutes": count * mins
+            })
+            total_count += count
+            total_minutes += count * mins
+    # Debt score: 0 (clean) to 100 (very high debt), based on issue count
+    # Each issue adds points, capped at 100
+    debt_score = min(100, total_count * 8)
+    if debt_score == 0:
+        debt_level = "Minimal debt"
+    elif debt_score < 30:
+        debt_level = "Low debt"
+    elif debt_score < 60:
+        debt_level = "Moderate debt"
+    else:
+        debt_level = "High debt"
+    hours = round(total_minutes / 60.0, 1)
+    return {
+        "debt_score": debt_score,
+        "debt_level": debt_level,
+        "total_issues": total_count,
+        "estimated_minutes": total_minutes,
+        "estimated_hours": hours,
+        "items": items,
+        "summary": f"{total_count} legacy issues detected. Estimated manual remediation effort: ~{hours} developer-hours. StarBuild automates these specific fixes.",
+        "disclaimer": "This Technical Debt Score is a code-based estimate derived from counting known legacy patterns and applying average per-fix time assumptions. It is an indicative planning figure, not a guaranteed cost saving. Actual effort depends on testing, integration, and review."
+    }
+
 # ---------- DEPENDENCY RISK ASSESSMENT ----------
-# Each rule: (pattern, category, risk_level, description, recommendation)
 RISK_RULES = [
     ("MySQLdb", "Database", "High", "MySQLdb (MySQL driver) is not compatible with Python 3 as-is.", "Migrate to mysqlclient or PyMySQL and re-test all DB queries."),
     ("psycopg2", "Database", "Medium", "psycopg2 (PostgreSQL driver) versions differ between Python 2 and 3.", "Pin a Python 3-compatible version and verify connection handling."),
@@ -905,6 +966,21 @@ async def risk_assessment_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return {"filename": file.filename, "error": f"Risk assessment failed safely: {str(e)}"}
+
+@app.post("/tech-debt")
+async def tech_debt_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = calculate_tech_debt(source)
+        result["filename"] = file.filename
+        track_usage("tech-debt", file.filename)
+        write_audit_log("tech-debt", file.filename, "score=" + str(result.get("debt_score", 0)) + " hours=" + str(result.get("estimated_hours", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Tech-debt analysis failed safely: {str(e)}"}
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
