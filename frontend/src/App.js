@@ -83,6 +83,10 @@ Back to Home
 <p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Maps functions, internal call relationships, and external library dependencies within a file</p>
 </div>
 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
+<p style={{color:"#f87171",fontWeight:"bold"}}>POST /risk-assessment</p>
+<p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>Flags external dependencies (databases, APIs, network) that may break during migration, with risk levels</p>
+</div>
+<div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"8px",padding:"16px",marginBottom:"12px"}}>
 <p style={{color:"#22c55e",fontWeight:"bold"}}>POST /qa-check</p>
 <p style={{color:"#94a3b8",fontSize:"13px",margin:"4px 0"}}>AI-as-QA: compares original and migrated code for logical differences</p>
 </div>
@@ -230,7 +234,7 @@ return(
 ["Deterministic Migration","Rule-based conversions that produce the exact same output every run."],
 ["AI + Confidence Score","For Python and Java, AI migration includes validation, name checks, and a confidence score."],
 ["Call-Graph Analysis","Maps which functions call which, and what external libraries each depends on."],
-["Dependency Check","Flags libraries and modules that need updating for the target version."],
+["Dependency Risk Assessment","Flags databases and APIs that may break during migration, with risk levels."],
 ["Batch Summary","Process many files at once and see which are safe and which need review."],
 ["Audit Dashboard","Every action logged with a timestamp."]
 ].map(([title,desc])=>(
@@ -300,6 +304,7 @@ else if(mode==="aimigrate"){endpoint="/ai-migrate";}
 else if(mode==="explain"){endpoint="/explain";}
 else if(mode==="tests"){endpoint="/generate-tests";}
 else if(mode==="callgraph"){endpoint="/call-graph";}
+else if(mode==="risk"){endpoint="/risk-assessment";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -407,6 +412,11 @@ const decision=result.confidence_score>=threshold?"ACCEPTED":"MANUAL REVIEW";
 doc.text("Status: "+result.confidence_score+"%  ("+(result.confidence_level||"")+")  ->  "+decision,18,y);
 y+=5;
 }
+if(result.overall_risk!==undefined){
+doc.setTextColor(180,83,9);
+doc.text("Risk: "+result.overall_risk+"  (High:"+result.high_count+" Medium:"+result.medium_count+" Low:"+result.low_count+")",18,y);
+y+=5;
+}
 doc.setTextColor(71,85,105);
 if(result.validation_message){
 const vl=doc.splitTextToSize("Validation: "+result.validation_message,175);
@@ -464,9 +474,10 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
+const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
 
 return(
 <div style={{minHeight:"100vh",background:bg,color:text,fontFamily:"Arial",transition:"all 0.3s"}}>
@@ -499,6 +510,11 @@ Home
 {mode==="callgraph"&&(
 <div style={{background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
 <p style={{color:"#ec4899",fontSize:"13px",margin:0}}>Call Graph maps the structure of a Python file: which functions are defined, which functions call which, and what external libraries each function depends on. This helps you understand impact before migrating. (Python files only.)</p>
+</div>
+)}
+{mode==="risk"&&(
+<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
+<p style={{color:"#f87171",fontSize:"13px",margin:0}}>Risk Check scans for external dependencies (databases, APIs, network libraries) that commonly break during migration, and assigns each a risk level with a recommendation. This is a static "Risk Assessment" to plan migrations safely. (Python files only.)</p>
 </div>
 )}
 {mode==="aimigrate"&&language==="python"&&(
@@ -543,7 +559,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -570,24 +586,6 @@ Click to select files (multiple allowed)
 )}
 </div>
 )}
-<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px",marginBottom:"16px"}}>
-<div style={{background:"rgba(56,189,248,0.1)",border:"1px solid #38bdf8",borderRadius:"12px",padding:"16px",textAlign:"center"}}>
-<div style={{fontSize:"24px",fontWeight:"700",color:"#38bdf8"}}>{results.length}</div>
-<div style={{fontSize:"12px",color:subtext}}>Files Processed</div>
-</div>
-<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid #f87171",borderRadius:"12px",padding:"16px",textAlign:"center"}}>
-<div style={{fontSize:"24px",fontWeight:"700",color:"#f87171"}}>{totalIssues}</div>
-<div style={{fontSize:"12px",color:subtext}}>Issues Found</div>
-</div>
-<div style={{background:"rgba(74,222,128,0.1)",border:"1px solid #4ade80",borderRadius:"12px",padding:"16px",textAlign:"center"}}>
-<div style={{fontSize:"24px",fontWeight:"700",color:"#4ade80"}}>{totalChanges}</div>
-<div style={{fontSize:"12px",color:subtext}}>Changes Made</div>
-</div>
-<div style={{background:"rgba(245,158,11,0.1)",border:"1px solid #f59e0b",borderRadius:"12px",padding:"16px",textAlign:"center"}}>
-<div style={{fontSize:"24px",fontWeight:"700",color:"#f59e0b"}}>{migratedCount}</div>
-<div style={{fontSize:"12px",color:subtext}}>Files Migrated</div>
-</div>
-</div>
 <div style={{display:"flex",gap:"12px",marginBottom:"16px"}}>
 {migratedCount>0&&(
 <button onClick={handleDownloadAllZip} style={{flex:1,padding:"12px",borderRadius:"8px",border:"1px solid #f59e0b",background:"rgba(245,158,11,0.1)",color:"#f59e0b",fontWeight:"700",cursor:"pointer"}}>
@@ -611,6 +609,41 @@ Download Summary PDF
 </div>
 {result.error&&<p style={{color:"#f87171",fontSize:"13px"}}>{result.error}</p>}
 {result.call_graph_error&&<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid #f87171",borderRadius:"10px",padding:"12px"}}><p style={{color:"#f87171",fontSize:"13px",margin:0}}>{result.call_graph_error}</p></div>}
+{result.overall_risk!==undefined&&(
+<div style={{marginTop:"4px"}}>
+<div style={{background:(result.high_count>0?"rgba(248,113,113,0.12)":result.medium_count>0?"rgba(245,158,11,0.12)":"rgba(74,222,128,0.12)"),border:"1px solid "+(result.high_count>0?"#f87171":result.medium_count>0?"#f59e0b":"#4ade80"),borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<span style={{fontWeight:"700",fontSize:"15px",color:(result.high_count>0?"#f87171":result.medium_count>0?"#f59e0b":"#4ade80")}}>Risk Assessment: {result.overall_risk}</span>
+<span style={{fontSize:"12px",color:subtext}}>{result.total_findings} dependency findings</span>
+</div>
+<div style={{display:"flex",gap:"16px",marginTop:"8px"}}>
+<span style={{fontSize:"12px",color:"#f87171"}}>High: {result.high_count}</span>
+<span style={{fontSize:"12px",color:"#f59e0b"}}>Medium: {result.medium_count}</span>
+<span style={{fontSize:"12px",color:"#4ade80"}}>Low: {result.low_count}</span>
+</div>
+</div>
+{result.findings&&result.findings.length>0?(
+<div>
+{result.findings.map((f,fi)=>(
+<div key={fi} style={{background:codebg,border:"1px solid "+riskColor(f.risk_level)+"55",borderRadius:"10px",padding:"12px",marginBottom:"8px"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"4px"}}>
+<span style={{fontWeight:"700",fontSize:"14px",color:text,fontFamily:"monospace"}}>{f.dependency}</span>
+<div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+<span style={{fontSize:"10px",color:subtext,background:darkMode?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:"10px"}}>{f.category}</span>
+<span style={{fontSize:"10px",fontWeight:"700",color:riskColor(f.risk_level),background:riskColor(f.risk_level)+"22",padding:"2px 8px",borderRadius:"10px"}}>{f.risk_level}</span>
+</div>
+</div>
+<p style={{color:subtext,fontSize:"12.5px",margin:"4px 0",lineHeight:"1.4"}}>{f.description}</p>
+<p style={{color:"#38bdf8",fontSize:"12px",margin:"4px 0 0 0",lineHeight:"1.4"}}>→ {f.recommendation}</p>
+</div>
+))}
+</div>
+):(
+<p style={{color:"#4ade80",fontSize:"13px"}}>No known risky external dependencies detected.</p>
+)}
+{result.disclaimer&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
+</div>
+)}
 {result.total_functions!==undefined&&(
 <div style={{marginTop:"4px"}}>
 <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"12px",marginBottom:"14px"}}>
@@ -699,7 +732,7 @@ Download Summary PDF
 )}
 {result.functions&&result.functions.length>0&&<p style={{fontSize:"13px",color:text}}>Functions: {result.functions.join(", ")}</p>}
 {result.classes&&result.classes.length>0&&<p style={{fontSize:"13px",color:text}}>Classes: {result.classes.join(", ")}</p>}
-{result.imports&&result.imports.length>0&&result.total_functions===undefined&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
+{result.imports&&result.imports.length>0&&result.total_functions===undefined&&result.overall_risk===undefined&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
 {result.issues&&<p style={{color:result.issues.length>0?"#f87171":"#4ade80",fontSize:"13px"}}>Issues: {result.issues.length>0?result.issues.join(", "):"No issues!"}</p>}
 {result.changes&&<p style={{color:"#4ade80",fontSize:"13px"}}>Changes: {result.changes.length>0?result.changes.join(", "):"No changes needed!"}</p>}
 {result.suggestions&&(
