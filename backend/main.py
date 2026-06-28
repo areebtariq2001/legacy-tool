@@ -157,6 +157,76 @@ def check_dependencies(source):
             deps.append(note)
     return deps
 
+# ---------- DEPENDENCY RISK ASSESSMENT ----------
+# Each rule: (pattern, category, risk_level, description, recommendation)
+RISK_RULES = [
+    ("MySQLdb", "Database", "High", "MySQLdb (MySQL driver) is not compatible with Python 3 as-is.", "Migrate to mysqlclient or PyMySQL and re-test all DB queries."),
+    ("psycopg2", "Database", "Medium", "psycopg2 (PostgreSQL driver) versions differ between Python 2 and 3.", "Pin a Python 3-compatible version and verify connection handling."),
+    ("sqlite3", "Database", "Low", "sqlite3 is built-in but cursor/text handling changed slightly in Python 3.", "Verify text vs bytes handling on query results."),
+    ("cx_Oracle", "Database", "High", "cx_Oracle has different builds and behavior across Python versions.", "Use a Python 3 build and re-test stored-procedure calls."),
+    ("pymongo", "Database", "Medium", "pymongo API changed across major versions.", "Confirm the driver version matches your MongoDB server."),
+    ("sqlalchemy", "Database", "Medium", "SQLAlchemy ORM behavior can differ across versions during migration.", "Run your full test suite against the target version."),
+    ("urllib2", "API / Network", "High", "urllib2 does not exist in Python 3; network calls will break.", "Replace with urllib.request / urllib.error."),
+    ("httplib", "API / Network", "High", "httplib was renamed to http.client in Python 3.", "Update imports to http.client."),
+    ("requests", "API / Network", "Low", "requests works on both, but old pinned versions may have TLS issues.", "Upgrade to a current requests version and re-test endpoints."),
+    ("urlfetch", "API / Network", "High", "urlfetch (App Engine) is legacy and may not be supported.", "Replace with requests or urllib.request."),
+    ("xmlrpclib", "API / Network", "Medium", "xmlrpclib was renamed to xmlrpc.client in Python 3.", "Update imports to xmlrpc.client."),
+    ("smtplib", "API / Network", "Low", "smtplib exists in both but message handling changed.", "Verify email.mime usage for Python 3."),
+    ("ftplib", "API / Network", "Low", "ftplib exists in both but returns bytes in Python 3.", "Handle bytes vs str on transfers."),
+    ("memcache", "Cache / Infra", "Medium", "python-memcached has limited Python 3 support.", "Switch to pymemcache or a maintained client."),
+    ("redis", "Cache / Infra", "Low", "redis-py works on both but response decoding changed.", "Set decode_responses explicitly and re-test."),
+    ("boto", "Cloud / API", "High", "boto (AWS SDK v2) is legacy; boto3 is the modern SDK.", "Migrate to boto3 and re-test AWS calls."),
+    ("paramiko", "API / Network", "Medium", "paramiko (SSH) versions differ in behavior.", "Pin a Python 3-compatible version."),
+]
+
+def assess_dependency_risk(source):
+    try:
+        tree = ast.parse(source)
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    imported.add(a.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imported.add(node.module.split(".")[0])
+    except:
+        imported = set()
+    findings = []
+    seen = set()
+    for pattern, category, level, desc, rec in RISK_RULES:
+        in_imports = pattern in imported
+        in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+        if (in_imports or in_source) and pattern not in seen:
+            seen.add(pattern)
+            findings.append({
+                "dependency": pattern,
+                "category": category,
+                "risk_level": level,
+                "description": desc,
+                "recommendation": rec
+            })
+    high = sum(1 for f in findings if f["risk_level"] == "High")
+    medium = sum(1 for f in findings if f["risk_level"] == "Medium")
+    low = sum(1 for f in findings if f["risk_level"] == "Low")
+    if high > 0:
+        overall = "High risk"
+    elif medium > 0:
+        overall = "Medium risk"
+    elif low > 0:
+        overall = "Low risk"
+    else:
+        overall = "No known external dependency risks detected"
+    return {
+        "findings": findings,
+        "high_count": high,
+        "medium_count": medium,
+        "low_count": low,
+        "total_findings": len(findings),
+        "overall_risk": overall,
+        "disclaimer": "This is a static assessment based on known library compatibility. It flags dependencies that commonly break during migration. Always validate against your live systems before deploying."
+    }
+
 # ---------- DEEP VERIFICATION (PYTHON) ----------
 def deep_verify_python(code):
     try:
@@ -820,6 +890,21 @@ async def call_graph_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return {"filename": file.filename, "error": f"Call-graph analysis failed safely: {str(e)}"}
+
+@app.post("/risk-assessment")
+async def risk_assessment_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = assess_dependency_risk(source)
+        result["filename"] = file.filename
+        track_usage("risk-assessment", file.filename)
+        write_audit_log("risk-assessment", file.filename, "overall=" + result.get("overall_risk", "N/A"))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Risk assessment failed safely: {str(e)}"}
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
