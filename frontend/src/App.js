@@ -728,7 +728,7 @@ Download Summary PDF
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
 </div>
 )}
-{result.doc_generated&&(<div style={{marginTop:"4px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}><span style={{color:"#14b8a6",fontWeight:"700",fontSize:"15px"}}>Knowledge Transfer Documentation</span><button onClick={()=>handleDownloadDocs(result)} style={{padding:"6px 14px",borderRadius:"8px",border:"1px solid #14b8a6",background:"rgba(20,184,166,0.1)",color:"#14b8a6",cursor:"pointer",fontSize:"13px",fontWeight:"700"}}>Download Docs PDF</button></div><div style={{background:codebg,borderRadius:"8px",padding:"14px",marginBottom:"8px"}}><pre style={{margin:0,color:text,fontSize:"12.5px",whiteSpace:"pre-wrap",fontFamily:"Arial",lineHeight:"1.5"}}>{result.ai_documentation}</pre></div><p style={{color:subtext,fontSize:"11px",fontStyle:"italic"}}>AI-generated documentation. Review before using as official handover material.</p></div>)}
+{result.doc_generated&&(<div style={{marginTop:"4px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}><span style={{color:"#14b8a6",fontWeight:"700",fontSize:"15px"}}>Knowledge Transfer Documentation</span><button onClick={()=>navigator.clipboard.writeText(result.ai_documentation||'')} style={{padding:'6px 14px',borderRadius:'8px',border:'1px solid #38bdf8',background:'transparent',color:'#38bdf8',cursor:'pointer',fontSize:'13px',fontWeight:'700',marginRight:'8px'}}>Copy Docs</button><button onClick={()=>handleDownloadDocs(result)} style={{padding:"6px 14px",borderRadius:"8px",border:"1px solid #14b8a6",background:"rgba(20,184,166,0.1)",color:"#14b8a6",cursor:"pointer",fontSize:"13px",fontWeight:"700"}}>Download Docs PDF</button></div><div style={{background:codebg,borderRadius:"8px",padding:"14px",marginBottom:"8px"}}><pre style={{margin:0,color:text,fontSize:"12.5px",whiteSpace:"pre-wrap",fontFamily:"Arial",lineHeight:"1.5"}}>{result.ai_documentation}</pre></div><p style={{color:subtext,fontSize:"11px",fontStyle:"italic"}}>AI-generated documentation. Review before using as official handover material.</p></div>)}
 {result.total_functions!==undefined&&(
 <div style={{marginTop:"4px"}}>
 <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"12px",marginBottom:"14px"}}>
@@ -871,6 +871,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
