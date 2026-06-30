@@ -277,6 +277,7 @@ const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
 const[showWhy,setShowWhy]=useState({});
 const[threshold,setThreshold]=useState(85);
+const[restored,setRestored]=useState({});
 
 const bg=darkMode?"#0a0e1a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
@@ -466,6 +467,32 @@ doc.save("StarBuild_Migration_Summary_"+new Date().toISOString().slice(0,10)+".p
 };
 
 const handleDownloadDocs=(result)=>{
+const doc=new jsPDF();
+const date=new Date().toLocaleString();
+doc.setFillColor(13,148,136);
+doc.rect(0,0,210,30,"F");
+doc.setTextColor(255,255,255);
+doc.setFontSize(20);
+doc.text("StarBuild - Knowledge Transfer Doc",105,14,{align:"center"});
+doc.setFontSize(9);
+doc.text("File: "+result.filename+"  |  Generated: "+date,105,23,{align:"center"});
+let y=42;
+doc.setTextColor(15,23,42);
+doc.setFontSize(13);
+doc.text("Documentation",14,y);
+y+=8;
+doc.setFontSize(10);
+doc.setTextColor(51,65,85);
+const docText=result.ai_documentation||"No documentation generated.";
+const lines=doc.splitTextToSize(docText,180);
+lines.forEach(line=>{
+if(y>275){doc.addPage();y=20;}
+doc.text(line,14,y);
+y+=5.5;
+});
+doc.save("StarBuild_KT_Doc_"+result.filename+".pdf");
+};
+const handleCopy=(idx,code)=>{
 navigator.clipboard.writeText(code);
 setCopied({...copied,[idx]:true});
 setTimeout(()=>setCopied(prev=>({...prev,[idx]:false})),2000);
@@ -842,6 +869,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
