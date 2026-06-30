@@ -492,6 +492,7 @@ y+=5.5;
 });
 doc.save("StarBuild_KT_Doc_"+result.filename+".pdf");
 };
+const handleReset=()=>{ setFiles([]); setResults([]); setProgress(0); setCopied({}); setShowWhy({}); };
 const handleCopy=(idx,code)=>{
 navigator.clipboard.writeText(code);
 setCopied({...copied,[idx]:true});
@@ -581,6 +582,7 @@ Home
 <label htmlFor="fileInput" style={{cursor:"pointer",color:"#38bdf8"}}>
 Click to select files (multiple allowed)
 </label>
+{files.length>0&&<button onClick={handleReset} style={{marginTop:'10px',padding:'6px 16px',borderRadius:'8px',border:'1px solid #f87171',background:'transparent',color:'#f87171',cursor:'pointer',fontSize:'13px',fontWeight:'600'}}>Reset / Clear All</button>}
 {files.length>0&&<p style={{color:subtext,marginTop:"8px"}}>{files.length} file(s) selected: {files.map(f=>f.name).join(", ")}</p>}
 </div>
 {files.length===0&&!loading&&results.length===0&&(
@@ -869,6 +871,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
