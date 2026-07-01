@@ -312,6 +312,7 @@ else if(mode==="callgraph"){endpoint="/call-graph";}
 else if(mode==="risk"){endpoint="/risk-assessment";}
 else if(mode==="debt"){endpoint="/tech-debt";}
 else if(mode==="docs"){endpoint="/generate-docs";}
+else if(mode==="scan"){endpoint="/scan-sensitive";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -515,7 +516,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -730,6 +731,14 @@ Download Summary PDF
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
 </div>
 )}
+{result.verdict&&result.total_findings!==undefined&&mode==="scan"&&(
+<div style={{marginTop:"4px"}}>
+<p style={{color:result.high_count>0?"#f87171":"#4ade80",fontWeight:"700",fontSize:"14px",marginBottom:"8px"}}>{result.verdict}</p>
+<div style={{display:"flex",gap:"12px",marginBottom:"10px"}}><span style={{fontSize:"12px",color:"#f87171"}}>High: {result.high_count}</span><span style={{fontSize:"12px",color:"#f59e0b"}}>Medium: {result.medium_count}</span><span style={{fontSize:"12px",color:"#4ade80"}}>Low: {result.low_count}</span></div>
+{result.findings&&result.findings.map((fd,fi)=>(<div key={fi} style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><span style={{color:fd.severity==="High"?"#f87171":fd.severity==="Medium"?"#f59e0b":"#4ade80",fontWeight:"700",fontSize:"13px"}}>{fd.severity}</span><span style={{color:text,fontSize:"13px",marginLeft:"8px"}}>{fd.issue}</span><span style={{color:subtext,fontSize:"12px",marginLeft:"8px"}}>({fd.occurrences}x)</span></div>))}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>
+</div>
+)}
 {result.doc_generated&&(<div style={{marginTop:"4px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}><span style={{color:"#14b8a6",fontWeight:"700",fontSize:"15px"}}>Knowledge Transfer Documentation</span><button onClick={()=>navigator.clipboard.writeText(result.ai_documentation||'')} style={{padding:'6px 14px',borderRadius:'8px',border:'1px solid #38bdf8',background:'transparent',color:'#38bdf8',cursor:'pointer',fontSize:'13px',fontWeight:'700',marginRight:'8px'}}>Copy Docs</button><button onClick={()=>handleDownloadDocs(result)} style={{padding:"6px 14px",borderRadius:"8px",border:"1px solid #14b8a6",background:"rgba(20,184,166,0.1)",color:"#14b8a6",cursor:"pointer",fontSize:"13px",fontWeight:"700"}}>Download Docs PDF</button></div><div style={{background:codebg,borderRadius:"8px",padding:"14px",marginBottom:"8px"}}><pre style={{margin:0,color:text,fontSize:"12.5px",whiteSpace:"pre-wrap",fontFamily:"Arial",lineHeight:"1.5"}}>{result.ai_documentation}</pre></div><p style={{color:subtext,fontSize:"11px",fontStyle:"italic"}}>AI-generated documentation. Review before using as official handover material.</p></div>)}
 {result.total_functions!==undefined&&(
 <div style={{marginTop:"4px"}}>
@@ -875,6 +884,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
