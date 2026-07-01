@@ -821,6 +821,7 @@ Download Summary PDF
 {result.classes&&result.classes.length>0&&<p style={{fontSize:"13px",color:text}}>Classes: {result.classes.join(", ")}</p>}
 {result.imports&&result.imports.length>0&&result.total_functions===undefined&&result.overall_risk===undefined&&<p style={{fontSize:"13px",color:text}}>Imports: {result.imports.join(", ")}</p>}
 {result.issues&&<p style={{color:result.issues.length>0?"#f87171":"#4ade80",fontSize:"13px"}}>Issues: {result.issues.length>0?result.issues.join(", "):"No issues!"}</p>}
+{result.changes&&result.changes.length>0&&<span style={{display:"inline-block",marginBottom:"6px",padding:"3px 12px",borderRadius:"12px",fontSize:"11px",fontWeight:"700",background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid #4ade80"}}>{result.changes.length} changes applied</span>}
 {result.changes&&<p style={{color:"#4ade80",fontSize:"13px"}}>Changes: {result.changes.length>0?result.changes.join(", "):"No changes needed!"}</p>}
 {result.suggestions&&(
 <div style={{marginTop:"8px"}}>
@@ -874,6 +875,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
