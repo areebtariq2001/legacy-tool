@@ -313,6 +313,7 @@ else if(mode==="risk"){endpoint="/risk-assessment";}
 else if(mode==="debt"){endpoint="/tech-debt";}
 else if(mode==="docs"){endpoint="/generate-docs";}
 else if(mode==="scan"){endpoint="/scan-sensitive";}
+else if(mode==="banking"){endpoint="/banking-patterns";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -516,7 +517,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -731,6 +732,13 @@ Download Summary PDF
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
 </div>
 )}
+{result.is_banking!==undefined&&mode==="banking"&&(
+<div style={{marginTop:"4px"}}>
+<p style={{color:result.is_banking?"#10b981":"#4ade80",fontWeight:"700",fontSize:"14px",marginBottom:"10px"}}>{result.verdict}</p>
+{result.findings&&result.findings.map((fd,fi)=>(<div key={fi} style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#10b981",fontWeight:"700",fontSize:"13px",margin:"0 0 4px 0"}}>{fd.pattern} <span style={{color:subtext,fontWeight:"400"}}>({fd.occurrences}x)</span></p><p style={{color:subtext,fontSize:"12px",margin:0}}>{fd.note}</p></div>))}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>
+</div>
+)}
 {result.verdict&&result.total_findings!==undefined&&mode==="scan"&&(
 <div style={{marginTop:"4px"}}>
 <p style={{color:result.high_count>0?"#f87171":"#4ade80",fontWeight:"700",fontSize:"14px",marginBottom:"8px"}}>{result.verdict}</p>
@@ -885,6 +893,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
