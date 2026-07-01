@@ -1146,6 +1146,61 @@ def get_audit_log_json():
     except:
         return {"audit_ready": True, "total_entries": 0, "entries": []}
 
+SENSITIVE_PATTERNS = [
+    (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
+    (r"(?i)\b(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"),
+    (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
+    (r"(?i)\baws_secret_access_key\b", "AWS secret key reference", "High"),
+    (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "Email address", "Medium"),
+    (r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "Possible phone number", "Low"),
+    (r"(?i)\b(private[_-]?key|BEGIN RSA)\b", "Private key reference", "High"),
+]
+
+def scan_sensitive_data(source):
+    findings = []
+    for pattern, label, severity in SENSITIVE_PATTERNS:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            findings.append({
+                "issue": label,
+                "severity": severity,
+                "occurrences": count
+            })
+    high = sum(1 for f in findings if f["severity"] == "High")
+    medium = sum(1 for f in findings if f["severity"] == "Medium")
+    low = sum(1 for f in findings if f["severity"] == "Low")
+    if high > 0:
+        verdict = "Sensitive data found - review before migration"
+    elif medium > 0 or low > 0:
+        verdict = "Possible sensitive data - please review"
+    else:
+        verdict = "No obvious sensitive data detected"
+    return {
+        "findings": findings,
+        "high_count": high,
+        "medium_count": medium,
+        "low_count": low,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "disclaimer": "This is a pattern-based scan and may miss or over-report. It is a safety aid, not a guarantee. Always have a human review code for sensitive data before migration."
+    }
+
+@app.post("/scan-sensitive")
+async def scan_sensitive_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = scan_sensitive_data(source)
+        result["filename"] = file.filename
+        track_usage("scan-sensitive", file.filename)
+        write_audit_log("scan-sensitive", file.filename, "findings=" + str(result.get("total_findings", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Scan failed safely: {str(e)}"}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
