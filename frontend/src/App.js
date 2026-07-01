@@ -494,6 +494,7 @@ doc.save("StarBuild_KT_Doc_"+result.filename+".pdf");
 };
 const handleDownloadRisk=(result)=>{ const doc=new jsPDF(); const date=new Date().toLocaleString(); doc.setFillColor(248,113,113); doc.rect(0,0,210,30,'F'); doc.setTextColor(255,255,255); doc.setFontSize(20); doc.text('StarBuild - Risk Assessment',105,14,{align:'center'}); doc.setFontSize(9); doc.text('File: '+result.filename+'  |  '+date,105,23,{align:'center'}); let y=42; doc.setTextColor(15,23,42); doc.setFontSize(12); doc.text('Overall Risk: '+(result.overall_risk||'N/A'),14,y); y+=8; doc.setFontSize(10); doc.setTextColor(51,65,85); doc.text('High: '+(result.high_count||0)+'   Medium: '+(result.medium_count||0)+'   Low: '+(result.low_count||0),14,y); y+=10; (result.findings||[]).forEach((fd)=>{ if(y>270){doc.addPage();y=20;} doc.setFontSize(11); doc.setTextColor(15,23,42); doc.text(fd.dependency+' ['+fd.risk_level+']',14,y); y+=6; doc.setFontSize(9); doc.setTextColor(71,85,105); const dl=doc.splitTextToSize(fd.description+' Recommendation: '+fd.recommendation,180); doc.text(dl,14,y); y+=dl.length*4.5+4; }); doc.save('StarBuild_Risk_'+result.filename+'.pdf'); };
 const handleReset=()=>{ setFiles([]); setResults([]); setProgress(0); setCopied({}); setShowWhy({}); };
+const handleToggleOriginal=(idx)=>{ setRestored(prev=>({...prev,[idx]:!prev[idx]})); };
 const handleCopy=(idx,code)=>{
 navigator.clipboard.writeText(code);
 setCopied({...copied,[idx]:true});
@@ -852,6 +853,7 @@ Download
 </button>
 </div>
 </div>
+{result.migrated_code&&result.original_code&&<div style={{marginBottom:"8px"}}><button onClick={()=>handleToggleOriginal(idx)} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #f59e0b",background:"transparent",color:"#f59e0b",cursor:"pointer",fontSize:"12px",fontWeight:"600"}}>{restored[idx]?"Migration OK - hide original":"Rollback: view original code"}</button>{restored[idx]&&<span style={{marginLeft:"8px",fontSize:"11px",color:subtext}}>Left = original (before migration), Right = migrated</span>}</div>}
 <ReactDiffViewer
 oldValue={result.original_code||""}
 newValue={result.migrated_code||""}
@@ -872,6 +874,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
