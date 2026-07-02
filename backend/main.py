@@ -179,6 +179,21 @@ DEBT_RULES = [
     (r'\bboto\b', "boto (AWS legacy)", 90),
 ]
 
+def calculate_complexity(source):
+    keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
+    score = 1
+    for kw in keywords:
+        score += source.count(kw)
+    if score <= 5:
+        level = "Low complexity"
+    elif score <= 10:
+        level = "Moderate complexity"
+    elif score <= 20:
+        level = "High complexity"
+    else:
+        level = "Very high complexity"
+    return {"complexity_score": score, "complexity_level": level}
+
 def calculate_tech_debt(source):
     items = []
     total_count = 0
@@ -997,6 +1012,9 @@ async def tech_debt_endpoint(file: UploadFile = File(...)):
         if error:
             return {"filename": file.filename, "error": error}
         result = calculate_tech_debt(source)
+        comp = calculate_complexity(source)
+        result["complexity_score"] = comp["complexity_score"]
+        result["complexity_level"] = comp["complexity_level"]
         result["filename"] = file.filename
         track_usage("tech-debt", file.filename)
         write_audit_log("tech-debt", file.filename, "score=" + str(result.get("debt_score", 0)) + " hours=" + str(result.get("estimated_hours", 0)))
@@ -1257,6 +1275,8 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
