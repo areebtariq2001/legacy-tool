@@ -1,4 +1,5 @@
 import{useState,useEffect}from"react";
+import Footer from "./Footer";
 import ReactDiffViewer from"react-diff-viewer-continued";
 import JSZip from"jszip";
 import jsPDF from"jspdf";
@@ -892,10 +893,12 @@ rightTitle="Migrated"
 </div>
 )}
 </div>
+<Footer darkMode={darkMode}/>
 </div>
 );
 }
 export default App;
+
 
 
 
