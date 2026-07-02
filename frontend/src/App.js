@@ -599,6 +599,7 @@ Click to select files (multiple allowed)
 )}
 {loading&&(
 <div style={{marginBottom:"16px"}}>
+<div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}><div style={{width:"18px",height:"18px",border:"3px solid #334155",borderTop:"3px solid #38bdf8",borderRadius:"50%",animation:"sbspin 0.8s linear infinite"}}></div><span style={{color:"#38bdf8",fontSize:"13px",fontWeight:"600"}}>Analyzing legacy code...</span></div><style>{`@keyframes sbspin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
 <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
 <span style={{color:subtext,fontSize:"13px"}}>Processing files...</span>
 <span style={{color:"#38bdf8",fontSize:"13px"}}>{progress}%</span>
@@ -895,6 +896,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
