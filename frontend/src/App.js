@@ -670,6 +670,7 @@ Download Summary PDF
 </div>
 <div style={{background:darkMode?"#334155":"#cbd5e1",borderRadius:"6px",height:"8px",marginTop:"8px"}}>
 <div style={{background:debtColor(result.debt_score),borderRadius:"6px",height:"8px",width:result.debt_score+"%"}}></div>
+{result.complexity_score!==undefined&&<p style={{color:subtext,fontSize:"13px",marginTop:"8px"}}>Cyclomatic Complexity: <span style={{color:text,fontWeight:"700"}}>{result.complexity_score}</span> ({result.complexity_level})</p>}
 </div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"12px",marginTop:"12px"}}>
 <div style={{textAlign:"center",background:codebg,borderRadius:"8px",padding:"10px"}}>
@@ -898,6 +899,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
