@@ -1208,7 +1208,8 @@ async def scan_sensitive_endpoint(file: UploadFile = File(...)):
 BANKING_PATTERNS = [
     (r"(?i)\b(interest|rate\s*of\s*interest|roi|compound|simple\s*interest)\b", "Interest calculation", "Verify rounding and precision rules after migration."),
     (r"(?i)\b(balance|min[_\s]?balance|available[_\s]?balance|overdraft)\b", "Account balance logic", "Confirm balance checks and limits behave identically."),
-    (r"(?i)\b(transaction|txn|transfer|deposit|withdraw|debit|credit)\b", "Transaction handling", "Ensure transaction integrity and logging are preserved."),
+    (r"(?i)\b(debit|credit)\b", "CORE debit/credit logic - HIGH IMPACT", "This code touches core debit/credit transaction logic. Any change here is high-impact and must be reviewed and tested with extra care to guarantee zero-error migration."),
+    (r"(?i)\b(transaction|txn|transfer|deposit|withdraw)\b", "Transaction handling", "Ensure transaction integrity and logging are preserved."),
     (r"(?i)\b(account[_\s]?number|acc[_\s]?no|iban|routing|swift)\b", "Account identifiers", "Check formatting and validation of account identifiers."),
     (r"(?i)\b(financial[_\s]?year|fiscal|maturity|tenure|emi|installment)\b", "Financial date/term logic", "Validate date and tenure calculations across versions."),
     (r"(?i)\b(currency|exchange[_\s]?rate|forex|decimal|round)\b", "Currency/precision logic", "Currency rounding must match exactly; test edge cases."),
@@ -1256,5 +1257,6 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
