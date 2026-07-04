@@ -534,7 +534,7 @@ return(
 Home
 </button>
 <h1 style={{color:"#38bdf8"}}>StarBuild</h1>
-<p style={{color:subtext}}>Transform your legacy code to modern standards</p>
+<p style={{color:subtext}}>Migrate, audit, and secure legacy code — with confidence scoring and verification.</p>
 </div>
 <div style={{maxWidth:"800px",margin:"0 auto",padding:"0 20px 40px"}}>
 <div style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"24px",marginBottom:"16px"}}>
@@ -611,7 +611,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -899,6 +899,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
