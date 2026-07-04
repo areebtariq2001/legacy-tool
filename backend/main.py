@@ -953,6 +953,11 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         if error:
             return {"filename": file.filename, "error": error}
         result = ai_advanced_migrate(source, detect_language(file.filename))
+        if detect_language(file.filename) == "python" and result.get("migrated_code"):
+            try:
+                result.update(check_parity(source, result.get("migrated_code", "")))
+            except Exception:
+                pass
         result["filename"] = file.filename
         track_usage("ai-migrate", file.filename)
         summary = f"confidence={result.get('confidence_score','N/A')} level={result.get('confidence_level','N/A')}"
@@ -1272,9 +1277,52 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": f"Banking scan failed safely: {str(e)}"}
 
+def check_parity(original, migrated):
+    def count_defs(code):
+        funcs = 0
+        classes = 0
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    funcs += 1
+                elif isinstance(node, ast.ClassDef):
+                    classes += 1
+        except:
+            pass
+        return funcs, classes
+    o_funcs, o_classes = count_defs(original)
+    m_funcs, m_classes = count_defs(migrated)
+    o_lines = len([l for l in original.split("\n") if l.strip()])
+    m_lines = len([l for l in migrated.split("\n") if l.strip()])
+    issues = []
+    if o_funcs != m_funcs:
+        issues.append("Function count changed: %d -> %d" % (o_funcs, m_funcs))
+    if o_classes != m_classes:
+        issues.append("Class count changed: %d -> %d" % (o_classes, m_classes))
+    parity_ok = len(issues) == 0
+    if parity_ok:
+        verdict = "Structural parity preserved - same functions and classes"
+    else:
+        verdict = "Structure changed - review recommended"
+    return {
+        "parity_ok": parity_ok,
+        "parity_verdict": verdict,
+        "original_functions": o_funcs,
+        "migrated_functions": m_funcs,
+        "original_classes": o_classes,
+        "migrated_classes": m_classes,
+        "original_lines": o_lines,
+        "migrated_lines": m_lines,
+        "parity_issues": issues,
+        "parity_disclaimer": "This is a structural parity check (functions, classes, lines). Full behavioral parity - running both versions on the same input and comparing output - requires a sandbox and is planned for on-premise deployment."
+    }
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
