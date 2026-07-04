@@ -1192,14 +1192,17 @@ SENSITIVE_PATTERNS = [
 
 def scan_sensitive_data(source):
     findings = []
+    source_lines = source.split(chr(10))
     for pattern, label, severity in SENSITIVE_PATTERNS:
         matches = re.findall(pattern, source)
         count = len(matches)
         if count > 0:
+            line_nums = [str(i+1) for i, ln in enumerate(source_lines) if re.search(pattern, ln)]
             findings.append({
                 "issue": label,
                 "severity": severity,
-                "occurrences": count
+                "occurrences": count,
+                "lines": ", ".join(line_nums[:10])
             })
     high = sum(1 for f in findings if f["severity"] == "High")
     medium = sum(1 for f in findings if f["severity"] == "Medium")
@@ -1472,6 +1475,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
