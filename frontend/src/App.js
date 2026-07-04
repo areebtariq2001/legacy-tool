@@ -809,6 +809,7 @@ Download Summary PDF
 </div>
 <p style={{color:subtext,fontSize:"12px",margin:"8px 0 0 0"}}>Checks: {result.confidence_reason}</p>
 {result.parity_verdict&&(<div style={{marginTop:"10px",background:codebg,borderRadius:"8px",padding:"12px"}}><p style={{color:result.parity_ok?"#4ade80":"#f59e0b",fontWeight:"700",fontSize:"13px",margin:"0 0 6px 0"}}>Parity Check: {result.parity_verdict}</p><p style={{color:subtext,fontSize:"12px",margin:"2px 0"}}>Functions: {result.original_functions} -> {result.migrated_functions}  |  Classes: {result.original_classes} -> {result.migrated_classes}</p>{result.parity_issues&&result.parity_issues.map((iss,ii)=>(<p key={ii} style={{color:"#f59e0b",fontSize:"12px",margin:"2px 0"}}>{iss}</p>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{result.parity_disclaimer}</p></div>)}
+{result.test_scenarios&&result.test_scenarios.length>0&&(<div style={{marginTop:"10px",background:codebg,borderRadius:"8px",padding:"12px"}}><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"13px",margin:"0 0 8px 0"}}>Suggested Test Scenarios</p>{result.test_scenarios.map((ts,ti)=>(<div key={ti} style={{marginBottom:"8px",paddingBottom:"8px",borderBottom:"1px solid #33415533"}}><p style={{color:text,fontSize:"12px",margin:"2px 0",fontWeight:"600"}}>{ts.function}</p><p style={{color:subtext,fontSize:"12px",margin:"2px 0"}}>Input: {ts.input}</p><p style={{color:"#4ade80",fontSize:"12px",margin:"2px 0"}}>Expected: {ts.expected}</p></div>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic"}}>{result.scenarios_note}</p></div>)}
 {result.confidence_score>=90&&result.valid&&(<div style={{marginTop:"8px",display:"flex",flexDirection:"column",gap:"3px"}}><span style={{color:"#4ade80",fontSize:"12px"}}>AST syntax valid</span><span style={{color:"#4ade80",fontSize:"12px"}}>Compiles successfully</span><span style={{color:"#4ade80",fontSize:"12px"}}>Variable names preserved</span></div>)}
 </div>
 )}
@@ -900,6 +901,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
