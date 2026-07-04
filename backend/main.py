@@ -1179,6 +1179,11 @@ SENSITIVE_PATTERNS = [
     (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "Email address", "Medium"),
     (r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "Possible phone number", "Low"),
     (r"(?i)\b(private[_-]?key|BEGIN RSA)\b", "Private key reference", "High"),
+    (r"(?i)(execute|cursor\.execute|query)\s*\(\s*[\x22\x27].*%.*[\x22\x27]\s*%", "Possible SQL injection (string formatting in query)", "High"),
+    (r"(?i)\+\s*(request|input|params|argv)", "Possible SQL/command injection (concatenated user input)", "High"),
+    (r"(?i)\b(eval|exec)\s*\(", "Dangerous eval/exec call", "High"),
+    (r"(?i)\bshell\s*=\s*True", "Insecure subprocess shell=True", "Medium"),
+    (r"(?i)\bverify\s*=\s*False", "Disabled TLS certificate verification", "High"),
     (r"(?i)\b(md5|sha1)\b", "Weak/non-compliant hashing (MD5/SHA1)", "High"),
     (r"(?i)\b(DES|RC4|ARC4|Blowfish)\b", "Weak encryption algorithm", "High"),
     (r"(?i)\bMODE_ECB\b", "Insecure ECB cipher mode", "High"),
@@ -1364,6 +1369,7 @@ def check_parity(original, migrated):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
