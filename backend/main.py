@@ -956,6 +956,7 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         if detect_language(file.filename) == "python" and result.get("migrated_code"):
             try:
                 result.update(check_parity(source, result.get("migrated_code", "")))
+                result.update(generate_test_scenarios(source, file.filename))
             except Exception:
                 pass
         result["filename"] = file.filename
@@ -1277,6 +1278,32 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": f"Banking scan failed safely: {str(e)}"}
 
+def generate_test_scenarios(source, filename):
+    prompt = (
+        "You are a QA engineer. Look at this code and suggest 3 to 4 simple test scenarios "
+        "to verify the migrated code behaves like the original. "
+        "For each, give: the function being tested, a sample input, and the expected output. "
+        "Use this exact format, one per line, no markdown:\n"
+        "TEST: <function> | INPUT: <input> | EXPECTED: <expected output>\n\n"
+        "Code:\n" + source
+    )
+    ai_response = call_groq(prompt, max_tokens=500)
+    scenarios = []
+    for line in ai_response.split("\n"):
+        line = line.strip()
+        if line.startswith("TEST:") and "INPUT:" in line and "EXPECTED:" in line:
+            try:
+                func = line.split("TEST:")[1].split("|")[0].strip()
+                inp = line.split("INPUT:")[1].split("|")[0].strip()
+                exp = line.split("EXPECTED:")[1].strip()
+                scenarios.append({"function": func, "input": inp, "expected": exp})
+            except:
+                pass
+    return {
+        "test_scenarios": scenarios,
+        "scenarios_note": "AI-suggested test scenarios to help verify behavioral parity. Review and adapt before use as formal tests."
+    }
+
 def check_parity(original, migrated):
     def count_defs(code):
         funcs = 0
@@ -1321,6 +1348,8 @@ def check_parity(original, migrated):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
