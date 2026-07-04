@@ -957,6 +957,7 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
             try:
                 result.update(check_parity(source, result.get("migrated_code", "")))
                 result.update(generate_test_scenarios(source, file.filename))
+                result.update(generate_dockerfile(file.filename, detect_language(file.filename)))
             except Exception:
                 pass
         result["filename"] = file.filename
@@ -1278,6 +1279,21 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": f"Banking scan failed safely: {str(e)}"}
 
+def generate_dockerfile(filename, language):
+    lang = (language or "python").lower()
+    if lang == "python":
+        content = "# Auto-generated Dockerfile for modernized Python code\nFROM python:3.11-slim\n\nWORKDIR /app\n\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY . .\n\nCMD [\"python\", \"" + filename + "\"]\n"
+    elif lang == "java":
+        content = "# Auto-generated Dockerfile for modernized Java code\nFROM openjdk:17-slim\n\nWORKDIR /app\n\nCOPY . .\n\nRUN javac *.java\n\nCMD [\"java\", \"Main\"]\n"
+    elif lang == "php":
+        content = "# Auto-generated Dockerfile for modernized PHP code\nFROM php:8.2-apache\n\nCOPY . /var/www/html/\n\nEXPOSE 80\n"
+    else:
+        content = "# Auto-generated Dockerfile\nFROM ubuntu:22.04\n\nWORKDIR /app\nCOPY . .\n"
+    return {
+        "dockerfile": content,
+        "dockerfile_note": "This is a standard starter Dockerfile template to containerize the modernized code. Review and adjust dependencies, entry point, and ports for your environment before deploying."
+    }
+
 def generate_test_scenarios(source, filename):
     prompt = (
         "You are a QA engineer. Look at this code and suggest 3 to 4 simple test scenarios "
@@ -1348,6 +1364,8 @@ def check_parity(original, migrated):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
