@@ -808,6 +808,7 @@ Download Summary PDF
 <div style={{background:confColor(result.confidence_score),borderRadius:"6px",height:"8px",width:result.confidence_score+"%"}}></div>
 </div>
 <p style={{color:subtext,fontSize:"12px",margin:"8px 0 0 0"}}>Checks: {result.confidence_reason}</p>
+{result.parity_verdict&&(<div style={{marginTop:"10px",background:codebg,borderRadius:"8px",padding:"12px"}}><p style={{color:result.parity_ok?"#4ade80":"#f59e0b",fontWeight:"700",fontSize:"13px",margin:"0 0 6px 0"}}>Parity Check: {result.parity_verdict}</p><p style={{color:subtext,fontSize:"12px",margin:"2px 0"}}>Functions: {result.original_functions} -> {result.migrated_functions}  |  Classes: {result.original_classes} -> {result.migrated_classes}</p>{result.parity_issues&&result.parity_issues.map((iss,ii)=>(<p key={ii} style={{color:"#f59e0b",fontSize:"12px",margin:"2px 0"}}>{iss}</p>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{result.parity_disclaimer}</p></div>)}
 {result.confidence_score>=90&&result.valid&&(<div style={{marginTop:"8px",display:"flex",flexDirection:"column",gap:"3px"}}><span style={{color:"#4ade80",fontSize:"12px"}}>AST syntax valid</span><span style={{color:"#4ade80",fontSize:"12px"}}>Compiles successfully</span><span style={{color:"#4ade80",fontSize:"12px"}}>Variable names preserved</span></div>)}
 </div>
 )}
@@ -899,6 +900,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
