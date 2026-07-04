@@ -727,7 +727,7 @@ Download Summary PDF
 </div>
 </div>
 <p style={{color:subtext,fontSize:"12.5px",margin:"4px 0",lineHeight:"1.4"}}>{f.description}</p>
-<p style={{color:"#38bdf8",fontSize:"12px",margin:"4px 0 0 0",lineHeight:"1.4"}}>→ {f.recommendation}</p>
+<div style={{marginTop:"6px",background:"rgba(34,197,94,0.08)",borderLeft:"3px solid #22c55e",padding:"6px 10px",borderRadius:"4px"}}><span style={{color:"#22c55e",fontWeight:"700",fontSize:"11px"}}>SUGGESTED FIX: </span><span style={{color:text,fontSize:"12px",lineHeight:"1.4"}}>{f.recommendation}</span></div>
 </div>
 ))}
 </div>
@@ -919,6 +919,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
