@@ -836,7 +836,7 @@ Download Summary PDF
 {result.why_explanations.map((w,wi)=>(
 <div key={wi} style={{marginBottom:wi<result.why_explanations.length-1?"12px":0,paddingBottom:wi<result.why_explanations.length-1?"12px":0,borderBottom:wi<result.why_explanations.length-1?"1px solid rgba(255,255,255,0.08)":"none"}}>
 <div style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700",marginBottom:"4px"}}>{w.change}</div>
-<div style={{color:subtext,fontSize:"12.5px",lineHeight:"1.5"}}>{w.why}</div>
+<div style={{color:subtext,fontSize:"12.5px",lineHeight:"1.5",background:"rgba(56,189,248,0.06)",borderLeft:"3px solid #38bdf8",padding:"6px 10px",borderRadius:"4px"}}><span style={{color:"#38bdf8",fontWeight:"600"}}>AI reasoning: </span>{w.why}</div>
 </div>
 ))}
 </div>
@@ -902,6 +902,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
