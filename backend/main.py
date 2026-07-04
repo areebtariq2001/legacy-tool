@@ -1421,9 +1421,58 @@ async def scan_crypto_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": f"Crypto scan failed safely: {str(e)}"}
 
+AML_KYC_PATTERNS = [
+    (r"(?i)\b(suspicious|fraud|blacklist|watchlist|sanction)\b", "Suspicious activity / watchlist check", "AML", "Verify with AML compliance team - suspicious-activity logic must match current regulations."),
+    (r"(?i)\b(kyc|know[_\s]?your[_\s]?customer|verify[_\s]?identity|customer[_\s]?verification)\b", "Customer identity verification (KYC)", "KYC", "Confirm KYC verification rules with compliance before migrating."),
+    (r"(?i)\b(transaction[_\s]?limit|threshold|reporting[_\s]?limit|ctr|cash[_\s]?transaction)\b", "Transaction threshold / reporting", "AML", "Reporting thresholds are regulated - verify limits with compliance team."),
+    (r"(?i)\b(pep|politically[_\s]?exposed|due[_\s]?diligence|edd|cdd)\b", "Due diligence / PEP screening", "KYC", "Enhanced due-diligence logic must be reviewed by compliance."),
+    (r"(?i)\b(aml|anti[_\s]?money|launder|str|sar)\b", "Anti-money-laundering logic", "AML", "Core AML logic - must be verified with compliance and audit teams."),
+    (r"(?i)\b(risk[_\s]?score|risk[_\s]?rating|risk[_\s]?category)\b", "Customer risk scoring", "KYC", "Risk-scoring rules affect compliance decisions - review carefully."),
+]
+
+def extract_aml_kyc(source):
+    findings = []
+    for pattern, label, category, note in AML_KYC_PATTERNS:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            findings.append({
+                "pattern": label,
+                "category": category,
+                "occurrences": count,
+                "note": note
+            })
+    if findings:
+        verdict = "AML/KYC compliance logic detected - review with compliance team"
+    else:
+        verdict = "No obvious AML/KYC patterns detected"
+    return {
+        "findings": findings,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "has_compliance_logic": len(findings) > 0,
+        "disclaimer": "Keyword-based detector for AML/KYC-related logic. This is a discovery aid to help locate compliance-critical code. A compliance officer must verify all findings - this does not certify regulatory compliance."
+    }
+
+@app.post("/extract-aml-kyc")
+async def aml_kyc_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = extract_aml_kyc(source)
+        result["filename"] = file.filename
+        track_usage("extract-aml-kyc", file.filename)
+        write_audit_log("extract-aml-kyc", file.filename, "findings=" + str(result.get("total_findings", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
