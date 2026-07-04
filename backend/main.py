@@ -1366,9 +1366,65 @@ def check_parity(original, migrated):
         "parity_disclaimer": "This is a structural parity check (functions, classes, lines). Full behavioral parity - running both versions on the same input and comparing output - requires a sandbox and is planned for on-premise deployment."
     }
 
+CRYPTO_PATTERNS = [
+    (r"(?i)\b(DES|3DES|TripleDES)\b", "DES/3DES - broken symmetric cipher", "High", "Replace with AES-256. For long-term security, plan AES-256 (quantum-resistant at 256-bit)."),
+    (r"(?i)\b(RC4|ARC4)\b", "RC4 - broken stream cipher", "High", "Replace with AES-GCM or ChaCha20-Poly1305."),
+    (r"(?i)\b(MD5)\b", "MD5 - broken hash", "High", "Replace with SHA-256 or SHA-3."),
+    (r"(?i)\b(SHA1|SHA-1)\b", "SHA-1 - deprecated hash", "High", "Replace with SHA-256 or SHA-3."),
+    (r"(?i)\bMODE_ECB\b", "ECB mode - insecure", "High", "Use AES-GCM or CBC with random IV."),
+    (r"(?i)\bRSA\b", "RSA - quantum-vulnerable public-key crypto", "Medium", "PQC Path: plan migration to post-quantum algorithms (e.g. CRYSTALS-Kyber/Dilithium) as standards mature."),
+    (r"(?i)\b(ECDSA|ECDH|elliptic)\b", "ECC - quantum-vulnerable public-key crypto", "Medium", "PQC Path: elliptic-curve crypto is broken by quantum computers; plan post-quantum migration."),
+    (r"(?i)\bDiffie[-\s]?Hellman\b", "Diffie-Hellman - quantum-vulnerable key exchange", "Medium", "PQC Path: plan post-quantum key exchange (e.g. Kyber)."),
+]
+
+def scan_crypto(source):
+    findings = []
+    pqc_needed = False
+    for pattern, label, severity, recommendation in CRYPTO_PATTERNS:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            is_pqc = "PQC Path" in recommendation
+            if is_pqc:
+                pqc_needed = True
+            findings.append({
+                "issue": label,
+                "severity": severity,
+                "occurrences": count,
+                "recommendation": recommendation,
+                "pqc": is_pqc
+            })
+    if findings:
+        verdict = "Weak or quantum-vulnerable cryptography detected"
+    else:
+        verdict = "No obvious weak cryptography detected"
+    return {
+        "findings": findings,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "pqc_suggested": pqc_needed,
+        "disclaimer": "Pattern-based cryptography scan. Flags known-weak algorithms and quantum-vulnerable public-key crypto. A cryptography expert should confirm before making changes."
+    }
+
+@app.post("/scan-crypto")
+async def scan_crypto_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = scan_crypto(source)
+        result["filename"] = file.filename
+        track_usage("scan-crypto", file.filename)
+        write_audit_log("scan-crypto", file.filename, "findings=" + str(result.get("total_findings", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Crypto scan failed safely: {str(e)}"}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
