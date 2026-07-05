@@ -1401,8 +1401,26 @@ def scan_crypto(source):
         verdict = "Weak or quantum-vulnerable cryptography detected"
     else:
         verdict = "No obvious weak cryptography detected"
+    q_score = 100
+    for f in findings:
+        if f.get("pqc"):
+            q_score -= 20
+        elif f.get("severity") == "High":
+            q_score -= 15
+        else:
+            q_score -= 10
+    if q_score < 0:
+        q_score = 0
+    if q_score >= 90:
+        q_level = "Quantum-Safe"
+    elif q_score >= 60:
+        q_level = "Needs Attention"
+    else:
+        q_level = "Critical - Not Quantum-Ready"
     return {
         "findings": findings,
+        "quantum_score": q_score,
+        "quantum_level": q_level,
         "total_findings": len(findings),
         "verdict": verdict,
         "pqc_suggested": pqc_needed,
@@ -1475,6 +1493,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
