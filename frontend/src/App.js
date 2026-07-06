@@ -196,7 +196,7 @@ View API
 <span style={{color:"#22c55e",fontWeight:"700",fontSize:"15px"}}>Stress-tested on 50+ real-world legacy scripts &mdash; 97% high-confidence migrations</span>
 </div>
 </div>
-<p style={{textAlign:"center",color:"#64748b",fontSize:"13px",marginBottom:"20px",textTransform:"uppercase",letterSpacing:"1px"}}>Supported Languages</p>
+<div style={{maxWidth:"600px",margin:"0 auto 24px auto",padding:"16px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:"12px"}}><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 8px 0"}}>Scan a GitHub Repo (whole codebase)</p><div style={{display:"flex",gap:"8px"}}><input value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" style={{flex:1,padding:"8px 12px",borderRadius:"8px",border:"1px solid #334155",background:codebg,color:text,fontSize:"13px"}}/><button onClick={handleScanRepo} disabled={repoLoading} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:"#38bdf8",color:"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"13px"}}>{repoLoading?"Scanning...":"Scan Repo"}</button></div><p style={{color:subtext,fontSize:"11px",margin:"6px 0 0 0"}}>Scans up to 25 Python files from a public repo.</p>{repoResult&&<div style={{marginTop:"12px"}}>{repoResult.error?<p style={{color:"#f87171",fontSize:"13px"}}>{repoResult.error}</p>:<div><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 4px 0"}}>Repo: {repoResult.repo}</p><p style={{color:text,fontSize:"13px",margin:"0 0 8px 0"}}>Scanned {repoResult.files_scanned} files &bull; {repoResult.total_issues} total issues found</p>{repoResult.file_reports&&repoResult.file_reports.map((fr,fri)=>(<div key={fri} style={{display:"flex",justifyContent:"space-between",background:codebg,borderRadius:"6px",padding:"6px 10px",marginBottom:"4px"}}><span style={{color:text,fontSize:"12px"}}>{fr.file}</span><span style={{color:fr.risk_level==="High"?"#f87171":fr.risk_level==="Medium"?"#f59e0b":"#4ade80",fontSize:"12px",fontWeight:"600"}}>{fr.risk_level} ({fr.issues})</span></div>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{repoResult.disclaimer}</p></div>}</div>}</div><p style={{textAlign:"center",color:"#64748b",fontSize:"13px",marginBottom:"20px",textTransform:"uppercase",letterSpacing:"1px"}}>Supported Languages</p>
 <div style={{display:"flex",gap:"16px",justifyContent:"center",flexWrap:"wrap"}}>
 {[["Python","#3b82f6"],["Java","#f59e0b"],["PHP","#8b5cf6"],["COBOL","#10b981"]].map(([lang,color])=>(
 <span key={lang} className="sb-lang" style={{padding:"10px 24px",borderRadius:"10px",fontWeight:"700",fontSize:"15px",background:color+"1a",color:color,border:"1px solid "+color+"55",transition:"transform 0.2s ease",cursor:"default"}}>
@@ -279,6 +279,10 @@ const[darkMode,setDarkMode]=useState(true);
 const[showWhy,setShowWhy]=useState({});
 const[threshold,setThreshold]=useState(85);
 const[restored,setRestored]=useState({});
+const[repoUrl,setRepoUrl]=useState("");
+const[repoLoading,setRepoLoading]=useState(false);
+const[repoResult,setRepoResult]=useState(null);
+const handleScanRepo=async()=>{if(!repoUrl.trim())return;setRepoLoading(true);setRepoResult(null);try{const res=await fetch(API+"/scan-repo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo_url:repoUrl})});const data=await res.json();setRepoResult(data);}catch(e){setRepoResult({error:"Could not scan repo. Please try again."});}setRepoLoading(false);};
 
 const bg=darkMode?"#0a0e1a":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
@@ -919,6 +923,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
