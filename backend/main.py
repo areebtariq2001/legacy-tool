@@ -1546,9 +1546,86 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def check_ai_native_readiness(source):
+    score = 100
+    findings = []
+    try:
+        tree = ast.parse(source)
+        funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        # 1. Functions present (modular = easier for AI/APIs to call)
+        if len(funcs) == 0:
+            score -= 25
+            findings.append({"issue": "No functions found - code is not modular, hard to expose as APIs for AI systems", "impact": "High"})
+        # 2. Has docstrings (AI/analytics need context)
+        documented = sum(1 for f in funcs if ast.get_docstring(f))
+        if funcs and documented == 0:
+            score -= 15
+            findings.append({"issue": "No docstrings - AI tools and analytics need documented context", "impact": "Medium"})
+    except Exception:
+        score -= 30
+        findings.append({"issue": "Code could not be parsed - syntax issues block AI integration", "impact": "High"})
+    # 3. Hardcoded values / config (blocks flexible AI integration)
+    import re as _re
+    if _re.search(r"(?i)(localhost|127\.0\.0\.1|hardcoded|password\s*=\s*[\x22\x27])", source):
+        score -= 15
+        findings.append({"issue": "Hardcoded config/credentials - blocks flexible deployment in AI environments", "impact": "Medium"})
+    # 4. print statements instead of logging (not observable for AI pipelines)
+    if _re.search(r"(?m)^\s*print\s*\(", source):
+        score -= 10
+        findings.append({"issue": "Uses print() instead of logging - AI pipelines need structured logs", "impact": "Low"})
+    # 5. eval/exec (unsafe, blocks sandboxed AI use)
+    if _re.search(r"(?i)\b(eval|exec)\s*\(", source):
+        score -= 15
+        findings.append({"issue": "Uses eval/exec - unsafe for AI-native, sandboxed environments", "impact": "High"})
+    # 6. No type hints (AI tooling benefits from types)
+    if funcs_has_no_hints(source):
+        score -= 10
+        findings.append({"issue": "No type hints - AI code tools and validation work better with types", "impact": "Low"})
+    if score < 0:
+        score = 0
+    if score >= 80:
+        level = "AI-Ready"
+    elif score >= 50:
+        level = "Partially Ready - some refactoring needed"
+    else:
+        level = "Not AI-Ready - significant modernization required"
+    return {
+        "ai_native_score": score,
+        "ai_native_level": level,
+        "ai_native_findings": findings,
+        "ai_native_disclaimer": "Heuristic check of how ready this code is to integrate with modern AI/analytics systems (modularity, config, logging, safety, types). A guide for modernization planning, not a guarantee."
+    }
+
+def funcs_has_no_hints(source):
+    import re as _re2
+    defs = _re2.findall(r"def\s+\w+\s*\(([^)]*)\)", source)
+    if not defs:
+        return False
+    for d in defs:
+        if ":" in d:
+            return False
+    return True
+
+@app.post("/ai-native-readiness")
+async def ai_native_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = check_ai_native_readiness(source)
+        result["filename"] = file.filename
+        track_usage("ai-native-readiness", file.filename)
+        write_audit_log("ai-native-readiness", file.filename, "score=" + str(result.get("ai_native_score", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "AI-native check failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
 
 
 
