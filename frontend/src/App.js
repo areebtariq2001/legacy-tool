@@ -321,6 +321,7 @@ else if(mode==="scan"){endpoint="/scan-sensitive";}
 else if(mode==="banking"){endpoint="/banking-patterns";}
 else if(mode==="crypto"){endpoint="/scan-crypto";}
 else if(mode==="amlkyc"){endpoint="/extract-aml-kyc";}
+else if(mode==="ainative"){endpoint="/ai-native-readiness";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -524,7 +525,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -617,7 +618,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -739,6 +740,13 @@ Download Summary PDF
 <p style={{color:"#4ade80",fontSize:"13px"}}>No known risky external dependencies detected.</p>
 )}
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
+</div>
+)}
+{result.ai_native_score!==undefined&&mode==="ainative"&&(
+<div style={{marginTop:"4px"}}>
+<div style={{marginBottom:"12px",padding:"14px",borderRadius:"10px",background:"rgba(6,182,212,0.08)",border:"1px solid #06b6d4"}}><div style={{fontSize:"32px",fontWeight:"800",color:result.ai_native_score>=80?"#4ade80":result.ai_native_score>=50?"#f59e0b":"#f87171"}}>{result.ai_native_score}% AI-Ready</div><div style={{color:"#06b6d4",fontWeight:"700",fontSize:"14px",marginTop:"4px"}}>AI-Native Readiness Score</div><div style={{color:subtext,fontSize:"12px"}}>{result.ai_native_level}</div></div>
+{result.ai_native_findings&&result.ai_native_findings.map((fd,fi)=>(<div key={fi} style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><span style={{color:fd.impact==="High"?"#f87171":fd.impact==="Medium"?"#f59e0b":"#4ade80",fontWeight:"700",fontSize:"11px"}}>{fd.impact}</span><span style={{color:text,fontSize:"12px",marginLeft:"8px"}}>{fd.issue}</span></div>))}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.ai_native_disclaimer}</p>
 </div>
 )}
 {result.has_compliance_logic!==undefined&&mode==="amlkyc"&&(
@@ -923,6 +931,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
