@@ -1546,6 +1546,37 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def generate_cicd_recommendations(source, filename):
+    import re as _re
+    recs = []
+    lang = detect_language(filename)
+    # Base recommendations for any migration
+    recs.append({"stage": "Build", "recommendation": "Set up an automated build step that compiles/validates the migrated code on every commit.", "priority": "High"})
+    recs.append({"stage": "Test", "recommendation": "Add an automated test stage - run unit tests before any deployment. Migration without tests is high risk.", "priority": "High"})
+    # Detect tests present
+    has_tests = bool(_re.search(r"(?i)(def test_|import unittest|import pytest|assert )", source))
+    if not has_tests:
+        recs.append({"stage": "Test", "recommendation": "No tests detected in this code. Generate baseline tests before migrating so you can verify behavior is preserved.", "priority": "High"})
+    # Security scanning
+    recs.append({"stage": "Security", "recommendation": "Add a security scan stage (StarBuild Data Scan / dependency check) to catch vulnerabilities before release.", "priority": "Medium"})
+    # Detect dependencies -> dependency pinning
+    if _re.search(r"(?m)^\s*(?:import|from)\s+\w+", source):
+        recs.append({"stage": "Dependencies", "recommendation": "Pin dependency versions (requirements.txt / lockfile) so the migrated build is reproducible.", "priority": "Medium"})
+    # Containerization
+    recs.append({"stage": "Package", "recommendation": "Containerize with Docker (StarBuild can generate a starter Dockerfile) for consistent deployment across environments.", "priority": "Medium"})
+    # Rollback
+    recs.append({"stage": "Deploy", "recommendation": "Configure a rollback strategy (blue-green or canary) so a failed migration can be reverted quickly.", "priority": "High"})
+    # Language-specific
+    if lang == "python":
+        recs.append({"stage": "Build", "recommendation": "Target Python 3.11+ in CI and run 'python -m py_compile' to catch syntax issues early.", "priority": "Medium"})
+    elif lang == "java":
+        recs.append({"stage": "Build", "recommendation": "Use Maven/Gradle in CI targeting Java 21 LTS; fail the build on deprecated-API warnings.", "priority": "Medium"})
+    return {
+        "cicd_recommendations": recs,
+        "cicd_summary": str(len(recs)) + " CI/CD recommendations for a safe migration pipeline",
+        "cicd_disclaimer": "General CI/CD guidance for migrating this code safely. Adapt to your team's existing pipeline (GitHub Actions, GitLab CI, Jenkins, etc.)."
+    }
+
 def predict_migration_risk(source, filename):
     risk = 0
     reasons = []
@@ -1693,9 +1724,26 @@ async def predict_risk_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Risk prediction failed safely: " + str(e)}
 
+@app.post("/cicd-recommendations")
+async def cicd_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_cicd_recommendations(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cicd-recommendations", file.filename)
+        write_audit_log("cicd-recommendations", file.filename, "recs=" + str(len(result.get("cicd_recommendations", []))))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "CI/CD recommendations failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
