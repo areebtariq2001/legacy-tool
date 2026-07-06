@@ -1490,9 +1490,67 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"}
 
+class RepoRequest(BaseModel):
+    repo_url: str
+
+@app.post("/scan-repo")
+async def scan_repo_endpoint(req: RepoRequest):
+    try:
+        url = req.repo_url.strip().rstrip("/")
+        # Expect format: https://github.com/owner/repo
+        parts = url.replace("https://github.com/", "").replace("http://github.com/", "").split("/")
+        if len(parts) < 2:
+            return {"error": "Please provide a valid GitHub repo URL like https://github.com/owner/repo"}
+        owner, repo = parts[0], parts[1]
+        api_url = "https://api.github.com/repos/" + owner + "/" + repo + "/git/trees/HEAD?recursive=1"
+        r = requests.get(api_url, timeout=20)
+        if r.status_code != 200:
+            return {"error": "Could not access repo. Make sure it is public and the URL is correct."}
+        tree = r.json().get("tree", [])
+        py_files = [f for f in tree if f.get("path", "").endswith(".py") and f.get("type") == "blob"]
+        if not py_files:
+            return {"error": "No Python (.py) files found in this repo.", "repo": owner + "/" + repo}
+        py_files = py_files[:25]  # limit for free server
+        file_reports = []
+        total_issues = 0
+        for f in py_files:
+            path = f.get("path")
+            raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + path
+            try:
+                fr = requests.get(raw_url, timeout=15)
+                if fr.status_code != 200:
+                    continue
+                source = fr.text
+                if len(source) > 200000:
+                    continue
+                risk = assess_dependency_risk(source)
+                issues = risk.get("total_issues", 0)
+                total_issues += issues
+                file_reports.append({
+                    "file": path,
+                    "risk_level": risk.get("overall_risk", "Unknown"),
+                    "issues": issues
+                })
+            except Exception:
+                continue
+        track_usage("scan-repo", owner + "/" + repo)
+        write_audit_log("scan-repo", owner + "/" + repo, "files=" + str(len(file_reports)))
+        return {
+            "repo": owner + "/" + repo,
+            "files_scanned": len(file_reports),
+            "total_files_found": len(py_files),
+            "total_issues": total_issues,
+            "file_reports": file_reports,
+            "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. For full/large repos, a paid server and deeper analysis are planned."
+        }
+    except Exception as e:
+        return {"error": "Repo scan failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
