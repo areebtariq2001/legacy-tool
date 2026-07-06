@@ -1546,6 +1546,62 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def predict_migration_risk(source, filename):
+    risk = 0
+    reasons = []
+    import re as _re
+    # 1. Risky/deprecated libraries (high migration risk)
+    risky_libs = ["MySQLdb", "urllib2", "urllib3", "cStringIO", "cPickle", "itertools.izip", "raw_input", "print ", "exec ", "has_key", "xrange"]
+    found_libs = [lib for lib in risky_libs if lib in source]
+    if found_libs:
+        risk += min(len(found_libs) * 10, 40)
+        reasons.append("Uses deprecated/legacy patterns: " + ", ".join(found_libs[:5]))
+    # 2. Code size / complexity
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    if len(lines) > 300:
+        risk += 20
+        reasons.append("Large file (" + str(len(lines)) + " lines) - more surface area for migration errors")
+    elif len(lines) > 100:
+        risk += 10
+        reasons.append("Moderate file size (" + str(len(lines)) + " lines)")
+    # 3. Parse check
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+        if funcs > 20:
+            risk += 15
+            reasons.append("High number of functions (" + str(funcs) + ") - complex to migrate and test")
+    except Exception:
+        risk += 30
+        reasons.append("Code does not parse in Python 3 - will require fixes before migration")
+    # 4. External imports (dependency risk)
+    imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+    if len(set(imports)) > 8:
+        risk += 15
+        reasons.append("Many external dependencies (" + str(len(set(imports))) + ") - each is a migration risk point")
+    # 5. Dynamic/risky calls
+    if _re.search(r"(?i)\b(eval|exec|globals|locals|__import__)\s*\(", source):
+        risk += 15
+        reasons.append("Uses dynamic code execution (eval/exec) - hard to migrate safely")
+    if risk > 100:
+        risk = 100
+    if risk >= 60:
+        level = "High Risk"
+        advice = "Migrate carefully with full test coverage and manual review."
+    elif risk >= 30:
+        level = "Medium Risk"
+        advice = "Review flagged areas and test key paths after migration."
+    else:
+        level = "Low Risk"
+        advice = "Likely safe to migrate with standard verification."
+    return {
+        "migration_risk": risk,
+        "risk_level": level,
+        "risk_advice": advice,
+        "risk_reasons": reasons,
+        "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
+    }
+
 def check_ai_native_readiness(source):
     score = 100
     findings = []
@@ -1622,9 +1678,26 @@ async def ai_native_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "AI-native check failed safely: " + str(e)}
 
+@app.post("/predict-risk")
+async def predict_risk_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = predict_migration_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("predict-risk", file.filename)
+        write_audit_log("predict-risk", file.filename, "risk=" + str(result.get("migration_risk", 0)))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Risk prediction failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
