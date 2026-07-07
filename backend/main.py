@@ -1752,6 +1752,22 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def discover_business_rules_engine(source, filename):
+    import re as _re7
+    rules = []
+    lines = source.split(chr(10))
+    compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id)", "Transaction Limit": r"(?i)(limit|maximum|max_amount|threshold|exceed)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft|funds)", "Authorization": r"(?i)(authoriz|permission|role|access|approve)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk|block|freeze|flag)"}
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
+        if m:
+            condition = m.group(2).strip()
+            if len(condition) < 3: continue
+            tags = [name for name, pat in compliance_keywords.items() if _re7.search(pat, condition)]
+            rules.append({"rule_id": "RULE-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
+    tagged = len([r for r in rules if r["compliance_tags"]])
+    return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": (str(len(rules)) + " business rules discovered; " + str(tagged) + " linked to compliance standards") if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers decision logic (if/elif conditions) and presents it as decoupled business rules for review by non-technical users. Compliance tags are heuristic hints - verify with a compliance officer."}
+
 def generate_rollback_plan(source, filename):
     import re as _re6
     steps = []
@@ -2064,9 +2080,24 @@ async def rollback_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Rollback plan failed safely: " + str(e)}
 
+@app.post("/discover-rules")
+async def rules_engine_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = discover_business_rules_engine(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("discover-rules", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Rule discovery failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
