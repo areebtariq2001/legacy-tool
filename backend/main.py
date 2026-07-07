@@ -1752,6 +1752,19 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def extract_business_rules(source, language):
+    prompt = "You are a business analyst reviewing legacy code. In plain, non-technical English, describe the BUSINESS RULES and BUSINESS LOGIC this code implements - what it decides, validates, calculates, or enforces. Write it so a business analyst or manager (not a programmer) can understand what this module does. Use short bullet points starting with action words (Calculates, Validates, Checks, Applies, Updates, Rejects, etc). Focus on WHAT the business logic does, not HOW the code works. Here is the code:" + chr(10) + chr(10) + source[:6000]
+    try:
+        rules_text = call_groq(prompt)
+        if not rules_text or len(rules_text.strip()) < 5:
+            rules_text = "Could not extract business rules - the AI response was empty. The code may be too short or unclear."
+    except Exception as e:
+        rules_text = "Business rule extraction is temporarily unavailable: " + str(e)
+    return {
+        "business_rules": rules_text,
+        "br_disclaimer": "AI-generated interpretation of the business logic in this code. A starting point for understanding legacy modules - always verify against business requirements and domain experts."
+    }
+
 def check_ai_native_readiness(source):
     score = 100
     findings = []
@@ -1903,9 +1916,25 @@ async def architecture_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Architecture generation failed safely: " + str(e)}
 
-@app.get("/")
+@app.post('/extract-business-rules')
+async def business_rules_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {'filename': file.filename, 'error': error}
+        result = extract_business_rules(source, detect_language(file.filename))
+        result['filename'] = file.filename
+        return result
+    except Exception as e:
+        return {'filename': file.filename, 'error': 'Business rule extraction failed safely: ' + str(e)}
+
+@app.get('/')
 def root():
     return {"message": "API is running"}
+
+
+
 
 
 
