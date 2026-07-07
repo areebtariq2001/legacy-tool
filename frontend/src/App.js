@@ -324,6 +324,7 @@ else if(mode==="amlkyc"){endpoint="/extract-aml-kyc";}
 else if(mode==="ainative"){endpoint="/ai-native-readiness";}
 else if(mode==="migrisk"){endpoint="/predict-risk";}
 else if(mode==="cicd"){endpoint="/cicd-recommendations";}
+else if(mode==="dbschema"){endpoint="/analyze-db-schema";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -527,7 +528,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -620,7 +621,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -742,6 +743,16 @@ Download Summary PDF
 <p style={{color:"#4ade80",fontSize:"13px"}}>No known risky external dependencies detected.</p>
 )}
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
+</div>
+)}
+{result.has_database!==undefined&&mode==="dbschema"&&(
+<div style={{marginTop:"4px"}}>
+<p style={{color:"#a855f7",fontWeight:"700",fontSize:"14px",marginBottom:"10px"}}>{result.db_summary}</p>
+{result.databases&&result.databases.length>0&&<div style={{marginBottom:"8px"}}><span style={{color:subtext,fontSize:"12px"}}>Databases: </span>{result.databases.map((d,di)=>(<span key={di} style={{color:"#a855f7",fontSize:"12px",fontWeight:"700",marginRight:"8px"}}>{d}</span>))}</div>}
+{result.tables&&result.tables.length>0&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#a855f7",fontWeight:"700",fontSize:"12px",margin:"0 0 6px 0"}}>Tables ({result.tables.length})</p><p style={{color:text,fontSize:"12px",margin:0}}>{result.tables.join(", ")}</p></div>}
+{result.columns&&result.columns.length>0&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#a855f7",fontWeight:"700",fontSize:"12px",margin:"0 0 6px 0"}}>Columns ({result.columns.length})</p><p style={{color:text,fontSize:"12px",margin:0}}>{result.columns.join(", ")}</p></div>}
+{result.query_types&&result.query_types.length>0&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#a855f7",fontWeight:"700",fontSize:"12px",margin:"0 0 6px 0"}}>Query Types</p><p style={{color:text,fontSize:"12px",margin:0}}>{result.query_types.join(", ")}</p></div>}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.db_disclaimer}</p>
 </div>
 )}
 {result.cicd_recommendations!==undefined&&mode==="cicd"&&(
@@ -947,6 +958,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
