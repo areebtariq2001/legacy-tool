@@ -1752,6 +1752,22 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def generate_rollback_plan(source, filename):
+    import re as _re6
+    steps = []
+    steps.append({"step": 1, "action": "Backup the original file and full codebase (git commit or copy) before starting migration.", "type": "Preparation"})
+    steps.append({"step": 2, "action": "Tag the current working version in version control (e.g. git tag pre-migration) so you can return to it instantly.", "type": "Preparation"})
+    has_db = bool(_re6.search(r"(?i)(sqlite|mysql|postgres|CREATE TABLE|INSERT INTO|UPDATE )", source))
+    if has_db:
+        steps.append({"step": len(steps)+1, "action": "Back up the database (schema + data) before migration - this code performs database operations that could affect stored data.", "type": "Data Safety"})
+    has_txn = bool(_re6.search(r"(?i)(payment|transfer|deposit|withdraw|balance)", source))
+    if has_txn:
+        steps.append({"step": len(steps)+1, "action": "Run migration in a test/staging environment first with sample transactions - this handles financial operations where errors are costly.", "type": "Testing"})
+    steps.append({"step": len(steps)+1, "action": "Keep both old and new versions deployable side by side (blue-green) so you can switch back within minutes if issues appear.", "type": "Deployment"})
+    steps.append({"step": len(steps)+1, "action": "Define a clear rollback trigger (e.g. error rate, failed tests, wrong output) and who approves the rollback decision.", "type": "Monitoring"})
+    steps.append({"step": len(steps)+1, "action": "If migration fails: revert to the tagged pre-migration version, restore the database backup, and verify the system matches pre-migration behavior.", "type": "Recovery"})
+    return {"rollback_steps": steps, "rollback_summary": str(len(steps)) + "-step rollback plan generated" + (" (includes data + transaction safeguards)" if has_db or has_txn else ""), "rollback_disclaimer": "A general rollback plan based on this code. Adapt to your infrastructure and always test rollback procedures before a real migration."}
+
 def map_transaction_flow(source, filename):
     import re as _re5
     flows = []
@@ -2034,9 +2050,24 @@ async def txn_flow_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Transaction flow mapping failed safely: " + str(e)}
 
+@app.post("/rollback-plan")
+async def rollback_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_rollback_plan(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("rollback-plan", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Rollback plan failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
