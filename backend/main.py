@@ -1546,6 +1546,47 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def analyze_db_schema(source, filename):
+    import re as _re
+    tables = []
+    columns = []
+    queries = []
+    connections = []
+    # 1. CREATE TABLE statements
+    for m in _re.finditer(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60\x22\x27\[]?(\w+)", source):
+        tables.append(m.group(1))
+    # 2. SQL queries (SELECT/INSERT/UPDATE/DELETE)
+    for m in _re.finditer(r"(?i)\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b", source):
+        queries.append(m.group(1).upper().replace("  ", " "))
+    # 3. Table references in FROM / JOIN / INTO
+    for m in _re.finditer(r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60\x22\x27\[]?(\w+)", source):
+        t = m.group(1)
+        if t.upper() not in ("SELECT", "WHERE", "SET", "VALUES") and t not in tables:
+            tables.append(t)
+    # 4. DB connection hints
+    conn_patterns = {"MySQL": r"(?i)(mysql|MySQLdb|pymysql)", "PostgreSQL": r"(?i)(psycopg2|postgres)", "SQLite": r"(?i)(sqlite3|sqlite)", "Oracle": r"(?i)(cx_Oracle|oracle)", "SQL Server": r"(?i)(pyodbc|mssql|sqlserver)", "MongoDB": r"(?i)(pymongo|mongodb)"}
+    for db, pat in conn_patterns.items():
+        if _re.search(pat, source):
+            connections.append(db)
+    # 5. Column hints from CREATE TABLE bodies (simple)
+    for m in _re.finditer(r"(?i)CREATE\s+TABLE[^(]*\(([^;]*?)\)", source, _re.DOTALL):
+        body = m.group(1)
+        for col in _re.findall(r"(?m)^\s*[\x60\x22\x27\[]?(\w+)[\x60\x22\x27\]]?\s+(?:INT|VARCHAR|CHAR|TEXT|DATE|DATETIME|TIMESTAMP|DECIMAL|NUMERIC|BOOLEAN|FLOAT|DOUBLE|BIGINT|SMALLINT|BLOB)", body):
+            columns.append(col)
+    tables = list(dict.fromkeys(tables))
+    columns = list(dict.fromkeys(columns))
+    unique_queries = list(dict.fromkeys(queries))
+    has_db = bool(tables or connections or queries)
+    return {
+        "has_database": has_db,
+        "tables": tables,
+        "columns": columns[:30],
+        "query_types": unique_queries,
+        "databases": connections,
+        "db_summary": (str(len(tables)) + " tables, " + str(len(columns)) + " columns, " + str(len(unique_queries)) + " query types detected") if has_db else "No database schema or SQL detected in this file",
+        "db_disclaimer": "Pattern-based database schema detection (tables, columns, queries, DB drivers). Helps map data dependencies before migration. Verify against actual schema files for completeness."
+    }
+
 def generate_cicd_recommendations(source, filename):
     import re as _re
     recs = []
@@ -1739,9 +1780,26 @@ async def cicd_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "CI/CD recommendations failed safely: " + str(e)}
 
+@app.post("/analyze-db-schema")
+async def db_schema_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = analyze_db_schema(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("analyze-db-schema", file.filename)
+        write_audit_log("analyze-db-schema", file.filename, "tables=" + str(len(result.get("tables", []))))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "DB schema analysis failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
