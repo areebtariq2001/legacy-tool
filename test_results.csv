@@ -1,0 +1,46 @@
+filename,language,score,level,detail
+bank.py,Python,100,High confidence,all checks passed
+big_file.py,Python,100,High confidence,all checks passed
+binary_test.py,Python,N/A,N/A,
+broken_file.py,Python,100,High confidence,all checks passed
+calculator.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+config.py,Python,100,High confidence,all checks passed
+counter.py,Python,100,High confidence,all checks passed
+empty_file.py,Python,N/A,N/A,
+file_reader.py,Python,100,High confidence,all checks passed
+gh_astropy_py3compat.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_auto2to3.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_conf.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_django_utils_encoding.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_find_pattern.py,Python,100,High confidence,all checks passed
+gh_fix_notebook_html_colour.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_futureext.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_futurize.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_gevent_py3k.py,Python,100,High confidence,all checks passed
+gh_ipython_py3compat.py,Python,80,Medium confidence - review recommended,output is much shorter than input (code may be missing)
+gh_jinja2_compat.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_numpy_py3k.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_pandas_py3k.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_pasteurize.py,Python,100,High confidence,all checks passed
+gh_pycrypto_py3compat.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_setup.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+gh_statsmodels_py3k.py,Python,75,Medium confidence - review recommended,variable names may have changed
+gh___init__.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+grades.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+inventory.py,Python,100,High confidence,all checks passed
+logger.py,Python,100,High confidence,all checks passed
+loop_test.py,Python,100,High confidence,all checks passed
+math_ops.py,Python,100,High confidence,all checks passed
+matrix.py,Python,100,High confidence,all checks passed
+menu.py,Python,95,High confidence,AI output was unreliable; switched to deterministic rule-based migration
+mixed_py2_py3.py,Python,100,High confidence,all checks passed
+only_comments.py,Python,100,High confidence,no executable code to migrate
+queue_sim.py,Python,100,High confidence,all checks passed
+search.py,Python,100,High confidence,all checks passed
+shopping_cart.py,Python,100,High confidence,all checks passed
+string_utils.py,Python,100,High confidence,all checks passed
+temperature.py,Python,100,High confidence,all checks passed
+test_old_python.py,Python,100,High confidence,all checks passed
+user_data.py,Python,100,High confidence,all checks passed
+validator.py,Python,100,High confidence,all checks passed
+weird_indent.py,Python,100,High confidence,all checks passed
