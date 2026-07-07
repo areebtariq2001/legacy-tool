@@ -325,6 +325,7 @@ else if(mode==="ainative"){endpoint="/ai-native-readiness";}
 else if(mode==="migrisk"){endpoint="/predict-risk";}
 else if(mode==="cicd"){endpoint="/cicd-recommendations";}
 else if(mode==="dbschema"){endpoint="/analyze-db-schema";}
+else if(mode==="apimap"){endpoint="/map-api-dependencies";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -528,7 +529,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -621,7 +622,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -743,6 +744,16 @@ Download Summary PDF
 <p style={{color:"#4ade80",fontSize:"13px"}}>No known risky external dependencies detected.</p>
 )}
 {result.disclaimer&&!result.debt_score&&<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.disclaimer}</p>}
+</div>
+)}
+{result.has_api_deps!==undefined&&mode==="apimap"&&(
+<div style={{marginTop:"4px"}}>
+<p style={{color:"#0ea5e9",fontWeight:"700",fontSize:"14px",marginBottom:"10px"}}>{result.api_summary}</p>
+{result.http_libraries&&result.http_libraries.length>0&&<div style={{marginBottom:"8px"}}><span style={{color:subtext,fontSize:"12px"}}>HTTP Libraries: </span>{result.http_libraries.map((l,li)=>(<span key={li} style={{color:"#0ea5e9",fontSize:"12px",fontWeight:"700",marginRight:"8px"}}>{l}</span>))}</div>}
+{result.http_methods&&result.http_methods.length>0&&<div style={{marginBottom:"8px"}}><span style={{color:subtext,fontSize:"12px"}}>HTTP Methods: </span>{result.http_methods.map((m,mi)=>(<span key={mi} style={{color:text,fontSize:"12px",fontWeight:"700",marginRight:"8px"}}>{m}</span>))}</div>}
+{result.external_urls&&result.external_urls.length>0&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#0ea5e9",fontWeight:"700",fontSize:"12px",margin:"0 0 6px 0"}}>External URLs ({result.external_urls.length})</p>{result.external_urls.map((u,ui)=>(<p key={ui} style={{color:text,fontSize:"11px",margin:"2px 0",wordBreak:"break-all"}}>{u}</p>))}</div>}
+{result.api_endpoints&&result.api_endpoints.length>0&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><p style={{color:"#0ea5e9",fontWeight:"700",fontSize:"12px",margin:"0 0 6px 0"}}>API Endpoints</p>{result.api_endpoints.map((e,ei)=>(<p key={ei} style={{color:text,fontSize:"11px",margin:"2px 0"}}>{e}</p>))}</div>}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.api_disclaimer}</p>
 </div>
 )}
 {result.has_database!==undefined&&mode==="dbschema"&&(
@@ -958,6 +969,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
