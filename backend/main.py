@@ -1546,6 +1546,48 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def generate_architecture(source, filename):
+    import re as _re
+    layers = []
+    try:
+        tree = ast.parse(source)
+        funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        imports = []
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Import):
+                for a in n.names:
+                    imports.append(a.name.split(".")[0])
+            elif isinstance(n, ast.ImportFrom):
+                if n.module:
+                    imports.append(n.module.split(".")[0])
+    except Exception:
+        funcs = _re.findall(r"def\s+(\w+)\s*\(", source)
+        classes = _re.findall(r"class\s+(\w+)", source)
+        imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+    imports = list(dict.fromkeys(imports))
+    # Classify imports into layers
+    db_libs = [i for i in imports if i.lower() in ("sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc")]
+    api_libs = [i for i in imports if i.lower() in ("requests", "urllib", "urllib2", "httpx", "aiohttp", "http")]
+    other_libs = [i for i in imports if i not in db_libs and i not in api_libs]
+    # Build layered architecture
+    if classes:
+        layers.append({"layer": "Classes / Modules", "items": classes[:15]})
+    if funcs:
+        layers.append({"layer": "Functions (Business Logic)", "items": funcs[:20]})
+    if db_libs:
+        layers.append({"layer": "Data Layer (Databases)", "items": db_libs})
+    if api_libs:
+        layers.append({"layer": "External APIs / Services", "items": api_libs})
+    if other_libs:
+        layers.append({"layer": "Dependencies (Libraries)", "items": other_libs[:15]})
+    return {
+        "architecture_layers": layers,
+        "arch_summary": str(len(funcs)) + " functions, " + str(len(classes)) + " classes, " + str(len(imports)) + " dependencies across " + str(len(layers)) + " layers",
+        "arch_stats": {"functions": len(funcs), "classes": len(classes), "db": len(db_libs), "apis": len(api_libs)},
+        "arch_disclaimer": "High-level architecture view derived from code structure (classes, functions, data, and external layers). A starting map for understanding the system - not a full runtime architecture."
+    }
+
 def map_api_dependencies(source, filename):
     import re as _re
     http_calls = []
@@ -1846,9 +1888,26 @@ async def api_deps_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "API dependency mapping failed safely: " + str(e)}
 
+@app.post("/generate-architecture")
+async def architecture_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_architecture(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("generate-architecture", file.filename)
+        write_audit_log("generate-architecture", file.filename, "layers=" + str(len(result.get("architecture_layers", []))))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Architecture generation failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
