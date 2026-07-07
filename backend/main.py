@@ -1546,6 +1546,42 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+def map_api_dependencies(source, filename):
+    import re as _re
+    http_calls = []
+    urls = []
+    libraries = []
+    endpoints = []
+    # 1. HTTP client libraries
+    lib_patterns = {"requests": r"(?i)\brequests\.(get|post|put|delete|patch)", "urllib": r"(?i)\burllib", "httpx": r"(?i)\bhttpx\.", "aiohttp": r"(?i)\baiohttp", "http.client": r"(?i)http\.client", "axios": r"(?i)\baxios", "fetch": r"(?i)\bfetch\s*\("}
+    for lib, pat in lib_patterns.items():
+        if _re.search(pat, source):
+            libraries.append(lib)
+    # 2. HTTP method calls (requests.get etc)
+    for m in _re.finditer(r"(?i)\.(get|post|put|delete|patch)\s*\(", source):
+        http_calls.append(m.group(1).upper())
+    # 3. URLs / endpoints
+    for m in _re.finditer(r"[\x22\x27](https?://[^\x22\x27\s]+)[\x22\x27]", source):
+        urls.append(m.group(1))
+    # 4. API endpoint paths (like "/api/v1/users")
+    for m in _re.finditer(r"[\x22\x27](/(?:api|v\d|rest)[/\w\-{}]*)[\x22\x27]", source):
+        endpoints.append(m.group(1))
+    http_calls = list(dict.fromkeys(http_calls))
+    urls = list(dict.fromkeys(urls))[:20]
+    endpoints = list(dict.fromkeys(endpoints))[:20]
+    libraries = list(dict.fromkeys(libraries))
+    has_api = bool(libraries or urls or endpoints)
+    total = len(urls) + len(endpoints)
+    return {
+        "has_api_deps": has_api,
+        "http_libraries": libraries,
+        "http_methods": http_calls,
+        "external_urls": urls,
+        "api_endpoints": endpoints,
+        "api_summary": (str(len(libraries)) + " HTTP libraries, " + str(total) + " external URLs/endpoints detected") if has_api else "No external API dependencies detected in this file",
+        "api_disclaimer": "Pattern-based detection of external API/service dependencies (HTTP libraries, URLs, endpoints). Helps map integration points before migration. Verify against config and environment files for full coverage."
+    }
+
 def analyze_db_schema(source, filename):
     import re as _re
     tables = []
@@ -1795,9 +1831,26 @@ async def db_schema_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "DB schema analysis failed safely: " + str(e)}
 
+@app.post("/map-api-dependencies")
+async def api_deps_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = map_api_dependencies(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("map-api-dependencies", file.filename)
+        write_audit_log("map-api-dependencies", file.filename, "libs=" + str(len(result.get("http_libraries", []))))
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "API dependency mapping failed safely: " + str(e)}
+
 @app.get("/")
 def root():
     return {"message": "API is running"}
+
+
 
 
 
