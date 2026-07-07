@@ -1752,6 +1752,27 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def generate_executive_report(source, filename):
+    import re as _re2
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+        classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+        parseable = True
+    except Exception:
+        funcs = len(_re2.findall(r"def ", source)); classes = len(_re2.findall(r"class ", source)); parseable = False
+    security_hits = len(_re2.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
+    findings = []
+    if not parseable: findings.append("Code does not parse in Python 3 - migration will require fixes")
+    if security_hits > 0: findings.append(str(security_hits) + " potential security/compliance issue(s) detected")
+    if len(lines) > 300: findings.append("Large file (" + str(len(lines)) + " lines) - higher migration effort")
+    if not findings: findings.append("No major blockers detected - code appears in reasonable shape")
+    health = 100 - (0 if parseable else 30) - min(security_hits*10, 40) - (10 if len(lines) > 300 else 0)
+    if health < 0: health = 0
+    status = "Good" if health >= 75 else "Needs Attention" if health >= 45 else "High Priority"
+    return {"exec_health": health, "exec_status": status, "exec_stats": {"lines": len(lines), "functions": funcs, "classes": classes, "security_issues": security_hits}, "exec_findings": findings, "exec_recommendation": ("This module is in reasonable shape for migration with standard review." if health >= 75 else "Review the flagged items and plan testing before migrating this module." if health >= 45 else "This module needs careful attention and full test coverage before migration."), "exec_disclaimer": "Executive summary generated from automated code analysis. Intended for planning and management review - a technical deep-dive is recommended before migration decisions."}
+
 def extract_business_rules(source, language):
     prompt = "You are a business analyst reviewing legacy code. In plain, non-technical English, describe the BUSINESS RULES and BUSINESS LOGIC this code implements - what it decides, validates, calculates, or enforces. Write it so a business analyst or manager (not a programmer) can understand what this module does. Use short bullet points starting with action words (Calculates, Validates, Checks, Applies, Updates, Rejects, etc). Focus on WHAT the business logic does, not HOW the code works. Here is the code:" + chr(10) + chr(10) + source[:6000]
     try:
@@ -1929,9 +1950,25 @@ async def business_rules_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {'filename': file.filename, 'error': 'Business rule extraction failed safely: ' + str(e)}
 
+@app.post("/executive-report")
+async def exec_report_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_executive_report(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("executive-report", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Executive report failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
