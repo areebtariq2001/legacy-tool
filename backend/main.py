@@ -1752,6 +1752,21 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def map_transaction_flow(source, filename):
+    import re as _re5
+    flows = []
+    txn_patterns = {"Deposit": r"(?i)\b(deposit|credit|add_funds|add_money)\b", "Withdrawal": r"(?i)\b(withdraw|debit|deduct)\b", "Transfer": r"(?i)\b(transfer|send_money|remit)\b", "Payment": r"(?i)\b(payment|pay|charge|bill)\b", "Balance Check": r"(?i)\b(balance|get_balance|check_balance)\b", "Interest": r"(?i)\b(interest|apr|rate)\b", "Loan": r"(?i)\b(loan|emi|installment|principal)\b", "Account": r"(?i)\b(account|acct|customer_id|acc_no)\b"}
+    for name, pat in txn_patterns.items():
+        matches = _re5.findall(pat, source)
+        if matches:
+            flows.append({"operation": name, "occurrences": len(matches)})
+    validations = []
+    if _re5.search(r"(?i)(if.*balance|sufficient|insufficient|minimum)", source): validations.append("Balance/sufficiency check")
+    if _re5.search(r"(?i)(verify|validate|authenticate|authorize)", source): validations.append("Verification/authorization")
+    if _re5.search(r"(?i)(limit|maximum|max_amount|threshold)", source): validations.append("Limit/threshold check")
+    has_txn = len(flows) > 0
+    return {"has_transactions": has_txn, "transaction_flows": flows, "flow_validations": validations, "flow_summary": (str(len(flows)) + " transaction operation types detected") if has_txn else "No banking transaction operations detected in this file", "flow_disclaimer": "Pattern-based detection of banking/financial transaction operations and their validation steps. Helps map money-movement logic before migration. Verify against full system flow."}
+
 def analyze_impact(source, filename):
     import re as _re3
     try:
@@ -2005,9 +2020,24 @@ async def impact_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Impact analysis failed safely: " + str(e)}
 
+@app.post("/map-transaction-flow")
+async def txn_flow_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = map_transaction_flow(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("map-transaction-flow", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Transaction flow mapping failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
