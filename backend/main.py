@@ -1752,6 +1752,33 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def analyze_impact(source, filename):
+    import re as _re3
+    try:
+        tree = ast.parse(source)
+        funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+    except Exception:
+        funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
+    funcs = list(dict.fromkeys(funcs))
+    impact_map = []
+    for fn in funcs:
+        callers = []
+        for other in funcs:
+            if other == fn: continue
+            pattern = r"def\s+" + _re3.escape(other) + r"\s*\([^)]*\):"
+        callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _get_func_body(source, o))]
+        risk = "High" if len(callers) >= 3 else "Medium" if len(callers) >= 1 else "Low"
+        impact_map.append({"function": fn, "affected_by_change": callers, "dependents_count": len(callers), "change_risk": risk})
+    impact_map.sort(key=lambda x: -x["dependents_count"])
+    high = [m for m in impact_map if m["change_risk"] == "High"]
+    return {"impact_map": impact_map, "impact_summary": str(len(funcs)) + " functions analyzed; " + str(len(high)) + " high-impact (changing them affects many others)", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
+
+def _get_func_body(source, fname):
+    import re as _re4
+    m = _re4.search(r"def\s+" + _re4.escape(fname) + r"\s*\([^)]*\):", source)
+    if not m: return ""
+    return source[m.end():m.end()+800]
+
 def generate_executive_report(source, filename):
     import re as _re2
     lines = [l for l in source.split(chr(10)) if l.strip()]
@@ -1964,9 +1991,24 @@ async def exec_report_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Executive report failed safely: " + str(e)}
 
+@app.post("/analyze-impact")
+async def impact_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = analyze_impact(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("analyze-impact", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Impact analysis failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
