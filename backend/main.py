@@ -1802,6 +1802,19 @@ def detect_pii(source, filename):
     return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": (str(len(findings)) + " potential PII/sensitive data exposure(s) found across " + str(len(types_found)) + " type(s)") if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded."}
 
 def scan_sql_injection(source, filename):
+    import re as _sq
+    lines = source.split(chr(10))
+    issues = []
+    checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk")]
+    for i, line in enumerate(lines):
+        up = line.upper()
+        for kw, danger, msg in checks:
+            if kw.upper() in up and danger in line:
+                issues.append({"line": i+1, "code": line.strip()[:120], "issue": msg, "severity": "High"})
+                break
+    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
+
+def _old_scan_sql_injection_unused(source, filename):
     import re as _re8
     lines = source.split(chr(10))
     issues = []
@@ -2215,6 +2228,7 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
