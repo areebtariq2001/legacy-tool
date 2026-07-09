@@ -1752,6 +1752,19 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def scan_sql_injection(source, filename):
+    import re as _re8
+    lines = source.split(chr(10))
+    issues = []
+    patterns = [(r"(?i)(execute|cursor\.execute|executemany)\s*\(.*[+%].*", "String concatenation/formatting in SQL query - use parameterized queries instead"), (r"(?i)(SELECT|INSERT|UPDATE|DELETE).*[\"\x27].*[+].*", "SQL string built with + concatenation - injection risk"), (r"(?i)(query|sql)\s*=\s*[\"\x27].*%\s*(\(|[a-zA-Z])", "SQL built with % string formatting - injection risk"), (r"(?i)\.format\s*\(.*\).*(SELECT|INSERT|UPDATE|DELETE|WHERE)", "SQL built with .format() - injection risk"), (r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{", "SQL built with f-string containing variables - injection risk")]
+    for i, line in enumerate(lines):
+        for pat, msg in patterns:
+            if _re8.search(pat, line):
+                issues.append({"line": i+1, "code": line.strip()[:120], "issue": msg, "severity": "High"})
+                break
+    safe = bool(_re8.search(r"(?i)(execute\s*\([^)]*,\s*[\(\[])|%s|\?)", source)) and len(issues) == 0
+    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns (string concatenation/formatting in queries). Pattern-based - always confirm with a security review and use parameterized queries."}
+
 def discover_business_rules_engine(source, filename):
     import re as _re7
     rules = []
@@ -2094,9 +2107,24 @@ async def rules_engine_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Rule discovery failed safely: " + str(e)}
 
+@app.post("/scan-sqli")
+async def sqli_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = scan_sql_injection(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("scan-sqli", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "SQL injection scan failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
