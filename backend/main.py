@@ -1752,6 +1752,19 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def detect_pii(source, filename):
+    import re as _re9
+    lines = source.split(chr(10))
+    findings = []
+    pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b\d{13,19}\b", "Possible card/account number (13-19 digits)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"\b(\+92|0)?3\d{9}\b", "Phone number"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)", "Social security reference"), (r"(?i)(account_number|acct_no|iban|routing)", "Bank account field")]
+    for i, line in enumerate(lines):
+        for pat, label in pii_patterns:
+            if _re9.search(pat, line):
+                findings.append({"line": i+1, "type": label, "code": line.strip()[:100]})
+                break
+    types_found = list(dict.fromkeys([f["type"] for f in findings]))
+    return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": (str(len(findings)) + " potential PII/sensitive data exposure(s) found across " + str(len(types_found)) + " type(s)") if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded."}
+
 def scan_sql_injection(source, filename):
     import re as _re8
     lines = source.split(chr(10))
@@ -2121,9 +2134,24 @@ async def sqli_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "SQL injection scan failed safely: " + str(e)}
 
+@app.post("/detect-pii")
+async def pii_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = detect_pii(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("detect-pii", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "PII detection failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
