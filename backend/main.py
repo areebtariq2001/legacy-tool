@@ -1805,7 +1805,7 @@ def scan_sql_injection(source, filename):
     import re as _re8
     lines = source.split(chr(10))
     issues = []
-    patterns = [(r"(?i)(execute|cursor\.execute|executemany)\s*\(.*[+%].*", "String concatenation/formatting in SQL query - use parameterized queries instead"), (r"(?i)(SELECT|INSERT|UPDATE|DELETE).*[\"\x27].*[+].*", "SQL string built with + concatenation - injection risk"), (r"(?i)(query|sql)\s*=\s*[\"\x27].*%\s*(\(|[a-zA-Z])", "SQL built with % string formatting - injection risk"), (r"(?i)\.format\s*\(.*\).*(SELECT|INSERT|UPDATE|DELETE|WHERE)", "SQL built with .format() - injection risk"), (r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{", "SQL built with f-string containing variables - injection risk")]
+    patterns = [(r"(?i)(execute|executemany)\s*\(.*[+%]", "String concatenation/formatting in SQL query - use parameterized queries instead"), (r"(?i)(SELECT|INSERT|UPDATE|DELETE).*[+].*(request|input|user|param|arg|var)", "SQL string built with concatenation - injection risk"), (r"(?i)(query|sql)\s*=\s*.*%\s*[a-zA-Z]", "SQL built with string formatting - injection risk"), (r"(?i)\.format\s*\(.*(SELECT|INSERT|UPDATE|DELETE|WHERE)", "SQL built with .format() - injection risk"), (r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{", "SQL built with f-string variables - injection risk")]
     for i, line in enumerate(lines):
         for pat, msg in patterns:
             if _re8.search(pat, line):
@@ -2215,6 +2215,7 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
