@@ -1752,6 +1752,19 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def audit_key_management(source, filename):
+    import re as _km
+    lines = source.split(chr(10))
+    findings = []
+    checks = [(r"(?i)(aes|des|rsa)_?key\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded encryption key", "High"), (r"(?i)(secret|secret_key|private_key)\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded secret/private key", "High"), (r"(?i)(api_key|apikey|access_key|access_token)\s*=\s*[\"\x27][^\"\x27]{6,}", "Hardcoded API key/token", "High"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]{3,}", "Hardcoded password", "High"), (r"(?i)(aws_secret|aws_access|azure_key|gcp_key)", "Hardcoded cloud provider credential", "Critical"), (r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----", "Embedded private key block", "Critical"), (r"(?i)(salt|iv)\s*=\s*[\"\x27][^\"\x27]{2,}", "Hardcoded salt/IV (should be random)", "Medium")]
+    for i, line in enumerate(lines):
+        for pat, label, sev in checks:
+            if _km.search(pat, line):
+                findings.append({"line": i+1, "issue": label, "severity": sev, "code": line.strip()[:100]})
+                break
+    has_rotation = bool(_km.search(r"(?i)(rotate|rotation|key_expiry|expire|renew).{0,20}key", source))
+    return {"km_clean": len(findings) == 0, "km_findings": findings, "km_rotation_found": has_rotation, "km_summary": (str(len(findings)) + " key management issue(s) found - secrets should never be hardcoded") if findings else "No hardcoded keys or secrets detected", "km_rotation_note": "Key rotation logic detected - good practice" if has_rotation else "No key rotation logic found - keys should be rotated periodically", "km_disclaimer": "Detects hardcoded encryption keys, secrets, and credentials. Hardcoded keys are a serious security risk - use a secrets manager (e.g. vault, environment variables) and rotate keys regularly."}
+
 def detect_tech_stack(source, filename):
     import re as _re11
     imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
@@ -2225,9 +2238,24 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Tech stack detection failed safely: " + str(e)}
 
+@app.post("/audit-keys")
+async def key_audit_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = audit_key_management(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("audit-keys", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Key audit failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
