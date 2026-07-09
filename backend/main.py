@@ -1752,6 +1752,34 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def detect_fraud_gaps(source, filename):
+    import re as _fr
+    src_l = source.lower()
+    gaps = []
+    strengths = []
+    if _fr.search(r"(otp|one.?time.?pass|verification.?code)", src_l):
+        strengths.append("OTP / verification code logic present")
+    else:
+        gaps.append({"gap": "No OTP / one-time-password verification found", "risk": "High", "why": "Transactions without OTP are vulnerable to unauthorized access"})
+    if _fr.search(r"(velocity|rate.?limit|too.?many|attempt.?count|max.?attempts|throttle)", src_l):
+        strengths.append("Velocity / rate-limiting logic present")
+    else:
+        gaps.append({"gap": "No velocity / rate-limiting check found", "risk": "High", "why": "Without velocity checks, rapid fraudulent transactions can go undetected"})
+    if _fr.search(r"(limit|max.?amount|daily.?limit|threshold)", src_l):
+        strengths.append("Transaction limit logic present")
+    else:
+        gaps.append({"gap": "No transaction amount limit found", "risk": "Medium", "why": "Missing limits allow unusually large transactions without review"})
+    if _fr.search(r"(2fa|two.?factor|mfa|multi.?factor)", src_l):
+        strengths.append("Multi-factor authentication reference present")
+    else:
+        gaps.append({"gap": "No multi-factor authentication (2FA/MFA) found", "risk": "Medium", "why": "Single-factor auth is weaker against account takeover"})
+    if _fr.search(r"(fraud|suspicious|anomaly|blacklist|flag)", src_l):
+        strengths.append("Fraud/suspicious-activity flagging present")
+    else:
+        gaps.append({"gap": "No fraud / suspicious-activity flagging found", "risk": "Medium", "why": "No mechanism to flag or block suspicious transactions"})
+    score = max(0, 100 - len(gaps) * 20)
+    return {"fraud_score": score, "fraud_gaps": gaps, "fraud_strengths": strengths, "fraud_summary": str(len(gaps)) + " fraud-control gap(s) found; " + str(len(strengths)) + " control(s) present - fraud-readiness " + str(score) + "/100", "fraud_disclaimer": "Heuristic check for common fraud-control patterns (OTP, velocity, limits, MFA, flagging). Absence of a keyword does not always mean the control is missing - verify with a security review. This is a planning aid, not a certification."}
+
 def audit_key_management(source, filename):
     import re as _km
     lines = source.split(chr(10))
@@ -2252,9 +2280,24 @@ async def key_audit_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Key audit failed safely: " + str(e)}
 
+@app.post("/detect-fraud-gaps")
+async def fraud_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = detect_fraud_gaps(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("detect-fraud-gaps", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Fraud gap detection failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
