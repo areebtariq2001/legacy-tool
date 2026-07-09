@@ -1752,6 +1752,19 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def detect_tech_stack(source, filename):
+    import re as _re11
+    imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
+    imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
+    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose"}}
+    detected = []
+    for cat, libs in categories.items():
+        for imp in imports:
+            if imp.lower() in libs:
+                detected.append({"category": cat, "technology": libs[imp.lower()], "import": imp})
+    stdlib = [i for i in imports if i.lower() in ["os","sys","re","json","datetime","time","math","random","collections","itertools","logging"]]
+    return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": (str(len(detected)) + " notable technolog(ies) detected") if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
+
 def estimate_migration_cost(source, filename):
     import re as _re10
     lines = [l for l in source.split(chr(10)) if l.strip()]
@@ -2185,9 +2198,24 @@ async def cost_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Cost estimation failed safely: " + str(e)}
 
+@app.post("/detect-tech-stack")
+async def tech_stack_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = detect_tech_stack(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("detect-tech-stack", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Tech stack detection failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
