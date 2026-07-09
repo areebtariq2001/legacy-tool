@@ -1752,6 +1752,29 @@ def predict_migration_risk(source, filename):
         "risk_disclaimer": "Predicted migration risk based on legacy patterns, size, complexity, and dependencies. A planning estimate to prioritize review - not a guarantee of success or failure."
     }
 
+def estimate_migration_cost(source, filename):
+    import re as _re10
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    loc = len(lines)
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+        classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+        branches = len([n for n in ast.walk(tree) if isinstance(n, (ast.If, ast.For, ast.While))])
+        parseable = True
+    except Exception:
+        funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source)); branches = len(_re10.findall(r"(if |for |while )", source)); parseable = False
+    complexity = branches + funcs * 2 + classes * 3
+    base_hours = loc / 20.0
+    complexity_hours = complexity * 0.5
+    risk_multiplier = 1.5 if not parseable else 1.0
+    security_hits = len(_re10.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False)", source))
+    security_hours = security_hits * 2
+    total_hours = round((base_hours + complexity_hours + security_hours) * risk_multiplier, 1)
+    days = round(total_hours / 6.0, 1)
+    effort = "Low" if total_hours < 8 else "Medium" if total_hours < 40 else "High"
+    return {"cost_hours": total_hours, "cost_days": days, "cost_effort": effort, "cost_breakdown": {"lines_of_code": loc, "functions": funcs, "classes": classes, "decision_points": branches, "security_items": security_hits, "python3_parseable": parseable}, "cost_summary": "Estimated ~" + str(total_hours) + " hours (~" + str(days) + " working days) to migrate this file - " + effort + " effort", "cost_disclaimer": "Rough estimate based on code size, complexity, and security items. Actual effort depends on team experience, testing needs, and business requirements. Use for planning only."}
+
 def detect_pii(source, filename):
     import re as _re9
     lines = source.split(chr(10))
@@ -2148,9 +2171,24 @@ async def pii_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "PII detection failed safely: " + str(e)}
 
+@app.post("/estimate-cost")
+async def cost_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = estimate_migration_cost(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("estimate-cost", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Cost estimation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
