@@ -1,108 +1,134 @@
-StarBuild — Legacy Code Migration & Audit Platform
+StarBuild
 
-Modernize legacy code, predictably.
+AI-Powered Legacy Code Migration & Security Audit Platform
 
-StarBuild is an AI-assisted platform that doesn't just translate legacy code — it helps teams audit, plan, secure, and de-risk migrations. Every automated change comes with transparent confidence scoring and AST-based verification, so you always know what's safe to ship and what needs a human review.
-
-Supports Python, Java, PHP, and COBOL.
-
-🔗 Live demo: https://areebtariq2001.github.io/legacy-tool/
-📚 API docs (Swagger): https://legacy-migration-tool-1.onrender.com/docs
+StarBuild helps banks, fintechs, and enterprises understand, audit, and safely modernize their legacy code (COBOL, older Java, Python 2, PHP). Instead of blindly converting old code, StarBuild understands it first — mapping its data, dependencies, security risks, and business logic — so migration is safe, predictable, and audit-ready.
 
 
-Why StarBuild?
-
-Most "migration tools" are blind converters — they change your code and leave you guessing whether it still works. Generic AI tools hallucinate and offer no verification. StarBuild is built around one idea: migration should be predictable, secure, and auditable.
-
-ApproachReliabilityVerificationAudit-readyManual migrationHigh risk of human errorSlow & expensiveNoGeneric AI toolsHigh hallucination riskNo verificationNoStarBuildPredictable & AST-verifiedConfidence scoredYes
-
-Stress-tested on 50+ real-world legacy scripts — 97% high-confidence migrations.
+Philosophy: Understand first, migrate second.
 
 
-Features
-
-StarBuild has moved beyond translation into audit, security, and planning. It offers multiple analysis modes:
-
-Migration
 
 
-Analyze — Detects legacy patterns, functions, classes, and imports.
-Migrate — Deterministic, rule-based conversion that produces the exact same output every run.
-AI Migrate — Full-file AI modernization with guardrails: syntax validation, variable-integrity checks, a confidence score (0–100%) with a detailed check breakdown, compile-level verification, and a smart fallback to rule-based migration when the AI is unreliable.
-Rollback / View Original — Compare or restore the pre-migration code with one click.
+🔗 Live Links
+
+ResourceURLLive Toolhttps://areebtariq2001.github.io/legacy-tool/API (Backend)https://legacy-migration-tool-1.onrender.comAPI Docs (Swagger)https://legacy-migration-tool-1.onrender.com/docs
 
 
-Audit & Planning
+Note: The backend runs on a free tier that sleeps when idle. Open the API URL once to wake it (~50s) before a live demo.
 
 
-Call Graph — Maps which functions call which, and which external library each function depends on.
-Risk Check — A dependency "Risk Assessment" that flags databases, APIs, and network libraries likely to break during migration, each with a High / Medium / Low level and a recommendation.
-Tech Debt — A code-based Technical Debt Score (0–100) with an estimated remediation effort in developer-hours.
-Gen Docs — A Knowledge Transfer (KT) documentation generator: purpose, business logic, key functions, and migration notes — downloadable as PDF.
+
+
+Why StarBuild
+
+Legacy systems run critical banking operations, but they are hard to understand, poorly documented, and risky to change. A single wrong change can break payments or expose sensitive data. StarBuild reduces that risk by giving teams a clear, verified picture of the code before they touch it — with honest confidence scores on every automated change.
+
+Four core benefits for banks & enterprises:
+
+
+💰 Saves money — work that consultants do in weeks, done in minutes
+⏰ Saves time — understand legacy code at a glance
+🛡️ Reduces risk — audit before you migrate, with rollback planning
+✅ Security & compliance — catch issues aligned to PCI-DSS, GDPR, AML/KYC
+
+
+
+Features (30+)
+
+Core Analysis & Migration
+
+
+Analyze — Quick health check: functions, imports, and issues
+Migrate — Rule-based legacy conversion (e.g. Python 2 → 3), predictable & verifiable
+AI Migrate — AI-assisted migration with safety guardrails and a confidence score
+Call Graph — Maps which function calls which
+Risk Check — Flags deprecated APIs and risky dependencies
+Tech Debt — Estimates hard-to-maintain code
+Gen Docs — Auto-generates documentation / knowledge-transfer notes (PDF)
+Explain — AI explains code in plain English, section by section
+Gen Tests — Generates baseline test cases
+Rollback / View Original — Side-by-side original vs migrated code
 
 
 Security & Compliance
 
 
-Data Scan — Scans code for sensitive data patterns (card numbers, hardcoded passwords, API keys, private keys) before migration, rated High / Medium / Low.
-Banking Scan — Detects common banking business logic (interest calculation, balance validation, transaction handling, loan processing) and flags where extra care is needed.
-Compliance Checklist — A migration compliance summary (data scan, audit log, risk check, human review) shown with each scan.
+Data Scan — Detects sensitive data, weak crypto, and security hotspots
+Crypto Scan — Flags weak/broken encryption and quantum-vulnerable crypto
+Quantum-Readiness Score — (Unique) Scores how ready the code's encryption is for the quantum-computer era, with a path to post-quantum algorithms
+Banking Scan — Banking-focused security & compliance scan
+AML / KYC Extractor — Finds anti-money-laundering / know-your-customer logic
+Compliance Mapping — Maps findings to PCI-DSS, GDPR, SOC 2, ISO 27001 (export JSON/CSV)
+SQL Injection Scanner — Detects unsafe SQL query construction
+PII Detection — Finds personal data (CNIC, cards, emails, phones) and hardcoded secrets
 
 
-Developer Assist
+Enterprise Analysis
 
 
-AI Suggest / Explain / Gen Tests — Improvement suggestions, plain-language explanations, and unit-test generation.
-CLI Tool — Batch-process a whole folder from the command line: python starbuild_cli.py <folder> --mode risk.
+Repository Scan — Scans an entire public GitHub repo at once
+Database Schema Analysis — Extracts tables, columns, queries, and DB types
+API Dependency Mapping — Lists every external API/service the code calls
+Architecture View — Visual layered map: business logic, data, APIs, dependencies
+CI/CD Recommendations — Suggests a safe migration pipeline
+AI-Native Readiness — (Unique) Scores readiness to integrate with modern AI systems
+Migration Risk Prediction — (Unique) Predicts how risky migrating a file is, and why
+Cost Estimator — Estimates migration effort (hours/days) from size & complexity
+Tech Stack Detector — Detects frameworks and libraries the code depends on
 
 
-Reliability & Trust
+Banking-Specific
 
 
-Confidence scoring with an itemized reason and a detailed check breakdown (AST valid, compiles, variables preserved).
-AST + compile verification — output is checked to be valid and runnable.
-Smart fallback — switches to deterministic rule-based migration when AI output is unreliable.
-Audit logging — every action is timestamped and recorded (text + JSON), with a live usage dashboard.
-Batch processing with an adjustable confidence threshold (accept vs. manual review).
-Security by design — code is processed in-memory and never stored on the server.
-Audit-ready PDF reports — migration summaries, KT documentation, and risk reports.
-
-
-
-Tech Stack
-
-
-Backend: Python, FastAPI, AST parsing, javalang (Java AST), Groq (Llama 3.1) for AI features
-Frontend: React, deployed on GitHub Pages
-Backend hosting: Render
-Reports: jsPDF (client-side PDF generation)
-CLI: Standalone Python script using the live API
+Business Rule Extractor — AI describes the code's business logic in plain English
+Business Rules Engine — Discovers if/else decision logic as decoupled rules, tagged to compliance standards (for non-technical reviewers & auditors)
+Executive Report — Management summary: health score, stats, findings, recommendation
+Impact Analysis — Shows which functions depend on each other before you change one
+Transaction Flow Mapping — Maps money-movement logic and its validation steps
+Rollback Plan — Step-by-step plan to safely revert a failed migration
 
 
 
 How It Works
 
 
-Upload one or more legacy files (.py, .java, .php, .cbl) — or point the CLI at a folder.
-Choose a mode — migrate, or run an audit (call graph, risk, tech debt, docs, data scan, banking scan).
-Review the results — confidence scores, diffs, risk levels, security findings, and explanations.
-Export — download migrated files, a summary PDF, KT documentation, or a risk report.
+Choose a language (Python, Java, PHP, COBOL) and a mode
+Upload one or more code files, or paste a public GitHub repo URL
+StarBuild analyzes and returns results instantly — scores, findings, maps, or reports
+Download reports (PDF / CSV / JSON) to share with your team, managers, or auditors
 
 
 
-Project Status
-
-StarBuild is an actively developed, working tool with an honest roadmap. See ROADMAP.md for the full plan.
+Tech Stack
 
 
-Stage 1–2 (Reliable migration + guardrails): ✅ Complete
-Stage 3 (Production polish — testing, audit, security, error handling): 🔨 ~85%
-Stage 4–5 (Enterprise & banking-grade — scale, SOC 2, team workflows): 📋 Planned (requires company infrastructure)
+Frontend: React (deployed on GitHub Pages)
+Backend: FastAPI (Python), deployed on Render
+AI: Groq LLM (for AI Migrate, Explain, Business Rule Extractor)
+Analysis: Python AST + pattern-based static analysis
 
 
-Honest by design: StarBuild is not yet banking-ready, and we say so. Enterprise scale needs dedicated infrastructure and a review team. StarBuild is the verified foundation to get there.
+
+Honest Status & Roadmap
+
+StarBuild today is a working prototype with 30+ features, built by a solo developer. It is a strong assessment and audit tool.
+
+It is not yet a certified banking-grade platform. The natural next stage — and an honest roadmap — includes:
 
 
-Author
+SOC 2 certification
+On-premise / private deployment
+Role-based access control (RBAC) and audit trails
+Backup / multi-provider LLM keys for production scale
 
-Built by Areeb Tariq with AI assistance.
+
+We believe this honesty is a strength: banks value accuracy, explainability, and auditability — and StarBuild already delivers early versions of all three. Every scan includes a disclaimer, and no result is presented as a certified guarantee.
+
+
+Disclaimer
+
+StarBuild's analyses are automated aids for planning and review. They are pattern-based and may include false positives. Always confirm findings with a qualified security review, compliance officer, and domain experts before making migration decisions.
+
+
+StarBuild — Predictable, AST-verified, audit-ready legacy migration
