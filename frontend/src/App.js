@@ -571,11 +571,12 @@ Home
 ))}
 </div>
 <div style={{display:"flex",gap:"8px",marginBottom:"16px",flexWrap:"wrap"}}>
-{modes.map(([m,label,color])=>(
+{(()=>{const cat={analyze:"Core",migrate:"Core",aimigrate:"Core",callgraph:"Core",risk:"Core",debt:"Core",docs:"Core",scan:"Security",banking:"Security",crypto:"Security",amlkyc:"Security",sqli:"Security",pii:"Security",keyaudit:"Security",fraud:"Security",ainative:"Enterprise",migrisk:"Enterprise",cicd:"Enterprise",dbschema:"Enterprise",apimap:"Enterprise",architecture:"Enterprise",techstack:"Enterprise",cost:"Enterprise",bizrules:"Banking",execreport:"Banking",impact:"Banking",txnflow:"Banking",rollback:"Banking",rulesengine:"Banking",regional:"Banking",ai:"AI Tools",explain:"AI Tools",tests:"AI Tools"};let lastCat="";return modes.map(([m,label,color],mi)=>{const c=cat[m]||"Other";const showLabel=c!==lastCat;lastCat=c;return <div key={m} style={{display:"contents"}}>{showLabel&&<div style={{width:"100%",marginTop:mi===0?0:"10px",marginBottom:"2px",fontSize:"10px",fontWeight:"800",letterSpacing:"0.08em",color:"#64748b",textTransform:"uppercase"}}>{c}</div>}
+(
 <button key={m} onClick={()=>setMode(m)} style={{flex:"1 1 22%",padding:"10px",borderRadius:"8px",border:mode===m?"2px solid "+color:"1px solid "+border,background:mode===m?color+"22":"transparent",color:mode===m?color:subtext,cursor:"pointer",fontSize:"13px"}}>
 {label}
 </button>
-))}
+</div>});})()}
 </div>
 {mode==="callgraph"&&(
 <div style={{background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
@@ -1089,6 +1090,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
