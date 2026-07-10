@@ -1868,6 +1868,18 @@ def _old_scan_sql_injection_unused(source, filename):
     safe = bool(_re8.search(r"(?i)(execute\s*\([^)]*,\s*[\(\[])|%s|\?)", source)) and len(issues) == 0
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns (string concatenation/formatting in queries). Pattern-based - always confirm with a security review and use parameterized queries."}
 
+def map_regional_compliance(source, filename, region="Pakistan"):
+    base = discover_business_rules_engine(source, filename)
+    region_map = {"Pakistan": {"AML/KYC": "SBP AML/CFT Regulations", "Transaction Limit": "SBP Digital Banking Limits", "Balance/Funds": "SBP Prudential Regulations", "Authorization": "SBP Consumer Protection", "Interest/Fee": "SBP Banking Fee Guidelines", "Fraud/Risk": "SBP Fraud Risk Management Framework"}, "Global": {"AML/KYC": "FATF AML/CFT Standards", "Transaction Limit": "Basel Transaction Monitoring", "Balance/Funds": "IFRS 9 Financial Reporting", "Authorization": "ISO 27001 Access Control", "Interest/Fee": "General Banking Fee Disclosure", "Fraud/Risk": "Basel Operational Risk Framework"}}
+    mapping = region_map.get(region, region_map["Pakistan"])
+    regional_rules = []
+    for r in base.get("discovered_rules", []):
+        r2 = dict(r)
+        r2["region"] = region
+        r2["regional_standard"] = [mapping.get(t, region + " General Compliance") for t in r.get("compliance_tags", [])]
+        regional_rules.append(r2)
+    return {"region": region, "regional_rules": regional_rules, "regional_summary": str(len(regional_rules)) + " rules mapped to " + region + " regulatory standards", "regional_disclaimer": "Maps discovered rules to regional regulatory frameworks as a starting reference. Not legal advice - confirm exact standards with a compliance officer for your jurisdiction."}
+
 def discover_business_rules_engine(source, filename):
     import re as _re7
     rules = []
@@ -2294,9 +2306,24 @@ async def fraud_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Fraud gap detection failed safely: " + str(e)}
 
+@app.post("/regional-compliance")
+async def regional_compliance_endpoint(file: UploadFile = File(...), region: str = "Pakistan"):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = map_regional_compliance(source, file.filename, region)
+        result["filename"] = file.filename
+        track_usage("regional-compliance", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Regional compliance mapping failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
