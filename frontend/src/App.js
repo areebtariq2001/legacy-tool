@@ -560,8 +560,8 @@ return(
 <button onClick={()=>setView("landing")} style={{position:"absolute",left:"20px",top:"20px",padding:"8px 16px",borderRadius:"20px",border:"1px solid "+border,background:card,color:text,cursor:"pointer"}}>
 Home
 </button>
-<h1 style={{color:"#38bdf8"}}>StarBuild</h1>
-<p style={{color:subtext}}>Migrate, audit, and secure legacy code — with confidence scoring and verification.</p>
+<h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
+<p style={{color:subtext,fontSize:"15px",marginBottom:"24px"}}>Migrate, audit, and secure legacy code ï¿½ with confidence scoring and verification.</p>
 </div>
 <div style={{maxWidth:"800px",margin:"0 auto",padding:"0 20px 40px"}}>
 <div style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"24px",marginBottom:"16px"}}>
@@ -632,19 +632,19 @@ Click to select files (multiple allowed)
 <span style={{color:subtext,fontSize:"13px"}}>Processing files...</span>
 <span style={{color:"#38bdf8",fontSize:"13px"}}>{progress}%</span>
 </div>
-<div style={{background:darkMode?"#334155":"#cbd5e1",borderRadius:"8px",height:"8px"}}>
-<div style={{background:"#38bdf8",borderRadius:"8px",height:"8px",width:progress+"%",transition:"width 0.3s ease"}}></div>
+<div style={{background:darkMode?"#334155":"#cbd5e1",borderRadius:"999px",height:"6px",overflow:"hidden"}}>
+<div style={{background:"#38bdf8",borderRadius:"999px",height:"6px",width:progress+"%",transition:"width 0.3s ease"}}></div>
 </div>
 </div>
 )}
-<button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer"}}>
+<button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"14px",boxShadow:loading?"none":"0 8px 20px rgba(56,189,248,0.25)"}}>
 {loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="architecture"?"Generate Architecture":mode==="bizrules"?"Extract Business Rules":mode==="execreport"?"Generate Executive Report":mode==="impact"?"Analyze Impact":mode==="txnflow"?"Map Transaction Flow":mode==="rollback"?"Generate Rollback Plan":mode==="rulesengine"?"Discover Business Rules":mode==="sqli"?"Scan SQL Injection":mode==="pii"?"Detect PII / Secrets":mode==="cost"?"Estimate Migration Cost":mode==="techstack"?"Detect Tech Stack":mode==="keyaudit"?"Audit Key Management":mode==="fraud"?"Check Fraud Controls":mode==="regional"?"Map Regional Compliance":mode==="vendorrisk"?"Check Vendor Lock-in":mode==="zerotrust"?"Score Zero-Trust Readiness":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
 <div>
 {scored.length>0&&(
-<div style={{background:"linear-gradient(135deg,rgba(167,139,250,0.12),rgba(56,189,248,0.06))",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"12px",padding:"20px",marginBottom:"16px"}}>
+<div style={{background:"linear-gradient(135deg,rgba(167,139,250,0.12),rgba(56,189,248,0.06))",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"12px",padding:"20px",marginBottom:"16px",boxShadow:cardShadow}}>
 <h3 style={{color:"#a78bfa",margin:"0 0 12px 0",fontSize:"16px"}}>Batch Migration Summary</h3>
 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px",marginBottom:"12px"}}>
 <div style={{textAlign:"center"}}><div style={{fontSize:"22px",fontWeight:"700",color:text}}>{scored.length}</div><div style={{fontSize:"11px",color:subtext}}>Files Migrated</div></div>
@@ -677,7 +677,7 @@ Download Summary PDF
 </div>
 <h3 style={{color:"#38bdf8"}}>Results ({results.length} files)</h3>
 {results.map((result,idx)=>(
-<div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px"}}>
+<div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px",boxShadow:cardShadow}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
 <h4 style={{color:"#38bdf8",margin:0}}>{result.filename}</h4>
 {result.confidence_score!==undefined&&(
@@ -1105,6 +1105,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
