@@ -555,8 +555,8 @@ return(
 <div style={{minHeight:"100vh",background:bg,color:text,fontFamily:"Arial",transition:"all 0.3s"}}>
 <aside style={{position:"fixed",left:0,top:0,width:"220px",height:"100vh",background:"#0d1220",borderRight:"1px solid rgba(255,255,255,0.1)",padding:"20px 16px",overflowY:"auto",zIndex:100}}>
 <div style={{marginBottom:"24px"}}><span style={{color:"#38bdf8",fontWeight:"800",fontSize:"18px"}}>StarBuild</span><div style={{color:"#94a3b8",fontSize:"11px",marginTop:"2px"}}>enterprise edition</div></div>
-<div style={{color:"#94a3b8",fontSize:"10px",fontWeight:"800",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}}>Modernization</div>
-{[["Core","\u2699\ufe0f"],["Security","\ud83d\udee1\ufe0f"],["Enterprise","\ud83c\udfe2"],["Banking","\ud83c\udfe6"],["AI Tools","\u2728"]].map(([catName,icon])=>(<div key={catName} style={{color:"white",fontSize:"13px",fontWeight:"700",padding:"9px 10px",borderRadius:"8px",marginBottom:"3px",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.12)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span>{icon}</span><span>{catName}</span></div>))}
+<div style={{color:"#94a3b8",fontSize:"10px",fontWeight:"800",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"12px",paddingTop:"4px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>Modernization</div>
+{[["Core","\u2699\ufe0f"],["Security","\ud83d\udee1\ufe0f"],["Enterprise","\ud83c\udfe2"],["Banking","\ud83c\udfe6"],["AI Tools","\u2728"]].map(([catName,icon])=>(<div key={catName} style={{color:"white",fontSize:"13px",fontWeight:"700",padding:"9px 10px",borderRadius:"8px",marginBottom:"3px",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.12)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{display:"inline-block",width:"20px",textAlign:"center"}}>{icon}</span><span>{catName}</span></div>))}
 </aside>
 <div style={{marginLeft:"220px"}}>
 <div style={{textAlign:"center",padding:"40px 20px",position:"relative"}}>
@@ -1117,6 +1117,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 

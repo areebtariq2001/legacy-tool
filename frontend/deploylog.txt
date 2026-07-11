@@ -1,0 +1,13 @@
+﻿node.exe : ProcessError: fatal: unable to access 'https://github.com/areebtariq2001/legacy-tool.git/': Failed to connect to github.com 
+port 443 after 27065 ms: Could not connect to server
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ProcessError: f...nnect to server:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+    at ChildProcess.<anonymous> (C:\Users\dell\Desktop\legacy-migration-tool\frontend\node_modules\gh-pages\lib\git.js:42:16)
+    at ChildProcess.emit (node:events:509:20)
+    at maybeClose (node:internal/child_process:1108:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:305:5)
