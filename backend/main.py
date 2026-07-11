@@ -1868,6 +1868,22 @@ def _old_scan_sql_injection_unused(source, filename):
     safe = bool(_re8.search(r"(?i)(execute\s*\([^)]*,\s*[\(\[])|%s|\?)", source)) and len(issues) == 0
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns (string concatenation/formatting in queries). Pattern-based - always confirm with a security review and use parameterized queries."}
 
+def score_zero_trust(source, filename):
+    import re as _zt
+    src_l = source.lower()
+    checks = []
+    c1 = bool(_zt.search(r"(?i)(authenticate|verify_token|check_auth|require_login)", source)); checks.append(("Authentication on requests", c1))
+    c2 = bool(_zt.search(r"(?i)(authoriz|permission|role_required|has_permission|access_control)", source)); checks.append(("Authorization / access control", c2))
+    c3 = bool(_zt.search(r"(?i)(encrypt|tls|ssl|https)", source)); checks.append(("Encryption in transit", c3))
+    c4 = bool(_zt.search(r"(?i)(validate|sanitiz|escape)", source)); checks.append(("Input validation", c4))
+    c5 = bool(_zt.search(r"(?i)(log|audit|track_usage)", source)); checks.append(("Logging / audit trail", c5))
+    c6 = bool(_zt.search(r"(?i)(rate_limit|throttle|max_attempts)", source)); checks.append(("Rate limiting", c6))
+    c7 = not bool(_zt.search(r"(?i)(trust.{0,10}=.{0,10}true|verify\s*=\s*false|skip.{0,10}auth)", source)); checks.append(("No blanket trust / auth bypass found", c7))
+    passed = sum(1 for _,v in checks if v)
+    score = round((passed/len(checks))*100)
+    level = "Strong" if score >= 80 else "Developing" if score >= 50 else "Weak"
+    return {"zt_score": score, "zt_level": level, "zt_checks": [{"check": c, "passed": v} for c,v in checks], "zt_summary": "Zero-Trust readiness: " + str(score) + "/100 (" + level + ") - " + str(passed) + " of " + str(len(checks)) + " signals found", "zt_disclaimer": "Heuristic check for zero-trust security signals (auth, access control, encryption, validation, logging, rate limiting). Absence of a keyword does not always mean the control is missing - verify with a security architecture review."}
+
 def analyze_vendor_lockin(source, filename):
     import re as _vl
     src_l = source.lower()
@@ -2345,9 +2361,24 @@ async def vendor_lockin_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Vendor lock-in analysis failed safely: " + str(e)}
 
+@app.post("/zero-trust-score")
+async def zero_trust_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = score_zero_trust(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("zero-trust-score", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Zero-trust scoring failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
