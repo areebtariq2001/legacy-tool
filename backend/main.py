@@ -1868,6 +1868,17 @@ def _old_scan_sql_injection_unused(source, filename):
     safe = bool(_re8.search(r"(?i)(execute\s*\([^)]*,\s*[\(\[])|%s|\?)", source)) and len(issues) == 0
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns (string concatenation/formatting in queries). Pattern-based - always confirm with a security review and use parameterized queries."}
 
+def analyze_vendor_lockin(source, filename):
+    import re as _vl
+    src_l = source.lower()
+    vendors = {"Oracle": r"(?i)(cx_oracle|oracledb|oracle\.jdbc)", "IBM DB2": r"(?i)(ibm_db|db2\.jcc|db2connect)", "SAP": r"(?i)(pyrfc|sap\.rfc|hdbcli)", "Microsoft SQL Server": r"(?i)(pyodbc|pymssql|sqlserver)", "AWS-specific": r"(?i)(boto3|aws_lambda|dynamodb)", "Azure-specific": r"(?i)(azure\.storage|azure\.identity|azureml)", "Salesforce": r"(?i)(simple_salesforce|salesforce_api)", "Mainframe/COBOL": r"(?i)(cobol|jcl|vsam|cics)"}
+    findings = []
+    for vendor, pat in vendors.items():
+        matches = len(_vl.findall(pat, source))
+        if matches > 0:
+            findings.append({"vendor": vendor, "occurrences": matches, "risk": "High" if matches >= 3 else "Medium"})
+    return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": (str(len(findings)) + " vendor dependency type(s) found - migration may require vendor-specific rework") if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
+
 def map_regional_compliance(source, filename, region="Pakistan"):
     base = discover_business_rules_engine(source, filename)
     region_map = {"Pakistan": {"AML/KYC": "SBP AML/CFT Regulations", "Transaction Limit": "SBP Digital Banking Limits", "Balance/Funds": "SBP Prudential Regulations", "Authorization": "SBP Consumer Protection", "Interest/Fee": "SBP Banking Fee Guidelines", "Fraud/Risk": "SBP Fraud Risk Management Framework"}, "Global": {"AML/KYC": "FATF AML/CFT Standards", "Transaction Limit": "Basel Transaction Monitoring", "Balance/Funds": "IFRS 9 Financial Reporting", "Authorization": "ISO 27001 Access Control", "Interest/Fee": "General Banking Fee Disclosure", "Fraud/Risk": "Basel Operational Risk Framework"}}
@@ -2320,9 +2331,24 @@ async def regional_compliance_endpoint(file: UploadFile = File(...), region: str
     except Exception as e:
         return {"filename": file.filename, "error": "Regional compliance mapping failed safely: " + str(e)}
 
+@app.post("/vendor-lockin")
+async def vendor_lockin_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = analyze_vendor_lockin(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("vendor-lockin", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Vendor lock-in analysis failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
