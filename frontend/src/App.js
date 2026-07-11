@@ -560,8 +560,9 @@ return(
 <button onClick={()=>setView("landing")} style={{position:"absolute",left:"20px",top:"20px",padding:"8px 16px",borderRadius:"20px",border:"1px solid "+border,background:card,color:text,cursor:"pointer"}}>
 Home
 </button>
+<div style={{background:"linear-gradient(135deg, rgba(56,189,248,0.1), rgba(56,189,248,0.02))",border:"1px solid rgba(56,189,248,0.25)",borderRadius:"14px",padding:"20px 24px",marginBottom:"20px"}}>
 <h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
-<p style={{color:subtext,fontSize:"15px",marginBottom:"24px"}}>Migrate, audit, and secure legacy code � with confidence scoring and verification.</p>
+<p style={{color:subtext,fontSize:"15px",marginBottom:"0"}}>Migrate, audit, and secure legacy code � with confidence scoring and verification.</p></div>
 </div>
 <div style={{maxWidth:"800px",margin:"0 auto",padding:"0 20px 40px"}}>
 <div style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"24px",marginBottom:"16px"}}>
@@ -1105,6 +1106,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
