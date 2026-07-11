@@ -655,7 +655,7 @@ Click to select files (multiple allowed)
 {results.length>0&&(
 <div>
 {scored.length>0&&(
-<div style={{background:"linear-gradient(135deg,rgba(167,139,250,0.12),rgba(56,189,248,0.06))",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"12px",padding:"20px",marginBottom:"16px",boxShadow:cardShadow}}>
+<div style={{background:"linear-gradient(135deg,rgba(167,139,250,0.12),rgba(56,189,248,0.06))",border:"1px solid rgba(167,139,250,0.3)",borderRadius:"12px",padding:"20px",marginBottom:"16px",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
 <h3 style={{color:"#a78bfa",margin:"0 0 12px 0",fontSize:"16px"}}>Batch Migration Summary</h3>
 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px",marginBottom:"12px"}}>
 <div style={{textAlign:"center"}}><div style={{fontSize:"22px",fontWeight:"700",color:text}}>{scored.length}</div><div style={{fontSize:"11px",color:subtext}}>Files Migrated</div></div>
@@ -688,7 +688,7 @@ Download Summary PDF
 </div>
 <h3 style={{color:"#38bdf8"}}>Results ({results.length} files)</h3>
 {results.map((result,idx)=>(
-<div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px",boxShadow:cardShadow}}>
+<div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
 <h4 style={{color:"#38bdf8",margin:0}}>{result.filename}</h4>
 {result.confidence_score!==undefined&&(
@@ -1117,6 +1117,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
