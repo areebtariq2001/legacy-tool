@@ -553,6 +553,12 @@ const debtColor=(score)=>score>=60?"#f87171":score>=30?"#f59e0b":"#4ade80";
 
 return(
 <div style={{minHeight:"100vh",background:bg,color:text,fontFamily:"Arial",transition:"all 0.3s"}}>
+<aside style={{position:"fixed",left:0,top:0,width:"220px",height:"100vh",background:"#0d1220",borderRight:"1px solid rgba(255,255,255,0.1)",padding:"20px 16px",overflowY:"auto",zIndex:100}}>
+<div style={{marginBottom:"24px"}}><span style={{color:"#38bdf8",fontWeight:"800",fontSize:"18px"}}>StarBuild</span><div style={{color:"#94a3b8",fontSize:"11px",marginTop:"2px"}}>enterprise edition</div></div>
+<div style={{color:"#94a3b8",fontSize:"10px",fontWeight:"800",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}}>Modernization</div>
+{["Core","Security","Enterprise","Banking","AI Tools"].map(catName=>(<div key={catName} style={{color:"white",fontSize:"13px",padding:"8px 10px",borderRadius:"6px",marginBottom:"2px",cursor:"pointer"}}>{catName}</div>))}
+</aside>
+<div style={{marginLeft:"220px"}}>
 <div style={{textAlign:"center",padding:"40px 20px",position:"relative"}}>
 <button onClick={()=>setDarkMode(!darkMode)} style={{position:"absolute",right:"20px",top:"20px",padding:"8px 16px",borderRadius:"20px",border:"1px solid "+border,background:card,color:text,cursor:"pointer"}}>
 {darkMode?"Light Mode":"Dark Mode"}
@@ -1105,11 +1111,13 @@ rightTitle="Migrated"
 </div>
 )}
 </div>
+</div>
 <Footer darkMode={darkMode}/>
 </div>
 );
 }
 export default App;
+
 
 
 
