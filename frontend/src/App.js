@@ -560,6 +560,10 @@ return(
 <button onClick={()=>setView("landing")} style={{position:"absolute",left:"20px",top:"20px",padding:"8px 16px",borderRadius:"20px",border:"1px solid "+border,background:card,color:text,cursor:"pointer"}}>
 Home
 </button>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",background:darkMode?"#0d1220":"#e2e8f0",borderRadius:"10px",marginBottom:"16px",border:"1px solid "+border}}>
+<span style={{color:subtext,fontSize:"12px",fontFamily:"monospace"}}>Workspace / <span style={{color:text}}>StarBuild</span></span>
+<span style={{color:"#38bdf8",fontSize:"11px",fontWeight:"700",padding:"3px 10px",border:"1px solid #38bdf8",borderRadius:"20px"}}>v1.0 Enterprise</span>
+</div>
 <div style={{background:"linear-gradient(135deg, rgba(56,189,248,0.1), rgba(56,189,248,0.02))",border:"1px solid rgba(56,189,248,0.25)",borderRadius:"14px",padding:"20px 24px",marginBottom:"20px"}}>
 <h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
 <p style={{color:subtext,fontSize:"15px",marginBottom:"0"}}>Migrate, audit, and secure legacy code � with confidence scoring and verification.</p></div>
@@ -1106,6 +1110,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
