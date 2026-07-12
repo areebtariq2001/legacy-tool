@@ -93,6 +93,16 @@ def call_ollama(prompt):
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
 
+def get_ai_response(prompt):
+    import os as _os
+    provider = _os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "not reachable" not in result and "error" not in result.lower()[:50]:
+            return result
+        return call_groq(prompt)
+    return call_groq(prompt)
+
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     try:
@@ -891,15 +901,15 @@ def migrate_cobol(source):
 # ---------- AI ----------
 def ai_suggest(source, language):
     prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}:\n\n{source}"
-    return {"suggestions": call_groq(prompt)}
+    return {"suggestions": get_ai_response(prompt)}
 
 def ai_explain(source, language):
     prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does:\n\n{source}"
-    return {"explanation": call_groq(prompt)}
+    return {"explanation": get_ai_response(prompt)}
 
 def ai_generate_tests(source, language):
     prompt = f"You are a test engineer. Write unit tests for this {language} code. Provide only the test code with brief comments:\n\n{source}"
-    return {"tests": call_groq(prompt)}
+    return {"tests": get_ai_response(prompt)}
 
 def detect_language(filename):
     ext = filename.split('.')[-1].lower()
@@ -2013,7 +2023,7 @@ def generate_executive_report(source, filename):
 def extract_business_rules(source, language):
     prompt = "You are a business analyst reviewing legacy code. In plain, non-technical English, describe the BUSINESS RULES and BUSINESS LOGIC this code implements - what it decides, validates, calculates, or enforces. Write it so a business analyst or manager (not a programmer) can understand what this module does. Use short bullet points starting with action words (Calculates, Validates, Checks, Applies, Updates, Rejects, etc). Focus on WHAT the business logic does, not HOW the code works. Here is the code:" + chr(10) + chr(10) + source[:6000]
     try:
-        rules_text = call_groq(prompt)
+        rules_text = get_ai_response(prompt)
         if not rules_text or len(rules_text.strip()) < 5:
             rules_text = "Could not extract business rules - the AI response was empty. The code may be too short or unclear."
     except Exception as e:
@@ -2392,6 +2402,8 @@ async def local_ai_status_endpoint():
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
