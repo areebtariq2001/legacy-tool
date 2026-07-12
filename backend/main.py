@@ -85,6 +85,14 @@ def track_usage(action, filename):
     stats["logs"] = stats["logs"][:50]
     save_stats(stats)
 
+def call_ollama(prompt):
+    import requests as _req
+    try:
+        r = _req.post("http://localhost:11434/api/generate", json={"model": "deepseek-coder:1.3b", "prompt": prompt, "stream": False}, timeout=60)
+        return r.json().get("response", "No response from local model.")
+    except Exception as e:
+        return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
+
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     try:
@@ -2375,9 +2383,17 @@ async def zero_trust_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Zero-trust scoring failed safely: " + str(e)}
 
+@app.post("/local-ai-status")
+async def local_ai_status_endpoint():
+    result = call_ollama("Say OK if you are working.")
+    is_working = "not reachable" not in result and "error" not in result.lower()
+    return {"local_ai_available": is_working, "response_preview": result[:200], "note": "Local AI runs on the same machine as the backend. In this cloud demo, the backend and your Ollama are on different machines, so this will show unavailable - it works fully in an on-premise deployment where both run together."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
