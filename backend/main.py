@@ -1925,6 +1925,17 @@ def analyze_vendor_lockin(source, filename):
             findings.append({"vendor": vendor, "occurrences": matches, "risk": "High" if matches >= 3 else "Medium"})
     return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": (str(len(findings)) + " vendor dependency type(s) found - migration may require vendor-specific rework") if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
 
+def check_regulatory_framework(source, filename, framework="SBP"):
+    import re as _rf
+    frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(local|pakistan|on.?prem)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|car\\b)", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|pan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(log|audit|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
+    fw = frameworks.get(framework, frameworks["SBP"])
+    results = []
+    for check_name, pattern, note in fw["checks"]:
+        found = bool(_rf.search(pattern, source))
+        results.append({"check": check_name, "status": "Present" if found else "Not Found", "note": note})
+    covered = len([r for r in results if r["status"] == "Present"])
+    return {"framework": fw["name"], "framework_key": framework, "framework_checks": results, "framework_summary": str(covered) + " of " + str(len(results)) + " " + fw["name"] + " signals found", "framework_disclaimer": "Pattern-based indicator only. Not a certification - a formal compliance audit is required."}
+
 def map_regional_compliance(source, filename, region="Pakistan"):
     base = discover_business_rules_engine(source, filename)
     region_map = {"Pakistan": {"AML/KYC": "SBP AML/CFT Regulations", "Transaction Limit": "SBP Digital Banking Limits", "Balance/Funds": "SBP Prudential Regulations", "Authorization": "SBP Consumer Protection", "Interest/Fee": "SBP Banking Fee Guidelines", "Fraud/Risk": "SBP Fraud Risk Management Framework"}, "Global": {"AML/KYC": "FATF AML/CFT Standards", "Transaction Limit": "Basel Transaction Monitoring", "Balance/Funds": "IFRS 9 Financial Reporting", "Authorization": "ISO 27001 Access Control", "Interest/Fee": "General Banking Fee Disclosure", "Fraud/Risk": "Basel Operational Risk Framework"}}
@@ -2411,9 +2422,24 @@ async def local_ai_status_endpoint():
     is_working = "not reachable" not in result and "error" not in result.lower()
     return {"local_ai_available": is_working, "response_preview": result[:200], "note": "Local AI runs on the same machine as the backend. In this cloud demo, the backend and your Ollama are on different machines, so this will show unavailable - it works fully in an on-premise deployment where both run together."}
 
+@app.post("/regulatory-framework")
+async def regulatory_framework_endpoint(file: UploadFile = File(...), framework: str = "SBP"):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = check_regulatory_framework(source, file.filename, framework)
+        result["filename"] = file.filename
+        track_usage("regulatory-framework", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
