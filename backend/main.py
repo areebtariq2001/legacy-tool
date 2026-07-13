@@ -103,6 +103,15 @@ def get_ai_response(prompt):
         return call_groq(prompt)
     return call_groq(prompt)
 
+def call_ai_provider(prompt, max_tokens=500):
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "AI_ERROR" not in result and "not reachable" not in result.lower() and result.strip():
+            return result
+        return call_groq(prompt, max_tokens)
+    return call_groq(prompt, max_tokens)
+
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     try:
@@ -587,7 +596,7 @@ def ai_advanced_migrate(source, language):
         f"Return ONLY the converted code, no explanations, no markdown.\n\n"
         f"Legacy code:\n{source}"
     )
-    result = call_groq(prompt, max_tokens=2000)
+    result = call_ai_provider(prompt, max_tokens=2000)
     if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
         rule_result = migrate_code(source) if language == "python" else (migrate_java(source) if language == "java" else {"migrated_code": source})
         return {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
@@ -2405,6 +2414,8 @@ async def local_ai_status_endpoint():
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
