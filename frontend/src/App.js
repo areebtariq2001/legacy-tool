@@ -525,6 +525,7 @@ y+=5.5;
 });
 doc.save("StarBuild_KT_Doc_"+result.filename+".pdf");
 };
+const handleDownloadAuditReport=(result)=>{ const doc=new jsPDF(); const date=new Date().toLocaleString(); doc.setFillColor(99,102,241); doc.rect(0,0,210,32,'F'); doc.setTextColor(255,255,255); doc.setFontSize(18); doc.text('StarBuild - Audit-Ready Compliance Report',105,14,{align:'center'}); doc.setFontSize(9); doc.text('File: '+result.filename+'  |  Generated: '+date,105,23,{align:'center'}); let y=44; doc.setTextColor(15,23,42); doc.setFontSize(13); doc.text('Executive Summary',14,y); y+=8; doc.setFontSize(10); doc.setTextColor(51,65,85); doc.text('Code Health Score: '+(result.exec_health!==undefined?result.exec_health+'/100':'N/A')+'  (' +(result.exec_status||'N/A')+')',14,y); y+=10; doc.setFontSize(12); doc.setTextColor(15,23,42); doc.text('Findings',14,y); y+=7; doc.setFontSize(9); doc.setTextColor(51,65,85); (result.exec_findings||[]).forEach((fd)=>{ if(y>270){doc.addPage();y=20;} const fl=doc.splitTextToSize('- '+fd,180); doc.text(fl,14,y); y+=fl.length*4.5+3; }); y+=5; if(y>260){doc.addPage();y=20;} doc.setFontSize(12); doc.setTextColor(15,23,42); doc.text('Recommendation',14,y); y+=7; doc.setFontSize(9); doc.setTextColor(51,65,85); const rl=doc.splitTextToSize(result.exec_recommendation||'N/A',180); doc.text(rl,14,y); y+=rl.length*4.5+8; if(y>260){doc.addPage();y=20;} doc.setFontSize(8); doc.setTextColor(120,120,120); const dl2=doc.splitTextToSize('Audit note: This report is an automated code-analysis aid intended for planning and internal review. It does not constitute a formal regulatory certification. Confirm findings with a qualified compliance officer.',180); doc.text(dl2,14,y); doc.save('StarBuild_AuditReport_'+result.filename+'.pdf'); };
 const handleDownloadRisk=(result)=>{ const doc=new jsPDF(); const date=new Date().toLocaleString(); doc.setFillColor(248,113,113); doc.rect(0,0,210,30,'F'); doc.setTextColor(255,255,255); doc.setFontSize(20); doc.text('StarBuild - Risk Assessment',105,14,{align:'center'}); doc.setFontSize(9); doc.text('File: '+result.filename+'  |  '+date,105,23,{align:'center'}); let y=42; doc.setTextColor(15,23,42); doc.setFontSize(12); doc.text('Overall Risk: '+(result.overall_risk||'N/A'),14,y); y+=8; doc.setFontSize(10); doc.setTextColor(51,65,85); doc.text('High: '+(result.high_count||0)+'   Medium: '+(result.medium_count||0)+'   Low: '+(result.low_count||0),14,y); y+=10; (result.findings||[]).forEach((fd)=>{ if(y>270){doc.addPage();y=20;} doc.setFontSize(11); doc.setTextColor(15,23,42); doc.text(fd.dependency+' ['+fd.risk_level+']',14,y); y+=6; doc.setFontSize(9); doc.setTextColor(71,85,105); const dl=doc.splitTextToSize(fd.description+' Recommendation: '+fd.recommendation,180); doc.text(dl,14,y); y+=dl.length*4.5+4; }); doc.save('StarBuild_Risk_'+result.filename+'.pdf'); };
 const handleReset=()=>{ setFiles([]); setResults([]); setProgress(0); setCopied({}); setShowWhy({}); };
 const handleToggleOriginal=(idx)=>{ setRestored(prev=>({...prev,[idx]:!prev[idx]})); };
@@ -888,6 +889,7 @@ Download Summary PDF
 {result.exec_findings&&result.exec_findings.map((fd,fi)=>(<div key={fi} style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><span style={{color:text,fontSize:"12px"}}>{fd}</span></div>))}
 <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid #6366f1",borderRadius:"8px",padding:"12px",marginTop:"8px"}}><p style={{color:"#6366f1",fontWeight:"700",fontSize:"12px",margin:"0 0 4px 0"}}>Recommendation</p><p style={{color:text,fontSize:"13px",margin:0}}>{result.exec_recommendation}</p></div>
 <p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.exec_disclaimer}</p>
+<button onClick={()=>handleDownloadAuditReport(result)} style={{marginTop:"10px",padding:"6px 14px",borderRadius:"8px",border:"1px solid #6366f1",background:"transparent",color:"#6366f1",cursor:"pointer",fontSize:"12px",fontWeight:"700"}}>Download Audit-Ready PDF</button>
 </div>
 )}
 {result.business_rules!==undefined&&mode==="bizrules"&&(
@@ -1128,6 +1130,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
