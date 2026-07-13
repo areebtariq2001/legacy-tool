@@ -1925,6 +1925,21 @@ def analyze_vendor_lockin(source, filename):
             findings.append({"vendor": vendor, "occurrences": matches, "risk": "High" if matches >= 3 else "Medium"})
     return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": (str(len(findings)) + " vendor dependency type(s) found - migration may require vendor-specific rework") if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
 
+def answer_code_question(source, question, filename):
+    prompt = ("You are a senior developer helping someone understand a legacy codebase. "
+              "Based ONLY on the code below, answer the question clearly and concisely in plain English. "
+              "If the code does not contain enough information to answer, say so honestly.\n\n"
+              "CODE:\n" + source[:6000] + "\n\n"
+              "QUESTION: " + question + "\n\n"
+              "ANSWER:")
+    try:
+        answer = call_ai_provider(prompt, max_tokens=600)
+        if not answer or len(answer.strip()) < 3 or answer.startswith("AI_ERROR") or answer.startswith("AI service error"):
+            answer = "Could not generate an answer right now - the AI service may be busy. Please try again."
+    except Exception as e:
+        answer = "Question answering is temporarily unavailable: " + str(e)
+    return {"question": question, "answer": answer, "qa_disclaimer": "AI-generated answer based on the uploaded file only. Always verify against the actual code and consult the original developers where possible."}
+
 def check_regulatory_framework(source, filename, framework="SBP"):
     import re as _rf
     frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(local|pakistan|on.?prem)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|car\\b)", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|pan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(log|audit|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
@@ -2436,9 +2451,24 @@ async def regulatory_framework_endpoint(file: UploadFile = File(...), framework:
     except Exception as e:
         return {"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)}
 
+@app.post("/ask-code-question")
+async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What does this code do?"):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = answer_code_question(source, question, file.filename)
+        result["filename"] = file.filename
+        track_usage("ask-code-question", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
