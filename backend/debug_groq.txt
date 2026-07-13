@@ -1,0 +1,35 @@
+﻿def call_groq(prompt, max_tokens=500):
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    try:
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens
+        }
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=180
+        )
+        result = response.json()
+        if "choices" in result:
+            return result["choices"][0]["message"]["content"]
+        else:
+            return str(result)
+    except Exception as e:
+        return f"AI service error: {str(e)}"
+
+# ---------- WHY EXPLANATIONS ----------
+WHY_RULES = [
+    ("xrange", "xrange() was removed in Python 3. range() now returns an efficient iterator, so xrange() is no longer needed."),
+    ("raw_input", "raw_input() was renamed to input() in Python 3. The old Python 3-style input() (which evaluated code) was removed for safety."),
+    ("has_key", "dict.has_key() was removed in Python 3. The 'in' operator is the standard, faster way to check for a key."),
+    ("iteritems", "iteritems() was removed in Python 3. items() now returns an efficient view object, so the iter* methods are gone."),
+    ("itervalues", "itervalues() was removed in Python 3. values() now returns an efficient view object."),
+    ("iterkeys", "iterkeys() was removed in Python 3. keys() now returns an efficient view object."),
+    ("unicode", "The unicode type was merged into str in Python 3, since all strings are now Unicode by default."),

@@ -1,0 +1,40 @@
+﻿def ai_advanced_migrate(source, language):
+    code_lines = [ln for ln in source.split("\n") if ln.strip() and not ln.strip().startswith("#")]
+    if not code_lines:
+        if language == "python":
+            return {
+                "migrated_code": source, "ai_powered": True, "valid": True,
+                "validation_message": "File has no executable code (empty or comments only).",
+                "verified": True, "verify_message": "Nothing to verify - no executable code.",
+                "vars_ok": True, "var_message": "", "confidence_score": 100,
+                "confidence_level": "High confidence", "confidence_reason": "no executable code to migrate",
+                "why_explanations": [], "dependencies": []
+            }
+        else:
+            return {"migrated_code": source, "ai_powered": True,
+                    "valid": True, "validation_message": "File has no executable code.",
+                    "confidence_score": 100, "confidence_level": "High confidence",
+                    "confidence_reason": "no executable code to migrate"}
+    prompt = (
+        f"You are an expert {language} developer. "
+        f"Convert this legacy {language} code to modern {language}. "
+        f"ONLY fix syntax and APIs that are strictly required for modern {language} compatibility. "
+        f"Do NOT rename any variables, functions, or classes. "
+        f"Do NOT add or remove comments. Do NOT change formatting, logic, or style. "
+        f"Keep everything exactly the same except the required fixes. "
+        f"Return ONLY the converted code, no explanations, no markdown.\n\n"
+        f"Legacy code:\n{source}"
+    )
+    result = call_groq(prompt, max_tokens=2000)
+    cleaned = result.replace(f"```{language}", "").replace("```python", "").replace("```java", "").replace("```php", "").replace("```", "").strip()
+    output = {"migrated_code": cleaned, "ai_powered": True}
+    if language == "python":
+        check = validate_python(cleaned)
+        output["valid"] = check["valid"]
+        output["validation_message"] = check["validation_message"]
+        verify = deep_verify_python(cleaned)
+        output["verified"] = verify["verified"]
+        output["verify_message"] = verify["verify_message"]
+        var_check = check_variable_integrity(source, cleaned)
+        output["vars_ok"] = var_check["vars_ok"]
+        output["var_message"] = var_check["var_message"]

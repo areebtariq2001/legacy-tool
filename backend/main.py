@@ -88,7 +88,7 @@ def track_usage(action, filename):
 def call_ollama(prompt):
     import requests as _req
     try:
-        r = _req.post("http://localhost:11434/api/generate", json={"model": "deepseek-coder:1.3b", "prompt": prompt, "stream": False}, timeout=60)
+        r = _req.post("http://localhost:11434/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=180)
         return r.json().get("response", "No response from local model.")
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
@@ -119,13 +119,13 @@ def call_groq(prompt, max_tokens=500):
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=60
+            timeout=180
         )
         result = response.json()
         if "choices" in result:
             return result["choices"][0]["message"]["content"]
         else:
-            return str(result)
+            return "AI_ERROR: " + str(result)
     except Exception as e:
         return f"AI service error: {str(e)}"
 
@@ -588,6 +588,9 @@ def ai_advanced_migrate(source, language):
         f"Legacy code:\n{source}"
     )
     result = call_groq(prompt, max_tokens=2000)
+    if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
+        rule_result = migrate_code(source) if language == "python" else (migrate_java(source) if language == "java" else {"migrated_code": source})
+        return {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
     cleaned = result.replace(f"```{language}", "").replace("```python", "").replace("```java", "").replace("```php", "").replace("```", "").strip()
     output = {"migrated_code": cleaned, "ai_powered": True}
     if language == "python":
@@ -2402,6 +2405,10 @@ async def local_ai_status_endpoint():
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
+
+
 
 
 

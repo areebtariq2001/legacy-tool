@@ -1,0 +1,28 @@
+﻿async def ai_migrate_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = ai_advanced_migrate(source, detect_language(file.filename))
+        if detect_language(file.filename) == "python" and result.get("migrated_code"):
+            try:
+                result.update(check_parity(source, result.get("migrated_code", "")))
+                result.update(generate_test_scenarios(source, file.filename))
+                result.update(generate_dockerfile(file.filename, detect_language(file.filename)))
+            except Exception:
+                pass
+        result["filename"] = file.filename
+        track_usage("ai-migrate", file.filename)
+        summary = f"confidence={result.get('confidence_score','N/A')} level={result.get('confidence_level','N/A')}"
+        write_audit_log("ai-migrate", file.filename, summary)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": f"Migration failed safely: {str(e)}"}
+
+class QARequest(BaseModel):
+    original: str
+    migrated: str
+
+@app.post("/qa-check")
+async def qa_check(req: QARequest):

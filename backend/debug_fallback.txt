@@ -1,0 +1,65 @@
+﻿        verify = deep_verify_python(cleaned)
+        output["verified"] = verify["verified"]
+        output["verify_message"] = verify["verify_message"]
+        var_check = check_variable_integrity(source, cleaned)
+        output["vars_ok"] = var_check["vars_ok"]
+        output["var_message"] = var_check["var_message"]
+        conf = calculate_confidence(source, cleaned, output["valid"], output["vars_ok"], output["verified"])
+        output.update(conf)
+        ai_dropped_code = False
+        if len(source.strip()) > 0:
+            if len(cleaned.strip()) / len(source.strip()) < 0.8:
+                ai_dropped_code = True
+        if conf["confidence_score"] < 60 or ai_dropped_code:
+            rule_result = migrate_code(source)
+            rule_code = rule_result["migrated_code"]
+            rule_valid = validate_python(rule_code)
+            rule_verify = deep_verify_python(rule_code)
+            if rule_valid["valid"] and rule_verify["verified"]:
+                output["migrated_code"] = rule_code
+                output["valid"] = True
+                output["validation_message"] = "Output is valid Python syntax."
+                output["verified"] = True
+                output["verify_message"] = "Code compiles successfully (rule-based fallback used)."
+                output["vars_ok"] = True
+                output["var_message"] = "Rule-based migration preserves all names."
+                output["confidence_score"] = 95
+                output["confidence_level"] = "High confidence"
+                output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
+                output["fallback_used"] = True
+        output["why_explanations"] = get_why_explanations(source)
+        output["dependencies"] = check_dependencies(source)
+    elif language == "java":
+        check = validate_java(cleaned)
+        output["valid"] = check["valid"]
+        output["validation_message"] = check["validation_message"]
+        var_check = check_java_integrity(source, cleaned)
+        output["vars_ok"] = var_check["vars_ok"]
+        output["var_message"] = var_check["var_message"]
+        conf = calculate_confidence_java(source, cleaned, output["valid"], output["vars_ok"])
+        output.update(conf)
+        if conf["confidence_score"] < 60:
+            rule_result = migrate_java(source)
+            rule_code = rule_result["migrated_code"]
+            rule_valid = validate_java(rule_code)
+            if rule_valid["valid"]:
+                output["migrated_code"] = rule_code
+                output["valid"] = True
+                output["validation_message"] = "Output is valid Java syntax."
+                output["vars_ok"] = True
+                output["var_message"] = "Rule-based migration preserves all names."
+                output["confidence_score"] = 95
+                output["confidence_level"] = "High confidence"
+                output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
+                output["fallback_used"] = True
+        output["note_java"] = "Java guardrails use syntax-level (AST) verification. Compile-level verification requires a full JDK and is planned for on-premise deployment."
+    else:
+        output["experimental"] = True
+        output["experimental_message"] = f"AI migration for {language.upper()} is experimental. Guardrails for {language.upper()} are planned. For reliable results, use the rule-based Migrate mode."
+    return output
+
+# ---------- AI as QA ASSISTANT ----------
+def ai_qa_compare(original, migrated):
+    prompt = (
+        "You are a senior QA engineer reviewing a code migration. "
+        "Compare the ORIGINAL and MIGRATED code below. "
