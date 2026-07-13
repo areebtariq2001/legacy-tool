@@ -278,6 +278,7 @@ const[copied,setCopied]=useState({});
 const[darkMode,setDarkMode]=useState(true);
 const[showWhy,setShowWhy]=useState({});
 const[threshold,setThreshold]=useState(85);
+const[regFramework,setRegFramework]=useState("SBP");
 const[restored,setRestored]=useState({});
 const[repoUrl,setRepoUrl]=useState("");
 const[repoLoading,setRepoLoading]=useState(false);
@@ -308,6 +309,7 @@ let originalCode="";
 try{originalCode=await files[i].text();}catch(e){originalCode="";}
 const formData=new FormData();
 formData.append("file",files[i]);
+if(mode==="regframework")formData.append("framework",regFramework);
 let endpoint="/analyze";
 if(mode==="ai"){endpoint="/ai-suggest";}
 else if(mode==="aimigrate"){endpoint="/ai-migrate";}
@@ -342,6 +344,7 @@ else if(mode==="fraud"){endpoint="/detect-fraud-gaps";}
 else if(mode==="regional"){endpoint="/regional-compliance";}
 else if(mode==="vendorrisk"){endpoint="/vendor-lockin";}
 else if(mode==="zerotrust"){endpoint="/zero-trust-score";}
+else if(mode==="regframework"){endpoint="/regulatory-framework";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -545,7 +548,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["regframework","Reg Framework","#dc2626"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -625,6 +628,7 @@ Home
 <label htmlFor="fileInput" style={{cursor:"pointer",color:"#38bdf8"}}>
 Click to select files (multiple allowed)
 </label>
+{mode==="regframework"&&<div style={{marginTop:"12px",marginBottom:"12px"}}><label style={{color:subtext,fontSize:"12px",marginRight:"8px"}}>Framework:</label><select value={regFramework} onChange={e=>setRegFramework(e.target.value)} style={{padding:"6px 12px",borderRadius:"6px",background:codebg,color:text,border:"1px solid "+border,fontSize:"13px"}}><option value="SBP">SBP (Pakistan)</option><option value="Basel III">Basel III</option><option value="PCI-DSS">PCI-DSS</option><option value="GDPR">GDPR</option></select></div>}
 {files.length>0&&<button onClick={handleReset} style={{marginTop:'10px',padding:'6px 16px',borderRadius:'8px',border:'1px solid #f87171',background:'transparent',color:'#f87171',cursor:'pointer',fontSize:'13px',fontWeight:'600'}}>Reset / Clear All</button>}
 {files.length>0&&<p style={{color:subtext,marginTop:"8px"}}>{files.length} file(s) selected: {files.map(f=>f.name).join(", ")}</p>}
 </div>
@@ -649,7 +653,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"14px",boxShadow:loading?"none":"0 8px 20px rgba(56,189,248,0.25)"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="architecture"?"Generate Architecture":mode==="bizrules"?"Extract Business Rules":mode==="execreport"?"Generate Executive Report":mode==="impact"?"Analyze Impact":mode==="txnflow"?"Map Transaction Flow":mode==="rollback"?"Generate Rollback Plan":mode==="rulesengine"?"Discover Business Rules":mode==="sqli"?"Scan SQL Injection":mode==="pii"?"Detect PII / Secrets":mode==="cost"?"Estimate Migration Cost":mode==="techstack"?"Detect Tech Stack":mode==="keyaudit"?"Audit Key Management":mode==="fraud"?"Check Fraud Controls":mode==="regional"?"Map Regional Compliance":mode==="vendorrisk"?"Check Vendor Lock-in":mode==="zerotrust"?"Score Zero-Trust Readiness":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="architecture"?"Generate Architecture":mode==="bizrules"?"Extract Business Rules":mode==="execreport"?"Generate Executive Report":mode==="impact"?"Analyze Impact":mode==="txnflow"?"Map Transaction Flow":mode==="rollback"?"Generate Rollback Plan":mode==="rulesengine"?"Discover Business Rules":mode==="sqli"?"Scan SQL Injection":mode==="pii"?"Detect PII / Secrets":mode==="cost"?"Estimate Migration Cost":mode==="techstack"?"Detect Tech Stack":mode==="keyaudit"?"Audit Key Management":mode==="fraud"?"Check Fraud Controls":mode==="regional"?"Map Regional Compliance":mode==="vendorrisk"?"Check Vendor Lock-in":mode==="zerotrust"?"Score Zero-Trust Readiness":mode==="regframework"?"Check Regulatory Framework":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -778,6 +782,13 @@ Download Summary PDF
 <div style={{marginBottom:"12px",padding:"14px",borderRadius:"10px",background:"rgba(8,145,178,0.08)",border:"1px solid #0891b2"}}><div style={{fontSize:"32px",fontWeight:"800",color:result.zt_score>=80?"#4ade80":result.zt_score>=50?"#f59e0b":"#f87171"}}>{result.zt_score}/100</div><div style={{color:"#0891b2",fontWeight:"700",fontSize:"14px",marginTop:"4px"}}>Zero-Trust Readiness - {result.zt_level}</div></div>
 {result.zt_checks&&result.zt_checks.map((zc,zci)=>(<div key={zci} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:codebg,borderRadius:"8px",padding:"8px 12px",marginBottom:"5px"}}><span style={{color:text,fontSize:"12px"}}>{zc.check}</span><span style={{color:zc.passed?"#4ade80":"#f87171",fontSize:"12px",fontWeight:"700"}}>{zc.passed?"Present":"Missing"}</span></div>))}
 <p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.zt_disclaimer}</p>
+</div>
+)}
+{result.framework_checks!==undefined&&mode==="regframework"&&(
+<div style={{marginTop:"4px"}}>
+<p style={{color:"#dc2626",fontWeight:"700",fontSize:"14px",marginBottom:"10px"}}>{result.framework} &mdash; {result.framework_summary}</p>
+{result.framework_checks&&result.framework_checks.map((fc,fci)=>(<div key={fci} style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px",borderLeft:"3px solid #dc2626"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"3px"}}><span style={{color:text,fontSize:"12px",fontWeight:"700"}}>{fc.check}</span><span style={{color:fc.status==="Present"?"#4ade80":"#f59e0b",fontSize:"11px",fontWeight:"700"}}>{fc.status}</span></div><p style={{color:subtext,fontSize:"11px",margin:0}}>{fc.note}</p></div>))}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.framework_disclaimer}</p>
 </div>
 )}
 {result.lockin_detected!==undefined&&mode==="vendorrisk"&&(
@@ -1117,6 +1128,14 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
+
+
+
+
 
 
 
