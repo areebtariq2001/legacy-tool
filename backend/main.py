@@ -2601,8 +2601,10 @@ def calculate_code_quality(source, filename):
     readability = 100
     if long_lines > 0:
         readability -= min(30, long_lines * 3)
-    if comp["complexity_score"] > 10:
-        readability -= min(30, (comp["complexity_score"] - 10) * 2)
+    if comp["complexity_score"] > 20:
+        readability -= min(30, (comp["complexity_score"] - 20) * 3 + 15)
+    elif comp["complexity_score"] > 10:
+        readability -= min(15, (comp["complexity_score"] - 10) * 1.5)
     if comment_ratio < 5 and loc > 30:
         readability -= 10
     if readability < 0:
@@ -2627,6 +2629,7 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
