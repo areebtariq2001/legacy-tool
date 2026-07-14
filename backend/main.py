@@ -2591,6 +2591,39 @@ async def approval_history_endpoint():
     except Exception as e:
         return {"error": "Could not load approval history: " + str(e)}
 
+def calculate_code_quality(source, filename):
+    lines = [ln for ln in source.split(chr(10)) if ln.strip()]
+    loc = len(lines)
+    comp = calculate_complexity(source)
+    long_lines = len([ln for ln in lines if len(ln) > 100])
+    comment_lines = len([ln for ln in lines if ln.strip().startswith("#")])
+    comment_ratio = round((comment_lines / loc) * 100, 1) if loc > 0 else 0
+    readability = 100
+    if long_lines > 0:
+        readability -= min(30, long_lines * 3)
+    if comp["complexity_score"] > 10:
+        readability -= min(30, (comp["complexity_score"] - 10) * 2)
+    if comment_ratio < 5 and loc > 30:
+        readability -= 10
+    if readability < 0:
+        readability = 0
+    grade = "A" if readability >= 85 else "B" if readability >= 70 else "C" if readability >= 50 else "D"
+    return {"quality_score": readability, "quality_grade": grade, "quality_metrics": {"lines_of_code": loc, "complexity_score": comp["complexity_score"], "complexity_level": comp["complexity_level"], "long_lines_over_100_chars": long_lines, "comment_ratio_percent": comment_ratio}, "quality_disclaimer": "Automated static-analysis metric based on line count, complexity, and comment density. A planning signal, not a full code review."}
+
+@app.post("/code-quality")
+async def code_quality_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = calculate_code_quality(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("code-quality", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Code quality check failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
