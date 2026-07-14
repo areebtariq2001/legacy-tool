@@ -2652,6 +2652,32 @@ async def migration_dashboard_endpoint():
     except Exception as e:
         return {"error": "Dashboard load failed safely: " + str(e)}
 
+def generate_migration_roadmap(repo_result):
+    if repo_result.get("error"):
+        return {"error": repo_result["error"]}
+    reports = repo_result.get("file_reports", [])
+    risk_order = {"Low": 0, "Medium": 1, "High": 2, "Unknown": 1}
+    sorted_files = sorted(reports, key=lambda r: risk_order.get(r.get("risk_level", "Unknown"), 1))
+    phases = {"Phase 1 - Quick Wins (Low Risk)": [], "Phase 2 - Standard Migration (Medium Risk)": [], "Phase 3 - Careful Review Needed (High Risk)": []}
+    for f in sorted_files:
+        lvl = f.get("risk_level", "Unknown")
+        if lvl == "Low":
+            phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])
+        elif lvl == "High":
+            phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
+        else:
+            phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
+    return {"repo": repo_result.get("repo", repo_url), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": "Migration roadmap generated for " + str(len(reports)) + " files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
+
+@app.post("/migration-roadmap")
+async def migration_roadmap_endpoint(req: RepoRequest):
+    try:
+        repo_result = await scan_repo_endpoint(req)
+        result = generate_migration_roadmap(repo_result)
+        return result
+    except Exception as e:
+        return {"error": "Roadmap generation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
