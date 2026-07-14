@@ -2660,11 +2660,11 @@ def generate_migration_roadmap(repo_result):
     sorted_files = sorted(reports, key=lambda r: risk_order.get(r.get("risk_level", "Unknown"), 1))
     phases = {"Phase 1 - Quick Wins (Low Risk)": [], "Phase 2 - Standard Migration (Medium Risk)": [], "Phase 3 - Careful Review Needed (High Risk)": []}
     for f in sorted_files:
-        lvl = f.get("risk_level", "Unknown")
-        if lvl == "Low":
-            phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])
-        elif lvl == "High":
+        lvl = f.get("risk_level", "Unknown").lower()
+        if "high" in lvl:
             phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
+        elif "low" in lvl or "no known" in lvl:
+            phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])
         else:
             phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
     return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": "Migration roadmap generated for " + str(len(reports)) + " files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
@@ -2681,6 +2681,7 @@ async def migration_roadmap_endpoint(req: RepoRequest):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
