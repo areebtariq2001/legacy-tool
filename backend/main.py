@@ -1940,6 +1940,38 @@ def answer_code_question(source, question, filename):
         answer = "Question answering is temporarily unavailable: " + str(e)
     return {"question": question, "answer": answer, "qa_disclaimer": "AI-generated answer based on the uploaded file only. Always verify against the actual code and consult the original developers where possible."}
 
+def process_github_webhook(payload):
+    try:
+        repo_name = payload.get("repository", {}).get("full_name", "unknown")
+        pusher = payload.get("pusher", {}).get("name", "unknown")
+        ref = payload.get("ref", "unknown")
+        commits = payload.get("commits", [])
+        changed_files = set()
+        for commit in commits:
+            for f in commit.get("added", []) + commit.get("modified", []):
+                if f.endswith(".py"):
+                    changed_files.add(f)
+        if not changed_files:
+            return {"repo": repo_name, "pusher": pusher, "ref": ref, "files_scanned": 0, "results": [], "webhook_summary": "No Python files changed in this push - nothing to scan."}
+        results = []
+        for file_path in list(changed_files)[:10]:
+            try:
+                branch = ref.split("/")[-1] if ref else "main"
+                raw_url = "https://raw.githubusercontent.com/" + repo_name + "/" + branch + "/" + file_path
+                resp = requests.get(raw_url, timeout=15)
+                if resp.status_code == 200:
+                    source = resp.text
+                    risk = assess_dependency_risk(source)
+                    results.append({"file": file_path, "risk_level": risk.get("overall_risk", "Unknown"), "issues": risk.get("total_issues", 0)})
+                else:
+                    results.append({"file": file_path, "risk_level": "Could not fetch", "issues": 0})
+            except Exception:
+                results.append({"file": file_path, "risk_level": "Scan error", "issues": 0})
+        high_risk = len([r for r in results if r.get("risk_level") == "High"])
+        return {"repo": repo_name, "pusher": pusher, "ref": ref, "files_scanned": len(results), "results": results, "webhook_summary": str(len(results)) + " Python file(s) scanned from push by " + pusher + "; " + str(high_risk) + " flagged high-risk", "webhook_disclaimer": "Automated scan triggered by a GitHub push event. Full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup and is on the roadmap."}
+    except Exception as e:
+        return {"error": "Webhook processing failed safely: " + str(e)}
+
 def check_regulatory_framework(source, filename, framework="SBP"):
     import re as _rf
     frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(local|pakistan|on.?prem)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|car\\b)", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|pan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(log|audit|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
@@ -2464,6 +2496,14 @@ async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What d
         return result
     except Exception as e:
         return {"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)}
+
+@app.post("/github-webhook")
+async def github_webhook_endpoint(payload: dict):
+    try:
+        result = process_github_webhook(payload)
+        return result
+    except Exception as e:
+        return {"error": "Webhook endpoint failed safely: " + str(e)}
 
 @app.get('/')
 def root():
