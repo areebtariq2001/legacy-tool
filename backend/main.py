@@ -2667,7 +2667,7 @@ def generate_migration_roadmap(repo_result):
             phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
         else:
             phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
-    return {"repo": repo_result.get("repo", repo_url), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": "Migration roadmap generated for " + str(len(reports)) + " files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
+    return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": "Migration roadmap generated for " + str(len(reports)) + " files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
 
 @app.post("/migration-roadmap")
 async def migration_roadmap_endpoint(req: RepoRequest):
@@ -2681,6 +2681,7 @@ async def migration_roadmap_endpoint(req: RepoRequest):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
