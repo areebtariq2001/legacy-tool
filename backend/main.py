@@ -1533,7 +1533,9 @@ async def scan_repo_endpoint(req: RepoRequest):
             return {"error": "Please provide a valid GitHub repo URL like https://github.com/owner/repo"}
         owner, repo = parts[0], parts[1]
         api_url = "https://api.github.com/repos/" + owner + "/" + repo + "/git/trees/HEAD?recursive=1"
-        r = requests.get(api_url, timeout=20)
+        gh_token = os.environ.get("GITHUB_TOKEN", "")
+        gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+        r = requests.get(api_url, headers=gh_headers, timeout=20)
         if r.status_code != 200:
             return {"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."}
         tree = r.json().get("tree", [])
@@ -2681,6 +2683,7 @@ async def migration_roadmap_endpoint(req: RepoRequest):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
