@@ -2547,6 +2547,50 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)}
 
+def save_approval_decision(filename, decision, reviewer_notes, action_type):
+    import json as _json
+    import datetime as _dt
+    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": _dt.datetime.now().isoformat()}
+    log_file = "approval_log.json"
+    try:
+        try:
+            with open(log_file, "r") as f:
+                logs = _json.load(f)
+        except (FileNotFoundError, _json.JSONDecodeError):
+            logs = []
+        logs.append(entry)
+        with open(log_file, "w") as f:
+            _json.dump(logs, f, indent=2)
+        entry["log_saved"] = True
+    except Exception as e:
+        entry["log_saved"] = False
+        entry["log_error"] = str(e)
+    return entry
+
+def get_approval_history():
+    import json as _json
+    try:
+        with open("approval_log.json", "r") as f:
+            return _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        return []
+
+@app.post("/save-approval")
+async def save_approval_endpoint(filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
+    try:
+        result = save_approval_decision(filename, decision, reviewer_notes, action_type)
+        return result
+    except Exception as e:
+        return {"error": "Approval save failed safely: " + str(e)}
+
+@app.get("/approval-history")
+async def approval_history_endpoint():
+    try:
+        history = get_approval_history()
+        return {"approval_history": history, "total_decisions": len(history)}
+    except Exception as e:
+        return {"error": "Could not load approval history: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
