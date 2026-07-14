@@ -2505,6 +2505,48 @@ async def github_webhook_endpoint(payload: dict):
     except Exception as e:
         return {"error": "Webhook endpoint failed safely: " + str(e)}
 
+def run_sandboxed_migration_test(migrated_code, filename):
+    import subprocess as _sp
+    import tempfile as _tf
+    import os as _os
+    try:
+        with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(migrated_code)
+            tmp_path = tmp.name
+        try:
+            result = _sp.run(["python3", tmp_path], timeout=8, capture_output=True, text=True)
+            status = "Ran successfully" if result.returncode == 0 else "Ran with errors"
+            output = (result.stdout or "")[:1000]
+            err = (result.stderr or "")[:1000]
+        except _sp.TimeoutExpired:
+            status = "Timeout - execution took longer than 8 seconds"
+            output = ""
+            err = "Execution exceeded time limit"
+        finally:
+            try:
+                _os.remove(tmp_path)
+            except Exception:
+                pass
+        return {"sandbox_status": status, "sandbox_output": output, "sandbox_error": err, "sandbox_disclaimer": "This is a lightweight, resource-limited test run on the server, not a fully isolated Docker sandbox. Network and filesystem isolation are not yet in place. Use only with trusted, already-migrated code. A fully isolated sandbox is on the roadmap."}
+    except Exception as e:
+        return {"sandbox_status": "Sandbox test failed safely", "sandbox_error": str(e), "sandbox_output": "", "sandbox_disclaimer": "Lightweight sandbox test - full isolation planned for a future release."}
+
+@app.post("/sandbox-test")
+async def sandbox_test_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        migration_result = ai_advanced_migrate(source, detect_language(file.filename))
+        migrated_code = migration_result.get("migrated_code", source)
+        sandbox_result = run_sandboxed_migration_test(migrated_code, file.filename)
+        sandbox_result["filename"] = file.filename
+        track_usage("sandbox-test", file.filename)
+        return sandbox_result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
