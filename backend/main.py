@@ -1535,7 +1535,7 @@ async def scan_repo_endpoint(req: RepoRequest):
         api_url = "https://api.github.com/repos/" + owner + "/" + repo + "/git/trees/HEAD?recursive=1"
         r = requests.get(api_url, timeout=20)
         if r.status_code != 200:
-            return {"error": "Could not access repo. Make sure it is public and the URL is correct."}
+            return {"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."}
         tree = r.json().get("tree", [])
         py_files = [f for f in tree if f.get("path", "").endswith(".py") and f.get("type") == "blob"]
         if not py_files:
@@ -2681,6 +2681,7 @@ async def migration_roadmap_endpoint(req: RepoRequest):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
