@@ -34,7 +34,7 @@ Four core benefits:
 
 
 
-Features (44+)
+Features (48+)
 
 Core Analysis & Migration
 
@@ -46,7 +46,7 @@ Data Scan · Crypto Scan · Quantum-Readiness Score (unique) · Banking Scan · 
 
 Enterprise Analysis
 
-Repository Scan · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · AI-Native Readiness (unique) · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
+Repository Scan (GitHub-authenticated, 5000 requests/hour) · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · AI-Native Readiness (unique) · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
 
 Banking-Specific
 
@@ -54,7 +54,11 @@ Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Ex
 
 Developer Workflow
 
-Codebase Q&A — ask plain-English questions about an uploaded legacy file and get an AI-grounded answer · GitHub Webhook Receiver — auto-scan changed Python files on push · Sandbox Test — lightweight, resource-limited execution check for migrated code
+Codebase Q&A · GitHub Webhook Receiver (auto-scan on push) · Sandbox Test (lightweight execution check)
+
+Governance & Traceability
+
+Human-in-the-Loop Approval — reviewer decisions (Approve/Reject/Modify) logged with notes · Code Quality Score — complexity, readability, and comment-density grading · Migration Registry Dashboard — aggregated approval stats and recent activity · Migration Roadmap Generator — repo-wide, risk-prioritized migration phases (Low → Medium → High risk)
 
 
 On-Premise AI (Ollama)
@@ -86,31 +90,47 @@ Frontend: React (deployed on GitHub Pages)
 Backend: FastAPI (Python), deployed on Render
 AI: Groq (cloud) or Ollama (on-premise), with automatic provider switching
 Analysis: Python AST + pattern-based static analysis
+GitHub Integration: Authenticated API access (5000 req/hour) for repository scanning
 
+
+
+Verified, Not Just Claimed
+
+Every feature listed here has been manually tested against real inputs, with raw API responses checked line-by-line — not just UI screenshots. This process has already caught and fixed real bugs before they reached users:
+
+
+A confidence-scoring bug where AI service errors were silently marked "high confidence" instead of triggering a safe fallback
+A code-quality grading bug where "High complexity" code could still receive a Grade A
+A migration-roadmap bug where files were bucketed into the wrong risk phase due to a string-matching error
+A GitHub API rate-limiting issue that would have affected any user scanning multiple repositories
+
+
+We treat "it returns 200 OK" and "the business logic is actually correct" as two different bars — and verify against the second one.
 
 
 Honest Status & Roadmap
 
-StarBuild today is a working prototype with 44+ features, built by a solo developer. It is a strong assessment and audit tool, not yet a certified banking-grade platform.
+StarBuild today is a working prototype with 48+ features, built by a solo developer with an advisor and marketing collaborator. It is a strong assessment, audit, and governance tool, not yet a certified banking-grade platform.
 
 Known limitations (stated honestly):
 
 
-The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox. It should only be used with trusted, already-migrated code.
-The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup, which is planned.
-The Human-in-the-Loop Approval log and Migration Registry Dashboard use file-based demo storage — data resets if the server restarts. For a real audit trail (which regulators require to be permanent and tamper-proof), this needs a persistent database (e.g. PostgreSQL), which is a concrete infrastructure requirement on the roadmap.
+The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox. Use only with trusted, already-migrated code.
+Approval-log and dashboard data is currently stored in-memory/file-based and resets on server restart. Persistent database storage (PostgreSQL) is required before this can serve as a real audit trail — this is a concrete, fundable infrastructure gap.
+The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup.
 
 
 Roadmap:
 
 
+Persistent database for audit-trail data (PostgreSQL)
 SOC 2 certification & independent security audit
 On-premise / private cloud deployment with RBAC and full audit trails
-Fully isolated Docker-based (or external service-based) sandbox execution
+Fully isolated Docker-based sandbox execution
 GitHub App integration for automated pull request generation
 
 
-We believe honesty is a strength: banks value accuracy, explainability, and auditability — and StarBuild already delivers early versions of all three. Every scan includes a disclaimer, and no result is presented as a certified guarantee.
+We believe honesty is a strength: banks value accuracy, explainability, and auditability — and StarBuild already delivers early, verified versions of all three. Every scan includes a disclaimer, and no result is presented as a certified guarantee.
 
 
 Disclaimer
@@ -118,4 +138,4 @@ Disclaimer
 StarBuild's analyses are automated aids for planning and review. They are pattern-based and may include false positives. Always confirm findings with a qualified security review, compliance officer, and domain experts before making migration decisions.
 
 
-StarBuild — Predictable, AST-verified, audit-ready legacy migration.
+StarBuild — Predictable, AST-verified, audit-ready legacy migration
