@@ -282,6 +282,8 @@ const[regFramework,setRegFramework]=useState("SBP");
 const[codeQuestion,setCodeQuestion]=useState("What does this code do?");
 const[approvals,setApprovals]=useState({});
 const[dashboardData,setDashboardData]=useState(null);
+const[roadmapData,setRoadmapData]=useState(null);
+const[roadmapLoading,setRoadmapLoading]=useState(false);
 const[showDashboard,setShowDashboard]=useState(false);
 const[reviewNotes,setReviewNotes]=useState({});
 const[restored,setRestored]=useState({});
@@ -548,6 +550,17 @@ const handleApprovalDecision=async(idx,filename,decision)=>{
     setApprovals(prev=>({...prev,[idx]:decision}));
   }catch(e){}
 };
+const fetchRoadmap=async()=>{
+  if(!repoUrl.trim())return;
+  setRoadmapLoading(true);
+  setRoadmapData(null);
+  try{
+    const res=await fetch(API+"/migration-roadmap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo_url:repoUrl})});
+    const data=await res.json();
+    setRoadmapData(data);
+  }catch(e){setRoadmapData({error:"Could not generate roadmap"});}
+  setRoadmapLoading(false);
+};
 const fetchDashboard=async()=>{
   try{
     const res=await fetch(API+"/migration-dashboard");
@@ -666,7 +679,9 @@ Click to select files (multiple allowed)
 </div>
 {files.length===0&&!loading&&results.length===0&&(
 <div style={{background:"rgba(56,189,248,0.05)",border:"1px dashed rgba(56,189,248,0.3)",borderRadius:"8px",padding:"16px",marginBottom:"16px"}}>
-<div style={{maxWidth:"600px",margin:"0 auto 20px auto",padding:"16px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:"12px"}}><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 8px 0"}}>Scan a GitHub Repo (whole codebase)</p><div style={{display:"flex",gap:"8px"}}><input value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" style={{flex:1,padding:"8px 12px",borderRadius:"8px",border:"1px solid #334155",background:codebg,color:text,fontSize:"13px"}}/><button onClick={handleScanRepo} disabled={repoLoading} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:"#38bdf8",color:"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"13px"}}>{repoLoading?"Scanning...":"Scan Repo"}</button></div><p style={{color:subtext,fontSize:"11px",margin:"6px 0 0 0"}}>Scans up to 25 Python files from a public repo.</p>{repoResult&&<div style={{marginTop:"12px"}}>{repoResult.error?<p style={{color:"#f87171",fontSize:"13px"}}>{repoResult.error}</p>:<div><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 4px 0"}}>Repo: {repoResult.repo}</p><p style={{color:text,fontSize:"13px",margin:"0 0 8px 0"}}>Scanned {repoResult.files_scanned} files, {repoResult.total_issues} total issues</p>{repoResult.file_reports&&repoResult.file_reports.map((fr,fri)=>(<div key={fri} style={{display:"flex",justifyContent:"space-between",background:codebg,borderRadius:"6px",padding:"6px 10px",marginBottom:"4px"}}><span style={{color:text,fontSize:"12px"}}>{fr.file}</span><span style={{color:fr.risk_level==="High"?"#f87171":fr.risk_level==="Medium"?"#f59e0b":"#4ade80",fontSize:"12px",fontWeight:"600"}}>{fr.risk_level} ({fr.issues})</span></div>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{repoResult.disclaimer}</p></div>}</div>}</div><p style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700",margin:"0 0 8px 0"}}>How to get started:</p>
+<div style={{maxWidth:"600px",margin:"0 auto 20px auto",padding:"16px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:"12px"}}><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 8px 0"}}>Scan a GitHub Repo (whole codebase)</p><div style={{display:"flex",gap:"8px"}}><input value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" style={{flex:1,padding:"8px 12px",borderRadius:"8px",border:"1px solid #334155",background:codebg,color:text,fontSize:"13px"}}/><button onClick={handleScanRepo} disabled={repoLoading} style={{padding:"8px 16px",borderRadius:"8px",border:"none",background:"#38bdf8",color:"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"13px"}}>{repoLoading?"Scanning...":"Scan Repo"}</button></div><p style={{color:subtext,fontSize:"11px",margin:"6px 0 0 0"}}>Scans up to 25 Python files from a public repo.</p>{repoResult&&<div style={{marginTop:"12px"}}>{repoResult.error?<p style={{color:"#f87171",fontSize:"13px"}}>{repoResult.error}</p>:<div><p style={{color:"#38bdf8",fontWeight:"700",fontSize:"14px",margin:"0 0 4px 0"}}>Repo: {repoResult.repo}</p><p style={{color:text,fontSize:"13px",margin:"0 0 8px 0"}}>Scanned {repoResult.files_scanned} files, {repoResult.total_issues} total issues</p>{repoResult.file_reports&&repoResult.file_reports.map((fr,fri)=>(<div key={fri} style={{display:"flex",justifyContent:"space-between",background:codebg,borderRadius:"6px",padding:"6px 10px",marginBottom:"4px"}}><span style={{color:text,fontSize:"12px"}}>{fr.file}</span><span style={{color:fr.risk_level==="High"?"#f87171":fr.risk_level==="Medium"?"#f59e0b":"#4ade80",fontSize:"12px",fontWeight:"600"}}>{fr.risk_level} ({fr.issues})</span></div>))}<button onClick={fetchRoadmap} disabled={roadmapLoading} style={{marginTop:"8px",padding:"6px 14px",borderRadius:"8px",border:"1px solid #0d9488",background:"transparent",color:"#0d9488",cursor:"pointer",fontSize:"12px",fontWeight:"700"}}>{roadmapLoading?"Generating...":"Generate Migration Roadmap"}</button>
+{roadmapData&&!roadmapData.error&&<div style={{marginTop:"10px",background:codebg,borderRadius:"8px",padding:"12px"}}><p style={{color:"#0d9488",fontWeight:"700",fontSize:"13px",marginBottom:"8px"}}>{roadmapData.roadmap_summary}</p>{roadmapData.phases&&Object.keys(roadmapData.phases).map((phaseName,pi)=>(<div key={pi} style={{marginBottom:"8px"}}><p style={{color:text,fontSize:"12px",fontWeight:"700",margin:"4px 0"}}>{phaseName} ({roadmapData.phases[phaseName].length})</p>{roadmapData.phases[phaseName].map((fn,fi)=>(<p key={fi} style={{color:subtext,fontSize:"11px",margin:"2px 0 2px 12px"}}>- {fn}</p>))}</div>))}<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{roadmapData.roadmap_disclaimer}</p></div>}
+<p style={{color:subtext,fontSize:"10px",fontStyle:"italic",marginTop:"6px"}}>{repoResult.disclaimer}</p></div>}</div>}</div><p style={{color:"#38bdf8",fontSize:"13px",fontWeight:"700",margin:"0 0 8px 0"}}>How to get started:</p>
 <p style={{color:subtext,fontSize:"12.5px",margin:"4px 0"}}>1. Choose your language (Python, Java, PHP, or COBOL) above.</p>
 <p style={{color:subtext,fontSize:"12.5px",margin:"4px 0"}}>2. Pick a mode &mdash; "Migrate" for reliable rule-based, or "AI Migrate" for AI with guardrails.</p>
 <p style={{color:subtext,fontSize:"12.5px",margin:"4px 0"}}>3. Select one or more files and run. You'll get a confidence score and a side-by-side diff.</p>
@@ -1206,6 +1221,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
