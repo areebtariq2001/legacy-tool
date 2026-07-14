@@ -34,7 +34,7 @@ Four core benefits:
 
 
 
-Features (40+)
+Features (44+)
 
 Core Analysis & Migration
 
@@ -50,7 +50,11 @@ Repository Scan · Database Schema Analysis · API Dependency Mapping · Archite
 
 Banking-Specific
 
-Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Executive Report · Impact Analysis · Transaction Flow Mapping · Rollback Plan · Regional Compliance Mapping (SBP/Global) · Regulatory Framework Presets (SBP, Basel III, PCI-DSS, GDPR)
+Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Executive Report · Audit-Ready PDF Export · Impact Analysis · Transaction Flow Mapping · Rollback Plan · Regional Compliance Mapping (SBP/Global) · Regulatory Framework Presets (SBP, Basel III, PCI-DSS, GDPR)
+
+Developer Workflow
+
+Codebase Q&A — ask plain-English questions about an uploaded legacy file and get an AI-grounded answer · GitHub Webhook Receiver — auto-scan changed Python files on push · Sandbox Test — lightweight, resource-limited execution check for migrated code
 
 
 On-Premise AI (Ollama)
@@ -87,17 +91,22 @@ Analysis: Python AST + pattern-based static analysis
 
 Honest Status & Roadmap
 
-StarBuild today is a working prototype with 40+ features, built by a solo developer. It is a strong assessment and audit tool, not yet a certified banking-grade platform.
+StarBuild today is a working prototype with 44+ features, built by a solo developer. It is a strong assessment and audit tool, not yet a certified banking-grade platform.
+
+Known limitations (stated honestly):
+
+
+The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox. It should only be used with trusted, already-migrated code.
+The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup, which is planned.
+
 
 Roadmap:
 
 
 SOC 2 certification & independent security audit
 On-premise / private cloud deployment with RBAC and full audit trails
-Git/CI-CD integration (auto-scan on commit/PR)
-Conversational codebase Q&A (RAG-based)
-Sandbox environment for testing migrated code against synthetic transactions
-Formal audit-ready PDF/Word export reports
+Fully isolated Docker-based (or external service-based) sandbox execution
+GitHub App integration for automated pull request generation
 
 
 We believe honesty is a strength: banks value accuracy, explainability, and auditability — and StarBuild already delivers early versions of all three. Every scan includes a disclaimer, and no result is presented as a certified guarantee.
@@ -107,3 +116,5 @@ Disclaimer
 
 StarBuild's analyses are automated aids for planning and review. They are pattern-based and may include false positives. Always confirm findings with a qualified security review, compliance officer, and domain experts before making migration decisions.
 
+
+StarBuild — Predictable, AST-verified, audit-ready legacy migration.
