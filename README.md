@@ -98,6 +98,7 @@ Known limitations (stated honestly):
 
 The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox. It should only be used with trusted, already-migrated code.
 The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup, which is planned.
+The Human-in-the-Loop Approval log and Migration Registry Dashboard use file-based demo storage — data resets if the server restarts. For a real audit trail (which regulators require to be permanent and tamper-proof), this needs a persistent database (e.g. PostgreSQL), which is a concrete infrastructure requirement on the roadmap.
 
 
 Roadmap:
