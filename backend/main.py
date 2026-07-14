@@ -2609,6 +2609,8 @@ def calculate_code_quality(source, filename):
         readability -= 10
     if readability < 0:
         readability = 0
+    if comp["complexity_level"] in ["High complexity", "Very high complexity"] and readability >= 85:
+        readability = 80
     grade = "A" if readability >= 85 else "B" if readability >= 70 else "C" if readability >= 50 else "D"
     return {"quality_score": readability, "quality_grade": grade, "quality_metrics": {"lines_of_code": loc, "complexity_score": comp["complexity_score"], "complexity_level": comp["complexity_level"], "long_lines_over_100_chars": long_lines, "comment_ratio_percent": comment_ratio}, "quality_disclaimer": "Automated static-analysis metric based on line count, complexity, and comment density. A planning signal, not a full code review."}
 
@@ -2629,6 +2631,7 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
