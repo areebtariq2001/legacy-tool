@@ -280,6 +280,8 @@ const[showWhy,setShowWhy]=useState({});
 const[threshold,setThreshold]=useState(85);
 const[regFramework,setRegFramework]=useState("SBP");
 const[codeQuestion,setCodeQuestion]=useState("What does this code do?");
+const[approvals,setApprovals]=useState({});
+const[reviewNotes,setReviewNotes]=useState({});
 const[restored,setRestored]=useState({});
 const[repoUrl,setRepoUrl]=useState("");
 const[repoLoading,setRepoLoading]=useState(false);
@@ -531,6 +533,18 @@ doc.save("StarBuild_KT_Doc_"+result.filename+".pdf");
 };
 const handleDownloadAuditReport=(result)=>{ const doc=new jsPDF(); const date=new Date().toLocaleString(); doc.setFillColor(99,102,241); doc.rect(0,0,210,32,'F'); doc.setTextColor(255,255,255); doc.setFontSize(18); doc.text('StarBuild - Audit-Ready Compliance Report',105,14,{align:'center'}); doc.setFontSize(9); doc.text('File: '+result.filename+'  |  Generated: '+date,105,23,{align:'center'}); let y=44; doc.setTextColor(15,23,42); doc.setFontSize(13); doc.text('Executive Summary',14,y); y+=8; doc.setFontSize(10); doc.setTextColor(51,65,85); doc.text('Code Health Score: '+(result.exec_health!==undefined?result.exec_health+'/100':'N/A')+'  (' +(result.exec_status||'N/A')+')',14,y); y+=10; doc.setFontSize(12); doc.setTextColor(15,23,42); doc.text('Findings',14,y); y+=7; doc.setFontSize(9); doc.setTextColor(51,65,85); (result.exec_findings||[]).forEach((fd)=>{ if(y>270){doc.addPage();y=20;} const fl=doc.splitTextToSize('- '+fd,180); doc.text(fl,14,y); y+=fl.length*4.5+3; }); y+=5; if(y>260){doc.addPage();y=20;} doc.setFontSize(12); doc.setTextColor(15,23,42); doc.text('Recommendation',14,y); y+=7; doc.setFontSize(9); doc.setTextColor(51,65,85); const rl=doc.splitTextToSize(result.exec_recommendation||'N/A',180); doc.text(rl,14,y); y+=rl.length*4.5+8; if(y>260){doc.addPage();y=20;} doc.setFontSize(8); doc.setTextColor(120,120,120); const dl2=doc.splitTextToSize('Audit note: This report is an automated code-analysis aid intended for planning and internal review. It does not constitute a formal regulatory certification. Confirm findings with a qualified compliance officer.',180); doc.text(dl2,14,y); doc.save('StarBuild_AuditReport_'+result.filename+'.pdf'); };
 const handleDownloadRisk=(result)=>{ const doc=new jsPDF(); const date=new Date().toLocaleString(); doc.setFillColor(248,113,113); doc.rect(0,0,210,30,'F'); doc.setTextColor(255,255,255); doc.setFontSize(20); doc.text('StarBuild - Risk Assessment',105,14,{align:'center'}); doc.setFontSize(9); doc.text('File: '+result.filename+'  |  '+date,105,23,{align:'center'}); let y=42; doc.setTextColor(15,23,42); doc.setFontSize(12); doc.text('Overall Risk: '+(result.overall_risk||'N/A'),14,y); y+=8; doc.setFontSize(10); doc.setTextColor(51,65,85); doc.text('High: '+(result.high_count||0)+'   Medium: '+(result.medium_count||0)+'   Low: '+(result.low_count||0),14,y); y+=10; (result.findings||[]).forEach((fd)=>{ if(y>270){doc.addPage();y=20;} doc.setFontSize(11); doc.setTextColor(15,23,42); doc.text(fd.dependency+' ['+fd.risk_level+']',14,y); y+=6; doc.setFontSize(9); doc.setTextColor(71,85,105); const dl=doc.splitTextToSize(fd.description+' Recommendation: '+fd.recommendation,180); doc.text(dl,14,y); y+=dl.length*4.5+4; }); doc.save('StarBuild_Risk_'+result.filename+'.pdf'); };
+const handleApprovalDecision=async(idx,filename,decision)=>{
+  const notes=reviewNotes[idx]||"";
+  try{
+    const fd=new FormData();
+    fd.append("filename",filename);
+    fd.append("decision",decision);
+    fd.append("reviewer_notes",notes);
+    fd.append("action_type",mode);
+    await fetch(API+"/save-approval?filename="+encodeURIComponent(filename)+"&decision="+encodeURIComponent(decision)+"&reviewer_notes="+encodeURIComponent(notes)+"&action_type="+encodeURIComponent(mode),{method:"POST"});
+    setApprovals(prev=>({...prev,[idx]:decision}));
+  }catch(e){}
+};
 const handleReset=()=>{ setFiles([]); setResults([]); setProgress(0); setCopied({}); setShowWhy({}); };
 const handleToggleOriginal=(idx)=>{ setRestored(prev=>({...prev,[idx]:!prev[idx]})); };
 const handleCopy=(idx,code)=>{
@@ -701,6 +715,16 @@ Download Summary PDF
 <div key={idx} style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"20px",marginBottom:"12px",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
 <h4 style={{color:"#38bdf8",margin:0}}>{result.filename}</h4>
+<div style={{marginTop:"8px",marginBottom:"10px",padding:"10px",background:codebg,borderRadius:"8px"}}>
+<p style={{color:subtext,fontSize:"11px",marginBottom:"6px"}}>Review decision:</p>
+<div style={{display:"flex",gap:"6px",marginBottom:"6px"}}>
+<button onClick={()=>handleApprovalDecision(idx,result.filename,"Approved")} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #4ade80",background:approvals[idx]==="Approved"?"#4ade80":"transparent",color:approvals[idx]==="Approved"?"#0a0e1a":"#4ade80",cursor:"pointer",fontSize:"11px",fontWeight:"700"}}>Approve</button>
+<button onClick={()=>handleApprovalDecision(idx,result.filename,"Rejected")} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #f87171",background:approvals[idx]==="Rejected"?"#f87171":"transparent",color:approvals[idx]==="Rejected"?"#0a0e1a":"#f87171",cursor:"pointer",fontSize:"11px",fontWeight:"700"}}>Reject</button>
+<button onClick={()=>handleApprovalDecision(idx,result.filename,"Needs Modification")} style={{padding:"4px 12px",borderRadius:"6px",border:"1px solid #f59e0b",background:approvals[idx]==="Needs Modification"?"#f59e0b":"transparent",color:approvals[idx]==="Needs Modification"?"#0a0e1a":"#f59e0b",cursor:"pointer",fontSize:"11px",fontWeight:"700"}}>Modify</button>
+</div>
+<input placeholder="Reviewer notes (optional)" value={reviewNotes[idx]||""} onChange={e=>setReviewNotes(prev=>({...prev,[idx]:e.target.value}))} style={{width:"100%",padding:"6px 10px",borderRadius:"6px",background:bg,color:text,border:"1px solid "+border,fontSize:"12px"}}/>
+{approvals[idx]&&<p style={{color:"#4ade80",fontSize:"11px",marginTop:"6px"}}>Decision saved: {approvals[idx]}</p>}
+</div>
 {result.confidence_score!==undefined&&(
 <span style={{padding:"3px 10px",borderRadius:"12px",fontSize:"11px",fontWeight:"700",background:result.confidence_score>=threshold?"rgba(74,222,128,0.15)":"rgba(245,158,11,0.15)",color:result.confidence_score>=threshold?"#4ade80":"#f59e0b",border:"1px solid "+(result.confidence_score>=threshold?"#4ade80":"#f59e0b")}}>
 {result.confidence_score>=threshold?"ACCEPTED":"MANUAL REVIEW"}
@@ -1150,6 +1174,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
