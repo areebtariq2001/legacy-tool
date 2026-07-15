@@ -2706,6 +2706,54 @@ def compare_complexity(original_code, migrated_code):
         verdict = "No significant complexity change"
     return {"original_complexity_score": orig_score, "original_complexity_level": orig["complexity_level"], "migrated_complexity_score": mig_score, "migrated_complexity_level": mig["complexity_level"], "improvement_percent": improvement_pct, "complexity_verdict": verdict, "complexity_comparison_disclaimer": "Automated complexity comparison based on code structure (branching, nesting). A planning signal, not a full quality audit."}
 
+def detect_code_smells(source, filename):
+    import re as _sm
+    lines = source.split(chr(10))
+    smells = []
+    try:
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                func_lines = (node.end_lineno - node.lineno) if hasattr(node, "end_lineno") else 0
+                if func_lines > 50:
+                    smells.append({"type": "Long Function", "location": "Function " + node.name + " (line " + str(node.lineno) + ")", "detail": "Function is " + str(func_lines) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
+        indent_stack = []
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            indent = len(line) - len(stripped)
+            if stripped.startswith(("if ", "for ", "while ", "elif ")):
+                level = indent // 4
+                if level >= 3:
+                    smells.append({"type": "Deep Nesting", "location": "Line " + str(i+1), "detail": "Deeply nested block (level " + str(level) + ") - consider extracting logic into separate functions.", "severity": "Medium"})
+    except Exception:
+        pass
+    line_counts = {}
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if len(stripped) > 15 and not stripped.startswith("#"):
+            line_counts.setdefault(stripped, []).append(i+1)
+    for text, occurrences in line_counts.items():
+        if len(occurrences) >= 3:
+            smells.append({"type": "Duplicate Code", "location": "Lines " + ", ".join(str(o) for o in occurrences[:5]), "detail": "Same line repeated " + str(len(occurrences)) + " times - consider extracting into a shared function or constant.", "severity": "Low"})
+    high_count = len([s for s in smells if s["severity"] == "High"])
+    return {"total_smells": len(smells), "code_smells": smells, "smell_summary": (str(len(smells)) + " code smell(s) detected") if smells else "No significant code smells detected", "smell_disclaimer": "Heuristic pattern-based detection of common code smells (long functions, deep nesting, duplicate lines). Not a substitute for a full code review."}
+
+@app.post("/code-smells")
+async def code_smells_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = detect_code_smells(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("code-smells", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Code smell detection failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
