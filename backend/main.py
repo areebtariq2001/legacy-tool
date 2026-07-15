@@ -2755,6 +2755,32 @@ async def code_smells_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Code smell detection failed safely: " + str(e)}
 
+def suggest_refactoring(source, filename, language):
+    smells = detect_code_smells(source, filename)
+    suggestions = []
+    for sm in smells.get("code_smells", []):
+        if sm["type"] == "Long Function":
+            suggestions.append({"issue": sm["location"], "suggestion": "Break this function into smaller, single-purpose functions. Look for logical sections (validation, processing, output) that can become their own functions.", "priority": "Medium"})
+        elif sm["type"] == "Deep Nesting":
+            suggestions.append({"issue": sm["location"], "suggestion": "Reduce nesting using early returns (guard clauses) - return early for invalid cases instead of nesting the valid-case logic deeper.", "priority": "Medium"})
+        elif sm["type"] == "Duplicate Code":
+            suggestions.append({"issue": sm["location"], "suggestion": "Extract this repeated code into a shared function or named constant to avoid duplication.", "priority": "Low"})
+    return {"total_suggestions": len(suggestions), "refactoring_suggestions": suggestions, "refactor_summary": (str(len(suggestions)) + " refactoring suggestion(s) based on detected code smells") if suggestions else "No specific refactoring suggestions - code structure looks reasonable", "refactor_disclaimer": "Suggestions are based on structural patterns (length, nesting, duplication) within the same language - no language conversion involved. Review each suggestion in context before applying."}
+
+@app.post("/refactor-suggest")
+async def refactor_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = suggest_refactoring(source, file.filename, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("refactor-suggest", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Refactoring suggestion failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
