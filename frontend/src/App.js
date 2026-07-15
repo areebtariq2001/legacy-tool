@@ -1107,6 +1107,7 @@ Download Summary PDF
 <div style={{background:confColor(result.confidence_score)+"1a",border:"1px solid "+confColor(result.confidence_score),borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
 <span style={{color:confColor(result.confidence_score),fontWeight:"700",fontSize:"15px"}}>Migration Confidence: {result.confidence_score}%</span>
+{result.improvement_percent!==undefined&&<div style={{marginTop:"8px",background:codebg,borderRadius:"8px",padding:"10px"}}><p style={{color:result.improvement_percent>0?"#4ade80":"#f59e0b",fontWeight:"700",fontSize:"12px",margin:"0 0 4px 0"}}>{result.complexity_verdict}</p><p style={{color:subtext,fontSize:"11px",margin:0}}>Complexity: {result.original_complexity_score} ({result.original_complexity_level}) &rarr; {result.migrated_complexity_score} ({result.migrated_complexity_level})</p></div>}
 <span style={{color:confColor(result.confidence_score),fontSize:"13px",fontWeight:"600"}}>{result.confidence_level}</span>
 </div>
 <div style={{background:darkMode?"#334155":"#cbd5e1",borderRadius:"6px",height:"8px",marginTop:"8px"}}>
@@ -1221,6 +1222,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
