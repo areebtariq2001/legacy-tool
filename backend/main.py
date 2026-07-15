@@ -635,6 +635,10 @@ def ai_advanced_migrate(source, language):
                 output["confidence_level"] = "High confidence"
                 output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
                 output["fallback_used"] = True
+        try:
+            output.update(compare_complexity(source, output.get("migrated_code", source)))
+        except Exception:
+            pass
         output["why_explanations"] = get_why_explanations(source)
         output["dependencies"] = check_dependencies(source)
     elif language == "java":
@@ -2680,9 +2684,27 @@ async def migration_roadmap_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Roadmap generation failed safely: " + str(e)}
 
+def compare_complexity(original_code, migrated_code):
+    orig = calculate_complexity(original_code)
+    mig = calculate_complexity(migrated_code)
+    orig_score = orig["complexity_score"]
+    mig_score = mig["complexity_score"]
+    if orig_score > 0:
+        improvement_pct = round(((orig_score - mig_score) / orig_score) * 100, 1)
+    else:
+        improvement_pct = 0
+    if improvement_pct > 0:
+        verdict = "Improved by " + str(improvement_pct) + "% - migrated code is less complex"
+    elif improvement_pct < 0:
+        verdict = "Complexity increased by " + str(abs(improvement_pct)) + "% - review recommended"
+    else:
+        verdict = "No significant complexity change"
+    return {"original_complexity_score": orig_score, "original_complexity_level": orig["complexity_level"], "migrated_complexity_score": mig_score, "migrated_complexity_level": mig["complexity_level"], "improvement_percent": improvement_pct, "complexity_verdict": verdict, "complexity_comparison_disclaimer": "Automated complexity comparison based on code structure (branching, nesting). A planning signal, not a full quality audit."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
