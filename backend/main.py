@@ -2781,6 +2781,32 @@ async def refactor_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Refactoring suggestion failed safely: " + str(e)}
 
+def check_platform_compatibility(source, filename):
+    import re as _pc
+    findings = []
+    checks = [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"C:\\\\\\\\|C:/", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High")]
+    for pat, name, note, sev in checks:
+        for i, line in enumerate(source.split(chr(10))):
+            if re.search(pat, line):
+                findings.append({"issue": name, "line": i+1, "note": note, "severity": sev})
+                break
+    high_count = len([f for f in findings if f["severity"] == "High"])
+    return {"platform_issues": findings, "total_issues": len(findings), "platform_summary": (str(len(findings)) + " platform-compatibility issue(s) found, " + str(high_count) + " high-severity") if findings else "No obvious platform-compatibility issues detected - code appears portable", "platform_disclaimer": "Detects common OS-specific patterns (Windows paths, shell calls, Windows-only libraries). Pattern-based - a full compatibility audit should also test on the target platform."}
+
+@app.post("/platform-compatibility")
+async def platform_compat_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = check_platform_compatibility(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("platform-compatibility", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Platform compatibility check failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
