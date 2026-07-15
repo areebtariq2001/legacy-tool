@@ -599,7 +599,12 @@ def ai_advanced_migrate(source, language):
     result = call_ai_provider(prompt, max_tokens=2000)
     if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
         rule_result = migrate_code(source) if language == "python" else (migrate_java(source) if language == "java" else {"migrated_code": source})
-        return {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+        fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+        try:
+            fallback_output.update(compare_complexity(source, rule_result["migrated_code"]))
+        except Exception:
+            pass
+        return fallback_output
     cleaned = result.replace(f"```{language}", "").replace("```python", "").replace("```java", "").replace("```php", "").replace("```", "").strip()
     output = {"migrated_code": cleaned, "ai_powered": True}
     if language == "python":
@@ -2704,6 +2709,7 @@ def compare_complexity(original_code, migrated_code):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
