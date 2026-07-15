@@ -1346,6 +1346,7 @@ def generate_test_scenarios(source, filename):
         "You are a QA engineer. Look at this code and suggest 3 to 4 simple test scenarios "
         "to verify the migrated code behaves like the original. "
         "For each, give: the function being tested, a sample input, and the expected output. "
+        "IMPORTANT: Base every input and expected output ONLY on values that literally appear in the code below. Do not invent variable names, dictionary keys, or values that are not present in the source. Each test case must be independent - do not carry over details from a previous test case. "
         "Use this exact format, one per line, no markdown:\n"
         "TEST: <function> | INPUT: <input> | EXPECTED: <expected output>\n\n"
         "Code:\n" + source
@@ -2757,6 +2758,7 @@ async def code_smells_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
