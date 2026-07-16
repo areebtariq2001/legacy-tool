@@ -2822,7 +2822,7 @@ async def refactor_endpoint(file: UploadFile = File(...)):
 def check_platform_compatibility(source, filename):
     import re as _pc
     findings = []
-    checks = [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High")]
+    checks = [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file execution", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High")]
     for pat, name, note, sev in checks:
         for i, line in enumerate(source.split(chr(10))):
             if re.search(pat, line):
@@ -2881,6 +2881,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
