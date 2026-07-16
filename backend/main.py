@@ -238,6 +238,12 @@ def calculate_tech_debt(source):
             total_count += count
             total_minutes += count * mins
     debt_score = min(100, total_count * 8)
+    try:
+        _comp = calculate_complexity(source)
+        if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
+            debt_score = 25
+    except Exception:
+        pass
     if debt_score == 0:
         debt_level = "Minimal debt"
     elif debt_score < 30:
@@ -2809,6 +2815,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
