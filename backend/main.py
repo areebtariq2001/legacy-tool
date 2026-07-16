@@ -2113,7 +2113,11 @@ def _get_func_body(source, fname):
     import re as _re4
     m = _re4.search(r"def\s+" + _re4.escape(fname) + r"\s*\([^)]*\):", source)
     if not m: return ""
-    return source[m.end():m.end()+800]
+    rest = source[m.end():]
+    next_def = _re4.search(r"\ndef\s+\w+\s*\(", rest)
+    if next_def:
+        return rest[:next_def.start()]
+    return rest[:800]
 
 def generate_executive_report(source, filename):
     import re as _re2
@@ -2843,6 +2847,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
