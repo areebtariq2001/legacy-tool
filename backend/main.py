@@ -1758,6 +1758,10 @@ def predict_migration_risk(source, filename):
     reasons = []
     import re as _re
     try:
+        _generic_hits = len(_re.findall(r"(?i)(eval|exec|md5|sha1|verify=False|shell=True)", source))
+        if _generic_hits >= 2:
+            risk += 15
+            reasons.append("Multiple security-sensitive patterns detected (weak crypto/dynamic execution keywords) - consistent with Executive Report findings")
         _sql_check = scan_sql_injection(source, filename)
         if not _sql_check.get("sqli_safe", True):
             risk += 25
@@ -2839,6 +2843,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
