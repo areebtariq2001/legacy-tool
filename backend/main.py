@@ -2076,7 +2076,7 @@ def generate_rollback_plan(source, filename):
 def map_transaction_flow(source, filename):
     import re as _re5
     flows = []
-    txn_patterns = {"Deposit": r"(?i)\b(deposit|credit|add_funds|add_money)\b", "Withdrawal": r"(?i)\b(withdraw|debit|deduct)\b", "Transfer": r"(?i)\b(transfer|send_money|remit)\b", "Payment": r"(?i)\b(payment|pay|charge|bill)\b", "Balance Check": r"(?i)\b(balance|get_balance|check_balance)\b", "Interest": r"(?i)\b(interest|apr|rate)\b", "Loan": r"(?i)\b(loan|emi|installment|principal)\b", "Account": r"(?i)\b(account|acct|customer_id|acc_no)\b"}
+    txn_patterns = {"Deposit": r"(?i)\b(deposit|add_funds|add_money)\b", "Withdrawal": r"(?i)\b(withdraw|withdrawal)\b", "Transfer": r"(?i)\b(transfer|send_money|remit)\b", "Payment": r"(?i)\b(payment|pay|charge|bill)\b", "Balance Check": r"(?i)\b(balance|get_balance|check_balance)\b", "Interest": r"(?i)\b(interest|apr)\b", "Loan": r"(?i)\b(loan|emi|installment)\b", "Account": r"(?i)\b(account|acct|customer_id|acc_no)\b"}
     for name, pat in txn_patterns.items():
         matches = _re5.findall(pat, source)
         if matches:
@@ -2876,6 +2876,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
