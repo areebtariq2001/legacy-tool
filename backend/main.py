@@ -1291,7 +1291,7 @@ BANKING_PATTERNS = [
     (r"(?i)\b(account[_\s]?number|acc[_\s]?no|iban|routing|swift)\b", "Account identifiers", "Check formatting and validation of account identifiers."),
     (r"(?i)\b(financial[_\s]?year|fiscal|maturity|tenure|emi|installment)\b", "Financial date/term logic", "Validate date and tenure calculations across versions."),
     (r"(?i)\b(currency|exchange[_\s]?rate|forex|decimal|round)\b", "Currency/precision logic", "Currency rounding must match exactly; test edge cases."),
-    (r"(?i)\b(loan|principal|disburse|repayment|default)\b", "Loan processing", "Re-test loan calculation and repayment schedules."),
+    (r"(?i)\b(loan|disburse|repayment|loan.?default)\b", "Loan processing", "Re-test loan calculation and repayment schedules."),
 ]
 
 def detect_banking_patterns(source):
@@ -2815,6 +2815,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
