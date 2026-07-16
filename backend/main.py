@@ -1757,6 +1757,17 @@ def predict_migration_risk(source, filename):
     risk = 0
     reasons = []
     import re as _re
+    try:
+        _sql_check = scan_sql_injection(source, filename)
+        if not _sql_check.get("sqli_safe", True):
+            risk += 25
+            reasons.append("SQL injection risk detected - security review required before migration")
+        _crypto_check = scan_crypto(source)
+        if _crypto_check.get("quantum_score", 100) < 60:
+            risk += 20
+            reasons.append("Weak/vulnerable cryptography detected - security review required")
+    except Exception:
+        pass
     # 1. Risky/deprecated libraries (high migration risk)
     risky_libs = ["MySQLdb", "urllib2", "urllib3", "cStringIO", "cPickle", "itertools.izip", "raw_input", "print ", "exec ", "has_key", "xrange"]
     found_libs = [lib for lib in risky_libs if lib in source]
@@ -2824,6 +2835,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
