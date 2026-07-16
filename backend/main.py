@@ -2846,6 +2846,11 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 
 def calculate_dependency_portability(source, filename):
     deps_found = check_dependencies(source)
+    import re as _dp
+    if _dp.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
+        deps_found.append("winreg/win32api (Windows-only library) -> use platform-neutral alternatives or conditional imports")
+    if _dp.search(r"\bwinsound\b", source):
+        deps_found.append("winsound (Windows-only library) -> not available on Linux/cloud platforms")
     total_deps = len(deps_found)
     if total_deps == 0:
         return {"portability_score": 100, "portability_level": "Fully portable", "dependency_issues": [], "portability_summary": "No deprecated or platform-specific dependencies detected - code appears portable", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
@@ -2876,6 +2881,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
