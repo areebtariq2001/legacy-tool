@@ -1763,7 +1763,7 @@ def predict_migration_risk(source, filename):
             risk += 25
             reasons.append("SQL injection risk detected - security review required before migration")
         _crypto_check = scan_crypto(source)
-        if _crypto_check.get("quantum_score", 100) < 60:
+        if _crypto_check.get("quantum_score", 100) < 90:
             risk += 20
             reasons.append("Weak/vulnerable cryptography detected - security review required")
     except Exception:
@@ -1812,6 +1812,10 @@ def predict_migration_risk(source, filename):
     else:
         level = "Low Risk"
         advice = "Likely safe to migrate with standard verification."
+    has_security_flag = any("SQL injection" in r or "cryptography" in r for r in reasons)
+    if has_security_flag and level == "Low Risk":
+        level = "Medium Risk"
+        advice = "Security issue detected - review flagged areas before migration, regardless of overall score."
     return {
         "migration_risk": risk,
         "risk_level": level,
@@ -2835,6 +2839,8 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
