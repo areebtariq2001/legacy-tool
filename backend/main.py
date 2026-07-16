@@ -2789,7 +2789,6 @@ def check_platform_compatibility(source, filename):
         for i, line in enumerate(source.split(chr(10))):
             if re.search(pat, line):
                 findings.append({"issue": name, "line": i+1, "note": note, "severity": sev})
-                break
     high_count = len([f for f in findings if f["severity"] == "High"])
     return {"platform_issues": findings, "total_issues": len(findings), "platform_summary": (str(len(findings)) + " platform-compatibility issue(s) found, " + str(high_count) + " high-severity") if findings else "No obvious platform-compatibility issues detected - code appears portable", "platform_disclaimer": "Detects common OS-specific patterns (Windows paths, shell calls, Windows-only libraries). Pattern-based - a full compatibility audit should also test on the target platform."}
 
@@ -2810,6 +2809,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
