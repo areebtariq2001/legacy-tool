@@ -2045,7 +2045,7 @@ def discover_business_rules_engine(source, filename):
     import re as _re7
     rules = []
     lines = source.split(chr(10))
-    compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id)", "Transaction Limit": r"(?i)(limit|maximum|max_amount|threshold|exceed)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft|funds)", "Authorization": r"(?i)(authoriz|permission|role|access|approve)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk|block|freeze|flag)"}
+    compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(limit|maximum|max_amount|threshold|exceed)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|permission|role|access|approve)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk|block|freeze|flag)"}
     for i, line in enumerate(lines):
         stripped = line.strip()
         m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
@@ -2881,6 +2881,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
