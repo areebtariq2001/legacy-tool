@@ -2844,6 +2844,35 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Platform compatibility check failed safely: " + str(e)}
 
+def calculate_dependency_portability(source, filename):
+    deps_found = check_dependencies(source)
+    total_deps = len(deps_found)
+    if total_deps == 0:
+        return {"portability_score": 100, "portability_level": "Fully portable", "dependency_issues": [], "portability_summary": "No deprecated or platform-specific dependencies detected - code appears portable", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
+    penalty = min(80, total_deps * 12)
+    score = max(20, 100 - penalty)
+    if score >= 80:
+        level = "Highly portable"
+    elif score >= 50:
+        level = "Moderately portable"
+    else:
+        level = "Limited portability"
+    return {"portability_score": score, "portability_level": level, "dependency_issues": deps_found, "portability_summary": str(total_deps) + " deprecated/platform-specific dependency issue(s) found", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
+
+@app.post("/dependency-portability")
+async def dependency_portability_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = calculate_dependency_portability(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("dependency-portability", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Dependency portability check failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
