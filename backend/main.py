@@ -1699,17 +1699,15 @@ def analyze_db_schema(source, filename):
         body = m.group(1)
         for col in _re.findall(r"(?m)^\s*[\x60\x22\x27\[]?(\w+)[\x60\x22\x27\]]?\s+(?:INT|VARCHAR|CHAR|TEXT|DATE|DATETIME|TIMESTAMP|DECIMAL|NUMERIC|BOOLEAN|FLOAT|DOUBLE|BIGINT|SMALLINT|BLOB)", body):
             columns.append(col)
-    for q in queries:
-        select_match = _re.search(r"(?i)select\s+(.*?)\s+from", q)
-        if select_match:
-            cols_part = select_match.group(1)
-            if cols_part.strip() != "*":
-                for c in cols_part.split(","):
-                    c_clean = c.strip().split(".")[-1].split(" as ")[0].strip()
-                    if c_clean and c_clean.isidentifier():
-                        columns.append(c_clean)
-        where_matches = _re.findall(r"(?i)where\s+(\w+)\s*[=<>]", q)
-        columns.extend(where_matches)
+    for select_match in _re.finditer(r"(?i)select\s+(.*?)\s+from", source):
+        cols_part = select_match.group(1)
+        if cols_part.strip() != "*":
+            for c in cols_part.split(","):
+                c_clean = c.strip().split(".")[-1].split(" as ")[0].strip()
+                if c_clean and c_clean.replace("_","").isalnum() and not c_clean[0].isdigit():
+                    columns.append(c_clean)
+    where_matches = _re.findall(r"(?i)where\s+(\w+)\s*[=<>]", source)
+    columns.extend(where_matches)
     tables = list(dict.fromkeys(tables))
     columns = list(dict.fromkeys(columns))
     unique_queries = list(dict.fromkeys(queries))
@@ -2826,6 +2824,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
