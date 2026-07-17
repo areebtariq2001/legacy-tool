@@ -932,7 +932,14 @@ def ai_suggest(source, language):
 
 def ai_explain(source, language):
     prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does:\n\n{source}"
-    return {"explanation": get_ai_response(prompt)}
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "AI_ERROR" in result or "not reachable" in result.lower():
+            result = call_groq(prompt, max_tokens=2000)
+    else:
+        result = call_groq(prompt, max_tokens=2000)
+    return {"explanation": result}
 
 def ai_generate_tests(source, language):
     prompt = f"You are a test engineer. Write unit tests for this {language} code. Provide only the test code with brief comments:\n\n{source}"
@@ -2881,6 +2888,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
