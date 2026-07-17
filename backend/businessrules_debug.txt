@@ -1,0 +1,15 @@
+﻿    status = "Good" if health >= 75 else "Needs Attention" if health >= 45 else "High Priority"
+    return {"exec_health": health, "exec_status": status, "exec_stats": {"lines": len(lines), "functions": funcs, "classes": classes, "security_issues": security_hits}, "exec_findings": findings, "exec_recommendation": ("This module is in reasonable shape for migration with standard review." if health >= 75 else "Review the flagged items and plan testing before migrating this module." if health >= 45 else "This module needs careful attention and full test coverage before migration."), "exec_disclaimer": "Executive summary generated from automated code analysis. Intended for planning and management review - a technical deep-dive is recommended before migration decisions."}
+
+def extract_business_rules(source, language):
+    prompt = "You are a business analyst reviewing legacy code. In plain, non-technical English, describe the BUSINESS RULES and BUSINESS LOGIC this code implements - what it decides, validates, calculates, or enforces. Write it so a business analyst or manager (not a programmer) can understand what this module does. Use short bullet points starting with action words (Calculates, Validates, Checks, Applies, Updates, Rejects, etc). Focus on WHAT the business logic does, not HOW the code works. Here is the code:" + chr(10) + chr(10) + source[:6000]
+    try:
+        rules_text = get_ai_response(prompt)
+        if not rules_text or len(rules_text.strip()) < 5:
+            rules_text = "Could not extract business rules - the AI response was empty. The code may be too short or unclear."
+    except Exception as e:
+        rules_text = "Business rule extraction is temporarily unavailable: " + str(e)
+    return {
+        "business_rules": rules_text,
+        "br_disclaimer": "AI-generated interpretation of the business logic in this code. A starting point for understanding legacy modules - always verify against business requirements and domain experts."
+    }

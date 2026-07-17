@@ -2164,7 +2164,13 @@ def generate_executive_report(source, filename):
 def extract_business_rules(source, language):
     prompt = "You are a business analyst reviewing legacy code. In plain, non-technical English, describe the BUSINESS RULES and BUSINESS LOGIC this code implements - what it decides, validates, calculates, or enforces. Write it so a business analyst or manager (not a programmer) can understand what this module does. Use short bullet points starting with action words (Calculates, Validates, Checks, Applies, Updates, Rejects, etc). Focus on WHAT the business logic does, not HOW the code works. Here is the code:" + chr(10) + chr(10) + source[:6000]
     try:
-        rules_text = get_ai_response(prompt)
+        provider = os.environ.get("AI_PROVIDER", "groq").lower()
+        if provider == "ollama":
+            rules_text = call_ollama(prompt)
+            if "AI_ERROR" in rules_text or "not reachable" in rules_text.lower():
+                rules_text = call_groq(prompt, max_tokens=1500)
+        else:
+            rules_text = call_groq(prompt, max_tokens=1500)
         if not rules_text or len(rules_text.strip()) < 5:
             rules_text = "Could not extract business rules - the AI response was empty. The code may be too short or unclear."
     except Exception as e:
@@ -2902,6 +2908,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
