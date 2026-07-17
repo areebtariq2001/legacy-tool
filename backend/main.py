@@ -938,7 +938,7 @@ def ai_suggest(source, language):
     return {"suggestions": result}
 
 def ai_explain(source, language):
-    prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does:\n\n{source}"
+    prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does. IMPORTANT: When mentioning function or variable names, wrap them in backticks (like `function_name`) so underscores render correctly and are not mistaken for markdown formatting:\n\n{source}"
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
@@ -2988,6 +2988,7 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
