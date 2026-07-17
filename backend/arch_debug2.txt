@@ -1,0 +1,10 @@
+﻿    if other_libs:
+        layers.append({"layer": "Dependencies (Libraries)", "items": other_libs[:15]})
+    return {
+        "architecture_layers": layers,
+        "arch_summary": str(len(funcs)) + " functions, " + str(len(classes)) + " classes, " + str(len(imports)) + " dependencies across " + str(len(layers)) + " layers",
+        "arch_stats": {"functions": len(funcs), "classes": len(classes), "db": len(db_libs), "apis": len(api_libs)},
+        "arch_disclaimer": "High-level architecture view derived from code structure (classes, functions, data, and external layers). A starting map for understanding the system - not a full runtime architecture."
+    }
+
+def map_api_dependencies(source, filename):
