@@ -1950,9 +1950,9 @@ def score_zero_trust(source, filename):
     checks = []
     c1 = bool(_zt.search(r"(?i)(authenticate|verify_token|check_auth|require_login)", source)); checks.append(("Authentication on requests", c1))
     c2 = bool(_zt.search(r"(?i)(authoriz|permission|role_required|has_permission|access_control)", source)); checks.append(("Authorization / access control", c2))
-    c3 = bool(_zt.search(r"(?i)(encrypt|tls|ssl|https)", source)); checks.append(("Encryption in transit", c3))
-    c4 = bool(_zt.search(r"(?i)(validate|sanitiz|escape)", source)); checks.append(("Input validation", c4))
-    c5 = bool(_zt.search(r"(?i)(log|audit|track_usage)", source)); checks.append(("Logging / audit trail", c5))
+    c3 = bool(_zt.search(r"(?i)\b(tls|ssl|https)\b|import\s+(ssl|cryptography|pyopenssl)", source)); checks.append(("Encryption in transit", c3))
+    c4 = bool(_zt.search(r"(?i)\b(validate|sanitiz|escape)\w*", source)); checks.append(("Input validation", c4))
+    c5 = bool(_zt.search(r"(?i)\b(logger|logging\.|audit_log|track_usage|write_audit)\w*\s*[\.\(]", source)); checks.append(("Logging / audit trail", c5))
     c6 = bool(_zt.search(r"(?i)(rate_limit|throttle|max_attempts)", source)); checks.append(("Rate limiting", c6))
     c7 = not bool(_zt.search(r"(?i)(trust.{0,10}=.{0,10}true|verify\s*=\s*false|skip.{0,10}auth)", source)); checks.append(("No blanket trust / auth bypass found", c7))
     passed = sum(1 for _,v in checks if v)
@@ -2881,6 +2881,9 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
+
 
 
 
