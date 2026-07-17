@@ -1,0 +1,20 @@
+﻿SENSITIVE_PATTERNS = [
+    (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
+    (r"(?i)\b(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"),
+    (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
+    (r"(?i)\baws_secret_access_key\b", "AWS secret key reference", "High"),
+    (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "Email address", "Medium"),
+    (r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "Possible phone number", "Low"),
+    (r"(?i)\b(private[_-]?key|BEGIN RSA)\b", "Private key reference", "High"),
+    (r"(?i)(execute|cursor\.execute|query)\s*\(\s*[\x22\x27].*%.*[\x22\x27]\s*%", "Possible SQL injection (string formatting in query)", "High"),
+    (r"(?i)\+\s*(request|input|params|argv)", "Possible SQL/command injection (concatenated user input)", "High"),
+    (r"(?i)\b(eval|exec)\s*\(", "Dangerous eval/exec call", "High"),
+    (r"(?i)\bshell\s*=\s*True", "Insecure subprocess shell=True", "Medium"),
+    (r"(?i)\bverify\s*=\s*False", "Disabled TLS certificate verification", "High"),
+    (r"(?i)\b(md5|sha1)\b", "Weak/non-compliant hashing (MD5/SHA1)", "High"),
+    (r"(?i)\b(DES|RC4|ARC4|Blowfish)\b", "Weak encryption algorithm", "High"),
+    (r"(?i)\bMODE_ECB\b", "Insecure ECB cipher mode", "High"),
+    (r"http://[^\s\x22\x27]+", "Insecure HTTP (non-TLS) URL", "Medium"),
+]
+
+def scan_sensitive_data(source):
