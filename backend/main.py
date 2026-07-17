@@ -928,7 +928,14 @@ def migrate_cobol(source):
 # ---------- AI ----------
 def ai_suggest(source, language):
     prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}:\n\n{source}"
-    return {"suggestions": get_ai_response(prompt)}
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "AI_ERROR" in result or "not reachable" in result.lower():
+            result = call_groq(prompt, max_tokens=1500)
+    else:
+        result = call_groq(prompt, max_tokens=1500)
+    return {"suggestions": result}
 
 def ai_explain(source, language):
     prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does:\n\n{source}"
@@ -2895,6 +2902,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

@@ -1,0 +1,4 @@
+﻿def ai_suggest(source, language):
+    prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}:\n\n{source}"
+    return {"suggestions": get_ai_response(prompt)}
+
