@@ -949,7 +949,7 @@ def ai_explain(source, language):
     return {"explanation": result}
 
 def ai_generate_tests(source, language):
-    prompt = f"You are a test engineer. Write unit tests for this {language} code. Provide only the test code with brief comments:\n\n{source}"
+    prompt = f"You are a test engineer. Write unit tests for this {language} code. IMPORTANT: Base every assertion on the ACTUAL behavior of the code - if a function returns a fixed/deterministic value (like a hash), assert the exact expected value or use assertEqual, not assertNotEqual, unless the code genuinely produces different output each time. Double-check each assertion is logically correct before including it. Provide only the test code with brief comments:\n\n{source}"
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
@@ -2908,6 +2908,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
