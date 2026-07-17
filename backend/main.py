@@ -1250,6 +1250,7 @@ SENSITIVE_PATTERNS = [
     (r"(?i)\b(private[_-]?key|BEGIN RSA)\b", "Private key reference", "High"),
     (r"(?i)(execute|cursor\.execute|query)\s*\(\s*[\x22\x27].*%.*[\x22\x27]\s*%", "Possible SQL injection (string formatting in query)", "High"),
     (r"(?i)\+\s*(request|input|params|argv)", "Possible SQL/command injection (concatenated user input)", "High"),
+    (r"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^;]*[\x27\x22]\s*\+", "Possible SQL injection (query string concatenation)", "High"),
     (r"(?i)\b(eval|exec)\s*\(", "Dangerous eval/exec call", "High"),
     (r"(?i)\bshell\s*=\s*True", "Insecure subprocess shell=True", "Medium"),
     (r"(?i)\bverify\s*=\s*False", "Disabled TLS certificate verification", "High"),
@@ -3034,6 +3035,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
