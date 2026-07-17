@@ -1,0 +1,30 @@
+﻿def scan_crypto(source):
+    findings = []
+    pqc_needed = False
+    for pattern, label, severity, recommendation in CRYPTO_PATTERNS:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            is_pqc = "PQC Path" in recommendation
+            if is_pqc:
+                pqc_needed = True
+            findings.append({
+                "issue": label,
+                "severity": severity,
+                "occurrences": count,
+                "recommendation": recommendation,
+                "pqc": is_pqc
+            })
+    if findings:
+        verdict = "Weak or quantum-vulnerable cryptography detected"
+    else:
+        verdict = "No obvious weak cryptography detected"
+    q_score = 100
+    for f in findings:
+        if f.get("pqc"):
+            q_score -= 20
+        elif f.get("severity") == "High":
+            q_score -= 15
+        else:
+            q_score -= 10
+    if q_score < 0:

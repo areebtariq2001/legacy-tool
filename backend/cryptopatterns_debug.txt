@@ -1,0 +1,12 @@
+﻿CRYPTO_PATTERNS = [
+    (r"(?i)\b(DES|3DES|TripleDES)\b", "DES/3DES - broken symmetric cipher", "High", "Replace with AES-256. For long-term security, plan AES-256 (quantum-resistant at 256-bit)."),
+    (r"(?i)\b(RC4|ARC4)\b", "RC4 - broken stream cipher", "High", "Replace with AES-GCM or ChaCha20-Poly1305."),
+    (r"(?i)\b(MD5)\b", "MD5 - broken hash", "High", "Replace with SHA-256 or SHA-3."),
+    (r"(?i)\b(SHA1|SHA-1)\b", "SHA-1 - deprecated hash", "High", "Replace with SHA-256 or SHA-3."),
+    (r"(?i)\bMODE_ECB\b", "ECB mode - insecure", "High", "Use AES-GCM or CBC with random IV."),
+    (r"(?i)\bRSA\b", "RSA - quantum-vulnerable public-key crypto", "Medium", "PQC Path: plan migration to post-quantum algorithms (e.g. CRYSTALS-Kyber/Dilithium) as standards mature."),
+    (r"(?i)\b(ECDSA|ECDH|elliptic)\b", "ECC - quantum-vulnerable public-key crypto", "Medium", "PQC Path: elliptic-curve crypto is broken by quantum computers; plan post-quantum migration."),
+    (r"(?i)\bDiffie[-\s]?Hellman\b", "Diffie-Hellman - quantum-vulnerable key exchange", "Medium", "PQC Path: plan post-quantum key exchange (e.g. Kyber)."),
+]
+
+def scan_crypto(source):

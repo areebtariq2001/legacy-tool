@@ -862,7 +862,11 @@ def analyze_java(source):
     for pattern, msg in java_checks:
         if re.search(pattern, source):
             issues.append(msg)
-    return {"issues": issues}
+    classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
+    methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{", source)
+    imports = re.findall(r"import\s+([\w\.]+);", source)
+    methods = [m for m in methods if m not in classes]
+    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": list(dict.fromkeys(methods))[:20], "imports": list(dict.fromkeys(imports)), "java_summary": str(len(classes)) + " class(es), " + str(len(methods)) + " method(s), " + str(len(imports)) + " import(s), " + str(len(issues)) + " legacy pattern(s) found"}
 
 def migrate_java(source):
     changes = []
