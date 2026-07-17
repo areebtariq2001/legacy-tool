@@ -1,0 +1,25 @@
+﻿def audit_key_management(source, filename):
+    import re as _km
+    lines = source.split(chr(10))
+    findings = []
+    checks = [(r"(?i)(aes|des|rsa)_?key\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded encryption key", "High"), (r"(?i)(secret|secret_key|private_key)\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded secret/private key", "High"), (r"(?i)(api_key|apikey|access_key|access_token)\s*=\s*[\"\x27][^\"\x27]{6,}", "Hardcoded API key/token", "High"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]{3,}", "Hardcoded password", "High"), (r"(?i)(aws_secret|aws_access|azure_key|gcp_key)", "Hardcoded cloud provider credential", "Critical"), (r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----", "Embedded private key block", "Critical"), (r"(?i)(salt|iv)\s*=\s*[\"\x27][^\"\x27]{2,}", "Hardcoded salt/IV (should be random)", "Medium")]
+    for i, line in enumerate(lines):
+        for pat, label, sev in checks:
+            if _km.search(pat, line):
+                findings.append({"line": i+1, "issue": label, "severity": sev, "code": line.strip()[:100]})
+                break
+    has_rotation = bool(_km.search(r"(?i)(rotate|rotation|key_expiry|expire|renew).{0,20}key", source))
+    return {"km_clean": len(findings) == 0, "km_findings": findings, "km_rotation_found": has_rotation, "km_summary": (str(len(findings)) + " key management issue(s) found - secrets should never be hardcoded") if findings else "No hardcoded keys or secrets detected", "km_rotation_note": "Key rotation logic detected - good practice" if has_rotation else "No key rotation logic found - keys should be rotated periodically", "km_disclaimer": "Detects hardcoded encryption keys, secrets, and credentials. Hardcoded keys are a serious security risk - use a secrets manager (e.g. vault, environment variables) and rotate keys regularly."}
+
+def detect_tech_stack(source, filename):
+    import re as _re11
+    imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
+    imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
+    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose"}}
+    detected = []
+    for cat, libs in categories.items():
+        for imp in imports:
+            if imp.lower() in libs:
+                detected.append({"category": cat, "technology": libs[imp.lower()], "import": imp})
+    stdlib = [i for i in imports if i.lower() in ["os","sys","re","json","datetime","time","math","random","collections","itertools","logging"]]
+    return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": (str(len(detected)) + " notable technolog(ies) detected") if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}

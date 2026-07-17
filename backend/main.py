@@ -1860,7 +1860,7 @@ def audit_key_management(source, filename):
     import re as _km
     lines = source.split(chr(10))
     findings = []
-    checks = [(r"(?i)(aes|des|rsa)_?key\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded encryption key", "High"), (r"(?i)(secret|secret_key|private_key)\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded secret/private key", "High"), (r"(?i)(api_key|apikey|access_key|access_token)\s*=\s*[\"\x27][^\"\x27]{6,}", "Hardcoded API key/token", "High"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]{3,}", "Hardcoded password", "High"), (r"(?i)(aws_secret|aws_access|azure_key|gcp_key)", "Hardcoded cloud provider credential", "Critical"), (r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----", "Embedded private key block", "Critical"), (r"(?i)(salt|iv)\s*=\s*[\"\x27][^\"\x27]{2,}", "Hardcoded salt/IV (should be random)", "Medium")]
+    checks = [(r"(?i)(aes|des|rsa)_?key\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded encryption key", "High"), (r"(?i)\bkey\s*=\s*[\"\x27][^\"\x27]{4,}[\"\x27]", "Hardcoded key (generic)", "Medium"), (r"(?i)(secret|secret_key|private_key)\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded secret/private key", "High"), (r"(?i)(api_key|apikey|access_key|access_token)\s*=\s*[\"\x27][^\"\x27]{6,}", "Hardcoded API key/token", "High"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]{3,}", "Hardcoded password", "High"), (r"(?i)(aws_secret|aws_access|azure_key|gcp_key)", "Hardcoded cloud provider credential", "Critical"), (r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----", "Embedded private key block", "Critical"), (r"(?i)(salt|iv)\s*=\s*[\"\x27][^\"\x27]{2,}", "Hardcoded salt/IV (should be random)", "Medium")]
     for i, line in enumerate(lines):
         for pat, label, sev in checks:
             if _km.search(pat, line):
@@ -2881,6 +2881,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
