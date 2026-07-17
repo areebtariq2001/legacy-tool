@@ -874,6 +874,9 @@ def migrate_java(source):
         (r'\bnew\s+Long\(', 'Long.valueOf(', "new Long() -> Long.valueOf()"),
         (r'\bStringBuffer\b', 'StringBuilder', "StringBuffer -> StringBuilder"),
         (r'\bVector\b', 'ArrayList', "Vector -> ArrayList"),
+        (r'\.elementAt\(', '.get(', "Vector.elementAt() -> ArrayList.get()"),
+        (r'\.addElement\(', '.add(', "Vector.addElement() -> ArrayList.add()"),
+        (r'\.removeElement\(', '.remove(', "Vector.removeElement() -> ArrayList.remove()"),
         (r'\bHashtable\b', 'HashMap', "Hashtable -> HashMap"),
         (r'\bEnumeration\b', 'Iterator', "Enumeration -> Iterator"),
     ]
@@ -3031,6 +3034,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

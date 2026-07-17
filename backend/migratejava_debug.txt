@@ -1,0 +1,20 @@
+﻿def migrate_java(source):
+    changes = []
+    migrated = source
+    rules = [
+        (r'\bnew\s+Integer\(', 'Integer.valueOf(', "new Integer() -> Integer.valueOf()"),
+        (r'\bnew\s+Boolean\(', 'Boolean.valueOf(', "new Boolean() -> Boolean.valueOf()"),
+        (r'\bnew\s+Double\(', 'Double.valueOf(', "new Double() -> Double.valueOf()"),
+        (r'\bnew\s+Long\(', 'Long.valueOf(', "new Long() -> Long.valueOf()"),
+        (r'\bStringBuffer\b', 'StringBuilder', "StringBuffer -> StringBuilder"),
+        (r'\bVector\b', 'ArrayList', "Vector -> ArrayList"),
+        (r'\bHashtable\b', 'HashMap', "Hashtable -> HashMap"),
+        (r'\bEnumeration\b', 'Iterator', "Enumeration -> Iterator"),
+    ]
+    for pattern, repl, label in rules:
+        if re.search(pattern, migrated):
+            migrated = re.sub(pattern, repl, migrated)
+            changes.append(label)
+    return {"migrated_code": migrated, "changes": changes}
+
+# ---------- COBOL ----------
