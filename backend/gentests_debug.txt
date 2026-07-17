@@ -1,0 +1,10 @@
+﻿def ai_generate_tests(source, language):
+    prompt = f"You are a test engineer. Write unit tests for this {language} code. Provide only the test code with brief comments:\n\n{source}"
+    return {"tests": get_ai_response(prompt)}
+
+def detect_language(filename):
+    ext = filename.split('.')[-1].lower()
+    return {"py": "python", "java": "java", "php": "php", "cbl": "cobol"}.get(ext, "python")
+
+# ---------- ERROR HANDLING ----------
+MAX_FILE_SIZE = 500000

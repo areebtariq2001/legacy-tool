@@ -943,7 +943,14 @@ def ai_explain(source, language):
 
 def ai_generate_tests(source, language):
     prompt = f"You are a test engineer. Write unit tests for this {language} code. Provide only the test code with brief comments:\n\n{source}"
-    return {"tests": get_ai_response(prompt)}
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "AI_ERROR" in result or "not reachable" in result.lower():
+            result = call_groq(prompt, max_tokens=2000)
+    else:
+        result = call_groq(prompt, max_tokens=2000)
+    return {"tests": result}
 
 def detect_language(filename):
     ext = filename.split('.')[-1].lower()
@@ -2888,6 +2895,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
