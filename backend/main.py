@@ -2990,6 +2990,44 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Re-architecture readiness check failed safely: " + str(e)}
 
+def detect_service_boundaries(source, filename):
+    impact = analyze_impact(source, filename)
+    impact_map = impact.get("impact_map", [])
+    if not impact_map:
+        return {"boundaries": [], "boundary_summary": "No functions found to analyze for service boundaries.", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries."}
+    isolated = [m["function"] for m in impact_map if m["dependents_count"] == 0]
+    coupled_groups = []
+    seen = set()
+    for m in impact_map:
+        fn = m["function"]
+        if fn in seen or m["dependents_count"] == 0:
+            continue
+        group = [fn] + m.get("affected_by_change", [])
+        group = list(dict.fromkeys(group))
+        for g in group:
+            seen.add(g)
+        coupled_groups.append(group)
+    boundaries = []
+    for i, group in enumerate(coupled_groups):
+        boundaries.append({"suggested_service": "Service Group " + str(i+1), "functions": group, "reasoning": "These functions call each other directly - keep together as one cohesive unit/service."})
+    for fn in isolated:
+        boundaries.append({"suggested_service": "Independent: " + fn, "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
+    return {"boundaries": boundaries, "boundary_summary": str(len(coupled_groups)) + " coupled group(s) and " + str(len(isolated)) + " independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
+
+@app.post("/service-boundaries")
+async def service_boundaries_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = detect_service_boundaries(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("service-boundaries", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Service boundary detection failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
