@@ -2915,7 +2915,7 @@ def suggest_config_migration(source, filename):
                 findings.append({"issue": issue, "line": i+1, "suggestion": suggestion, "code": line.strip()[:100]})
     env_template_lines = []
     for f in findings:
-        var_name = f["issue"].split("(")[0].strip().upper().replace(" ", "_").replace("/", "_")
+        var_name = f["issue"].split("(")[0].split("=")[0].strip().upper().replace(" ", "_").replace("/", "_")
         env_template_lines.append(var_name + "=your_value_here")
     env_template = chr(10).join(dict.fromkeys(env_template_lines)) if env_template_lines else "# No obvious hardcoded config values detected"
     return {"config_issues": findings, "total_issues": len(findings), "suggested_env_template": env_template, "config_summary": (str(len(findings)) + " hardcoded configuration value(s) found - consider externalizing to environment variables") if findings else "No obvious hardcoded configuration values detected", "config_disclaimer": "Detects common hardcoded configuration patterns (hosts, ports, debug flags, config paths). A starting point for externalizing config - review each suggestion in context."}
@@ -2937,6 +2937,7 @@ async def config_migration_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
