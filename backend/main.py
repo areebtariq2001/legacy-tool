@@ -417,7 +417,7 @@ def analyze_code(source):
     try:
         tree = ast.parse(source)
     except:
-        return {"functions": [], "classes": [], "imports": [], "issues": ["Could not parse file (may be Python 2 syntax)"]}
+        return {"functions": [], "classes": [], "imports": [], "issues": ["Could not parse - this analysis only supports valid Python 3 code. Non-Python files will show this."]}
     functions, classes, imports, issues = [], [], [], []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -711,7 +711,7 @@ def analyze_call_graph(source):
     try:
         tree = ast.parse(source)
     except:
-        return {"call_graph_error": "Could not parse file (may be Python 2 syntax). Try migrating it to Python 3 first, then run call-graph analysis."}
+        return {"call_graph_error": "This feature only supports Python files. If this is a Python file, it may have Python 2 syntax - try migrating it to Python 3 first."}
     defined_functions = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -3075,6 +3075,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
