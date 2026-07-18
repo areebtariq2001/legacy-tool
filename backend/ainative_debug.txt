@@ -1,0 +1,20 @@
+﻿def check_ai_native_readiness(source, filename="file.py"):
+    score = 100
+    findings = []
+    try:
+        tree = ast.parse(source)
+        funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        # 1. Functions present (modular = easier for AI/APIs to call)
+        if len(funcs) == 0:
+            score -= 25
+            findings.append({"issue": "No functions found - code is not modular, hard to expose as APIs for AI systems", "impact": "High"})
+        # 2. Has docstrings (AI/analytics need context)
+        documented = sum(1 for f in funcs if ast.get_docstring(f))
+        if funcs and documented == 0:
+            score -= 15
+            findings.append({"issue": "No docstrings - AI tools and analytics need documented context", "impact": "Medium"})
+    except Exception:
+        score -= 30
+        findings.append({"issue": "Code could not be parsed - syntax issues block AI integration", "impact": "High"})
+    # 3. Hardcoded values / config (blocks flexible AI integration)

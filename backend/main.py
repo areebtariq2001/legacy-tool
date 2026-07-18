@@ -2229,8 +2229,12 @@ def check_ai_native_readiness(source, filename="file.py"):
             score -= 15
             findings.append({"issue": "No docstrings - AI tools and analytics need documented context", "impact": "Medium"})
     except Exception:
-        score -= 30
-        findings.append({"issue": "Code could not be parsed - syntax issues block AI integration", "impact": "High"})
+        if filename.lower().endswith(".py"):
+            score -= 30
+            findings.append({"issue": "Code could not be parsed - syntax issues block AI integration", "impact": "High"})
+        else:
+            score -= 10
+            findings.append({"issue": "Non-Python file - AI-native structural analysis limited, review manually", "impact": "Low"})
     # 3. Hardcoded values / config (blocks flexible AI integration)
     import re as _re
     if _re.search(r"(?i)(localhost|127\.0\.0\.1|hardcoded|password\s*=\s*[\x22\x27])", source):
@@ -3067,6 +3071,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
