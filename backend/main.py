@@ -2129,7 +2129,10 @@ def analyze_impact(source, filename):
         tree = ast.parse(source)
         funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
     except Exception:
-        funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+        else:
+            funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
     funcs = list(dict.fromkeys(funcs))
     impact_map = []
     for fn in funcs:
@@ -3045,6 +3048,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
