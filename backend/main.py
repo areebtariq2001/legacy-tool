@@ -242,6 +242,8 @@ def calculate_tech_debt(source):
         _comp = calculate_complexity(source)
         if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
             debt_score = 25
+        elif _comp["complexity_level"] == "Moderate complexity" and debt_score < 15:
+            debt_score = 15
     except Exception:
         pass
     if debt_score == 0:
@@ -3071,6 +3073,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

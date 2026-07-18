@@ -1,0 +1,40 @@
+﻿def calculate_tech_debt(source):
+    items = []
+    total_count = 0
+    total_minutes = 0
+    for pattern, label, mins in DEBT_RULES:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            items.append({
+                "issue": label,
+                "occurrences": count,
+                "minutes_each": mins,
+                "estimated_minutes": count * mins
+            })
+            total_count += count
+            total_minutes += count * mins
+    debt_score = min(100, total_count * 8)
+    try:
+        _comp = calculate_complexity(source)
+        if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
+            debt_score = 25
+    except Exception:
+        pass
+    if debt_score == 0:
+        debt_level = "Minimal debt"
+    elif debt_score < 30:
+        debt_level = "Low debt"
+    elif debt_score < 60:
+        debt_level = "Moderate debt"
+    else:
+        debt_level = "High debt"
+    hours = round(total_minutes / 60.0, 1)
+    return {
+        "debt_score": debt_score,
+        "debt_level": debt_level,
+        "total_issues": total_count,
+        "estimated_minutes": total_minutes,
+        "estimated_hours": hours,
+        "items": items,
+        "summary": f"{total_count} legacy issues detected. Estimated manual remediation effort: ~{hours} developer-hours. StarBuild automates these specific fixes.",
