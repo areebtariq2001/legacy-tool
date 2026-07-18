@@ -1933,7 +1933,12 @@ def estimate_migration_cost(source, filename):
         branches = len([n for n in ast.walk(tree) if isinstance(n, (ast.If, ast.For, ast.While))])
         parseable = True
     except Exception:
-        funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source)); branches = len(_re10.findall(r"(if |for |while )", source)); parseable = False
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            funcs = len(_re10.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
+            classes = len(_re10.findall(r"\bclass\s+\w+", source))
+        else:
+            funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source))
+        branches = len(_re10.findall(r"(if |for |while )", source)); parseable = False
     complexity = branches + funcs * 2 + classes * 3
     base_hours = loc / 20.0
     complexity_hours = complexity * 0.5
@@ -3058,6 +3063,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
