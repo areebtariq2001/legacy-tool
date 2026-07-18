@@ -1722,12 +1722,14 @@ def analyze_db_schema(source, filename):
     for m in _re.finditer(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60\x22\x27\[]?(\w+)", source):
         tables.append(m.group(1))
     # 2. SQL queries (SELECT/INSERT/UPDATE/DELETE)
-    for m in _re.finditer(r"(?i)\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b", source):
+    _code_only2 = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("//", "#", "*")))
+    for m in _re.finditer(r"(?i)\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b", _code_only2):
         queries.append(m.group(1).upper().replace("  ", " "))
     # 3. Table references in FROM / JOIN / INTO
-    for m in _re.finditer(r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60\x22\x27\[]?(\w+)", source):
+    _code_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("//", "#", "*")))
+    for m in _re.finditer(r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60\x22\x27\[]?(\w+)", _code_only):
         t = m.group(1)
-        if t.upper() not in ("SELECT", "WHERE", "SET", "VALUES") and t not in tables:
+        if t.upper() not in ("SELECT", "WHERE", "SET", "VALUES", "LOGIC", "BALANCE") and t not in tables:
             tables.append(t)
     # 4. DB connection hints
     conn_patterns = {"MySQL": r"(?i)(mysql|MySQLdb|pymysql)", "PostgreSQL": r"(?i)(psycopg2|postgres)", "SQLite": r"(?i)(sqlite3|sqlite)", "Oracle": r"(?i)(cx_Oracle|oracle)", "SQL Server": r"(?i)(pyodbc|mssql|sqlserver)", "MongoDB": r"(?i)(pymongo|mongodb)"}
@@ -3075,6 +3077,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
