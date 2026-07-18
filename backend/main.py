@@ -2808,15 +2808,17 @@ def detect_code_smells(source, filename):
     import re as _sm
     lines = source.split(chr(10))
     smells = []
+    if filename.lower().endswith(".py"):
+        try:
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    func_lines = (node.end_lineno - node.lineno) if hasattr(node, "end_lineno") else 0
+                    if func_lines > 50:
+                        smells.append({"type": "Long Function", "location": "Function " + node.name + " (line " + str(node.lineno) + ")", "detail": "Function is " + str(func_lines) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
+        except Exception:
+            pass
     try:
-        if not filename.lower().endswith(".py"):
-            raise ValueError("non-python")
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                func_lines = (node.end_lineno - node.lineno) if hasattr(node, "end_lineno") else 0
-                if func_lines > 50:
-                    smells.append({"type": "Long Function", "location": "Function " + node.name + " (line " + str(node.lineno) + ")", "detail": "Function is " + str(func_lines) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
         indent_stack = []
         for i, line in enumerate(lines):
             stripped = line.lstrip()
@@ -3065,6 +3067,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
