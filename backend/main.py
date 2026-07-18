@@ -1644,14 +1644,14 @@ def generate_architecture(source, filename):
         if filename.lower().endswith((".java",".php",".cbl",".cob")):
             funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
             classes = _re.findall(r"\bclass\s+(\w+)", source)
-            imports = _re.findall(r"import\s+([\w\.]+);", source)
+            imports = _re.findall(r"import\s+([\w\.\*]+);", source)
         else:
             funcs = _re.findall(r"def\s+(\w+)\s*\(", source)
             classes = _re.findall(r"class\s+(\w+)", source)
             imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
     imports = list(dict.fromkeys(imports))
     # Classify imports into layers
-    db_libs = [i for i in imports if i.lower() in ("sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc")]
+    db_libs = [i for i in imports if i.lower() in ("sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc") or "sql" in i.lower() or "jdbc" in i.lower()]
     api_libs = [i for i in imports if i.lower() in ("requests", "urllib", "urllib2", "httpx", "aiohttp", "http")]
     other_libs = [i for i in imports if i not in db_libs and i not in api_libs]
     # Build layered architecture
@@ -3063,6 +3063,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
