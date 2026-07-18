@@ -1,0 +1,15 @@
+﻿async def migrate_java_endpoint(file: UploadFile = File(...)):
+    source = (await file.read()).decode("utf-8", errors='ignore')
+    result = migrate_java(source)
+    result["filename"] = file.filename
+    track_usage("migrate-java", file.filename)
+    write_audit_log("migrate-java", file.filename, f"changes={len(result.get('changes', []))}")
+    return result
+
+@app.post("/analyze-cobol")
+async def analyze_cobol_endpoint(file: UploadFile = File(...)):
+    source = (await file.read()).decode("utf-8", errors='ignore')
+    result = analyze_cobol(source)
+    result["filename"] = file.filename
+    track_usage("analyze-cobol", file.filename)
+    return result

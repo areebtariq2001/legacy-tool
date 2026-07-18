@@ -1826,7 +1826,11 @@ def predict_migration_risk(source, filename):
             reasons.append("High number of functions (" + str(funcs) + ") - complex to migrate and test")
     except Exception:
         risk += 30
-        reasons.append("Code does not parse in Python 3 - will require fixes before migration")
+        if filename.lower().endswith(".py"):
+            reasons.append("Code does not parse in Python 3 - will require fixes before migration")
+        else:
+            risk -= 30
+            reasons.append("Non-Python file - structural analysis limited, review manually")
     # 4. External imports (dependency risk)
     imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
     if len(set(imports)) > 8:
@@ -2162,7 +2166,7 @@ def generate_executive_report(source, filename):
         funcs = len(_re2.findall(r"def ", source)); classes = len(_re2.findall(r"class ", source)); parseable = False
     security_hits = len(_re2.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
     findings = []
-    if not parseable: findings.append("Code does not parse in Python 3 - migration will require fixes")
+    if not parseable and filename.lower().endswith(".py"): findings.append("Code does not parse in Python 3 - migration will require fixes")
     if security_hits > 0: findings.append(str(security_hits) + " potential security/compliance issue(s) detected")
     if len(lines) > 300: findings.append("Large file (" + str(len(lines)) + " lines) - higher migration effort")
     if not findings: findings.append("No major blockers detected - code appears in reasonable shape")
@@ -2190,7 +2194,7 @@ def extract_business_rules(source, language):
         "br_disclaimer": "AI-generated interpretation of the business logic in this code. A starting point for understanding legacy modules - always verify against business requirements and domain experts."
     }
 
-def check_ai_native_readiness(source):
+def check_ai_native_readiness(source, filename="file.py"):
     score = 100
     findings = []
     try:
@@ -2258,7 +2262,7 @@ async def ai_native_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return {"filename": file.filename, "error": error}
-        result = check_ai_native_readiness(source)
+        result = check_ai_native_readiness(source, file.filename)
         result["filename"] = file.filename
         track_usage("ai-native-readiness", file.filename)
         write_audit_log("ai-native-readiness", file.filename, "score=" + str(result.get("ai_native_score", 0)))
@@ -3041,6 +3045,10 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
+
+
 
 
 
