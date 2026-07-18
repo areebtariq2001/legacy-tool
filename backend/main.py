@@ -1247,6 +1247,8 @@ def get_audit_log_json():
 SENSITIVE_PATTERNS = [
     (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
     (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"),
+    (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
+    (r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", "Hardcoded IP address", "Medium"),
     (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
     (r"(?i)\baws_secret_access_key\b", "AWS secret key reference", "High"),
     (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "Email address", "Medium"),
@@ -3039,6 +3041,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
