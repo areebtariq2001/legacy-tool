@@ -2809,6 +2809,8 @@ def detect_code_smells(source, filename):
     lines = source.split(chr(10))
     smells = []
     try:
+        if not filename.lower().endswith(".py"):
+            raise ValueError("non-python")
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
@@ -2818,7 +2820,7 @@ def detect_code_smells(source, filename):
         indent_stack = []
         for i, line in enumerate(lines):
             stripped = line.lstrip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped or stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
                 continue
             indent = len(line) - len(stripped)
             if stripped.startswith(("if ", "for ", "while ", "elif ")):
@@ -3063,6 +3065,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
