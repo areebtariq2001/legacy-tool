@@ -2166,7 +2166,12 @@ def generate_executive_report(source, filename):
         classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
         parseable = True
     except Exception:
-        funcs = len(_re2.findall(r"def ", source)); classes = len(_re2.findall(r"class ", source)); parseable = False
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            funcs = len(_re2.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
+            classes = len(_re2.findall(r"\bclass\s+\w+", source))
+        else:
+            funcs = len(_re2.findall(r"def ", source)); classes = len(_re2.findall(r"class ", source))
+        parseable = False
     security_hits = len(_re2.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
     findings = []
     if not parseable and filename.lower().endswith(".py"): findings.append("Code does not parse in Python 3 - migration will require fixes")
@@ -3048,6 +3053,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

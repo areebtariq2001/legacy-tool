@@ -1,0 +1,10 @@
+﻿def generate_executive_report(source, filename):
+    import re as _re2
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+        classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+        parseable = True
+    except Exception:
+        funcs = len(_re2.findall(r"def ", source)); classes = len(_re2.findall(r"class ", source)); parseable = False
