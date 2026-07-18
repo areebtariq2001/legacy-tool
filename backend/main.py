@@ -1641,9 +1641,14 @@ def generate_architecture(source, filename):
                 if n.module:
                     imports.append(n.module.split(".")[0])
     except Exception:
-        funcs = _re.findall(r"def\s+(\w+)\s*\(", source)
-        classes = _re.findall(r"class\s+(\w+)", source)
-        imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+            classes = _re.findall(r"\bclass\s+(\w+)", source)
+            imports = _re.findall(r"import\s+([\w\.]+);", source)
+        else:
+            funcs = _re.findall(r"def\s+(\w+)\s*\(", source)
+            classes = _re.findall(r"class\s+(\w+)", source)
+            imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
     imports = list(dict.fromkeys(imports))
     # Classify imports into layers
     db_libs = [i for i in imports if i.lower() in ("sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc")]
@@ -3053,6 +3058,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
