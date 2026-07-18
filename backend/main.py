@@ -287,7 +287,9 @@ RISK_RULES = [
     ("paramiko", "API / Network", "Medium", "paramiko (SSH) versions differ in behavior.", "Pin a Python 3-compatible version."),
 ]
 
-def assess_dependency_risk(source):
+def assess_dependency_risk(source, filename="file.py"):
+    if not filename.lower().endswith(".py"):
+        return {"findings": [], "overall_risk": "Not Analyzed", "total_issues": 0, "not_analyzed_reason": "Dependency risk analysis currently only supports Python. This file was not analyzed - do not interpret this as a low-risk result."}
     try:
         tree = ast.parse(source)
         imported = set()
@@ -1078,7 +1080,7 @@ async def risk_assessment_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return {"filename": file.filename, "error": error}
-        result = assess_dependency_risk(source)
+        result = assess_dependency_risk(source, file.filename)
         result["filename"] = file.filename
         track_usage("risk-assessment", file.filename)
         write_audit_log("risk-assessment", file.filename, "overall=" + result.get("overall_risk", "N/A"))
@@ -3073,6 +3075,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 

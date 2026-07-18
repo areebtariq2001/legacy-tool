@@ -1,0 +1,25 @@
+﻿def assess_dependency_risk(source):
+    try:
+        tree = ast.parse(source)
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    imported.add(a.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imported.add(node.module.split(".")[0])
+    except:
+        imported = set()
+    findings = []
+    seen = set()
+    for pattern, category, level, desc, rec in RISK_RULES:
+        in_imports = pattern in imported
+        in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+        if (in_imports or in_source) and pattern not in seen:
+            seen.add(pattern)
+            findings.append({
+                "dependency": pattern,
+                "category": category,
+                "risk_level": level,
+                "description": desc,
