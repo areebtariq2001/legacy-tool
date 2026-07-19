@@ -3103,6 +3103,20 @@ def recommend_migration_strategy(source, filename):
     lang_note = "" if is_python else " (Note: risk-assessment is Python-only currently, so this recommendation is based on complexity/debt/cost only, not security-risk data.)"
     return {"recommended_strategy": strategy, "strategy_reasoning": reasoning + lang_note, "decision_inputs": {"complexity_score": complexity_score, "debt_score": debt_score, "estimated_hours": cost_hours, "risk_level": risk.get("overall_risk", "Unknown")}, "recommendation_summary": "Recommended approach: " + strategy, "recommendation_disclaimer": "Heuristic recommendation based on code complexity, technical debt, and estimated migration cost. A planning aid - final decisions should also weigh business priorities, team capacity, and timeline."}
 
+@app.post("/recommend-strategy")
+async def recommend_strategy_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = recommend_migration_strategy(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("recommend-strategy", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Strategy recommendation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
