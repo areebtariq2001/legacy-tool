@@ -3082,6 +3082,27 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Service boundary detection failed safely: " + str(e)}
 
+def recommend_migration_strategy(source, filename):
+    cost = estimate_migration_cost(source, filename)
+    debt = calculate_tech_debt(source)
+    comp = calculate_complexity(source)
+    is_python = filename.lower().endswith(".py")
+    risk = assess_dependency_risk(source, filename) if is_python else {"overall_risk": "Unknown"}
+    debt_score = debt.get("debt_score", 0)
+    complexity_score = comp.get("complexity_score", 0)
+    cost_hours = cost.get("cost_hours", 0)
+    if complexity_score < 15 and debt_score < 30:
+        strategy = "Rehost"
+        reasoning = "Code is low-complexity and low-debt - a lift-and-shift migration (same logic, new platform) is likely sufficient. Lowest risk, fastest option."
+    elif complexity_score < 40 and debt_score < 60:
+        strategy = "Refactor"
+        reasoning = "Code has moderate complexity/debt - worth improving structure and patterns during migration, but a full rewrite is not justified. Medium effort, medium risk."
+    else:
+        strategy = "Rebuild"
+        reasoning = "Code is highly complex and/or carries significant technical debt - the underlying design may be too outdated to safely refactor. Consider a fresh rebuild guided by the discovered business rules."
+    lang_note = "" if is_python else " (Note: risk-assessment is Python-only currently, so this recommendation is based on complexity/debt/cost only, not security-risk data.)"
+    return {"recommended_strategy": strategy, "strategy_reasoning": reasoning + lang_note, "decision_inputs": {"complexity_score": complexity_score, "debt_score": debt_score, "estimated_hours": cost_hours, "risk_level": risk.get("overall_risk", "Unknown")}, "recommendation_summary": "Recommended approach: " + strategy, "recommendation_disclaimer": "Heuristic recommendation based on code complexity, technical debt, and estimated migration cost. A planning aid - final decisions should also weigh business priorities, team capacity, and timeline."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
