@@ -1660,7 +1660,10 @@ def generate_architecture(source, filename):
                     imports.append(n.module.split(".")[0])
     except Exception:
         if filename.lower().endswith((".java",".php",".cbl",".cob")):
-            funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+            if filename.lower().endswith(".php"):
+                funcs = _re.findall(r"function\s+(\w+)\s*\([^)]*\)", source)
+            else:
+                funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
             classes = _re.findall(r"\bclass\s+(\w+)", source)
             imports = _re.findall(r"import\s+([\w\.\*]+);", source)
         else:
@@ -3228,6 +3231,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
