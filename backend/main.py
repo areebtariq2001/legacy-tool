@@ -1959,7 +1959,10 @@ def estimate_migration_cost(source, filename):
         parseable = True
     except Exception:
         if filename.lower().endswith((".java",".php",".cbl",".cob")):
-            funcs = len(_re10.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
+            if filename.lower().endswith(".php"):
+                funcs = len(_re10.findall(r"function\s+\w+\s*\(", source))
+            else:
+                funcs = len(_re10.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
             classes = len(_re10.findall(r"\bclass\s+\w+", source))
         else:
             funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source))
@@ -2212,7 +2215,10 @@ def generate_executive_report(source, filename):
         classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
         parseable = True
     except Exception:
-        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+        if filename.lower().endswith(".php"):
+            funcs = len(_re2.findall(r"function\s+\w+\s*\(", source))
+            classes = len(_re2.findall(r"\bclass\s+\w+", source))
+        elif filename.lower().endswith((".java",".cbl",".cob")):
             funcs = len(_re2.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
             classes = len(_re2.findall(r"\bclass\s+\w+", source))
         else:
@@ -3235,6 +3241,8 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
