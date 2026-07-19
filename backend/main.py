@@ -3048,7 +3048,7 @@ def suggest_config_migration(source, filename):
     env_template_lines = []
     for f in findings:
         code_line = f.get("code", "")
-        actual_match = _cm.match(r"^\s*(\w+)\s*=", code_line)
+        actual_match = _cm.match(r"^\s*\$?(\w+)\s*=", code_line)
         if actual_match:
             var_name = actual_match.group(1).upper()
         else:
@@ -3241,6 +3241,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
