@@ -3183,7 +3183,21 @@ def calculate_migration_roi(source, filename):
     migration_3yr_total = round(migration_cost + (annual_maintenance_cost * 0.3 * 3), 2)
     savings_vs_status_quo = round(status_quo_3yr - migration_3yr_total, 2)
     breakeven_months = round((migration_cost / (annual_maintenance_cost * 0.7 / 12)), 1) if annual_maintenance_cost > 0 else None
-    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_vs_status_quo, "breakeven_months": breakeven_months, "roi_summary": "Migration (~$" + str(migration_cost) + ") vs 3-year status-quo maintenance (~$" + str(status_quo_3yr) + ") - estimated savings: $" + str(savings_vs_status_quo), "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr) and generic multipliers. Replace with your actual team cost and maintenance history for an accurate figure. A planning aid, not a financial guarantee."}
+    try:
+        risk = assess_dependency_risk(source, filename)
+        risk_level = risk.get("overall_risk", "Unknown")
+    except Exception:
+        risk_level = "Unknown"
+    security_hits = len(re.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
+    breach_risk_cost_3yr = 0
+    if risk_level == "High" or security_hits >= 3:
+        breach_risk_cost_3yr = 15000
+    elif risk_level == "Medium" or security_hits >= 1:
+        breach_risk_cost_3yr = 5000
+    status_quo_3yr_with_risk = round(status_quo_3yr + breach_risk_cost_3yr, 2)
+    savings_with_risk = round(status_quo_3yr_with_risk - migration_3yr_total, 2)
+    security_note = " Note: this file has security findings (SQL injection/weak crypto/hardcoded secrets) - status-quo cost includes an estimated breach/compliance risk cost of $" + str(breach_risk_cost_3yr) + " over 3 years." if breach_risk_cost_3yr > 0 else ""
+    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr_with_risk, "status_quo_maintenance_only_usd": status_quo_3yr, "estimated_breach_risk_cost_3yr_usd": breach_risk_cost_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_with_risk, "breakeven_months": breakeven_months, "roi_summary": "Migration (~$" + str(migration_cost) + ") vs 3-year status-quo cost (~$" + str(status_quo_3yr_with_risk) + ", including security-risk exposure) - estimated savings: $" + str(savings_with_risk) + "." + security_note, "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr), generic multipliers, and a simplified security-risk-cost estimate. Replace with your actual team cost, maintenance history, and risk-assessment figures for an accurate result. A planning aid, not a financial guarantee."}
 
 @app.post("/migration-roi")
 async def migration_roi_endpoint(file: UploadFile = File(...)):
@@ -3202,6 +3216,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
