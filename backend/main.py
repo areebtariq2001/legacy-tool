@@ -2100,8 +2100,13 @@ def discover_business_rules_engine(source, filename):
     for i, line in enumerate(lines):
         stripped = line.strip()
         m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
+        m2 = _re7.match(r"(?:\}\s*)?(else\s+)?if\s*\((.+)\)\s*\{?", stripped) if not m else None
+        condition = None
         if m:
             condition = m.group(2).strip()
+        elif m2:
+            condition = m2.group(2).strip()
+        if condition is not None:
             if len(condition) < 3: continue
             tags = [name for name, pat in compliance_keywords.items() if _re7.search(pat, condition)]
             rules.append({"rule_id": "RULE-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
@@ -3079,6 +3084,8 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
