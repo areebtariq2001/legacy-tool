@@ -813,6 +813,8 @@ def generate_documentation(source, filename):
 # ---------- PHP ----------
 def analyze_php(source):
     issues = []
+    if re.search(r"(?i)(password|passwd|pwd|api_key|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+        issues.append("Hardcoded password/credential found - move to environment variable")
     php_checks = [
         (r"\bmysql_\w+\b", "Deprecated mysql_* functions - use mysqli or PDO"),
         (r'\bereg\(', "ereg() found - use preg_match()"),
@@ -3225,6 +3227,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

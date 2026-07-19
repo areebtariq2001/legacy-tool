@@ -1,0 +1,15 @@
+﻿def analyze_php(source):
+    issues = []
+    php_checks = [
+        (r"\bmysql_\w+\b", "Deprecated mysql_* functions - use mysqli or PDO"),
+        (r'\bereg\(', "ereg() found - use preg_match()"),
+        (r'\beregi\(', "eregi() found - use preg_match()"),
+        (r'\bsplit\(', "split() found - use explode() or preg_split()"),
+        (r'\bsession_register\b', "session_register() found - use $_SESSION"),
+        (r"\bvar\s+\$\w+", "PHP4-style 'var' property - use public/protected/private"),
+        (r'\bmagic_quotes\b', "magic_quotes found - removed in PHP 5.4+"),
+        (r'\bcreate_function\b', "create_function() found - use anonymous functions"),
+        (r'\bmcrypt_\w+\b', "mcrypt_* found - use openssl or sodium"),
+        (r'\beach\(', "each() found - use foreach loop"),
+        (r'\bcall_user_method\b', "call_user_method() found - use call_user_func()"),
+        (r'\bget_magic_quotes_gpc\b', "get_magic_quotes_gpc() found - removed in PHP 7"),
