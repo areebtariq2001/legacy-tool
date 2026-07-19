@@ -3134,6 +3134,20 @@ def calculate_migration_roi(source, filename):
     breakeven_months = round((migration_cost / (annual_maintenance_cost * 0.7 / 12)), 1) if annual_maintenance_cost > 0 else None
     return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_vs_status_quo, "breakeven_months": breakeven_months, "roi_summary": "Migration (~$" + str(migration_cost) + ") vs 3-year status-quo maintenance (~$" + str(status_quo_3yr) + ") - estimated savings: $" + str(savings_vs_status_quo), "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr) and generic multipliers. Replace with your actual team cost and maintenance history for an accurate figure. A planning aid, not a financial guarantee."}
 
+@app.post("/migration-roi")
+async def migration_roi_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = calculate_migration_roi(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("migration-roi", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "ROI calculation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
