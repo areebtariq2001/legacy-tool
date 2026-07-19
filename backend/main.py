@@ -2173,7 +2173,9 @@ def analyze_impact(source, filename):
         tree = ast.parse(source)
         funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
     except Exception:
-        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+        if filename.lower().endswith(".php"):
+            funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
+        elif filename.lower().endswith((".java",".cbl",".cob")):
             funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
         else:
             funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
@@ -3233,6 +3235,9 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
+
 
 
 
