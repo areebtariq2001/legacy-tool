@@ -1,0 +1,25 @@
+﻿def generate_documentation(source, filename):
+    analysis = analyze_code(source)
+    risk = assess_dependency_risk(source)
+    debt = calculate_tech_debt(source)
+    callgraph = analyze_call_graph(source)
+    prompt = (
+        "You are a senior software architect writing handover documentation for a legacy file. "
+        "Read the code and write clear, professional documentation a new developer could use. "
+        "Use these exact section headers, each on its own line:\n"
+        "PURPOSE: (2-3 sentences on what this file does overall)\n"
+        "BUSINESS_LOGIC: (explain the main logic and flow in plain English, 3-5 sentences)\n"
+        "KEY_FUNCTIONS: (one short line per function describing what it does)\n"
+        "NOTES: (any risks, dependencies, or things to watch when migrating)\n\n"
+        "Do not use markdown symbols. Just the headers and plain text.\n\n"
+        f"Code:\n{source}"
+    )
+    ai_doc = call_groq(prompt, max_tokens=1200)
+    return {
+        "filename": filename,
+        "ai_documentation": ai_doc,
+        "functions": analysis.get("functions", []),
+        "classes": analysis.get("classes", []),
+        "imports": analysis.get("imports", []),
+        "total_functions": callgraph.get("total_functions", 0),
+        "entry_points": callgraph.get("entry_points", []),

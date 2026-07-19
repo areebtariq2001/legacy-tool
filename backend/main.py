@@ -767,8 +767,17 @@ def analyze_call_graph(source):
 
 # ---------- KNOWLEDGE TRANSFER (KT) DOC GENERATOR ----------
 def generate_documentation(source, filename):
-    analysis = analyze_code(source)
-    risk = assess_dependency_risk(source)
+    if filename.lower().endswith(".py"):
+        analysis = analyze_code(source)
+    else:
+        _arch = generate_architecture(source, filename)
+        _funcs = []
+        _classes = []
+        for _layer in _arch.get("architecture_layers", []):
+            if _layer["layer"] == "Functions (Business Logic)": _funcs = _layer["items"]
+            if _layer["layer"] == "Classes / Modules": _classes = _layer["items"]
+        analysis = {"functions": _funcs, "classes": _classes, "imports": []}
+    risk = assess_dependency_risk(source, filename)
     debt = calculate_tech_debt(source)
     callgraph = analyze_call_graph(source)
     prompt = (
@@ -3216,6 +3225,8 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
