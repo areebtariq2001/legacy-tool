@@ -1,141 +1,150 @@
-StarBuild
+# StarBuild
 
-AI-Powered Legacy Code Migration & Security Audit Platform
+### AI-Powered Legacy Code Migration & Security Audit Platform
 
-StarBuild helps banks, fintechs, and enterprises understand, audit, and safely modernize their legacy code (COBOL, older Java, Python 2, PHP). Instead of blindly converting old code, StarBuild understands it first — mapping its data, dependencies, security risks, and business logic — so migration is safe, predictable, and audit-ready.
+StarBuild helps banks, fintechs, and enterprises **understand, audit, and safely modernize** their legacy code (Python, Java, PHP, COBOL). Instead of blindly converting old code, StarBuild understands it first — mapping its data, dependencies, security risks, and business logic — so migration is safe, predictable, and audit-ready.
 
+> **Philosophy:** Understand first, migrate second.
 
-Philosophy: Understand first, migrate second.
+---
 
+## 🔗 Live Links
 
+| Resource | URL |
+|----------|-----|
+| **Live Tool** | https://areebtariq2001.github.io/legacy-tool/ |
+| **API (Backend)** | https://legacy-migration-tool-1.onrender.com |
+| **API Docs (Swagger)** | https://legacy-migration-tool-1.onrender.com/docs |
 
+> **Note:** The backend runs on a free tier that sleeps when idle. Open the API URL once to wake it (~50s) before a live demo.
 
-🔗 Live Links
+---
 
-ResourceURLLive Toolhttps://areebtariq2001.github.io/legacy-tool/API (Backend)https://legacy-migration-tool-1.onrender.comAPI Docs (Swagger)https://legacy-migration-tool-1.onrender.com/docs
+## Why StarBuild
 
+Legacy systems run critical banking operations, but they are hard to understand, poorly documented, and risky to change. StarBuild reduces that risk by giving teams a clear, verified picture of the code **before** they touch it — with honest confidence scores on every automated change, and honest "not analyzed" messages instead of misleading silence when a check genuinely can't run.
 
-Note: The backend runs on a free tier that sleeps when idle. Open the API URL once to wake it (~50s) before a live demo.
+**Four core benefits:**
+- 💰 **Saves money** — work that consultants do in weeks, done in minutes
+- ⏰ **Saves time** — understand legacy code at a glance
+- 🛡️ **Reduces risk** — audit before you migrate, with rollback planning
+- ✅ **Security & compliance** — catch issues aligned to PCI-DSS, GDPR, SBP, Basel III, AML/KYC
 
+---
 
+## Features (59+)
 
-
-Why StarBuild
-
-Legacy systems run critical banking operations, but they are hard to understand, poorly documented, and risky to change. StarBuild reduces that risk by giving teams a clear, verified picture of the code before they touch it — with honest confidence scores on every automated change.
-
-Four core benefits:
-
-
-💰 Saves money — work that consultants do in weeks, done in minutes
-⏰ Saves time — understand legacy code at a glance
-🛡️ Reduces risk — audit before you migrate, with rollback planning
-✅ Security & compliance — catch issues aligned to PCI-DSS, GDPR, SBP, Basel III, AML/KYC
-
-
-
-Features (48+)
-
-Core Analysis & Migration
-
+### Core Analysis & Migration
 Analyze · Migrate (rule-based) · AI Migrate (guardrails + confidence score) · Call Graph · Risk Check · Tech Debt · Gen Docs
 
-Security & Compliance
+### Security & Compliance
+Data Scan · Crypto Scan · **Quantum-Readiness Score** *(unique)* · Banking Scan · AML/KYC Extractor · SQL Injection Scanner · PII Detection · Key Management Audit · **Zero-Trust Readiness Score** *(unique)*
 
-Data Scan · Crypto Scan · Quantum-Readiness Score (unique) · Banking Scan · AML/KYC Extractor · Compliance Mapping · SQL Injection Scanner · PII Detection · Key Management Audit · Zero-Trust Readiness Score (unique)
+### Enterprise Analysis
+Repository Scan (GitHub-authenticated) · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · **AI-Native Readiness** *(unique)* · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
 
-Enterprise Analysis
+### Banking-Specific
+Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Executive Report · Audit-Ready PDF Export · Impact Analysis · Transaction Flow Mapping · Rollback Plan · Regional Compliance Mapping · Regulatory Framework Presets (SBP, Basel III, PCI-DSS, GDPR)
 
-Repository Scan (GitHub-authenticated, 5000 requests/hour) · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · AI-Native Readiness (unique) · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
+### Developer Workflow
+Codebase Q&A · GitHub Webhook Receiver · Sandbox Test (lightweight execution check)
 
-Banking-Specific
+### Governance & Traceability
+Human-in-the-Loop Approval (persistent, database-backed) · Code Quality Score · Migration Registry Dashboard · Migration Roadmap Generator
 
-Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Executive Report · Audit-Ready PDF Export · Impact Analysis · Transaction Flow Mapping · Rollback Plan · Regional Compliance Mapping (SBP/Global) · Regulatory Framework Presets (SBP, Basel III, PCI-DSS, GDPR)
+### Refactoring Depth (Phase 1)
+Before/After Complexity Score · Code Smell Detector (long functions, deep nesting, duplicate code) · Refactoring Suggestions
 
-Developer Workflow
+### Replatforming Depth (Phase 2)
+Platform Compatibility Checker (OS-specific code, shell calls) · Dependency Portability Score · Config Migration Helper (with credential detection)
 
-Codebase Q&A · GitHub Webhook Receiver (auto-scan on push) · Sandbox Test (lightweight execution check)
+### Re-architecting Formalization (Phase 3)
+Re-architecture Readiness Report · Natural Service Boundary Detector
 
-Governance & Traceability
+### Decision Support (Phase 4)
+Migration Strategy Recommendation Engine (Rehost vs Refactor vs Rebuild) · ROI Calculator
 
-Human-in-the-Loop Approval — reviewer decisions (Approve/Reject/Modify) logged with notes · Code Quality Score — complexity, readability, and comment-density grading · Migration Registry Dashboard — aggregated approval stats and recent activity · Migration Roadmap Generator — repo-wide, risk-prioritized migration phases (Low → Medium → High risk)
+---
 
+## Multi-Language Support
 
-On-Premise AI (Ollama)
+StarBuild supports **Python, Java, PHP, and COBOL**. Python has the deepest feature coverage; Java has been extensively tested and hardened — including method detection (handling `throws`/`synchronized`), wildcard import parsing, comment-aware analysis, and language-agnostic security patterns (SQL injection, hardcoded credentials work the same way regardless of language).
 
-Banks won't send proprietary code to a third-party cloud API. StarBuild supports on-premise AI via Ollama:
+Where a check is genuinely Python-only (e.g. AST-based parsing), StarBuild **honestly reports "Not Analyzed"** rather than silently returning a misleading "no risk found" result.
 
+---
 
-Switchable AI provider (AI_PROVIDER=ollama or groq) with automatic fallback
-Runs entirely on the bank's own infrastructure — no code leaves the premises
-Same guardrails and confidence scoring apply regardless of provider
-Built-in error detection: if the AI provider fails, the system transparently falls back to deterministic rule-based migration rather than silently returning a bad result
+## On-Premise AI (Ollama)
 
+Banks won't send proprietary code to a third-party cloud API. StarBuild supports **on-premise AI** via Ollama:
 
+- Switchable AI provider (`AI_PROVIDER=ollama` or `groq`) with automatic fallback
+- Runs entirely on the bank's own infrastructure — no code leaves the premises
+- Built-in error detection: if the AI provider fails, the system transparently falls back to deterministic rule-based migration rather than silently returning a bad result
 
-How It Works
+---
 
+## Persistent, Auditable Data
 
-Choose a language (Python, Java, PHP, COBOL) and a mode
-Upload one or more code files, or paste a public GitHub repo URL
-StarBuild analyzes and returns results instantly — scores, findings, maps, or reports
-Download reports (PDF / CSV / JSON) to share with your team, managers, or auditors
+Human-in-the-loop approval decisions are stored in a **persistent PostgreSQL database** (not a temporary file), so audit history survives server restarts — a requirement for any real compliance use case. A local-file fallback exists for resilience if the database is temporarily unreachable.
 
+---
 
+## How It Works
 
-Tech Stack
+1. Choose a language (Python, Java, PHP, COBOL) and a mode
+2. Upload one or more code files, or paste a public GitHub repo URL
+3. StarBuild analyzes and returns results instantly — scores, findings, maps, or reports
+4. Download reports (PDF / CSV / JSON) to share with your team, managers, or auditors
 
+---
 
-Frontend: React (deployed on GitHub Pages)
-Backend: FastAPI (Python), deployed on Render
-AI: Groq (cloud) or Ollama (on-premise), with automatic provider switching
-Analysis: Python AST + pattern-based static analysis
-GitHub Integration: Authenticated API access (5000 req/hour) for repository scanning
+## Tech Stack
 
+- **Frontend:** React (deployed on GitHub Pages)
+- **Backend:** FastAPI (Python), deployed on Render
+- **Database:** PostgreSQL (Supabase) for persistent audit logs
+- **AI:** Groq (cloud) or Ollama (on-premise), with automatic provider switching
+- **Analysis:** Python AST + language-aware pattern-based static analysis
 
+---
 
-Verified, Not Just Claimed
+## Verified, Not Just Claimed
 
-Every feature listed here has been manually tested against real inputs, with raw API responses checked line-by-line — not just UI screenshots. This process has already caught and fixed real bugs before they reached users:
+Every feature in this repository has been manually tested against real code — Python and Java — with raw API responses checked line-by-line, not just UI screenshots. This process has caught and fixed over 30 real bugs before they reached users, including:
 
-
-A confidence-scoring bug where AI service errors were silently marked "high confidence" instead of triggering a safe fallback
-A code-quality grading bug where "High complexity" code could still receive a Grade A
-A migration-roadmap bug where files were bucketed into the wrong risk phase due to a string-matching error
-A GitHub API rate-limiting issue that would have affected any user scanning multiple repositories
-
+- Silent "no risk found" results on unsupported languages, now replaced with honest "Not Analyzed" messages
+- A breaking Java migration bug (`Vector→ArrayList` conversion without converting the associated method calls)
+- Cross-feature inconsistencies (e.g. a security-flagged file scoring "0% risk")
+- False positives from comment text being parsed as code
 
 We treat "it returns 200 OK" and "the business logic is actually correct" as two different bars — and verify against the second one.
 
+---
 
-Honest Status & Roadmap
+## Honest Status & Roadmap
 
-StarBuild today is a working prototype with 48+ features, built by a solo developer with an advisor and marketing collaborator. It is a strong assessment, audit, and governance tool, not yet a certified banking-grade platform.
+StarBuild today is a **working prototype with 59+ features**, built by a solo developer with a technical advisor and marketing collaborator. It is a strong **assessment, audit, and governance** tool, not yet a certified banking-grade platform.
 
-Known limitations (stated honestly):
+**Known limitations (stated honestly):**
+- The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox.
+- The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup.
+- PHP and COBOL support exists but has not yet received the same depth of testing as Python and Java.
 
+**Roadmap:**
+- SOC 2 certification & independent security audit
+- Fully isolated Docker-based sandbox execution
+- GitHub App integration for automated pull request generation
+- Extend the same multi-language rigor (method detection, comment-awareness) to PHP and COBOL
+- Characterization testing (before/after behavioral comparison)
+- Codebase history intelligence via GitHub API (commit/author/change-frequency analysis)
 
-The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox. Use only with trusted, already-migrated code.
-Approval-log and dashboard data is currently stored in-memory/file-based and resets on server restart. Persistent database storage (PostgreSQL) is required before this can serve as a real audit trail — this is a concrete, fundable infrastructure gap.
-The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup.
+---
 
-
-Roadmap:
-
-
-Persistent database for audit-trail data (PostgreSQL)
-SOC 2 certification & independent security audit
-On-premise / private cloud deployment with RBAC and full audit trails
-Fully isolated Docker-based sandbox execution
-GitHub App integration for automated pull request generation
-
-
-We believe honesty is a strength: banks value accuracy, explainability, and auditability — and StarBuild already delivers early, verified versions of all three. Every scan includes a disclaimer, and no result is presented as a certified guarantee.
-
-
-Disclaimer
+## Disclaimer
 
 StarBuild's analyses are automated aids for planning and review. They are pattern-based and may include false positives. Always confirm findings with a qualified security review, compliance officer, and domain experts before making migration decisions.
 
+---
 
-StarBuild — Predictable, AST-verified, audit-ready legacy migration
+*StarBuild — Predictable, AST-verified, audit-ready legacy migration.*
