@@ -2676,15 +2676,24 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)}
 
+_LAST_DB_ERROR = ""
 def _get_db_connection():
+    global _LAST_DB_ERROR
     import psycopg2 as _pg
     db_url = os.environ.get("DATABASE_URL", "")
     if not db_url:
+        _LAST_DB_ERROR = "DATABASE_URL not set"
         return None
     try:
         return _pg.connect(db_url)
-    except Exception:
+    except Exception as e:
+        _LAST_DB_ERROR = str(e)
         return None
+
+@app.get("/db-debug")
+async def db_debug_endpoint():
+    conn = _get_db_connection()
+    return {"connected": conn is not None, "last_error": _LAST_DB_ERROR}
 
 def save_approval_decision(filename, decision, reviewer_notes, action_type):
     import json as _json
@@ -3190,6 +3199,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

@@ -1,0 +1,12 @@
+﻿def _get_db_connection():
+    import psycopg2 as _pg
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return None
+    try:
+        return _pg.connect(db_url)
+    except Exception:
+        return None
+
+def save_approval_decision(filename, decision, reviewer_notes, action_type):
+    import json as _json
