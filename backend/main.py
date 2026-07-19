@@ -2918,6 +2918,8 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
         return {"filename": file.filename, "error": "Platform compatibility check failed safely: " + str(e)}
 
 def calculate_dependency_portability(source, filename):
+    if not filename.lower().endswith(".py"):
+        return {"portability_score": None, "portability_level": "Not Analyzed", "dependency_issues": [], "portability_summary": "Dependency portability analysis currently only supports Python. This file was not analyzed - do not interpret this as fully portable.", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. Not yet available for this language."}
     deps_found = check_dependencies(source)
     import re as _dp
     if _dp.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
@@ -3077,6 +3079,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
