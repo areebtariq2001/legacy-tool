@@ -2029,7 +2029,8 @@ def analyze_vendor_lockin(source, filename):
 def answer_code_question(source, question, filename):
     prompt = ("You are a senior developer helping someone understand a legacy codebase. "
               "Based ONLY on the code below, answer the question clearly and concisely in plain English. "
-              "If the code does not contain enough information to answer, say so honestly.\n\n"
+              "If the code does not contain enough information to answer, say so honestly. "
+              "IMPORTANT: Only describe functionality that is ACTUALLY implemented in the code. Do not infer behavior from function/variable names alone (e.g. a function named 'log' or 'buildLog' that only returns a string, without any file-write or logging-library call, does NOT have a real logging mechanism - describe only what the code literally does).\n\n"
               "CODE:\n" + source[:6000] + "\n\n"
               "QUESTION: " + question + "\n\n"
               "ANSWER:")
@@ -3201,6 +3202,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

@@ -1,0 +1,6 @@
+﻿def answer_code_question(source, question, filename):
+    prompt = ("You are a senior developer helping someone understand a legacy codebase. "
+              "Based ONLY on the code below, answer the question clearly and concisely in plain English. "
+              "If the code does not contain enough information to answer, say so honestly.\n\n"
+              "CODE:\n" + source[:6000] + "\n\n"
+              "QUESTION: " + question + "\n\n"
