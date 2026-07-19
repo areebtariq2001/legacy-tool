@@ -2674,10 +2674,35 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)}
 
+def _get_db_connection():
+    import psycopg2 as _pg
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return None
+    try:
+        return _pg.connect(db_url)
+    except Exception:
+        return None
+
 def save_approval_decision(filename, decision, reviewer_notes, action_type):
     import json as _json
     import datetime as _dt
     entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": _dt.datetime.now().isoformat()}
+    conn = _get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
+            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp) VALUES (%s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"]))
+            conn.commit()
+            cur.close()
+            conn.close()
+            entry["log_saved"] = True
+            return entry
+        except Exception as e:
+            entry["log_saved"] = False
+            entry["log_error"] = "DB error: " + str(e)
+            return entry
     log_file = "approval_log.json"
     try:
         try:
@@ -2695,12 +2720,24 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type):
     return entry
 
 def get_approval_history():
+    conn = _get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp FROM approval_log ORDER BY id DESC")
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4]} for r in rows]
+        except Exception:
+            pass
     import json as _json
     try:
         with open("approval_log.json", "r") as f:
             return _json.load(f)
     except (FileNotFoundError, _json.JSONDecodeError):
         return []
+
 
 @app.post("/save-approval")
 async def save_approval_endpoint(filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
