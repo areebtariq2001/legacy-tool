@@ -1,0 +1,14 @@
+﻿def ai_advanced_migrate(source, language):
+    code_lines = [ln for ln in source.split("\n") if ln.strip() and not ln.strip().startswith("#")]
+    if not code_lines:
+        if language == "python":
+            return {
+                "migrated_code": source, "ai_powered": True, "valid": True,
+                "validation_message": "File has no executable code (empty or comments only).",
+                "verified": True, "verify_message": "Nothing to verify - no executable code.",
+                "vars_ok": True, "var_message": "", "confidence_score": 100,
+                "confidence_level": "High confidence", "confidence_reason": "no executable code to migrate",
+                "why_explanations": [], "dependencies": []
+            }
+        else:
+            return {"migrated_code": source, "ai_powered": True,

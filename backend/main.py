@@ -605,6 +605,7 @@ def ai_advanced_migrate(source, language):
         f"Do NOT rename any variables, functions, or classes. "
         f"Do NOT add or remove comments. Do NOT change formatting, logic, or style. "
         f"Keep everything exactly the same except the required fixes. "
+        f"CRITICAL: Do NOT replace hardcoded literal values (strings, numbers) with new variable names (e.g. do NOT change $db_host = \x27localhost\x27 into using an undefined $config['db_host'] or similar) unless that variable is already defined elsewhere in the same file. Any variable you reference in the output MUST already exist in the original code or be defined by you in the same file - never introduce an undefined variable. "
         f"Return ONLY the converted code, no explanations, no markdown.\n\n"
         f"Legacy code:\n{source}"
     )
@@ -3227,6 +3228,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
