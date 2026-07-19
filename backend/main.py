@@ -2844,10 +2844,10 @@ def detect_code_smells(source, filename):
     line_counts = {}
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if len(stripped) > 15 and not stripped.startswith("#"):
+        if len(stripped) > 15 and not stripped.startswith(("#", "//", "*")):
             line_counts.setdefault(stripped, []).append(i+1)
     for text, occurrences in line_counts.items():
-        if len(occurrences) >= 3:
+        if len(occurrences) >= 2:
             smells.append({"type": "Duplicate Code", "location": "Lines " + ", ".join(str(o) for o in occurrences[:5]), "detail": "Same line repeated " + str(len(occurrences)) + " times - consider extracting into a shared function or constant.", "severity": "Low"})
     high_count = len([s for s in smells if s["severity"] == "High"])
     return {"total_smells": len(smells), "code_smells": smells, "smell_summary": (str(len(smells)) + " code smell(s) detected") if smells else "No significant code smells detected", "smell_disclaimer": "Heuristic pattern-based detection of common code smells (long functions, deep nesting, duplicate lines). Not a substitute for a full code review."}
@@ -3077,6 +3077,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
