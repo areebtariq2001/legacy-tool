@@ -1993,6 +1993,8 @@ def scan_sql_injection(source, filename):
     lines = source.split(chr(10))
     issues = []
     checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk")]
+    if filename.lower().endswith(".php"):
+        checks += [("SELECT", " . ", "SQL SELECT built with . (PHP) concatenation - injection risk"), ("INSERT", " . ", "SQL INSERT built with . (PHP) concatenation - injection risk"), ("UPDATE", " . ", "SQL UPDATE built with . (PHP) concatenation - injection risk"), ("DELETE", " . ", "SQL DELETE built with . (PHP) concatenation - injection risk"), ("WHERE", " . ", "SQL WHERE clause built with . (PHP) concatenation - injection risk")]
     for i, line in enumerate(lines):
         up = line.upper()
         for kw, danger, msg in checks:
@@ -3231,6 +3233,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
