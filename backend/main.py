@@ -940,7 +940,7 @@ def migrate_cobol(source):
 
 # ---------- AI ----------
 def ai_suggest(source, language):
-    prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}:\n\n{source}"
+    prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}. IMPORTANT: Only reference real, standard library classes and methods that actually exist (e.g. for Java, use real java.security/javax.crypto classes like SecretKeyFactory, PBEKeySpec, SecretKey - do NOT invent class names). If suggesting code snippets, use only APIs you are certain exist and have the correct method signatures. Double-check class and method names before including them:\n\n{source}"
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
@@ -3202,6 +3202,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
