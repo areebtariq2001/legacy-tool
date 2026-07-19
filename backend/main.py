@@ -2633,6 +2633,8 @@ async def github_webhook_endpoint(payload: dict):
         return {"error": "Webhook endpoint failed safely: " + str(e)}
 
 def run_sandboxed_migration_test(migrated_code, filename):
+    if not filename.lower().endswith(".py"):
+        return {"sandbox_status": "Not Supported", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandbox execution testing currently only supports Python files. This file was not run - do not interpret this as a pass or fail."}
     import subprocess as _sp
     import tempfile as _tf
     import os as _os
@@ -3188,6 +3190,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
