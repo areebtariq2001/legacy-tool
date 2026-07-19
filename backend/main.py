@@ -962,7 +962,7 @@ def ai_explain(source, language):
     return {"explanation": result}
 
 def ai_generate_tests(source, language):
-    prompt = f"You are a test engineer. Write unit tests for this {language} code. IMPORTANT: Base every assertion on the ACTUAL behavior of the code - if a function returns a fixed/deterministic value (like a hash), assert the exact expected value or use assertEqual, not assertNotEqual, unless the code genuinely produces different output each time. Double-check each assertion is logically correct before including it. NEVER call the function-under-test to compute its own expected value (e.g. do not write assertEqual(my_func(x), my_func(x)) or create an alias like expected_my_func = my_func) - this creates a meaningless test that always passes. Instead, compute or hardcode the actual expected value directly (e.g. the literal hash string, or the literal computed result). Provide only the test code with brief comments:\n\n{source}"
+    prompt = f"You are a test engineer. Write unit tests for this {language} code. IMPORTANT: Base every assertion on the ACTUAL behavior of the code - if a function returns a fixed/deterministic value (like a hash), assert the exact expected value or use assertEqual, not assertNotEqual, unless the code genuinely produces different output each time. Double-check each assertion is logically correct before including it. NEVER call the function-under-test to compute its own expected value (e.g. do not write assertEqual(my_func(x), my_func(x)) or create an alias like expected_my_func = my_func) - this creates a meaningless test that always passes. Instead, compute or hardcode the actual expected value directly (e.g. the literal hash string, or the literal computed result). CRITICAL for correctness: (1) If a method returns a byte array and the code calls .toString() on it, do NOT expect a hex string - Java toString() on byte[] gives an object reference, not hex, so either flag this as a likely bug in the original code, or test that the result is non-null rather than asserting a specific string. (2) Include ALL necessary imports the test file needs to compile (e.g. java.sql.Connection, DriverManager, Statement, SQLException, etc if the code under test uses them). (3) NEVER assert exact equality between two independently-created current-time/Date/timestamp objects - they will differ by milliseconds; instead assert the value is not null or within a reasonable time range. Provide only the test code with brief comments:\n\n{source}"
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
@@ -3202,6 +3202,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

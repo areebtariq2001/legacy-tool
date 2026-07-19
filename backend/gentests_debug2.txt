@@ -1,0 +1,5 @@
+﻿def ai_generate_tests(source, language):
+    prompt = f"You are a test engineer. Write unit tests for this {language} code. IMPORTANT: Base every assertion on the ACTUAL behavior of the code - if a function returns a fixed/deterministic value (like a hash), assert the exact expected value or use assertEqual, not assertNotEqual, unless the code genuinely produces different output each time. Double-check each assertion is logically correct before including it. NEVER call the function-under-test to compute its own expected value (e.g. do not write assertEqual(my_func(x), my_func(x)) or create an alias like expected_my_func = my_func) - this creates a meaningless test that always passes. Instead, compute or hardcode the actual expected value directly (e.g. the literal hash string, or the literal computed result). Provide only the test code with brief comments:\n\n{source}"
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
