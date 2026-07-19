@@ -244,6 +244,8 @@ def calculate_tech_debt(source):
             debt_score = 25
         elif _comp["complexity_level"] == "Moderate complexity" and debt_score < 15:
             debt_score = 15
+        if _comp["complexity_level"] in ["High complexity", "Very high complexity", "Moderate complexity"] and total_minutes < 60:
+            total_minutes = max(total_minutes, 60)
     except Exception:
         pass
     if debt_score == 0:
@@ -3117,9 +3119,25 @@ async def recommend_strategy_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Strategy recommendation failed safely: " + str(e)}
 
+def calculate_migration_roi(source, filename):
+    cost = estimate_migration_cost(source, filename)
+    debt = calculate_tech_debt(source)
+    cost_hours = cost.get("cost_hours", 0)
+    hourly_rate = 50
+    migration_cost = round(cost_hours * hourly_rate, 2)
+    debt_hours = debt.get("estimated_hours", 0)
+    annual_maintenance_cost = round(debt_hours * hourly_rate * 2, 2)
+    rebuild_cost = round(migration_cost * 2.5, 2)
+    status_quo_3yr = round(annual_maintenance_cost * 3, 2)
+    migration_3yr_total = round(migration_cost + (annual_maintenance_cost * 0.3 * 3), 2)
+    savings_vs_status_quo = round(status_quo_3yr - migration_3yr_total, 2)
+    breakeven_months = round((migration_cost / (annual_maintenance_cost * 0.7 / 12)), 1) if annual_maintenance_cost > 0 else None
+    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_vs_status_quo, "breakeven_months": breakeven_months, "roi_summary": "Migration (~$" + str(migration_cost) + ") vs 3-year status-quo maintenance (~$" + str(status_quo_3yr) + ") - estimated savings: $" + str(savings_vs_status_quo), "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr) and generic multipliers. Replace with your actual team cost and maintenance history for an accurate figure. A planning aid, not a financial guarantee."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
