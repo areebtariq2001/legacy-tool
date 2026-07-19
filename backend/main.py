@@ -1921,12 +1921,14 @@ def detect_tech_stack(source, filename):
     import re as _re11
     imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
     imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
-    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose"}}
+    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid","spring":"Spring"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis","sql":"JDBC/SQL"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp","net":"Java Networking"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL","security":"Java Security (MessageDigest/Crypto)"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose","junit":"JUnit"}, "Collections": {"util":"Java Collections/Util"}}
     detected = []
     for cat, libs in categories.items():
-        for imp in imports:
-            if imp.lower() in libs:
-                detected.append({"category": cat, "technology": libs[imp.lower()], "import": imp})
+        for imp_full in (imports if not filename.lower().endswith(".java") else _re11.findall(r"(?:^|\n)\s*import\s+([\w\.\*]+);", source)):
+            imp_parts = imp_full.lower().split(".")
+            match = next((p for p in imp_parts if p in libs), None)
+            if match:
+                detected.append({"category": cat, "technology": libs[match], "import": imp_full})
     stdlib = [i for i in imports if i.lower() in ["os","sys","re","json","datetime","time","math","random","collections","itertools","logging"]]
     return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": (str(len(detected)) + " notable technolog(ies) detected") if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
 
@@ -3199,6 +3201,8 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 

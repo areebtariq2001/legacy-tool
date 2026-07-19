@@ -1,0 +1,20 @@
+﻿def detect_tech_stack(source, filename):
+    import re as _re11
+    imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
+    imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
+    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose"}}
+    detected = []
+    for cat, libs in categories.items():
+        for imp in imports:
+            if imp.lower() in libs:
+                detected.append({"category": cat, "technology": libs[imp.lower()], "import": imp})
+    stdlib = [i for i in imports if i.lower() in ["os","sys","re","json","datetime","time","math","random","collections","itertools","logging"]]
+    return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": (str(len(detected)) + " notable technolog(ies) detected") if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
+
+def estimate_migration_cost(source, filename):
+    import re as _re10
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    loc = len(lines)
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
