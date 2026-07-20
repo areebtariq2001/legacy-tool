@@ -269,6 +269,7 @@ Launch Tool Free
 function App(){
 const[view,setView]=useState("landing");
 const[files,setFiles]=useState([]);
+const[snapshotFile2,setSnapshotFile2]=useState(null);
 const[results,setResults]=useState([]);
 const[loading,setLoading]=useState(false);
 const[mode,setMode]=useState("analyze");
@@ -315,7 +316,8 @@ for(let i=0;i<files.length;i++){
 let originalCode="";
 try{originalCode=await files[i].text();}catch(e){originalCode="";}
 const formData=new FormData();
-formData.append("file",files[i]);
+if(mode==="snapshot"){formData.append("original_file",files[i]);if(snapshotFile2)formData.append("migrated_file",snapshotFile2);}
+else formData.append("file",files[i]);
 if(mode==="regframework")formData.append("framework",regFramework);
 if(mode==="codeqa")formData.append("question",codeQuestion);
 let endpoint="/analyze";
@@ -365,6 +367,7 @@ else if(mode==="readiness"){endpoint="/rearchitecture-readiness";}
 else if(mode==="boundaries"){endpoint="/service-boundaries";}
 else if(mode==="strategy"){endpoint="/recommend-strategy";}
 else if(mode==="roi"){endpoint="/migration-roi";}
+else if(mode==="snapshot"){endpoint="/behavior-snapshot";}
 else if(language==="python"){endpoint=mode==="analyze"?"/analyze":"/migrate";}
 else if(language==="java"){endpoint=mode==="analyze"?"/analyze-java":"/migrate-java";}
 else if(language==="php"){endpoint=mode==="analyze"?"/analyze-php":"/migrate-php";}
@@ -600,7 +603,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["regframework","Reg Framework","#dc2626"],["codeqa","Ask Codebase","#059669"],["sandbox","Sandbox Test","#ea580c"],["quality","Code Quality","#0d9488"],["smells","Code Smells","#a855f7"],["refactor","Refactor Tips","#059669"],["platform","Platform Check","#0891b2"],["portability","Dependency Portability","#7c3aed"],["config","Config Migration","#0891b2"],["readiness","Rearch Readiness","#8b5cf6"],["boundaries","Service Boundaries","#f59e0b"],["strategy","Migration Strategy","#dc2626"],["roi","ROI Calculator","#16a34a"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["regframework","Reg Framework","#dc2626"],["codeqa","Ask Codebase","#059669"],["sandbox","Sandbox Test","#ea580c"],["quality","Code Quality","#0d9488"],["smells","Code Smells","#a855f7"],["refactor","Refactor Tips","#059669"],["platform","Platform Check","#0891b2"],["portability","Dependency Portability","#7c3aed"],["config","Config Migration","#0891b2"],["readiness","Rearch Readiness","#8b5cf6"],["boundaries","Service Boundaries","#f59e0b"],["strategy","Migration Strategy","#dc2626"],["roi","ROI Calculator","#16a34a"],["snapshot","Behavior Snapshot","#0284c7"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -678,6 +681,7 @@ Home
 )}
 <div style={{border:"2px dashed "+border,borderRadius:"8px",padding:"20px",textAlign:"center",marginBottom:"16px"}}>
 <input type="file" multiple accept=".py,.java,.php,.cbl" onChange={e=>setFiles(Array.from(e.target.files))} id="fileInput" style={{display:"none"}}/>
+{mode==="snapshot"&&<div style={{marginTop:"10px"}}><input type="file" accept=".py" onChange={e=>setSnapshotFile2(e.target.files[0])} id="snapshotInput2" style={{display:"none"}}/><label htmlFor="snapshotInput2" style={{cursor:"pointer",color:"#0284c7",fontSize:"13px"}}>{snapshotFile2?"Migrated file: "+snapshotFile2.name:"Click to select the MIGRATED version (first file above = original)"}</label></div>}
 <label htmlFor="fileInput" style={{cursor:"pointer",color:"#38bdf8"}}>
 Click to select files (multiple allowed)
 </label>
@@ -709,7 +713,7 @@ Click to select files (multiple allowed)
 </div>
 )}
 <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:"8px",border:"none",background:loading?"#334155":"#38bdf8",color:loading?"#94a3b8":"#0a0e1a",fontWeight:"700",cursor:"pointer",fontSize:"14px",boxShadow:loading?"none":"0 8px 20px rgba(56,189,248,0.25)"}}>
-{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="architecture"?"Generate Architecture":mode==="bizrules"?"Extract Business Rules":mode==="execreport"?"Generate Executive Report":mode==="impact"?"Analyze Impact":mode==="txnflow"?"Map Transaction Flow":mode==="rollback"?"Generate Rollback Plan":mode==="rulesengine"?"Discover Business Rules":mode==="sqli"?"Scan SQL Injection":mode==="pii"?"Detect PII / Secrets":mode==="cost"?"Estimate Migration Cost":mode==="techstack"?"Detect Tech Stack":mode==="keyaudit"?"Audit Key Management":mode==="fraud"?"Check Fraud Controls":mode==="regional"?"Map Regional Compliance":mode==="vendorrisk"?"Check Vendor Lock-in":mode==="zerotrust"?"Score Zero-Trust Readiness":mode==="regframework"?"Check Regulatory Framework":mode==="codeqa"?"Ask About This Code":mode==="sandbox"?"Run Sandbox Test":mode==="quality"?"Check Code Quality":mode==="smells"?"Detect Code Smells":mode==="refactor"?"Get Refactoring Suggestions":mode==="platform"?"Check Platform Compatibility":mode==="portability"?"Check Dependency Portability":mode==="config"?"Check Config Migration":mode==="readiness"?"Assess Re-architecture Readiness":mode==="boundaries"?"Detect Service Boundaries":mode==="strategy"?"Recommend Migration Strategy":mode==="roi"?"Calculate ROI":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
+{loading?`Processing ${results.length}/${files.length} files...`:mode==="analyze"?"Analyze Files":mode==="migrate"?"Migrate Files":mode==="aimigrate"?"AI Migrate (Full)":mode==="callgraph"?"Analyze Call Graph":mode==="risk"?"Run Risk Assessment":mode==="debt"?"Calculate Tech Debt":mode==="docs"?"Generate Documentation":mode==="scan"?"Run Data Scan":mode==="banking"?"Run Banking Scan":mode==="crypto"?"Run Crypto Scan":mode==="amlkyc"?"Run AML/KYC Scan":mode==="ainative"?"Check AI-Native Readiness":mode==="migrisk"?"Predict Migration Risk":mode==="cicd"?"Get CI/CD Recommendations":mode==="dbschema"?"Analyze DB Schema":mode==="apimap"?"Map API Dependencies":mode==="architecture"?"Generate Architecture":mode==="bizrules"?"Extract Business Rules":mode==="execreport"?"Generate Executive Report":mode==="impact"?"Analyze Impact":mode==="txnflow"?"Map Transaction Flow":mode==="rollback"?"Generate Rollback Plan":mode==="rulesengine"?"Discover Business Rules":mode==="sqli"?"Scan SQL Injection":mode==="pii"?"Detect PII / Secrets":mode==="cost"?"Estimate Migration Cost":mode==="techstack"?"Detect Tech Stack":mode==="keyaudit"?"Audit Key Management":mode==="fraud"?"Check Fraud Controls":mode==="regional"?"Map Regional Compliance":mode==="vendorrisk"?"Check Vendor Lock-in":mode==="zerotrust"?"Score Zero-Trust Readiness":mode==="regframework"?"Check Regulatory Framework":mode==="codeqa"?"Ask About This Code":mode==="sandbox"?"Run Sandbox Test":mode==="quality"?"Check Code Quality":mode==="smells"?"Detect Code Smells":mode==="refactor"?"Get Refactoring Suggestions":mode==="platform"?"Check Platform Compatibility":mode==="portability"?"Check Dependency Portability":mode==="config"?"Check Config Migration":mode==="readiness"?"Assess Re-architecture Readiness":mode==="boundaries"?"Detect Service Boundaries":mode==="strategy"?"Recommend Migration Strategy":mode==="roi"?"Calculate ROI":mode==="snapshot"?"Compare Behavior":mode==="ai"?"Get AI Suggestions":mode==="explain"?"Explain Code":"Generate Tests"}
 </button>
 </div>
 {results.length>0&&(
@@ -848,6 +852,14 @@ Download Summary PDF
 <div style={{marginBottom:"12px",padding:"14px",borderRadius:"10px",background:"rgba(8,145,178,0.08)",border:"1px solid #0891b2"}}><div style={{fontSize:"32px",fontWeight:"800",color:result.zt_score>=80?"#4ade80":result.zt_score>=50?"#f59e0b":"#f87171"}}>{result.zt_score}/100</div><div style={{color:"#0891b2",fontWeight:"700",fontSize:"14px",marginTop:"4px"}}>Zero-Trust Readiness - {result.zt_level}</div></div>
 {result.zt_checks&&result.zt_checks.map((zc,zci)=>(<div key={zci} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:codebg,borderRadius:"8px",padding:"8px 12px",marginBottom:"5px"}}><span style={{color:text,fontSize:"12px"}}>{zc.check}</span><span style={{color:zc.passed?"#4ade80":"#f87171",fontSize:"12px",fontWeight:"700"}}>{zc.passed?"Present":"Missing"}</span></div>))}
 <p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.zt_disclaimer}</p>
+</div>
+)}
+{result.snapshot_status!==undefined&&mode==="snapshot"&&(
+<div style={{marginTop:"4px"}}>
+<div style={{marginBottom:"12px",padding:"14px",borderRadius:"10px",background:"rgba(2,132,199,0.08)",border:"1px solid #0284c7"}}><div style={{fontSize:"16px",fontWeight:"800",color:result.match===true?"#4ade80":result.match===false?"#f87171":"#f59e0b"}}>{result.verdict}</div></div>
+{result.original_run&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><span style={{color:"#0284c7",fontSize:"12px",fontWeight:"700"}}>Original Output:</span><pre style={{color:text,fontSize:"12px",whiteSpace:"pre-wrap",margin:"4px 0 0 0"}}>{result.original_run.output||result.original_run.error||"(no output)"}</pre></div>}
+{result.migrated_run&&<div style={{background:codebg,borderRadius:"8px",padding:"10px",marginBottom:"6px"}}><span style={{color:"#0284c7",fontSize:"12px",fontWeight:"700"}}>Migrated Output:</span><pre style={{color:text,fontSize:"12px",whiteSpace:"pre-wrap",margin:"4px 0 0 0"}}>{result.migrated_run.output||result.migrated_run.error||"(no output)"}</pre></div>}
+<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{result.snapshot_disclaimer}</p>
 </div>
 )}
 {result.migration_cost_usd!==undefined&&mode==="roi"&&(
@@ -1295,6 +1307,13 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
+
+
+
 
 
 
