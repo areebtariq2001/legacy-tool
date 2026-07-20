@@ -1,0 +1,30 @@
+﻿def run_sandboxed_migration_test(migrated_code, filename):
+    if not filename.lower().endswith(".py"):
+        return {"sandbox_status": "Not Supported", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandbox execution testing currently only supports Python files. This file was not run - do not interpret this as a pass or fail."}
+    import subprocess as _sp
+    import tempfile as _tf
+    import os as _os
+    try:
+        with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(migrated_code)
+            tmp_path = tmp.name
+        try:
+            result = _sp.run(["python3", tmp_path], timeout=8, capture_output=True, text=True)
+            status = "Ran successfully" if result.returncode == 0 else "Ran with errors"
+            output = (result.stdout or "")[:1000]
+            err = (result.stderr or "")[:1000]
+        except _sp.TimeoutExpired:
+            status = "Timeout - execution took longer than 8 seconds"
+            output = ""
+            err = "Execution exceeded time limit"
+        finally:
+            try:
+                _os.remove(tmp_path)
+            except Exception:
+                pass
+        return {"sandbox_status": status, "sandbox_output": output, "sandbox_error": err, "sandbox_disclaimer": "This is a lightweight, resource-limited test run on the server, not a fully isolated Docker sandbox. Network and filesystem isolation are not yet in place. Use only with trusted, already-migrated code. A fully isolated sandbox is on the roadmap."}
+    except Exception as e:
+        return {"sandbox_status": "Sandbox test failed safely", "sandbox_error": str(e), "sandbox_output": "", "sandbox_disclaimer": "Lightweight sandbox test - full isolation planned for a future release."}
+
+@app.post("/sandbox-test")
+async def sandbox_test_endpoint(file: UploadFile = File(...)):

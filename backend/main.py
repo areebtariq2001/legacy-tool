@@ -3238,6 +3238,57 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "ROI calculation failed safely: " + str(e)}
 
+def _run_single_sandbox(code, timeout_s=8):
+    import subprocess as _sp2
+    import tempfile as _tf2
+    import os as _os2
+    try:
+        with _tf2.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(code)
+            tmp_path = tmp.name
+        try:
+            result = _sp2.run(["python3", tmp_path], timeout=timeout_s, capture_output=True, text=True)
+            return {"returncode": result.returncode, "stdout": (result.stdout or "")[:1000], "stderr": (result.stderr or "")[:1000], "timed_out": False}
+        except _sp2.TimeoutExpired:
+            return {"returncode": None, "stdout": "", "stderr": "Execution exceeded time limit", "timed_out": True}
+        finally:
+            try:
+                _os2.remove(tmp_path)
+            except Exception:
+                pass
+    except Exception as e:
+        return {"returncode": None, "stdout": "", "stderr": str(e), "timed_out": False}
+def generate_behavior_snapshot(original_code, migrated_code, filename):
+    if not filename.lower().endswith(".py"):
+        return {"snapshot_status": "Not Supported", "match": None, "snapshot_disclaimer": "Characterization testing currently only supports Python files. This comparison was not run."}
+    original_result = _run_single_sandbox(original_code)
+    migrated_result = _run_single_sandbox(migrated_code)
+    outputs_match = (original_result["stdout"] == migrated_result["stdout"])
+    both_ran_ok = (original_result["returncode"] == 0 and migrated_result["returncode"] == 0)
+    if not both_ran_ok:
+        verdict = "Could not compare - one or both versions failed to run"
+    elif outputs_match:
+        verdict = "Behavior matches - same output produced"
+    else:
+        verdict = "Behavior differs - outputs are NOT identical, review required"
+    return {"snapshot_status": "Compared", "match": outputs_match if both_ran_ok else None, "verdict": verdict, "original_run": {"ran_ok": original_result["returncode"] == 0, "output": original_result["stdout"], "error": original_result["stderr"]}, "migrated_run": {"ran_ok": migrated_result["returncode"] == 0, "output": migrated_result["stdout"], "error": migrated_result["stderr"]}, "snapshot_disclaimer": "Runs both versions with no input arguments in a lightweight, resource-limited sandbox (not fully isolated Docker) and compares their printed output. Functions requiring input or side effects (files, network, DB) are not captured. A starting signal, not a full behavioral guarantee."}
+
+@app.post("/behavior-snapshot")
+async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migrated_file: UploadFile = File(...)):
+    try:
+        orig_content = await original_file.read()
+        mig_content = await migrated_file.read()
+        original_source, error1 = safe_read_file(orig_content, original_file.filename)
+        migrated_source, error2 = safe_read_file(mig_content, migrated_file.filename)
+        if error1 or error2:
+            return {"filename": original_file.filename, "error": error1 or error2}
+        result = generate_behavior_snapshot(original_source, migrated_source, original_file.filename)
+        result["filename"] = original_file.filename
+        track_usage("behavior-snapshot", original_file.filename)
+        return result
+    except Exception as e:
+        return {"filename": original_file.filename, "error": "Behavior snapshot comparison failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
