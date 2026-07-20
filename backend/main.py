@@ -3348,6 +3348,20 @@ def generate_strangler_fig_wrapper(source, filename):
     wrapper_code = chr(10).join(wrapper_lines)
     return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "strangler_summary": "Generated a facade wrapping " + str(len(funcs)) + " function(s) - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
 
+@app.post("/strangler-fig")
+async def strangler_fig_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_strangler_fig_wrapper(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("strangler-fig", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Strangler fig wrapper generation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
