@@ -3362,6 +3362,43 @@ async def strangler_fig_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Strangler fig wrapper generation failed safely: " + str(e)}
 
+def get_codebase_history(repo_url, file_path=""):
+    import re as _hre
+    m = _hre.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
+    if not m:
+        return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
+    owner, repo = m.group(1), m.group(2)
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+    try:
+        commits_url = "https://api.github.com/repos/" + owner + "/" + repo + "/commits"
+        params = {"per_page": 20}
+        if file_path:
+            params["path"] = file_path
+        r = requests.get(commits_url, headers=gh_headers, params=params, timeout=20)
+        if r.status_code != 200:
+            return {"error": "Could not access commit history (status " + str(r.status_code) + "). Make sure the repo is public."}
+        commits = r.json()
+    except Exception as e:
+        return {"error": "GitHub history lookup failed: " + str(e)}
+    if not commits:
+        return {"has_history": False, "history_summary": "No commit history found" + (" for this file" if file_path else "") + ".", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository. Limited to the 20 most recent commits."}
+    authors = {}
+    dates = []
+    recent_messages = []
+    for c in commits:
+        author_name = (c.get("commit", {}).get("author", {}) or {}).get("name", "Unknown")
+        authors[author_name] = authors.get(author_name, 0) + 1
+        date = (c.get("commit", {}).get("author", {}) or {}).get("date", "")
+        if date: dates.append(date)
+        msg = (c.get("commit", {}).get("message", "") or "").split(chr(10))[0][:100]
+        recent_messages.append({"message": msg, "author": author_name, "date": date})
+    top_authors = sorted(authors.items(), key=lambda x: -x[1])[:5]
+    last_modified = dates[0] if dates else "Unknown"
+    change_frequency = "High" if len(commits) >= 15 else "Medium" if len(commits) >= 5 else "Low"
+    hotspot_note = "This file has changed frequently (" + str(len(commits)) + " commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
+    return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": str(len(commits)) + " commit(s) found" + (" for this file" if file_path else " for this repo") + " - " + change_frequency + " change frequency, " + str(len(authors)) + " author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
