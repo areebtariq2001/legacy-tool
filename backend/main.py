@@ -3399,6 +3399,17 @@ def get_codebase_history(repo_url, file_path=""):
     hotspot_note = "This file has changed frequently (" + str(len(commits)) + " commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
     return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": str(len(commits)) + " commit(s) found" + (" for this file" if file_path else " for this repo") + " - " + change_frequency + " change frequency, " + str(len(authors)) + " author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
 
+@app.post("/codebase-history")
+async def codebase_history_endpoint(payload: dict):
+    try:
+        repo_url = payload.get("repo_url", "")
+        file_path = payload.get("file_path", "")
+        result = get_codebase_history(repo_url, file_path)
+        track_usage("codebase-history", repo_url)
+        return result
+    except Exception as e:
+        return {"error": "Codebase history lookup failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
