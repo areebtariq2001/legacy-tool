@@ -3289,6 +3289,65 @@ async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migr
     except Exception as e:
         return {"filename": original_file.filename, "error": "Behavior snapshot comparison failed safely: " + str(e)}
 
+def generate_strangler_fig_wrapper(source, filename):
+    if filename.lower().endswith(".py"):
+        funcs = _re.findall(r"def\s+(\w+)\s*\(", source) if False else []
+        import re as _sfre
+        funcs = _sfre.findall(r"^def\s+(\w+)\s*\(", source, _sfre.MULTILINE)
+    elif filename.lower().endswith(".java"):
+        import re as _sfre
+        funcs = _sfre.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+    elif filename.lower().endswith(".php"):
+        import re as _sfre
+        funcs = _sfre.findall(r"function\s+(\w+)\s*\(", source)
+    else:
+        funcs = []
+    funcs = list(dict.fromkeys(funcs))[:15]
+    class_name = filename.split(".")[0].replace("-", "_").replace(" ", "_")
+    wrapper_lines = []
+    if filename.lower().endswith(".py"):
+        wrapper_lines.append("class " + class_name + "Facade:")
+        wrapper_lines.append("    \"\"\"Strangler Fig facade - routes calls to legacy or new implementation.\"\"\"")
+        wrapper_lines.append("    def __init__(self, use_new_impl=False):")
+        wrapper_lines.append("        self.use_new_impl = use_new_impl")
+        for fn in funcs:
+            wrapper_lines.append("")
+            wrapper_lines.append("    def " + fn + "(self, *args, **kwargs):")
+            wrapper_lines.append("        if self.use_new_impl:")
+            wrapper_lines.append("            # TODO: call new implementation of " + fn)
+            wrapper_lines.append("            raise NotImplementedError(\"New implementation not yet wired up\")")
+            wrapper_lines.append("        return " + fn + "(*args, **kwargs)  # delegates to legacy function")
+    elif filename.lower().endswith(".java"):
+        wrapper_lines.append("public class " + class_name + "Facade {")
+        wrapper_lines.append("    private boolean useNewImpl = false;")
+        for fn in funcs:
+            wrapper_lines.append("")
+            wrapper_lines.append("    public Object " + fn + "(Object... args) {")
+            wrapper_lines.append("        if (useNewImpl) {")
+            wrapper_lines.append("            // TODO: call new implementation of " + fn)
+            wrapper_lines.append("            throw new UnsupportedOperationException(\"New implementation not yet wired up\");")
+            wrapper_lines.append("        }")
+            wrapper_lines.append("        return legacy." + fn + "(args); // delegates to legacy")
+            wrapper_lines.append("    }")
+        wrapper_lines.append("}")
+    elif filename.lower().endswith(".php"):
+        wrapper_lines.append("class " + class_name + "Facade {")
+        wrapper_lines.append("    private $useNewImpl = false;")
+        for fn in funcs:
+            wrapper_lines.append("")
+            wrapper_lines.append("    function " + fn + "(...$args) {")
+            wrapper_lines.append("        if ($this->useNewImpl) {")
+            wrapper_lines.append("            // TODO: call new implementation of " + fn)
+            wrapper_lines.append("            throw new Exception(\"New implementation not yet wired up\");")
+            wrapper_lines.append("        }")
+            wrapper_lines.append("        return " + fn + "(...$args); // delegates to legacy")
+            wrapper_lines.append("        }")
+        wrapper_lines.append("}")
+    if not funcs:
+        return {"wrapper_generated": False, "wrapper_code": "", "functions_wrapped": [], "strangler_summary": "No functions found to wrap - nothing to generate a facade for.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
+    wrapper_code = chr(10).join(wrapper_lines)
+    return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "strangler_summary": "Generated a facade wrapping " + str(len(funcs)) + " function(s) - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
