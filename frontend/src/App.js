@@ -596,11 +596,6 @@ const fetchDashboard=async()=>{
     setShowDashboard(true);
   }catch(e){setDashboardData({error:"Could not load dashboard"});setShowDashboard(true);}
 };
-useEffect(()=>{
-  if(!showDashboard)return;
-  const interval=setInterval(fetchDashboard,10000);
-  return()=>clearInterval(interval);
-},[showDashboard]);
 const handleReset=()=>{ setFiles([]); setResults([]); setProgress(0); setCopied({}); setShowWhy({}); };
 const handleToggleOriginal=(idx)=>{ setRestored(prev=>({...prev,[idx]:!prev[idx]})); };
 const handleCopy=(idx,code)=>{
@@ -1334,7 +1329,7 @@ rightTitle="Migrated"
 <Footer darkMode={darkMode}/>
 {showDashboard&&<div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowDashboard(false)}>
 <div onClick={e=>e.stopPropagation()} style={{background:card,borderRadius:"12px",padding:"24px",maxWidth:"600px",width:"90%",maxHeight:"80vh",overflowY:"auto",border:"1px solid "+border}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}><h3 style={{color:"#0d9488",margin:0}}>Migration Registry Dashboard</h3><button onClick={()=>setShowDashboard(false)} style={{background:"transparent",border:"none",color:subtext,cursor:"pointer",fontSize:"20px"}}>&times;</button></div>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}><h3 style={{color:"#0d9488",margin:0}}>Migration Registry Dashboard</h3><div style={{display:"flex",gap:"10px",alignItems:"center"}}><button onClick={fetchDashboard} style={{background:"transparent",border:"1px solid #0d9488",color:"#0d9488",cursor:"pointer",fontSize:"12px",borderRadius:"6px",padding:"4px 10px"}}>Refresh Now</button><button onClick={()=>setShowDashboard(false)} style={{background:"transparent",border:"none",color:subtext,cursor:"pointer",fontSize:"20px"}}>&times;</button></div></div>
 {dashboardData&&!dashboardData.error&&<div>
 <p style={{color:text,fontSize:"14px",marginBottom:"12px"}}>{dashboardData.dashboard_summary}</p>
 <div style={{display:"flex",flexWrap:"wrap",gap:"10px",marginBottom:"16px"}}><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#4ade80"}}>{dashboardData.approved||0}</div><div style={{fontSize:"11px",color:subtext}}>Approved</div></div><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#f87171"}}>{dashboardData.rejected||0}</div><div style={{fontSize:"11px",color:subtext}}>Rejected</div></div><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#f59e0b"}}>{dashboardData.needs_modification||0}</div><div style={{fontSize:"11px",color:subtext}}>Needs Mod</div></div></div>
@@ -1350,6 +1345,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
