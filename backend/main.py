@@ -3453,7 +3453,9 @@ def generate_code_dna(source, filename):
     complexity_penalty = {"Low complexity": 90, "Moderate complexity": 65, "High complexity": 35, "Very high complexity": 10}
     simplicity_score = complexity_penalty.get(complexity.get("complexity_level", ""), 50)
     risk_score = risk_map.get(risk.get("overall_risk", ""), 60) if risk else 50
-    dimensions = {"Security": security_score, "Code Quality": quality_score, "Maintainability": maintainability_score, "Simplicity": simplicity_score, "Dependency Risk": risk_score}
+    dimensions = {"Security": security_score, "Code Quality": quality_score, "Maintainability": maintainability_score, "Simplicity": simplicity_score}
+    if is_python:
+        dimensions["Dependency Risk"] = risk_score
     overall = round(sum(dimensions.values()) / len(dimensions), 1)
     weakest = min(dimensions.items(), key=lambda x: x[1])
     strongest = max(dimensions.items(), key=lambda x: x[1])
@@ -3476,6 +3478,7 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
