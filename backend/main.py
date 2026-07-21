@@ -3514,6 +3514,19 @@ def get_time_travel_diff(repo_url, file_path, commit_sha_old, commit_sha_new):
     removed = len([l for l in diff if l.startswith("-") and not l.startswith("---")])
     return {"has_diff": len(diff) > 0, "diff_lines": diff, "lines_added": added, "lines_removed": removed, "old_commit": commit_sha_old[:7], "new_commit": commit_sha_new[:7], "diff_summary": (str(added) + " line(s) added, " + str(removed) + " line(s) removed between " + commit_sha_old[:7] + " and " + commit_sha_new[:7]) if diff else "No differences found between these two commits for this file.", "diff_disclaimer": "Fetches raw file content directly from GitHub for two specific commits and compares them - no repository cloning involved."}
 
+@app.post("/time-travel-diff")
+async def time_travel_diff_endpoint(payload: dict):
+    try:
+        repo_url = payload.get("repo_url", "")
+        file_path = payload.get("file_path", "")
+        commit_old = payload.get("commit_old", "")
+        commit_new = payload.get("commit_new", "")
+        result = get_time_travel_diff(repo_url, file_path, commit_old, commit_new)
+        track_usage("time-travel-diff", repo_url)
+        return result
+    except Exception as e:
+        return {"error": "Time-travel diff failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
