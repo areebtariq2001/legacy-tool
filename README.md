@@ -32,7 +32,7 @@ Legacy systems run critical banking operations, but they are hard to understand,
 
 ---
 
-## Features (59+)
+## Features (62+)
 
 ### Core Analysis & Migration
 Analyze · Migrate (rule-based) · AI Migrate (guardrails + confidence score) · Call Graph · Risk Check · Tech Debt · Gen Docs
@@ -62,7 +62,16 @@ Platform Compatibility Checker (OS-specific code, shell calls) · Dependency Por
 Re-architecture Readiness Report · Natural Service Boundary Detector
 
 ### Decision Support (Phase 4)
-Migration Strategy Recommendation Engine (Rehost vs Refactor vs Rebuild) · ROI Calculator
+Migration Strategy Recommendation Engine (Rehost vs Refactor vs Rebuild) · ROI Calculator (factors in security-breach risk cost, not just developer hours)
+
+### Characterization Testing (Phase 5)
+Behavior Snapshot Generator (runs original vs migrated code in a sandbox and compares output — Python only, honestly reports "Not Supported" for other languages)
+
+### Strangler Fig Support (Phase 6)
+Facade/Adapter Wrapper Generator (Python, Java, PHP) — generates a skeleton that delegates to legacy functions, so new implementations can be swapped in incrementally without a full rewrite
+
+### Codebase History Intelligence (Phase 7)
+GitHub Commit History Analysis (via GitHub Commits API — no repo cloning) — surfaces change frequency, top contributors, and recent commit messages to flag "hotspot" files before migration
 
 ---
 
@@ -131,13 +140,18 @@ StarBuild today is a **working prototype with 59+ features**, built by a solo de
 - The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup.
 - PHP and COBOL support exists but has not yet received the same depth of testing as Python and Java.
 
-**Roadmap:**
+**Roadmap — Phase 8 (Visual Intelligence & Differentiation):**
+- Technical debt expressed in dollar value (configurable hourly rate)
+- Code DNA Fingerprint — radar-chart visualization combining existing scores
+- Live Migration Dashboard upgrade (auto-refresh, risk-trend graph, ETA)
+- Time-Travel Diff Viewer (slider across GitHub commit history)
+- Cross-language migration (Python↔JS, PHP↔Python) — high-risk, conservative confidence scoring, heavy review disclaimers
+
+**Also on the roadmap:**
 - SOC 2 certification & independent security audit
 - Fully isolated Docker-based sandbox execution
 - GitHub App integration for automated pull request generation
-- Extend the same multi-language rigor (method detection, comment-awareness) to PHP and COBOL
-- Characterization testing (before/after behavioral comparison)
-- Codebase history intelligence via GitHub API (commit/author/change-frequency analysis)
+- Extend the same multi-language rigor (method detection, comment-awareness) to COBOL
 
 ---
 
