@@ -3438,6 +3438,27 @@ async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "p
     except Exception as e:
         return {"filename": file.filename, "error": "Tech debt cost calculation failed safely: " + str(e)}
 
+def generate_code_dna(source, filename):
+    quality = calculate_code_quality(source, filename)
+    debt = calculate_tech_debt(source, filename)
+    crypto = scan_crypto(source)
+    complexity = calculate_complexity(source)
+    is_python = filename.lower().endswith(".py")
+    risk = assess_dependency_risk(source, filename) if is_python else None
+    risk_map = {"Low": 90, "Medium": 55, "High": 20}
+    security_score = crypto.get("quantum_score", 100)
+    quality_score = quality.get("quality_score", 50)
+    debt_score_raw = debt.get("debt_score", 0)
+    maintainability_score = max(0, 100 - debt_score_raw)
+    complexity_penalty = {"Low complexity": 90, "Moderate complexity": 65, "High complexity": 35, "Very high complexity": 10}
+    simplicity_score = complexity_penalty.get(complexity.get("complexity_level", ""), 50)
+    risk_score = risk_map.get(risk.get("overall_risk", ""), 60) if risk else 50
+    dimensions = {"Security": security_score, "Code Quality": quality_score, "Maintainability": maintainability_score, "Simplicity": simplicity_score, "Dependency Risk": risk_score}
+    overall = round(sum(dimensions.values()) / len(dimensions), 1)
+    weakest = min(dimensions.items(), key=lambda x: x[1])
+    strongest = max(dimensions.items(), key=lambda x: x[1])
+    return {"dna_dimensions": dimensions, "dna_overall_score": overall, "dna_weakest_area": weakest[0], "dna_strongest_area": strongest[0], "dna_summary": "Code DNA: " + str(overall) + "/100 overall - strongest in " + strongest[0] + " (" + str(strongest[1]) + "), weakest in " + weakest[0] + " (" + str(weakest[1]) + ")", "dna_disclaimer": "Combines existing scores (security, quality, debt, complexity, dependency-risk) into a single visual fingerprint for quick comparison across files. Each dimension uses the same methodology and disclaimers as its source feature - review those for details."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
