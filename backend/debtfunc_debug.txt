@@ -1,0 +1,10 @@
+﻿def calculate_tech_debt(source):
+    items = []
+    total_count = 0
+    total_minutes = 0
+    for pattern, label, mins in DEBT_RULES:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            items.append({
+                "issue": label,

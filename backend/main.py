@@ -221,11 +221,16 @@ def calculate_complexity(source):
         level = "Very high complexity"
     return {"complexity_score": score, "complexity_level": level}
 
-def calculate_tech_debt(source):
+def calculate_tech_debt(source, filename=""):
     items = []
     total_count = 0
     total_minutes = 0
-    for pattern, label, mins in DEBT_RULES:
+    active_rules = list(DEBT_RULES)
+    if filename.lower().endswith(".java"):
+        active_rules += [(r"\bVector\b", "Vector (legacy collection)", 5), (r"\bHashtable\b", "Hashtable (legacy collection)", 5), (r"\bStringBuffer\b", "StringBuffer (use StringBuilder)", 5), (r"System\.out\.println", "System.out.println (use logging framework)", 5)]
+    elif filename.lower().endswith(".php"):
+        active_rules += [(r"\bmysql_\w+\b", "mysql_* (deprecated, use mysqli/PDO)", 10), (r"\beach\(", "each() (removed in PHP 8)", 5), (r"\bcreate_function\b", "create_function() (removed in PHP 8)", 5)]
+    for pattern, label, mins in active_rules:
         matches = re.findall(pattern, source)
         count = len(matches)
         if count > 0:
@@ -3411,7 +3416,7 @@ async def codebase_history_endpoint(payload: dict):
         return {"error": "Codebase history lookup failed safely: " + str(e)}
 
 def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=None):
-    debt = calculate_tech_debt(source)
+    debt = calculate_tech_debt(source, filename)
     hours = debt.get("estimated_hours", 0)
     rates = {"pakistan": 15, "us": 75, "custom": custom_rate if custom_rate else 50}
     hourly_rate = rates.get(region, 15)
@@ -3436,6 +3441,8 @@ async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "p
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
