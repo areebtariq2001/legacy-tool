@@ -3419,6 +3419,20 @@ def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=No
     days = round(hours / 8.0, 1)
     return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": ("$" + str(total_cost) + " estimated cost to fix (" + str(hours) + " hours, ~" + str(days) + " working days at $" + str(hourly_rate) + "/hr)") if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
 
+@app.post("/tech-debt-cost")
+async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = calculate_tech_debt_cost(source, file.filename, region, custom_rate)
+        result["filename"] = file.filename
+        track_usage("tech-debt-cost", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Tech debt cost calculation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
