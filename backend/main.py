@@ -3459,6 +3459,20 @@ def generate_code_dna(source, filename):
     strongest = max(dimensions.items(), key=lambda x: x[1])
     return {"dna_dimensions": dimensions, "dna_overall_score": overall, "dna_weakest_area": weakest[0], "dna_strongest_area": strongest[0], "dna_summary": "Code DNA: " + str(overall) + "/100 overall - strongest in " + strongest[0] + " (" + str(strongest[1]) + "), weakest in " + weakest[0] + " (" + str(weakest[1]) + ")", "dna_disclaimer": "Combines existing scores (security, quality, debt, complexity, dependency-risk) into a single visual fingerprint for quick comparison across files. Each dimension uses the same methodology and disclaimers as its source feature - review those for details."}
 
+@app.post("/code-dna")
+async def code_dna_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_code_dna(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("code-dna", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Code DNA generation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
