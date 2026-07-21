@@ -273,6 +273,12 @@ const[snapshotFile2,setSnapshotFile2]=useState(null);
 const[historyRepoUrl,setHistoryRepoUrl]=useState("");
 const[historyResult,setHistoryResult]=useState(null);
 const[historyLoading,setHistoryLoading]=useState(false);
+const[diffRepoUrl,setDiffRepoUrl]=useState("");
+const[diffFilePath,setDiffFilePath]=useState("");
+const[diffCommitOld,setDiffCommitOld]=useState("");
+const[diffCommitNew,setDiffCommitNew]=useState("");
+const[diffResult,setDiffResult]=useState(null);
+const[diffLoading,setDiffLoading]=useState(false);
 const[results,setResults]=useState([]);
 const[loading,setLoading]=useState(false);
 const[mode,setMode]=useState("analyze");
@@ -588,6 +594,15 @@ const fetchHistory=async()=>{
   }catch(e){setHistoryResult({error:"Could not fetch history"});}
   setHistoryLoading(false);
 };
+const fetchTimeDiff=async()=>{
+  setDiffLoading(true);
+  try{
+    const res=await fetch(API+"/time-travel-diff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo_url:diffRepoUrl,file_path:diffFilePath,commit_old:diffCommitOld,commit_new:diffCommitNew})});
+    const data=await res.json();
+    setDiffResult(data);
+  }catch(e){setDiffResult({error:"Could not fetch diff"});}
+  setDiffLoading(false);
+};
 const fetchDashboard=async()=>{
   try{
     const res=await fetch(API+"/migration-dashboard");
@@ -618,7 +633,7 @@ const reviewCount=scored.filter(r=>r.confidence_score<threshold).length;
 
 const langs=["python","java","php","cobol"];
 const lc={python:"#3b82f6",java:"#f59e0b",php:"#8b5cf6",cobol:"#10b981"};
-const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["regframework","Reg Framework","#dc2626"],["codeqa","Ask Codebase","#059669"],["sandbox","Sandbox Test","#ea580c"],["quality","Code Quality","#0d9488"],["smells","Code Smells","#a855f7"],["refactor","Refactor Tips","#059669"],["platform","Platform Check","#0891b2"],["portability","Dependency Portability","#7c3aed"],["config","Config Migration","#0891b2"],["readiness","Rearch Readiness","#8b5cf6"],["boundaries","Service Boundaries","#f59e0b"],["strategy","Migration Strategy","#dc2626"],["roi","ROI Calculator","#16a34a"],["snapshot","Behavior Snapshot","#0284c7"],["strangler","Strangler Fig","#7c2d12"],["debtcost","Debt in $","#059669"],["dna","Code DNA","#a855f7"],["history","Codebase History","#4338ca"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
+const modes=[["analyze","Analyze","#38bdf8"],["migrate","Migrate","#22c55e"],["aimigrate","AI Migrate","#a78bfa"],["callgraph","Call Graph","#ec4899"],["risk","Risk Check","#f87171"],["debt","Tech Debt","#7c3aed"],["docs","Gen Docs","#14b8a6"],["scan","Data Scan","#ec4899"],["banking","Banking Scan","#10b981"],["crypto","Crypto Scan","#8b5cf6"],["amlkyc","AML/KYC","#f97316"],["ainative","AI-Native","#06b6d4"],["migrisk","Migration Risk","#eab308"],["cicd","CI/CD","#14b8a6"],["dbschema","DB Schema","#a855f7"],["apimap","API Map","#0ea5e9"],["architecture","Architecture","#f43f5e"],["bizrules","Business Rules","#14b8a6"],["execreport","Exec Report","#6366f1"],["impact","Impact","#ef4444"],["txnflow","Txn Flow","#f59e0b"],["rollback","Rollback","#10b981"],["rulesengine","Rules Engine","#8b5cf6"],["sqli","SQL Scan","#dc2626"],["pii","PII Scan","#e11d48"],["cost","Cost Estimate","#0891b2"],["techstack","Tech Stack","#7c3aed"],["keyaudit","Key Audit","#b45309"],["fraud","Fraud Check","#be123c"],["regional","Regional Compliance","#0369a1"],["vendorrisk","Vendor Risk","#9333ea"],["zerotrust","Zero-Trust","#0891b2"],["regframework","Reg Framework","#dc2626"],["codeqa","Ask Codebase","#059669"],["sandbox","Sandbox Test","#ea580c"],["quality","Code Quality","#0d9488"],["smells","Code Smells","#a855f7"],["refactor","Refactor Tips","#059669"],["platform","Platform Check","#0891b2"],["portability","Dependency Portability","#7c3aed"],["config","Config Migration","#0891b2"],["readiness","Rearch Readiness","#8b5cf6"],["boundaries","Service Boundaries","#f59e0b"],["strategy","Migration Strategy","#dc2626"],["roi","ROI Calculator","#16a34a"],["snapshot","Behavior Snapshot","#0284c7"],["strangler","Strangler Fig","#7c2d12"],["debtcost","Debt in $","#059669"],["timediff","Time-Travel Diff","#be185d"],["dna","Code DNA","#a855f7"],["history","Codebase History","#4338ca"],["ai","AI Suggest","#f59e0b"],["explain","Explain","#38bdf8"],["tests","Gen Tests","#ec4899"]];
 
 const confColor=(score)=>score>=90?"#4ade80":score>=60?"#f59e0b":"#f87171";
 const riskColor=(lvl)=>lvl==="High"?"#f87171":lvl==="Medium"?"#f59e0b":"#4ade80";
@@ -699,6 +714,7 @@ Home
 {mode==="snapshot"&&<div style={{marginTop:"10px"}}><input type="file" accept=".py" onChange={e=>setSnapshotFile2(e.target.files[0])} id="snapshotInput2" style={{display:"none"}}/><label htmlFor="snapshotInput2" style={{cursor:"pointer",color:"#0284c7",fontSize:"13px"}}>{snapshotFile2?"Migrated file: "+snapshotFile2.name:"Click to select the MIGRATED version (first file above = original)"}</label></div>}
 {mode==="history"&&<div style={{marginTop:"10px"}}><input type="text" value={historyRepoUrl} onChange={e=>setHistoryRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" style={{width:"100%",padding:"8px 12px",borderRadius:"8px",border:"1px solid #4338ca",background:codebg,color:text,fontSize:"13px",marginBottom:"8px"}}/><button onClick={fetchHistory} disabled={historyLoading||!historyRepoUrl} style={{padding:"6px 14px",borderRadius:"8px",border:"1px solid #4338ca",background:"transparent",color:"#4338ca",cursor:"pointer",fontSize:"12px",fontWeight:"700"}}>{historyLoading?"Fetching...":"Get Codebase History"}</button>
 {historyResult&&<div style={{marginTop:"12px"}}>{historyResult.error?<p style={{color:"#f87171",fontSize:"13px"}}>{historyResult.error}</p>:<div><p style={{color:"#4338ca",fontWeight:"700",fontSize:"14px",marginBottom:"8px"}}>{historyResult.history_summary}</p>{historyResult.hotspot_note&&<p style={{color:"#f59e0b",fontSize:"12px",marginBottom:"8px"}}>{historyResult.hotspot_note}</p>}{historyResult.top_authors&&<div style={{marginBottom:"8px"}}><span style={{color:subtext,fontSize:"11px"}}>Top contributors:</span>{historyResult.top_authors.map((a,ai)=>(<div key={ai} style={{color:text,fontSize:"12px"}}>{a.name}: {a.commits} commits</div>))}</div>}{historyResult.recent_commits&&<div>{historyResult.recent_commits.slice(0,5).map((rc,rci)=>(<div key={rci} style={{background:codebg,borderRadius:"6px",padding:"6px 10px",marginBottom:"4px",fontSize:"11px",color:text}}>{rc.message} <span style={{color:subtext}}>({rc.author})</span></div>))}</div>}<p style={{color:subtext,fontSize:"11px",fontStyle:"italic",marginTop:"8px"}}>{historyResult.history_disclaimer}</p></div>}</div>}</div>}
+{mode==="timediff"&&<div style={{marginTop:"10px"}}><input type="text" value={diffRepoUrl} onChange={e=>setDiffRepoUrl(e.target.value)} placeholder="https://github.com/owner/repo" style={{width:"100%",padding:"8px 12px",borderRadius:"8px",border:"1px solid #be185d",background:codebg,color:text,fontSize:"13px",marginBottom:"6px"}}/></div>}
 <label htmlFor="fileInput" style={{cursor:"pointer",color:"#38bdf8"}}>
 Click to select files (multiple allowed)
 </label>
@@ -1345,6 +1361,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
