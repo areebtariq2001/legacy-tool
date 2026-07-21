@@ -3410,6 +3410,15 @@ async def codebase_history_endpoint(payload: dict):
     except Exception as e:
         return {"error": "Codebase history lookup failed safely: " + str(e)}
 
+def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=None):
+    debt = calculate_tech_debt(source)
+    hours = debt.get("estimated_hours", 0)
+    rates = {"pakistan": 15, "us": 75, "custom": custom_rate if custom_rate else 50}
+    hourly_rate = rates.get(region, 15)
+    total_cost = round(hours * hourly_rate, 2)
+    days = round(hours / 8.0, 1)
+    return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": ("$" + str(total_cost) + " estimated cost to fix (" + str(hours) + " hours, ~" + str(days) + " working days at $" + str(hourly_rate) + "/hr)") if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
