@@ -3482,6 +3482,38 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Code DNA generation failed safely: " + str(e)}
 
+def get_file_at_commit(repo_url, file_path, commit_sha):
+    import re as _tre
+    m = _tre.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
+    if not m:
+        return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
+    owner, repo = m.group(1), m.group(2)
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+    try:
+        raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/" + commit_sha + "/" + file_path
+        r = requests.get(raw_url, headers=gh_headers, timeout=20)
+        if r.status_code != 200:
+            return {"error": "Could not fetch file at this commit (status " + str(r.status_code) + "). Check the file path and commit SHA."}
+        return {"content": r.text, "commit_sha": commit_sha}
+    except Exception as e:
+        return {"error": "Failed to fetch file version: " + str(e)}
+        return {"error": "Failed to fetch file version: " + str(e)}
+def get_time_travel_diff(repo_url, file_path, commit_sha_old, commit_sha_new):
+    old_result = get_file_at_commit(repo_url, file_path, commit_sha_old)
+    new_result = get_file_at_commit(repo_url, file_path, commit_sha_new)
+    if "error" in old_result:
+        return {"error": "Old version: " + old_result["error"]}
+    if "error" in new_result:
+        return {"error": "New version: " + new_result["error"]}
+    import difflib as _dl
+    old_lines = old_result["content"].splitlines()
+    new_lines = new_result["content"].splitlines()
+    diff = list(_dl.unified_diff(old_lines, new_lines, lineterm="", fromfile=commit_sha_old[:7], tofile=commit_sha_new[:7]))
+    added = len([l for l in diff if l.startswith("+") and not l.startswith("+++")])
+    removed = len([l for l in diff if l.startswith("-") and not l.startswith("---")])
+    return {"has_diff": len(diff) > 0, "diff_lines": diff, "lines_added": added, "lines_removed": removed, "old_commit": commit_sha_old[:7], "new_commit": commit_sha_new[:7], "diff_summary": (str(added) + " line(s) added, " + str(removed) + " line(s) removed between " + commit_sha_old[:7] + " and " + commit_sha_new[:7]) if diff else "No differences found between these two commits for this file.", "diff_disclaimer": "Fetches raw file content directly from GitHub for two specific commits and compares them - no repository cloning involved."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
