@@ -2850,7 +2850,14 @@ def get_migration_dashboard():
         at = h.get("action_type", "unknown")
         action_types[at] = action_types.get(at, 0) + 1
     recent = sorted(history, key=lambda h: h.get("timestamp", ""), reverse=True)[:10]
-    return {"total_reviewed": total, "approved": approved, "rejected": rejected, "needs_modification": needs_mod, "approval_rate_percent": approval_rate, "by_action_type": action_types, "recent_activity": recent, "dashboard_summary": str(total) + " total decisions logged - " + str(approval_rate) + "% approval rate", "dashboard_disclaimer": "Aggregated from human reviewer decisions logged in this session. Data resets if the server restarts (in-memory/file-based demo storage)."}
+    daily_counts = {}
+    for h in history:
+        day = (h.get("timestamp", "") or "")[:10]
+        if day:
+            daily_counts[day] = daily_counts.get(day, 0) + 1
+    trend = sorted(daily_counts.items())[-14:]
+    avg_per_day = round(total / max(1, len(daily_counts)), 1)
+    return {"total_reviewed": total, "approved": approved, "rejected": rejected, "needs_modification": needs_mod, "approval_rate_percent": approval_rate, "by_action_type": action_types, "recent_activity": recent, "activity_trend": [{"date": d, "count": c} for d, c in trend], "avg_reviews_per_day": avg_per_day, "dashboard_summary": str(total) + " total decisions logged - " + str(approval_rate) + "% approval rate", "dashboard_disclaimer": "Aggregated from human reviewer decisions logged in a persistent database. Refresh to see the latest activity."}
 
 @app.get("/migration-dashboard")
 async def migration_dashboard_endpoint():
@@ -3478,6 +3485,7 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

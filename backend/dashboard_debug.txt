@@ -1,0 +1,15 @@
+﻿def get_migration_dashboard():
+    history = get_approval_history()
+    total = len(history)
+    if total == 0:
+        return {"total_reviewed": 0, "dashboard_summary": "No approval decisions logged yet.", "by_decision": {}, "recent_activity": []}
+    approved = len([h for h in history if h.get("decision") == "Approved"])
+    rejected = len([h for h in history if h.get("decision") == "Rejected"])
+    needs_mod = len([h for h in history if h.get("decision") == "Needs Modification"])
+    approval_rate = round((approved / total) * 100, 1) if total > 0 else 0
+    action_types = {}
+    for h in history:
+        at = h.get("action_type", "unknown")
+        action_types[at] = action_types.get(at, 0) + 1
+    recent = sorted(history, key=lambda h: h.get("timestamp", ""), reverse=True)[:10]
+    return {"total_reviewed": total, "approved": approved, "rejected": rejected, "needs_modification": needs_mod, "approval_rate_percent": approval_rate, "by_action_type": action_types, "recent_activity": recent, "dashboard_summary": str(total) + " total decisions logged - " + str(approval_rate) + "% approval rate", "dashboard_disclaimer": "Aggregated from human reviewer decisions logged in this session. Data resets if the server restarts (in-memory/file-based demo storage)."}
