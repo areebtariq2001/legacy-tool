@@ -2060,6 +2060,9 @@ def scan_sql_injection(source, filename):
     checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk")]
     if filename.lower().endswith(".php"):
         checks += [("SELECT", " . ", "SQL SELECT built with . (PHP) concatenation - injection risk"), ("INSERT", " . ", "SQL INSERT built with . (PHP) concatenation - injection risk"), ("UPDATE", " . ", "SQL UPDATE built with . (PHP) concatenation - injection risk"), ("DELETE", " . ", "SQL DELETE built with . (PHP) concatenation - injection risk"), ("WHERE", " . ", "SQL WHERE clause built with . (PHP) concatenation - injection risk")]
+    cobol_exec_sql = _sq.search(r"(?is)EXEC\s+SQL.*?WHERE.*?=\s*['\"][^'\"]+['\"].*?END-EXEC", source)
+    if cobol_exec_sql:
+        issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
     for i, line in enumerate(lines):
         up = line.upper()
         for kw, danger, msg in checks:
