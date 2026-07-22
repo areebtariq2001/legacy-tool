@@ -3411,6 +3411,9 @@ def generate_strangler_fig_wrapper(source, filename):
     elif filename.lower().endswith(".php"):
         import re as _sfre
         funcs = _sfre.findall(r"function\s+(\w+)\s*\(", source)
+    elif filename.lower().endswith((".cbl", ".cob")):
+        import re as _sfre
+        funcs = _sfre.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
     else:
         funcs = []
     funcs = list(dict.fromkeys(funcs))[:15]

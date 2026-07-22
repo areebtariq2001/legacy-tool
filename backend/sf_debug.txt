@@ -1,0 +1,12 @@
+﻿def generate_strangler_fig_wrapper(source, filename):
+    if filename.lower().endswith(".py"):
+        funcs = _re.findall(r"def\s+(\w+)\s*\(", source) if False else []
+        import re as _sfre
+        funcs = _sfre.findall(r"^def\s+(\w+)\s*\(", source, _sfre.MULTILINE)
+    elif filename.lower().endswith(".java"):
+        import re as _sfre
+        funcs = _sfre.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+    elif filename.lower().endswith(".php"):
+        import re as _sfre
+        funcs = _sfre.findall(r"function\s+(\w+)\s*\(", source)
+    else:
