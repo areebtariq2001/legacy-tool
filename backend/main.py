@@ -995,6 +995,35 @@ def migrate_cobol(source):
             out_lines.append((indent if in_procedure else "") + "return")
             changes.append("STOP RUN -> return")
             continue
+        compute_m = _mre.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, _mre.IGNORECASE)
+        if compute_m:
+            var_name = compute_m.group(1).replace("-", "_")
+            expr = compute_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + var_name + " = " + expr)
+            changes.append("COMPUTE -> assignment")
+            continue
+        add_m = _mre.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        if add_m:
+            src_val = add_m.group(1).replace("-", "_")
+            dst_var = add_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + dst_var + " += " + src_val)
+            changes.append("ADD -> +=")
+            continue
+        sub_m = _mre.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        if sub_m:
+            src_val = sub_m.group(1).replace("-", "_")
+            dst_var = sub_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + dst_var + " -= " + src_val)
+            changes.append("SUBTRACT -> -=")
+            continue
+        perform_m = _mre.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, _mre.IGNORECASE)
+        if perform_m:
+            para_name = perform_m.group(1).replace("-", "_").lower()
+            cond = perform_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + "while not (" + cond + "):")
+            out_lines.append((indent if in_procedure else "") + "    " + para_name + "()")
+            changes.append("PERFORM UNTIL -> while loop")
+            continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
             out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
