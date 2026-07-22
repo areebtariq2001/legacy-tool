@@ -3641,6 +3641,20 @@ def generate_dependency_graph(source, filename):
     high_risk_count = len([n for n in nodes if n["risk"] == "High"])
     return {"has_graph": True, "nodes": nodes, "links": links, "graph_summary": str(len(nodes)) + " function(s), " + str(len(links)) + " call relationship(s) - " + str(high_risk_count) + " high-impact function(s)", "graph_disclaimer": "Node size/color reflects how many other functions depend on it (based on static call analysis within this file). Click a node for details."}
 
+@app.post("/dependency-graph")
+async def dependency_graph_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_dependency_graph(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("dependency-graph", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Dependency graph generation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
