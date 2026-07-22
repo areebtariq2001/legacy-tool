@@ -3603,6 +3603,18 @@ def cross_language_migrate(source, from_lang, to_lang):
     confidence = max(10, min(60, confidence))
     return {"translated_code": result, "from_language": from_lang, "to_language": to_lang, "confidence_score": confidence, "confidence_level": "Low confidence - manual review required" if confidence < 40 else "Moderate confidence - still requires careful review", "cross_language_summary": "Experimental " + from_lang + " to " + to_lang + " translation - confidence: " + str(confidence) + "%", "cross_language_disclaimer": "HIGH-RISK EXPERIMENTAL FEATURE. Cross-language translation cannot be verified with the same rigor as same-language migration - there is no structural parity check, no compile verification, and no guarantee of behavioral equivalence. This output is an AI-generated DRAFT ONLY. A qualified developer fluent in both languages MUST review every line before use. Do not deploy this code without thorough testing."}
 
+@app.post("/cross-language-migrate")
+async def cross_language_migrate_endpoint(payload: dict):
+    try:
+        source = payload.get("source", "")
+        from_lang = payload.get("from_lang", "").lower()
+        to_lang = payload.get("to_lang", "").lower()
+        result = cross_language_migrate(source, from_lang, to_lang)
+        track_usage("cross-language-migrate", from_lang + "-to-" + to_lang)
+        return result
+    except Exception as e:
+        return {"error": "Cross-language migration failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
