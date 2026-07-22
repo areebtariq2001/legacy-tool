@@ -230,6 +230,8 @@ def calculate_tech_debt(source, filename=""):
         active_rules += [(r"\bVector\b", "Vector (legacy collection)", 5), (r"\bHashtable\b", "Hashtable (legacy collection)", 5), (r"\bStringBuffer\b", "StringBuffer (use StringBuilder)", 5), (r"System\.out\.println", "System.out.println (use logging framework)", 5)]
     elif filename.lower().endswith(".php"):
         active_rules += [(r"\bmysql_\w+\b", "mysql_* (deprecated, use mysqli/PDO)", 10), (r"\beach\(", "each() (removed in PHP 8)", 5), (r"\bcreate_function\b", "create_function() (removed in PHP 8)", 5)]
+    elif filename.lower().endswith(".cbl") or filename.lower().endswith(".cob"):
+        active_rules += [(r"(?i)GO\s+TO", "GO TO (unstructured control flow)", 10), (r"(?i)REDEFINES", "REDEFINES (implicit type reinterpretation, hard to migrate)", 15), (r"(?i)ALTER\s", "ALTER statement (deprecated, dynamic GOTO)", 20)]
     for pattern, label, mins in active_rules:
         matches = re.findall(pattern, source)
         count = len(matches)
@@ -3582,6 +3584,7 @@ async def time_travel_diff_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
