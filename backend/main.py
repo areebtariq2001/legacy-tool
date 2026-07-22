@@ -3615,6 +3615,32 @@ async def cross_language_migrate_endpoint(payload: dict):
     except Exception as e:
         return {"error": "Cross-language migration failed safely: " + str(e)}
 
+def generate_dependency_graph(source, filename):
+    if not filename.lower().endswith(".py"):
+        return {"has_graph": False, "graph_summary": "Interactive dependency graph currently only supports Python files.", "nodes": [], "links": []}
+    cg = analyze_call_graph(source)
+    if "call_graph_error" in cg:
+        return {"has_graph": False, "graph_summary": cg["call_graph_error"], "nodes": [], "links": []}
+    defined = cg.get("defined_functions", [])
+    calls_map = cg.get("calls_map", {})
+    entry_points = set(cg.get("entry_points", []))
+    call_counts = {}
+    for caller, callees in calls_map.items():
+        for callee in callees:
+            call_counts[callee] = call_counts.get(callee, 0) + 1
+    nodes = []
+    for fn in defined:
+        dependents = call_counts.get(fn, 0)
+        risk = "High" if dependents >= 3 else "Medium" if dependents >= 1 else "Low"
+        node_type = "entry" if fn in entry_points else "internal"
+        nodes.append({"id": fn, "type": node_type, "dependents": dependents, "risk": risk})
+    links = []
+    for caller, callees in calls_map.items():
+        for callee in callees:
+            links.append({"source": caller, "target": callee})
+    high_risk_count = len([n for n in nodes if n["risk"] == "High"])
+    return {"has_graph": True, "nodes": nodes, "links": links, "graph_summary": str(len(nodes)) + " function(s), " + str(len(links)) + " call relationship(s) - " + str(high_risk_count) + " high-impact function(s)", "graph_disclaimer": "Node size/color reflects how many other functions depend on it (based on static call analysis within this file). Click a node for details."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}

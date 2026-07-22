@@ -1,0 +1,15 @@
+﻿                        if sub.value.id == lib and node.name not in usage:
+                            usage.append(node.name)
+                    elif isinstance(sub, ast.Name) and sub.id == lib and node.name not in usage:
+                        usage.append(node.name)
+        if usage:
+            lib_usage[lib] = usage
+    entry_points = [f for f in defined_functions if all(f not in calls for calls in calls_map.values())]
+    return {
+        "defined_functions": defined_functions,
+        "calls_map": calls_map,
+        "imports": imports,
+        "lib_usage": lib_usage,
+        "entry_points": entry_points,
+        "total_functions": len(defined_functions)
+    }

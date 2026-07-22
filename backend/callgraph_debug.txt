@@ -1,0 +1,40 @@
+﻿def analyze_call_graph(source):
+    try:
+        tree = ast.parse(source)
+    except:
+        return {"call_graph_error": "This feature only supports Python files. If this is a Python file, it may have Python 2 syntax - try migrating it to Python 3 first."}
+    defined_functions = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            defined_functions.append(node.name)
+    calls_map = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            inner_calls = []
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call):
+                    fname = None
+                    if isinstance(sub.func, ast.Name):
+                        fname = sub.func.id
+                    elif isinstance(sub.func, ast.Attribute):
+                        fname = sub.func.attr
+                    if fname and fname in defined_functions and fname != node.name:
+                        if fname not in inner_calls:
+                            inner_calls.append(fname)
+            calls_map[node.name] = inner_calls
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                imports.append(a.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.append(node.module.split(".")[0])
+    imports = sorted(set(imports))
+    lib_usage = {}
+    for lib in imports:
+        usage = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name):
