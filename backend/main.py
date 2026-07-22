@@ -2237,7 +2237,9 @@ def analyze_impact(source, filename):
     except Exception:
         if filename.lower().endswith(".php"):
             funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
-        elif filename.lower().endswith((".java",".cbl",".cob")):
+        elif filename.lower().endswith((".cbl",".cob")):
+            funcs = _re3.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
+        elif filename.lower().endswith(".java"):
             funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
         else:
             funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
@@ -3658,6 +3660,7 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
