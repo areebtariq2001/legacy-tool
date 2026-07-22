@@ -1,0 +1,20 @@
+﻿def estimate_migration_cost(source, filename):
+    import re as _re10
+    lines = [l for l in source.split(chr(10)) if l.strip()]
+    loc = len(lines)
+    try:
+        tree = ast.parse(source)
+        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+        classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+        branches = len([n for n in ast.walk(tree) if isinstance(n, (ast.If, ast.For, ast.While))])
+        parseable = True
+    except Exception:
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            if filename.lower().endswith(".php"):
+                funcs = len(_re10.findall(r"function\s+\w+\s*\(", source))
+            else:
+                funcs = len(_re10.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
+            classes = len(_re10.findall(r"\bclass\s+\w+", source))
+        else:
+            funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source))
+        branches = len(_re10.findall(r"(if |for |while )", source)); parseable = False

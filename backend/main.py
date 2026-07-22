@@ -2017,7 +2017,10 @@ def estimate_migration_cost(source, filename):
         branches = len([n for n in ast.walk(tree) if isinstance(n, (ast.If, ast.For, ast.While))])
         parseable = True
     except Exception:
-        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+        if filename.lower().endswith((".cbl",".cob")):
+            funcs = len(_re10.findall(r"(?m)^\s{0,7}[\w-]+\.\s*$", source))
+            classes = 0
+        elif filename.lower().endswith((".java",".php")):
             if filename.lower().endswith(".php"):
                 funcs = len(_re10.findall(r"function\s+\w+\s*\(", source))
             else:
@@ -3663,6 +3666,7 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
