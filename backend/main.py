@@ -610,6 +610,7 @@ def ai_advanced_migrate(source, language):
         f"Do NOT rename any variables, functions, or classes. "
         f"Do NOT add or remove comments. Do NOT change formatting, logic, or style. "
         f"Keep everything exactly the same except the required fixes. "
+        f"CRITICAL: If the language is COBOL, this is an extremely high-risk conversion - only use standard COBOL divisions (IDENTIFICATION, ENVIRONMENT, DATA, PROCEDURE), standard sections (WORKING-STORAGE, FILE), and standard verbs (MOVE, DISPLAY, PERFORM, IF, COMPUTE, ACCEPT, STOP RUN, CALL). NEVER invent non-standard divisions/sections (like SECURITY AREA) or non-standard function calls that do not exist in real COBOL. Keep line numbers/sequence in the original order - never reorder statements. If uncertain about correct COBOL syntax for a construct, leave that line unchanged rather than guessing. "
         f"CRITICAL: Do NOT replace hardcoded literal values (strings, numbers) with new variable names (e.g. do NOT change $db_host = \x27localhost\x27 into using an undefined $config['db_host'] or similar) unless that variable is already defined elsewhere in the same file. Any variable you reference in the output MUST already exist in the original code or be defined by you in the same file - never introduce an undefined variable. "
         f"Return ONLY the converted code, no explanations, no markdown.\n\n"
         f"Legacy code:\n{source}"
@@ -3581,6 +3582,7 @@ async def time_travel_diff_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
