@@ -2279,7 +2279,10 @@ def generate_executive_report(source, filename):
         if filename.lower().endswith(".php"):
             funcs = len(_re2.findall(r"function\s+\w+\s*\(", source))
             classes = len(_re2.findall(r"\bclass\s+\w+", source))
-        elif filename.lower().endswith((".java",".cbl",".cob")):
+        elif filename.lower().endswith((".cbl",".cob")):
+            funcs = len(_re2.findall(r"(?m)^\s{0,7}[\w-]+\.\s*$", source))
+            classes = 0
+        elif filename.lower().endswith(".java"):
             funcs = len(_re2.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
             classes = len(_re2.findall(r"\bclass\s+\w+", source))
         else:
@@ -3660,6 +3663,8 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
