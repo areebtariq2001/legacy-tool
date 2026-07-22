@@ -3581,6 +3581,28 @@ async def time_travel_diff_endpoint(payload: dict):
     except Exception as e:
         return {"error": "Time-travel diff failed safely: " + str(e)}
 
+def cross_language_migrate(source, from_lang, to_lang):
+    supported_pairs = [("python", "javascript"), ("javascript", "python"), ("php", "python"), ("python", "php")]
+    if (from_lang, to_lang) not in supported_pairs:
+        return {"error": "Unsupported language pair. Supported: Python<->JavaScript, PHP<->Python."}
+    prompt = ("You are an expert software engineer fluent in both " + from_lang + " and " + to_lang + ". " +
+        "Translate this " + from_lang + " code to equivalent " + to_lang + " code, preserving behavior as closely as possible. " +
+        "This is a HIGH-RISK, EXPERIMENTAL translation - be conservative: only translate constructs you are certain about. " +
+        "If a construct has no clean equivalent, add a comment explaining the gap rather than guessing. " +
+        "Do not invent library functions or APIs that may not exist in " + to_lang + ". " +
+        "Return ONLY the translated code with brief comments, no explanations, no markdown." + chr(10) + chr(10) +
+        from_lang + " code:" + chr(10) + source)
+    result = call_ai_provider(prompt, max_tokens=2000)
+    if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
+        return {"error": "AI translation failed: " + result}
+    confidence = 40
+    if len(source) > 2000:
+        confidence -= 15
+    if from_lang in ("python", "php") and to_lang in ("python", "php"):
+        confidence += 10
+    confidence = max(10, min(60, confidence))
+    return {"translated_code": result, "from_language": from_lang, "to_language": to_lang, "confidence_score": confidence, "confidence_level": "Low confidence - manual review required" if confidence < 40 else "Moderate confidence - still requires careful review", "cross_language_summary": "Experimental " + from_lang + " to " + to_lang + " translation - confidence: " + str(confidence) + "%", "cross_language_disclaimer": "HIGH-RISK EXPERIMENTAL FEATURE. Cross-language translation cannot be verified with the same rigor as same-language migration - there is no structural parity check, no compile verification, and no guarantee of behavioral equivalence. This output is an AI-generated DRAFT ONLY. A qualified developer fluent in both languages MUST review every line before use. Do not deploy this code without thorough testing."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
