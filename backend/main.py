@@ -936,24 +936,75 @@ def analyze_cobol(source):
 
 def migrate_cobol(source):
     changes = []
-    migrated = "# Converted from COBOL\n\n"
-    if 'IDENTIFICATION DIVISION' in source:
-        changes.append("IDENTIFICATION DIVISION removed")
-    if 'WORKING-STORAGE' in source:
-        changes.append("WORKING-STORAGE -> Python variables")
-    if 'DATA DIVISION' in source:
-        changes.append("DATA DIVISION -> Python variables")
-        migrated += "# Variables\n"
-    if 'PROCEDURE DIVISION' in source:
-        changes.append("PROCEDURE DIVISION -> Python function")
-        migrated += "\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
-    if 'DISPLAY' in source:
-        changes.append("DISPLAY -> print()")
-    if 'PERFORM UNTIL' in source:
-        changes.append("PERFORM UNTIL -> while loop")
-    if 'ACCEPT' in source:
-        changes.append("ACCEPT -> input()")
+    out_lines = ["# Converted from COBOL - best-effort rule-based translation. Review carefully before use.", ""]
+    lines = source.split(chr(10))
+    in_working_storage = False
+    in_procedure = False
+    indent = "    "
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("*"):
+            continue
+        upper = line.upper()
+        if "IDENTIFICATION DIVISION" in upper:
+            changes.append("IDENTIFICATION DIVISION removed")
+            continue
+        if "DATA DIVISION" in upper:
+            changes.append("DATA DIVISION -> Python variable section")
+            out_lines.append("# --- Variables ---")
+            continue
+        if "WORKING-STORAGE" in upper:
+            changes.append("WORKING-STORAGE -> Python variables")
+            in_working_storage = True
+            continue
+        if "PROCEDURE DIVISION" in upper:
+            changes.append("PROCEDURE DIVISION -> Python function")
+            out_lines.append("")
+            out_lines.append("def main():")
+            in_working_storage = False
+            in_procedure = True
+            continue
+        import re as _mre
+        var_m = _mre.match(r"^\d+\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, _mre.IGNORECASE)
+        if var_m and in_working_storage:
+            var_name = var_m.group(1).replace("-", "_")
+            val = var_m.group(2)
+            if val:
+                out_lines.append(var_name + " = " + val.rstrip("."))
+            else:
+                out_lines.append(var_name + " = None")
+            changes.append("Variable " + var_m.group(1) + " declared")
+            continue
+        disp_m = _mre.match(r"^DISPLAY\s+(.+?)\.?$", line, _mre.IGNORECASE)
+        if disp_m:
+            content = disp_m.group(1).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + "print(" + content + ")")
+            changes.append("DISPLAY -> print()")
+            continue
+        move_m = _mre.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        if move_m:
+            src_val = move_m.group(1).replace("-", "_")
+            dst_var = move_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + dst_var + " = " + src_val)
+            changes.append("MOVE -> assignment")
+            continue
+        if upper.startswith("STOP RUN"):
+            out_lines.append((indent if in_procedure else "") + "return")
+            changes.append("STOP RUN -> return")
+            continue
+        if upper.startswith("IF "):
+            cond = line[3:].rstrip(".")
+            out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
+            changes.append("IF -> if")
+            continue
+        out_lines.append((indent if in_procedure else "") + "# TODO: manual review - " + line)
+    if in_procedure:
+        out_lines.append("")
+        out_lines.append("if __name__ == " + chr(39) + "__main__" + chr(39) + ":")
+        out_lines.append("    main()")
+    migrated = chr(10).join(out_lines)
     return {"migrated_code": migrated, "changes": changes}
+
 
 # ---------- AI ----------
 def ai_suggest(source, language):

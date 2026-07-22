@@ -1,0 +1,25 @@
+﻿def migrate_cobol(source):
+    changes = []
+    migrated = "# Converted from COBOL\n\n"
+    if 'IDENTIFICATION DIVISION' in source:
+        changes.append("IDENTIFICATION DIVISION removed")
+    if 'WORKING-STORAGE' in source:
+        changes.append("WORKING-STORAGE -> Python variables")
+    if 'DATA DIVISION' in source:
+        changes.append("DATA DIVISION -> Python variables")
+        migrated += "# Variables\n"
+    if 'PROCEDURE DIVISION' in source:
+        changes.append("PROCEDURE DIVISION -> Python function")
+        migrated += "\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
+    if 'DISPLAY' in source:
+        changes.append("DISPLAY -> print()")
+    if 'PERFORM UNTIL' in source:
+        changes.append("PERFORM UNTIL -> while loop")
+    if 'ACCEPT' in source:
+        changes.append("ACCEPT -> input()")
+    return {"migrated_code": migrated, "changes": changes}
+
+# ---------- AI ----------
+def ai_suggest(source, language):
+    prompt = f"You are a code review expert. Review this {language} code and give exactly 3 specific improvement suggestions for {language}. IMPORTANT: Only reference real, standard library classes and methods that actually exist (e.g. for Java, use real java.security/javax.crypto classes like SecretKeyFactory, PBEKeySpec, SecretKey - do NOT invent class names). If suggesting code snippets, use only APIs you are certain exist and have the correct method signatures. Double-check class and method names before including them. Also double-check that any code snippet you provide actually matches your written explanation - if you say a suggestion replaces a ternary or uses a specific operator, the code sample must genuinely contain that exact operator/pattern; do not describe one change and show unrelated code:\n\n{source}"
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()

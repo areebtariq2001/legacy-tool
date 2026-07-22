@@ -1,0 +1,20 @@
+﻿def migrate_cobol(source):
+    changes = []
+    migrated = "# Converted from COBOL\n\n"
+    if 'IDENTIFICATION DIVISION' in source:
+        changes.append("IDENTIFICATION DIVISION removed")
+    if 'WORKING-STORAGE' in source:
+        changes.append("WORKING-STORAGE -> Python variables")
+    if 'DATA DIVISION' in source:
+        changes.append("DATA DIVISION -> Python variables")
+        migrated += "# Variables\n"
+    if 'PROCEDURE DIVISION' in source:
+        changes.append("PROCEDURE DIVISION -> Python function")
+        migrated += "\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
+    if 'DISPLAY' in source:
+        changes.append("DISPLAY -> print()")
+    if 'PERFORM UNTIL' in source:
+        changes.append("PERFORM UNTIL -> while loop")
+    if 'ACCEPT' in source:
+        changes.append("ACCEPT -> input()")
+    return {"migrated_code": migrated, "changes": changes}
