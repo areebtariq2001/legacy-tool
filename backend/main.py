@@ -3556,6 +3556,12 @@ def generate_code_dna(source, filename):
     risk = assess_dependency_risk(source, filename) if is_python else None
     risk_map = {"Low": 90, "Medium": 55, "High": 20}
     security_score = crypto.get("quantum_score", 100)
+    try:
+        pii = detect_pii(source, filename)
+        if pii.get("pii_findings"):
+            security_score = max(0, security_score - len(pii.get("pii_findings", [])) * 10)
+    except Exception:
+        pass
     quality_score = quality.get("quality_score", 50)
     debt_score_raw = debt.get("debt_score", 0)
     maintainability_score = max(0, 100 - debt_score_raw)
