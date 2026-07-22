@@ -3028,7 +3028,7 @@ def detect_code_smells(source, filename):
             if not stripped or stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
                 continue
             indent = len(line) - len(stripped)
-            if stripped.startswith(("if ", "for ", "while ", "elif ")):
+            if stripped.lower().startswith(("if ", "for ", "while ", "elif ")):
                 level = indent // 4
                 if level >= 3:
                     smells.append({"type": "Deep Nesting", "location": "Line " + str(i+1), "detail": "Deeply nested block (level " + str(level) + ") - consider extracting logic into separate functions.", "severity": "Medium"})
