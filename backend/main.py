@@ -2336,7 +2336,7 @@ def check_ai_native_readiness(source, filename="file.py"):
             findings.append({"issue": "Non-Python file - AI-native structural analysis limited, review manually", "impact": "Low"})
     # 3. Hardcoded values / config (blocks flexible AI integration)
     import re as _re
-    if _re.search(r"(?i)(localhost|127\.0\.0\.1|hardcoded|password\s*=\s*[\x22\x27])", source):
+    if _re.search(r"(?i)(localhost|127\.0\.0\.1|hardcoded|password\s*=\s*[\x22\x27]|[\w-]*password[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27])", source):
         score -= 15
         findings.append({"issue": "Hardcoded config/credentials - blocks flexible deployment in AI environments", "impact": "Medium"})
     # 4. print statements instead of logging (not observable for AI pipelines)
@@ -3582,6 +3582,7 @@ async def time_travel_diff_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
