@@ -1269,7 +1269,7 @@ def get_audit_log_json():
 
 SENSITIVE_PATTERNS = [
     (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
-    (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"),
+    (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"), (r"(?i)[\w-]*(password|passwd|pwd)[\w-]*\s+PIC\s+X.*VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded password (COBOL VALUE clause)", "High"), (r"(?i)[\w-]*(username|user_name|db.?user)[\w-]*\s+PIC\s+X.*VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username (COBOL VALUE clause)", "Medium"),
     (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
     (r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", "Hardcoded IP address", "Medium"),
     (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
@@ -3530,6 +3530,7 @@ async def time_travel_diff_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
