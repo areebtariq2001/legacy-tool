@@ -1987,7 +1987,7 @@ def detect_pii(source, filename):
     import re as _re9
     lines = source.split(chr(10))
     findings = []
-    pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b\d{13,19}\b", "Possible card/account number (13-19 digits)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"\b(\+92|0)?3\d{9}\b", "Phone number"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username"), (r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", "Hardcoded IP address"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)", "Social security reference"), (r"(?i)(account_number|acct_no|iban|routing)", "Bank account field")]
+    pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b\d{13,19}\b", "Possible card/account number (13-19 digits)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"\b(\+92|0)?3\d{9}\b", "Phone number"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username"), (r"(?i)[\w-]*(password|passwd|pwd)[\w-]*\s+PIC\s+X.*VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded password (COBOL VALUE clause)"), (r"(?i)[\w-]*(username|user_name|db.?user)[\w-]*\s+PIC\s+X.*VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username (COBOL VALUE clause)"), (r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", "Hardcoded IP address"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)", "Social security reference"), (r"(?i)(account_number|acct_no|iban|routing)", "Bank account field")]
     for i, line in enumerate(lines):
         for pat, label in pii_patterns:
             if _re9.search(pat, line):
@@ -3530,6 +3530,8 @@ async def time_travel_diff_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
+
 
 
 
