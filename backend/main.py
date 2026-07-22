@@ -2191,11 +2191,14 @@ def discover_business_rules_engine(source, filename):
         stripped = line.strip()
         m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
         m2 = _re7.match(r"(?:\}\s*)?(else\s+)?if\s*\((.+)\)\s*\{?", stripped) if not m else None
+        m3 = _re7.match(r"(?i)IF\s+(.+?)\.?$", stripped) if (not m and not m2 and filename.lower().endswith((".cbl", ".cob"))) else None
         condition = None
         if m:
             condition = m.group(2).strip()
         elif m2:
             condition = m2.group(2).strip()
+        elif m3:
+            condition = m3.group(1).strip().rstrip(".")
         if condition is not None:
             if len(condition) < 3: continue
             if _re7.match(r"^[\w\.]+\.(next|hasNext|isEmpty|isPresent)\s*\(\s*\)$", condition): continue
