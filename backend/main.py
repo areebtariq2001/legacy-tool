@@ -1748,7 +1748,7 @@ def generate_architecture(source, filename):
                     imports.append(n.module.split(".")[0])
     except Exception:
         if filename.lower().endswith((".cbl", ".cob")):
-            funcs = _re.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
+            funcs = _re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
             classes = []
             imports = []
         elif filename.lower().endswith((".java",".php")):
@@ -2051,7 +2051,7 @@ def estimate_migration_cost(source, filename):
         parseable = True
     except Exception:
         if filename.lower().endswith((".cbl",".cob")):
-            funcs = len(_re10.findall(r"(?m)^\s{0,7}[\w-]+\.\s*$", source))
+            funcs = len(_re10.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)[\w-]+\.\s*$", source))
             classes = 0
         elif filename.lower().endswith((".java",".php")):
             if filename.lower().endswith(".php"):
@@ -2280,7 +2280,7 @@ def analyze_impact(source, filename):
         if filename.lower().endswith(".php"):
             funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
         elif filename.lower().endswith((".cbl",".cob")):
-            funcs = _re3.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
+            funcs = _re3.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
         elif filename.lower().endswith(".java"):
             funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
         else:
@@ -2322,7 +2322,7 @@ def generate_executive_report(source, filename):
             funcs = len(_re2.findall(r"function\s+\w+\s*\(", source))
             classes = len(_re2.findall(r"\bclass\s+\w+", source))
         elif filename.lower().endswith((".cbl",".cob")):
-            funcs = len(_re2.findall(r"(?m)^\s{0,7}[\w-]+\.\s*$", source))
+            funcs = len(_re2.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)[\w-]+\.\s*$", source))
             classes = 0
         elif filename.lower().endswith(".java"):
             funcs = len(_re2.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
@@ -3473,7 +3473,7 @@ def generate_strangler_fig_wrapper(source, filename):
         funcs = _sfre.findall(r"function\s+(\w+)\s*\(", source)
     elif filename.lower().endswith((".cbl", ".cob")):
         import re as _sfre
-        funcs = _sfre.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
+        funcs = _sfre.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
     else:
         funcs = []
     funcs = list(dict.fromkeys(funcs))[:15]
