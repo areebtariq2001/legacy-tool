@@ -1,0 +1,10 @@
+﻿            changes.append("PERFORM UNTIL -> while loop")
+            continue
+        if upper.startswith("IF "):
+            cond = line[3:].rstrip(".")
+            out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
+            changes.append("IF -> if")
+            continue
+        out_lines.append((indent if in_procedure else "") + "# TODO: manual review - " + line)
+    if in_procedure:
+        out_lines.append("")

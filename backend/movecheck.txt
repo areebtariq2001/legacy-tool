@@ -1,0 +1,10 @@
+﻿            continue
+        move_m = _mre.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        if move_m:
+            src_val = move_m.group(1).replace("-", "_")
+            dst_var = move_m.group(2).replace("-", "_")
+            out_lines.append((indent if in_procedure else "") + dst_var + " = " + src_val)
+            changes.append("MOVE -> assignment")
+            continue
+        if upper.startswith("STOP RUN"):
+            out_lines.append((indent if in_procedure else "") + "return")

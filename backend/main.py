@@ -990,7 +990,9 @@ def migrate_cobol(source):
             continue
         move_m = _mre.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
         if move_m:
-            src_val = move_m.group(1).replace("-", "_")
+            src_val = move_m.group(1).strip()
+            if not (src_val.startswith(chr(34)) or src_val.startswith(chr(39))):
+                src_val = src_val.replace("-", "_")
             dst_var = move_m.group(2).replace("-", "_")
             out_lines.append((indent if in_procedure else "") + dst_var + " = " + src_val)
             changes.append("MOVE -> assignment")
@@ -3790,6 +3792,7 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

@@ -1,0 +1,47 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+# TODO: manual review - PROGRAM-ID. LEGACYBANK.
+# TODO: manual review - ENVIRONMENT DIVISION.
+# TODO: manual review - CONFIGURATION SECTION.
+# --- Variables ---
+DB_HOST = "192.168.1.60"
+DB_USER = "SYSADMIN"
+DB_PASSWORD = "Cobol1985Pass"
+WS_BALANCE = ZEROS
+WS_AMOUNT = ZEROS
+WS_DAILY_LIMIT = 50000.00
+WS_IS_FLAGGED = "N"
+WS_ACCOUNT_ID = None
+WS_RESULT_MSG = None
+
+def main():
+    # TODO: manual review - MAIN-LOGIC.
+    # TODO: manual review - PERFORM GET-ACCOUNT-BALANCE.
+    # TODO: manual review - PERFORM CHECK-TRANSACTION.
+    # TODO: manual review - GO TO END-PROGRAM.
+    # TODO: manual review - GET-ACCOUNT-BALANCE.
+    # TODO: manual review - EXEC SQL
+    # TODO: manual review - SELECT BALANCE INTO :WS-BALANCE
+    # TODO: manual review - FROM ACCOUNTS
+    # TODO: manual review - WHERE ACCOUNT_ID = 'ACCT-ID-VALUE'
+    # TODO: manual review - END-EXEC.
+    # TODO: manual review - CHECK-TRANSACTION.
+    if WS-IS-FLAGGED = "Y":
+    WS_RESULT_MSG = "BLOCKED - AML REVIEW REQUIRED"
+    # TODO: manual review - GO TO END-PROGRAM
+    # TODO: manual review - END-IF.
+    if WS-BALANCE - WS-AMOUNT < 0:
+    WS_RESULT_MSG = "DECLINED - INSUFFICIENT FUNDS"
+    # TODO: manual review - GO TO END-PROGRAM
+    # TODO: manual review - END-IF.
+    if WS-AMOUNT > WS-DAILY-LIMIT:
+    WS_RESULT_MSG = "BLOCKED - EXCEEDS DAILY LIMIT"
+    # TODO: manual review - GO TO END-PROGRAM
+    # TODO: manual review - END-IF.
+    WS_RESULT_MSG = "APPROVED"
+    # TODO: manual review - END-PROGRAM.
+    print(WS_RESULT_MSG)
+    return
+
+if __name__ == '__main__':
+    main()
