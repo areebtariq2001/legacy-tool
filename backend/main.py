@@ -944,8 +944,12 @@ def migrate_cobol(source):
     in_working_storage = False
     in_procedure = False
     indent = "    "
+    import re as _seqre
     for raw_line in lines:
         line = raw_line.strip()
+        seq_match = _seqre.match(r"^(\d{6})\s+(.*)$", line)
+        if seq_match:
+            line = seq_match.group(2)
         if not line or line.startswith("*"):
             continue
         upper = line.upper()
