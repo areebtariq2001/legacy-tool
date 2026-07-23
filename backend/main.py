@@ -3765,6 +3765,20 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Dependency graph generation failed safely: " + str(e)}
 
+@app.post("/living-docs")
+async def living_docs_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return {"filename": file.filename, "error": error}
+        result = generate_living_documentation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("living-docs", file.filename)
+        return result
+    except Exception as e:
+        return {"filename": file.filename, "error": "Living documentation generation failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
