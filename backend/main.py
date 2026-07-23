@@ -1747,7 +1747,11 @@ def generate_architecture(source, filename):
                 if n.module:
                     imports.append(n.module.split(".")[0])
     except Exception:
-        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+        if filename.lower().endswith((".cbl", ".cob")):
+            funcs = _re.findall(r"(?m)^\s{0,7}([\w-]+)\.\s*$", source)
+            classes = []
+            imports = []
+        elif filename.lower().endswith((".java",".php")):
             if filename.lower().endswith(".php"):
                 funcs = _re.findall(r"function\s+(\w+)\s*\([^)]*\)", source)
             else:

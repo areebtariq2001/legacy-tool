@@ -1,0 +1,25 @@
+﻿def generate_architecture(source, filename):
+    import re as _re
+    layers = []
+    try:
+        tree = ast.parse(source)
+        funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        imports = []
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Import):
+                for a in n.names:
+                    imports.append(a.name.split(".")[0])
+            elif isinstance(n, ast.ImportFrom):
+                if n.module:
+                    imports.append(n.module.split(".")[0])
+    except Exception:
+        if filename.lower().endswith((".java",".php",".cbl",".cob")):
+            if filename.lower().endswith(".php"):
+                funcs = _re.findall(r"function\s+(\w+)\s*\([^)]*\)", source)
+            else:
+                funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+            classes = _re.findall(r"\bclass\s+(\w+)", source)
+            imports = _re.findall(r"import\s+([\w\.\*]+);", source)
+        else:
+            funcs = _re.findall(r"def\s+(\w+)\s*\(", source)

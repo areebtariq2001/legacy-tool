@@ -1,0 +1,12 @@
+﻿        tree = ast.parse(source)
+        funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+        imports = []
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Import):
+                for a in n.names:
+                    imports.append(a.name.split(".")[0])
+            elif isinstance(n, ast.ImportFrom):
+                if n.module:
+                    imports.append(n.module.split(".")[0])
+    except Exception:
