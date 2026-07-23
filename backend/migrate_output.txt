@@ -26,7 +26,7 @@ def main():
     # TODO: manual review - WHERE ACCOUNT_ID = 'ACCT-ID-VALUE'
     # TODO: manual review - END-EXEC.
     # TODO: manual review - CHECK-TRANSACTION.
-    if WS-IS-FLAGGED = "Y":
+    if WS-IS-FLAGGED == "Y":
     WS_RESULT_MSG = "BLOCKED - AML REVIEW REQUIRED"
     # TODO: manual review - GO TO END-PROGRAM
     # TODO: manual review - END-IF.

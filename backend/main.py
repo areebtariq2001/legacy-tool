@@ -1032,8 +1032,9 @@ def migrate_cobol(source):
             continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
+            cond = cond.replace(" = ", " == ")
             out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
-            changes.append("IF -> if")
+            changes.append("IF -> if (= converted to ==)")
             continue
         out_lines.append((indent if in_procedure else "") + "# TODO: manual review - " + line)
     if in_procedure:
@@ -3792,6 +3793,7 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
