@@ -2237,6 +2237,9 @@ def discover_business_rules_engine(source, filename):
     compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(limit|maximum|max_amount|threshold|exceed)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|permission|role|access|approve)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk|block|freeze|flag)"}
     for i, line in enumerate(lines):
         stripped = line.strip()
+        _seqm7 = _re7.match(r"^(\d{6})\s+(.*)$", stripped)
+        if _seqm7:
+            stripped = _seqm7.group(2)
         m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
         m2 = _re7.match(r"(?:\}\s*)?(else\s+)?if\s*\((.+)\)\s*\{?", stripped) if not m else None
         m3 = _re7.match(r"(?i)IF\s+(.+?)\.?$", stripped) if (not m and not m2 and filename.lower().endswith((".cbl", ".cob"))) else None
@@ -3857,6 +3860,7 @@ async def github_issue_fix_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
