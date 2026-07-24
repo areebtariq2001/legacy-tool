@@ -602,6 +602,7 @@ const fetchHistory=async()=>{
   setHistoryLoading(false);
 };
 const fetchCrossLang=async()=>{
+  if(!clSource||!clSource.trim()){setClResult({error:"Please paste source code before translating."});return;}
   setClLoading(true);
   try{
     const res=await fetch(API+"/cross-language-migrate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:clSource,from_lang:clFromLang,to_lang:clToLang})});
@@ -1386,6 +1387,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
