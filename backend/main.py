@@ -1033,6 +1033,14 @@ def migrate_cobol(source):
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
             cond = cond.replace(" = ", " == ")
+            _words = cond.split(" ")
+            _fixed_words = []
+            for _w in _words:
+                if _w and _w[0] not in (chr(34), chr(39)) and "-" in _w and any(_c.isalnum() for _c in _w):
+                    _fixed_words.append(_w.replace("-", "_"))
+                else:
+                    _fixed_words.append(_w)
+            cond = " ".join(_fixed_words)
             out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
             changes.append("IF -> if (= converted to ==)")
             continue
@@ -3849,6 +3857,7 @@ async def github_issue_fix_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 
