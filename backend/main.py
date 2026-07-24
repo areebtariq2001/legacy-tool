@@ -3790,6 +3790,40 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Living documentation generation failed safely: " + str(e)}
 
+def fetch_github_issues(repo_url):
+    import re as _gire
+    m = _gire.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
+    if not m:
+        return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
+    owner, repo = m.group(1), m.group(2)
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+    try:
+        issues_url = "https://api.github.com/repos/" + owner + "/" + repo + "/issues"
+        r = requests.get(issues_url, headers=gh_headers, params={"state": "open", "per_page": 10}, timeout=20)
+        if r.status_code != 200:
+            return {"error": "Could not access issues (status " + str(r.status_code) + "). Make sure the repo is public."}
+        raw_issues = [i for i in r.json() if "pull_request" not in i]
+    except Exception as e:
+        return {"error": "GitHub issues lookup failed: " + str(e)}
+    if not raw_issues:
+        return {"has_issues": False, "total_open_issues": 0, "issues": [], "issues_summary": "No open issues found for this repository."}
+    issues = []
+    for i in raw_issues:
+        issues.append({"number": i.get("number"), "title": i.get("title", ""), "body": (i.get("body") or "")[:500], "labels": [l.get("name") for l in i.get("labels", [])], "created_at": i.get("created_at"), "url": i.get("html_url")})
+    return {"has_issues": True, "total_open_issues": len(issues), "issues": issues, "issues_summary": str(len(issues)) + " open issue(s) found", "issues_disclaimer": "Uses the GitHub Issues API - shows the 10 most recent open issues. Does not include pull requests."}
+
+def suggest_github_issue_fix(issue_title, issue_body, source=""):
+    prompt = ("You are a senior software engineer. A GitHub issue was reported: Title: " + issue_title + ". " +
+        "Description: " + issue_body[:1000] + ". " +
+        "Suggest a specific, actionable fix approach in 3-5 sentences. If relevant code context is provided below, reference it directly. " +
+        "Be conservative - if you are not confident about the exact fix without seeing more code, say so honestly rather than guessing. " +
+        ("Relevant code:" + chr(10) + source[:3000] if source else "") )
+    result = call_ai_provider(prompt, max_tokens=500)
+    if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
+        return {"error": "AI fix suggestion failed: " + result}
+    return {"suggested_fix": result, "fix_disclaimer": "AI-generated suggestion based on the issue description alone (and code context if provided) - not a guaranteed fix. Always review and test before applying."}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
