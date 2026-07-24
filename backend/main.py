@@ -3824,6 +3824,28 @@ def suggest_github_issue_fix(issue_title, issue_body, source=""):
         return {"error": "AI fix suggestion failed: " + result}
     return {"suggested_fix": result, "fix_disclaimer": "AI-generated suggestion based on the issue description alone (and code context if provided) - not a guaranteed fix. Always review and test before applying."}
 
+@app.post("/github-issues")
+async def github_issues_endpoint(payload: dict):
+    try:
+        repo_url = payload.get("repo_url", "")
+        result = fetch_github_issues(repo_url)
+        track_usage("github-issues", repo_url)
+        return result
+    except Exception as e:
+        return {"error": "GitHub issues lookup failed safely: " + str(e)}
+
+@app.post("/github-issue-fix")
+async def github_issue_fix_endpoint(payload: dict):
+    try:
+        issue_title = payload.get("issue_title", "")
+        issue_body = payload.get("issue_body", "")
+        source = payload.get("source", "")
+        result = suggest_github_issue_fix(issue_title, issue_body, source)
+        track_usage("github-issue-fix", issue_title)
+        return result
+    except Exception as e:
+        return {"error": "AI fix suggestion failed safely: " + str(e)}
+
 @app.get('/')
 def root():
     return {"message": "API is running"}
