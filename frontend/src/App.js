@@ -817,7 +817,7 @@ Click to select files (multiple allowed)
 {smartResults&&<div style={{marginTop:"12px",background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px"}}>
 <p style={{color:"#f1f5f9",fontSize:"13px",fontWeight:"700",marginBottom:"8px"}}>Smart Workflow Results</p>
 {smartResults.security&&smartResults.security.findings&&<p style={{color:"#f87171",fontSize:"12px",marginBottom:"6px"}}>Security: {smartResults.security.findings.length} issue(s) found</p>}
-{smartResults.debt&&<p style={{color:"#f59e0b",fontSize:"12px",marginBottom:"6px"}}>Tech Debt: {smartResults.debt.debt_level||"N/A"} ({smartResults.debt.total_issues||0} issue(s))</p>}
+{smartResults.debt&&<p style={{color:"#f59e0b",fontSize:"12px",marginBottom:"6px"}}>Tech Debt (Original File): {smartResults.debt.debt_level||"N/A"} ({smartResults.debt.total_issues||0} issue(s)) - measures the original code before migration, not the TODO-review items in the converted output</p>}
 {smartResults.migrate&&smartResults.migrate.migrated_code&&<div style={{marginTop:"10px"}}><span style={{color:"#94a3b8",fontSize:"11px",fontWeight:"700"}}>Before / After:</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginTop:"4px"}}><div><span style={{color:"#f87171",fontSize:"10px",fontWeight:"700"}}>BEFORE</span><pre style={{background:"#07090f",borderRadius:"6px",padding:"10px",color:"#94a3b8",fontSize:"10px",whiteSpace:"pre-wrap",maxHeight:"250px",overflowY:"auto",marginTop:"4px"}}>{originalCodeCache.substring(0,800)}</pre></div><div><span style={{color:"#22c55e",fontSize:"10px",fontWeight:"700"}}>AFTER</span><pre style={{background:"#07090f",borderRadius:"6px",padding:"10px",color:"#94a3b8",fontSize:"10px",whiteSpace:"pre-wrap",maxHeight:"250px",overflowY:"auto",marginTop:"4px"}}>{smartResults.migrate.migrated_code.substring(0,800)}</pre></div></div></div>}
 </div>}
 </div>}
@@ -1470,6 +1470,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
