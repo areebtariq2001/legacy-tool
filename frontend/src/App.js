@@ -309,18 +309,22 @@ const[roadmapLoading,setRoadmapLoading]=useState(false);
 const[showDashboard,setShowDashboard]=useState(false);
 const[showHomePage,setShowHomePage]=useState(true);
 const[smartScan,setSmartScan]=useState(null);
+const[scanSteps,setScanSteps]=useState({analyze:"wait",migrate:"wait",security:"wait",debt:"wait"});
+const[smartResults,setSmartResults]=useState(null);
+const[originalCodeCache,setOriginalCodeCache]=useState("");
 const[smartScanLoading,setSmartScanLoading]=useState(false);
-const currentStep=files.length===0?1:(results.length===0?2:(reviewDecision&&Object.keys(reviewDecision).length>0?4:3));
+const currentStep=files.length===0?1:(results.length===0?2:3);
 const runSmartScan=async()=>{
   if(!files||files.length===0)return;
-  setSmartScanLoading(true);setSmartScan(null);
-  try{
-    const fd1=new FormData();fd1.append("file",files[0]);
-    const fd2=new FormData();fd2.append("file",files[0]);
-    const[r1,r2]=await Promise.all([fetch(API+"/scan-sensitive",{method:"POST",body:fd1}),fetch(API+"/predict-risk",{method:"POST",body:fd2})]);
-    const d1=await r1.json(),d2=await r2.json();
-    setSmartScan({security_issues:(d1.findings||[]).length,risk_level:d2.risk_level||"Unknown",risk_score:d2.migration_risk});
-  }catch(e){setSmartScan({error:"Could not run smart scan"});}
+  const origCode=await files[0].text();setOriginalCodeCache(origCode);
+  setSmartScanLoading(true);setSmartScan(null);setSmartResults(null);
+  setScanSteps({analyze:"wait",migrate:"wait",security:"wait",debt:"wait"});
+  const results={};
+  try{setScanSteps(s=>({...s,analyze:"run"}));const fda=new FormData();fda.append("file",files[0]);const ra=await fetch(API+"/analyze",{method:"POST",body:fda});results.analyze=await ra.json();setScanSteps(s=>({...s,analyze:"done"}));}catch(e){setScanSteps(s=>({...s,analyze:"error"}));}
+  try{setScanSteps(s=>({...s,migrate:"run"}));const fdm=new FormData();fdm.append("file",files[0]);const fn=files[0].name.toLowerCase();const mep=fn.endsWith(".cbl")||fn.endsWith(".cob")?"/migrate-cobol":fn.endsWith(".java")?"/migrate-java":fn.endsWith(".php")?"/migrate-php":"/migrate";const rm=await fetch(API+mep,{method:"POST",body:fdm});results.migrate=await rm.json();setScanSteps(s=>({...s,migrate:"done"}));}catch(e){setScanSteps(s=>({...s,migrate:"error"}));}
+  try{setScanSteps(s=>({...s,security:"run"}));const fds=new FormData();fds.append("file",files[0]);const rs=await fetch(API+"/scan-sensitive",{method:"POST",body:fds});results.security=await rs.json();setScanSteps(s=>({...s,security:"done"}));}catch(e){setScanSteps(s=>({...s,security:"error"}));}
+  try{setScanSteps(s=>({...s,debt:"run"}));const fdd=new FormData();fdd.append("file",files[0]);const rd=await fetch(API+"/tech-debt",{method:"POST",body:fdd});results.debt=await rd.json();setScanSteps(s=>({...s,debt:"done"}));}catch(e){setScanSteps(s=>({...s,debt:"error"}));}
+  setSmartResults(results);
   setSmartScanLoading(false);
 };
 const dashChartRef=useRef(null);
@@ -808,7 +812,15 @@ Click to select files (multiple allowed)
 {mode==="codeqa"&&<div style={{marginTop:"12px",marginBottom:"12px"}}><label style={{color:subtext,fontSize:"12px",display:"block",marginBottom:"6px"}}>Your question about this code:</label><input value={codeQuestion} onChange={e=>setCodeQuestion(e.target.value)} style={{width:"100%",maxWidth:"500px",padding:"8px 12px",borderRadius:"6px",background:codebg,color:text,border:"1px solid "+border,fontSize:"13px"}}/></div>}
 {files.length>0&&<button onClick={handleReset} style={{marginTop:'10px',padding:'6px 16px',borderRadius:'8px',border:'1px solid #f87171',background:'transparent',color:'#f87171',cursor:'pointer',fontSize:'13px',fontWeight:'600'}}>Reset / Clear All</button>}
 {files.length>0&&<p style={{color:subtext,marginTop:"8px"}}>{files.length} file(s) selected: {files.map(f=>f.name).join(", ")}</p>}
-{smartScanLoading&&<p style={{color:"#60a5fa",fontSize:"12px",marginTop:"8px"}}>Analyzing file...</p>}
+{(smartScanLoading||smartResults)&&<div style={{marginTop:"10px",display:"flex",flexDirection:"column",gap:"6px"}}>
+{[["analyze","Code Analysis"],["migrate","Migration"],["security","Security Scan"],["debt","Tech Debt"]].map(([k,lbl])=>{const st=scanSteps[k];const ic=st==="done"?"#22c55e":st==="run"?"#3b82f6":st==="error"?"#ef4444":"#243350";const tx=st==="done"?"Done":st==="run"?"Running...":st==="error"?"Failed":"Waiting...";return(<div key={k} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 12px",background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"6px"}}><div style={{width:"18px",height:"18px",borderRadius:"50%",background:ic+"22",border:"1.5px solid "+ic,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:ic,flexShrink:0}}>{st==="done"?"OK":st==="error"?"!":""}</div><span style={{fontSize:"12px",color:"#f1f5f9",flex:1}}>{lbl}</span><span style={{fontSize:"10px",color:ic}}>{tx}</span></div>);})}
+{smartResults&&<div style={{marginTop:"12px",background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px"}}>
+<p style={{color:"#f1f5f9",fontSize:"13px",fontWeight:"700",marginBottom:"8px"}}>Smart Workflow Results</p>
+{smartResults.security&&smartResults.security.findings&&<p style={{color:"#f87171",fontSize:"12px",marginBottom:"6px"}}>Security: {smartResults.security.findings.length} issue(s) found</p>}
+{smartResults.debt&&<p style={{color:"#f59e0b",fontSize:"12px",marginBottom:"6px"}}>Tech Debt: {smartResults.debt.debt_level||"N/A"} ({smartResults.debt.total_issues||0} issue(s))</p>}
+{smartResults.migrate&&smartResults.migrate.migrated_code&&<div style={{marginTop:"10px"}}><span style={{color:"#94a3b8",fontSize:"11px",fontWeight:"700"}}>Before / After:</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginTop:"4px"}}><div><span style={{color:"#f87171",fontSize:"10px",fontWeight:"700"}}>BEFORE</span><pre style={{background:"#07090f",borderRadius:"6px",padding:"10px",color:"#94a3b8",fontSize:"10px",whiteSpace:"pre-wrap",maxHeight:"250px",overflowY:"auto",marginTop:"4px"}}>{originalCodeCache.substring(0,800)}</pre></div><div><span style={{color:"#22c55e",fontSize:"10px",fontWeight:"700"}}>AFTER</span><pre style={{background:"#07090f",borderRadius:"6px",padding:"10px",color:"#94a3b8",fontSize:"10px",whiteSpace:"pre-wrap",maxHeight:"250px",overflowY:"auto",marginTop:"4px"}}>{smartResults.migrate.migrated_code.substring(0,800)}</pre></div></div></div>}
+</div>}
+</div>}
 {smartScan&&!smartScan.error&&<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"12px 14px",marginTop:"8px"}}><p style={{color:"#f1f5f9",fontSize:"13px",fontWeight:"700",marginBottom:"6px"}}>Smart Scan: {smartScan.security_issues} security issue(s) found, migration risk is {smartScan.risk_level}</p><button onClick={handleSubmit} style={{padding:"6px 14px",borderRadius:"8px",border:"none",background:"#3b82f6",color:"#fff",cursor:"pointer",fontSize:"12px",fontWeight:"700"}}>Fix All</button></div>}
 </div>
 {files.length===0&&!loading&&results.length===0&&(
@@ -1458,6 +1470,16 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
+
+
+
+
+
+
 
 
 
