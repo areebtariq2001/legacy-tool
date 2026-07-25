@@ -342,8 +342,8 @@ const[repoResult,setRepoResult]=useState(null);
 const handleScanRepo=async()=>{if(!repoUrl.trim())return;setRepoLoading(true);setRepoResult(null);try{const res=await fetch(API+"/scan-repo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo_url:repoUrl})});const data=await res.json();setRepoResult(data);}catch(e){setRepoResult({error:"Could not scan repo. Please try again."});}setRepoLoading(false);};
 
 const bg=darkMode?"#07090f":"#f1f5f9";
-const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
-const border=darkMode?"rgba(255,255,255,0.1)":"rgba(0,0,0,0.1)";
+const card=darkMode?"#0f1525":"rgba(0,0,0,0.05)";
+const border=darkMode?"#1e2d45":"rgba(0,0,0,0.1)";
 const text=darkMode?"#f1f5f9":"#0f172a";
 const subtext=darkMode?"#94a3b8":"#64748b";
 const codebg=darkMode?"#0b0f1a":"#e2e8f0";
@@ -711,7 +711,7 @@ const debtColor=(score)=>score>=60?"#f87171":score>=30?"#f59e0b":"#4ade80";
 
 return(
 <div style={{minHeight:"100vh",background:bg,color:text,fontFamily:"Arial",transition:"all 0.3s"}}>
-<aside style={{position:"fixed",left:0,top:0,width:"220px",height:"100vh",background:"#0d1220",borderRight:"1px solid rgba(255,255,255,0.1)",padding:"20px 16px",overflowY:"auto",zIndex:100}}>
+<aside style={{position:"fixed",left:0,top:0,width:"220px",height:"100vh",background:"#0b0f1a",borderRight:"1px solid #1e2d45",padding:"20px 16px",overflowY:"auto",zIndex:100}}>
 <div style={{marginBottom:"24px"}}><span style={{color:"#38bdf8",fontWeight:"800",fontSize:"18px"}}>StarBuild</span><div style={{color:"#94a3b8",fontSize:"11px",marginTop:"2px"}}>enterprise edition</div></div>
 <div style={{color:"#94a3b8",fontSize:"10px",fontWeight:"800",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"12px",paddingTop:"4px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>Modernization</div>
 {[["Core","\u2699\ufe0f"],["Security","\ud83d\udee1\ufe0f"],["Enterprise","\ud83c\udfe2"],["Banking","\ud83c\udfe6"],["AI Tools","\u2728"]].map(([catName,icon])=>(<div key={catName} style={{color:"white",fontSize:"13px",fontWeight:"700",padding:"9px 10px",borderRadius:"8px",marginBottom:"3px",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(56,189,248,0.12)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{display:"inline-block",width:"20px",textAlign:"center"}}>{icon}</span><span>{catName}</span></div>))}
@@ -728,6 +728,7 @@ Home
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",background:darkMode?"#0d1220":"#e2e8f0",borderRadius:"10px",marginBottom:"16px",border:"1px solid "+border}}>
 <span style={{color:subtext,fontSize:"12px",fontFamily:"monospace"}}>Workspace / <span style={{color:text}}>StarBuild</span></span>
 <span style={{color:"#38bdf8",fontSize:"11px",fontWeight:"700",padding:"3px 10px",border:"1px solid #38bdf8",borderRadius:"20px"}}>v1.0 Enterprise</span>
+<span style={{color:"#22c55e",fontSize:"10px",fontWeight:"600",padding:"3px 8px",background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:"4px",marginLeft:"6px"}}>69 Features Live</span>
 </div>
 <div style={{background:"linear-gradient(135deg, rgba(56,189,248,0.1), rgba(56,189,248,0.02))",border:"1px solid rgba(56,189,248,0.25)",borderRadius:"14px",padding:"20px 24px",marginBottom:"20px"}}>
 <h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
@@ -1453,6 +1454,11 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
+
 
 
 
