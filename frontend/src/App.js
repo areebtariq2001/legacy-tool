@@ -1,4 +1,4 @@
-import{useState,useEffect}from"react";
+import{useState,useEffect,useRef}from"react";
 import Footer from "./Footer";
 import ReactDiffViewer from"react-diff-viewer-continued";
 import JSZip from"jszip";
@@ -307,6 +307,14 @@ const[dashboardData,setDashboardData]=useState(null);
 const[roadmapData,setRoadmapData]=useState(null);
 const[roadmapLoading,setRoadmapLoading]=useState(false);
 const[showDashboard,setShowDashboard]=useState(false);
+const dashChartRef=useRef(null);
+const dashChartInstance=useRef(null);
+useEffect(()=>{
+  if(!showDashboard||!dashboardData||!dashChartRef.current||typeof window.Chart==="undefined")return;
+  if(dashChartInstance.current){dashChartInstance.current.destroy();}
+  const approved=dashboardData.approved||0,rejected=dashboardData.rejected||0,needsMod=dashboardData.needs_modification||0;
+  dashChartInstance.current=new window.Chart(dashChartRef.current,{type:"doughnut",data:{labels:["Approved","Rejected","Needs Mod"],datasets:[{data:[approved,rejected,needsMod],backgroundColor:["#22c55e","#ef4444","#f59e0b"],borderWidth:0}]},options:{cutout:"70%",plugins:{legend:{display:false}},animation:{duration:500}}});
+},[showDashboard,dashboardData]);
 const[reviewNotes,setReviewNotes]=useState({});
 const[restored,setRestored]=useState({});
 const[repoUrl,setRepoUrl]=useState("");
@@ -1403,6 +1411,7 @@ rightTitle="Migrated"
 {dashboardData&&!dashboardData.error&&<div>
 <p style={{color:text,fontSize:"14px",marginBottom:"12px"}}>{dashboardData.dashboard_summary}</p>
 <div style={{display:"flex",flexWrap:"wrap",gap:"10px",marginBottom:"16px"}}><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#4ade80"}}>{dashboardData.approved||0}</div><div style={{fontSize:"11px",color:subtext}}>Approved</div></div><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#f87171"}}>{dashboardData.rejected||0}</div><div style={{fontSize:"11px",color:subtext}}>Rejected</div></div><div style={{background:codebg,borderRadius:"8px",padding:"12px",flex:"1 1 100px"}}><div style={{fontSize:"22px",fontWeight:"800",color:"#f59e0b"}}>{dashboardData.needs_modification||0}</div><div style={{fontSize:"11px",color:subtext}}>Needs Mod</div></div></div>
+<div style={{display:"flex",justifyContent:"center",margin:"14px 0"}}><canvas ref={dashChartRef} width="140" height="140"></canvas></div>
 <p style={{color:subtext,fontSize:"12px",marginBottom:"6px"}}>Recent activity:</p>
 {dashboardData.activity_trend&&dashboardData.activity_trend.length>0&&<div style={{marginBottom:"14px"}}><span style={{color:subtext,fontSize:"11px"}}>Activity trend (last {dashboardData.activity_trend.length} days, avg {dashboardData.avg_reviews_per_day}/day):</span><div style={{display:"flex",alignItems:"flex-end",gap:"3px",height:"50px",marginTop:"6px"}}>{(()=>{const maxC=Math.max(...dashboardData.activity_trend.map(t=>t.count),1);return dashboardData.activity_trend.map((t,ti)=>(<div key={ti} title={t.date+": "+t.count} style={{flex:"1",background:"#0d9488",height:((t.count/maxC)*100)+"%",minHeight:"3px",borderRadius:"2px 2px 0 0"}}/>));})()}</div></div>}
 {dashboardData.recent_activity&&dashboardData.recent_activity.map((a,ai)=>(<div key={ai} style={{background:codebg,borderRadius:"6px",padding:"8px",marginBottom:"4px",fontSize:"12px",color:text}}>{a.filename} - {a.decision}</div>))}
@@ -1415,6 +1424,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
