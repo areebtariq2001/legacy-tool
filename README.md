@@ -32,7 +32,7 @@ Legacy systems run critical banking operations, but they are hard to understand,
 
 ---
 
-## Features (62+)
+## Features (69+)
 
 ### Core Analysis & Migration
 Analyze · Migrate (rule-based) · AI Migrate (guardrails + confidence score) · Call Graph · Risk Check · Tech Debt · Gen Docs
@@ -73,11 +73,17 @@ Facade/Adapter Wrapper Generator (Python, Java, PHP) — generates a skeleton th
 ### Codebase History Intelligence (Phase 7)
 GitHub Commit History Analysis (via GitHub Commits API — no repo cloning) — surfaces change frequency, top contributors, and recent commit messages to flag "hotspot" files before migration
 
+### Visual Intelligence & Differentiation (Phase 8)
+Technical Debt in Dollar Value (configurable hourly rate by region) · Code DNA Fingerprint (radar-style multi-dimension health score) · Live Migration Dashboard (approval stats, activity trend, manual refresh) · Time-Travel Diff Viewer (compares file content between two GitHub commits) · Cross-Language Migration (Python↔JS, PHP↔Python — experimental, heavily disclaimed, conservative confidence scoring)
+
+### Latest Additions
+Interactive Dependency Graph (visual, risk-color-coded call graph — Python) · Living Documentation (versioned, persistent docs with hash-based change detection) · GitHub Issues + AI Fix Suggestions · Smart Workflow (auto-runs Analyze → Migrate → Security Scan → Tech Debt on upload, with a guided step-by-step UI and Before/After diff view)
+
 ---
 
 ## Multi-Language Support
 
-StarBuild supports **Python, Java, PHP, and COBOL**. Python has the deepest feature coverage; Java has been extensively tested and hardened — including method detection (handling `throws`/`synchronized`), wildcard import parsing, comment-aware analysis, and language-agnostic security patterns (SQL injection, hardcoded credentials work the same way regardless of language).
+StarBuild supports **Python, Java, PHP, and COBOL**. All four languages have been deeply, systematically tested — including COBOL-specific handling of fixed-format sequence numbers (columns 1-6), paragraph-name detection, `EXEC SQL` embedded-SQL scanning, and `VALUE` clause credential detection — patterns that don't exist in Python/Java/PHP and were only caught by testing against a realistic banking COBOL file, not synthetic examples.
 
 Where a check is genuinely Python-only (e.g. AST-based parsing), StarBuild **honestly reports "Not Analyzed"** rather than silently returning a misleading "no risk found" result.
 
@@ -133,25 +139,19 @@ We treat "it returns 200 OK" and "the business logic is actually correct" as two
 
 ## Honest Status & Roadmap
 
-StarBuild today is a **working prototype with 59+ features**, built by a solo developer with a technical advisor and marketing collaborator. It is a strong **assessment, audit, and governance** tool, not yet a certified banking-grade platform.
+StarBuild today is a **working prototype with 69+ features**, built by a solo developer with a technical advisor and marketing collaborator. All 8 originally-planned phases are complete, plus a set of newer differentiation features (dependency graph, living docs, GitHub issue triage) and an in-progress UI redesign (guided Smart Workflow, live dashboard). It is a strong **assessment, audit, and governance** tool, not yet a certified banking-grade platform.
 
 **Known limitations (stated honestly):**
 - The Sandbox Test feature is a lightweight, resource-limited subprocess check — not a fully isolated Docker sandbox.
 - The GitHub Webhook Receiver scans changed files on push; full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup.
-- PHP and COBOL support exists but has not yet received the same depth of testing as Python and Java.
-
-**Roadmap — Phase 8 (Visual Intelligence & Differentiation):**
-- Technical debt expressed in dollar value (configurable hourly rate)
-- Code DNA Fingerprint — radar-chart visualization combining existing scores
-- Live Migration Dashboard upgrade (auto-refresh, risk-trend graph, ETA)
-- Time-Travel Diff Viewer (slider across GitHub commit history)
-- Cross-language migration (Python↔JS, PHP↔Python) — high-risk, conservative confidence scoring, heavy review disclaimers
+- Cross-Language Migration is explicitly experimental — no structural parity check exists across languages the way it does for same-language migration.
+- The UI redesign (guided step-by-step workflow, dashboard) is in progress — most functionality is on a single page today, with dedicated pages for Dashboard/Ask/Docs/ROI still to come.
 
 **Also on the roadmap:**
 - SOC 2 certification & independent security audit
 - Fully isolated Docker-based sandbox execution
 - GitHub App integration for automated pull request generation
-- Extend the same multi-language rigor (method detection, comment-awareness) to COBOL
+- Full multi-page UI matching the guided-workflow design
 
 ---
 
