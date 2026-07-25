@@ -312,6 +312,9 @@ const[smartScan,setSmartScan]=useState(null);
 const[scanSteps,setScanSteps]=useState({analyze:"wait",migrate:"wait",security:"wait",debt:"wait"});
 const[smartResults,setSmartResults]=useState(null);
 const[originalCodeCache,setOriginalCodeCache]=useState("");
+const[runHistory,setRunHistory]=useState([]);
+const healthChartRef=useRef(null);
+const healthChartInstance=useRef(null);
 const[currentPage,setCurrentPage]=useState("modernize");
 const[smartScanLoading,setSmartScanLoading]=useState(false);
 const currentStep=files.length===0?1:(results.length===0?2:3);
@@ -330,6 +333,16 @@ const runSmartScan=async()=>{
 };
 const dashChartRef=useRef(null);
 const dashChartInstance=useRef(null);
+useEffect(()=>{
+  if(!smartResults||!healthChartRef.current||typeof window.Chart==="undefined")return;
+  if(healthChartInstance.current){healthChartInstance.current.destroy();}
+  const critCount=(smartResults.security?.findings||[]).filter(f=>f.severity==="High").length;
+  const conf=smartResults.migrate?.confidence_score||95;
+  const secScore=critCount===0?88:Math.max(20,88-critCount*15);
+  const overall=Math.round((secScore+conf)/2);
+  const hColor=overall>=70?"#22c55e":overall>=50?"#f59e0b":"#ef4444";
+  healthChartInstance.current=new window.Chart(healthChartRef.current,{type:"doughnut",data:{labels:["Score","Gap"],datasets:[{data:[overall,100-overall],backgroundColor:[hColor,"#1a2438"],borderWidth:0}]},options:{cutout:"78%",plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:500}}});
+},[smartResults]);
 useEffect(()=>{
   if(files&&files.length>0){runSmartScan();}
   else{setSmartScan(null);}
@@ -1472,6 +1485,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
