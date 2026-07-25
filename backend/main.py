@@ -3103,6 +3103,9 @@ def detect_code_smells(source, filename):
         indent_stack = []
         for i, line in enumerate(lines):
             stripped = line.lstrip()
+            _seqm3 = _re.match(r"^(\d{6})\s+(.*)$", stripped) if filename.lower().endswith((".cbl", ".cob")) else None
+            if _seqm3:
+                stripped = _seqm3.group(2)
             if not stripped or stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
                 continue
             indent = len(line) - len(stripped)
@@ -3860,6 +3863,7 @@ async def github_issue_fix_endpoint(payload: dict):
 @app.get('/')
 def root():
     return {"message": "API is running"}
+
 
 
 

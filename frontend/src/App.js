@@ -314,12 +314,12 @@ const[repoLoading,setRepoLoading]=useState(false);
 const[repoResult,setRepoResult]=useState(null);
 const handleScanRepo=async()=>{if(!repoUrl.trim())return;setRepoLoading(true);setRepoResult(null);try{const res=await fetch(API+"/scan-repo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repo_url:repoUrl})});const data=await res.json();setRepoResult(data);}catch(e){setRepoResult({error:"Could not scan repo. Please try again."});}setRepoLoading(false);};
 
-const bg=darkMode?"#0a0e1a":"#f1f5f9";
+const bg=darkMode?"#07090f":"#f1f5f9";
 const card=darkMode?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)";
 const border=darkMode?"rgba(255,255,255,0.1)":"rgba(0,0,0,0.1)";
-const text=darkMode?"white":"#0f172a";
+const text=darkMode?"#f1f5f9":"#0f172a";
 const subtext=darkMode?"#94a3b8":"#64748b";
-const codebg=darkMode?"#0a0e1a":"#e2e8f0";
+const codebg=darkMode?"#0b0f1a":"#e2e8f0";
 
 if(view==="landing")return <LandingPage onLaunch={()=>setView("tool")} onApiDocs={()=>setView("apidocs")} onStats={()=>setView("stats")}/>;
 if(view==="apidocs")return <ApiDocs onBack={()=>setView("landing")}/>;
@@ -1415,6 +1415,9 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
 
 
 
