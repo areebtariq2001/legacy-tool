@@ -310,6 +310,7 @@ const[showDashboard,setShowDashboard]=useState(false);
 const[showHomePage,setShowHomePage]=useState(true);
 const[smartScan,setSmartScan]=useState(null);
 const[smartScanLoading,setSmartScanLoading]=useState(false);
+const currentStep=files.length===0?1:(results.length===0?2:(reviewDecision&&Object.keys(reviewDecision).length>0?4:3));
 const runSmartScan=async()=>{
   if(!files||files.length===0)return;
   setSmartScanLoading(true);setSmartScan(null);
@@ -733,6 +734,9 @@ Home
 <div style={{background:"linear-gradient(135deg, rgba(56,189,248,0.1), rgba(56,189,248,0.02))",border:"1px solid rgba(56,189,248,0.25)",borderRadius:"14px",padding:"20px 24px",marginBottom:"20px"}}>
 <h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
 <p style={{color:subtext,fontSize:"15px",marginBottom:"0"}}>Migrate, audit, and secure legacy code with confidence scoring and verification.</p></div>
+<div style={{display:"flex",alignItems:"center",gap:"4px",marginBottom:"14px"}}>
+{["Upload","Configure","Review","Approve"].map((lbl,i)=>{const n=i+1;const isDone=n<currentStep;const isActive=n===currentStep;return(<div key={n} style={{display:"flex",alignItems:"center"}}><div style={{width:"22px",height:"22px",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",background:isDone?"#22c55e":isActive?"rgba(59,130,246,0.15)":"#0f1525",border:isDone?"1.5px solid #22c55e":isActive?"1.5px solid #3b82f6":"1.5px solid #243350",color:isDone?"#fff":isActive?"#60a5fa":"#64748b"}}>{isDone?"?":n}</div><span style={{fontSize:"10px",color:isActive||isDone?"#f1f5f9":"#64748b",margin:"0 8px"}}>{lbl}</span>{n<4&&<div style={{width:"24px",height:"1px",background:isDone?"#22c55e":"#243350"}}/>}</div>);})}
+</div>
 {showHomePage&&<div style={{background:"#0b0f1a",border:"1px solid #1e2d45",borderRadius:"10px",padding:"20px",marginBottom:"16px"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><h2 style={{color:"#f1f5f9",fontSize:"18px",fontWeight:"700",margin:0}}>Migration Dashboard</h2><button onClick={()=>setShowHomePage(false)} style={{background:"transparent",border:"1px solid #243350",color:"#94a3b8",cursor:"pointer",fontSize:"11px",borderRadius:"6px",padding:"5px 12px"}}>Hide Dashboard</button></div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px"}}>
@@ -1454,6 +1458,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
