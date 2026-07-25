@@ -308,8 +308,26 @@ const[roadmapData,setRoadmapData]=useState(null);
 const[roadmapLoading,setRoadmapLoading]=useState(false);
 const[showDashboard,setShowDashboard]=useState(false);
 const[showHomePage,setShowHomePage]=useState(true);
+const[smartScan,setSmartScan]=useState(null);
+const[smartScanLoading,setSmartScanLoading]=useState(false);
+const runSmartScan=async()=>{
+  if(!files||files.length===0)return;
+  setSmartScanLoading(true);setSmartScan(null);
+  try{
+    const fd1=new FormData();fd1.append("file",files[0]);
+    const fd2=new FormData();fd2.append("file",files[0]);
+    const[r1,r2]=await Promise.all([fetch(API+"/scan-sensitive",{method:"POST",body:fd1}),fetch(API+"/migration-risk",{method:"POST",body:fd2})]);
+    const d1=await r1.json(),d2=await r2.json();
+    setSmartScan({security_issues:(d1.findings||[]).length,risk_level:d2.risk_level||"Unknown",risk_score:d2.migration_risk});
+  }catch(e){setSmartScan({error:"Could not run smart scan"});}
+  setSmartScanLoading(false);
+};
 const dashChartRef=useRef(null);
 const dashChartInstance=useRef(null);
+useEffect(()=>{
+  if(files&&files.length>0){runSmartScan();}
+  else{setSmartScan(null);}
+},[files]);
 useEffect(()=>{
   if(!showDashboard||!dashboardData||!dashChartRef.current||typeof window.Chart==="undefined")return;
   if(dashChartInstance.current){dashChartInstance.current.destroy();}
@@ -785,6 +803,8 @@ Click to select files (multiple allowed)
 {mode==="codeqa"&&<div style={{marginTop:"12px",marginBottom:"12px"}}><label style={{color:subtext,fontSize:"12px",display:"block",marginBottom:"6px"}}>Your question about this code:</label><input value={codeQuestion} onChange={e=>setCodeQuestion(e.target.value)} style={{width:"100%",maxWidth:"500px",padding:"8px 12px",borderRadius:"6px",background:codebg,color:text,border:"1px solid "+border,fontSize:"13px"}}/></div>}
 {files.length>0&&<button onClick={handleReset} style={{marginTop:'10px',padding:'6px 16px',borderRadius:'8px',border:'1px solid #f87171',background:'transparent',color:'#f87171',cursor:'pointer',fontSize:'13px',fontWeight:'600'}}>Reset / Clear All</button>}
 {files.length>0&&<p style={{color:subtext,marginTop:"8px"}}>{files.length} file(s) selected: {files.map(f=>f.name).join(", ")}</p>}
+{smartScanLoading&&<p style={{color:"#60a5fa",fontSize:"12px",marginTop:"8px"}}>Analyzing file...</p>}
+{smartScan&&!smartScan.error&&<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"12px 14px",marginTop:"8px"}}><p style={{color:"#f1f5f9",fontSize:"13px",fontWeight:"700",marginBottom:"6px"}}>Smart Scan: {smartScan.security_issues} security issue(s) found, migration risk is {smartScan.risk_level}</p><button onClick={handleSubmit} style={{padding:"6px 14px",borderRadius:"8px",border:"none",background:"#3b82f6",color:"#fff",cursor:"pointer",fontSize:"12px",fontWeight:"700"}}>Fix All</button></div>}
 </div>
 {files.length===0&&!loading&&results.length===0&&(
 <div style={{background:"rgba(56,189,248,0.05)",border:"1px dashed rgba(56,189,248,0.3)",borderRadius:"8px",padding:"16px",marginBottom:"16px"}}>
@@ -1433,6 +1453,11 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
+
 
 
 
