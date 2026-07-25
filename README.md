@@ -38,10 +38,10 @@ Legacy systems run critical banking operations, but they are hard to understand,
 Analyze · Migrate (rule-based) · AI Migrate (guardrails + confidence score) · Call Graph · Risk Check · Tech Debt · Gen Docs
 
 ### Security & Compliance
-Data Scan · Crypto Scan · **Quantum-Readiness Score** *(unique)* · Banking Scan · AML/KYC Extractor · SQL Injection Scanner · PII Detection · Key Management Audit · **Zero-Trust Readiness Score** *(unique)*
+Data Scan · Crypto Scan · Quantum-Readiness Score (assesses cryptographic algorithms for post-quantum vulnerability) · Banking Scan · AML/KYC Extractor · SQL Injection Scanner · PII Detection · Key Management Audit · Zero-Trust Readiness Score
 
 ### Enterprise Analysis
-Repository Scan (GitHub-authenticated) · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · **AI-Native Readiness** *(unique)* · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
+Repository Scan (GitHub-authenticated) · Database Schema Analysis · API Dependency Mapping · Architecture View · CI/CD Recommendations · AI-Native Readiness · Migration Risk Prediction · Cost Estimator · Tech Stack Detector · Vendor Lock-in Risk Analysis
 
 ### Banking-Specific
 Business Rule Extractor (AI) · Business Rules Engine (compliance tagging) · Executive Report · Audit-Ready PDF Export · Impact Analysis · Transaction Flow Mapping · Rollback Plan · Regional Compliance Mapping · Regulatory Framework Presets (SBP, Basel III, PCI-DSS, GDPR)
