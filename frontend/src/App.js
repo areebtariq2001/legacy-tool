@@ -316,7 +316,7 @@ const runSmartScan=async()=>{
   try{
     const fd1=new FormData();fd1.append("file",files[0]);
     const fd2=new FormData();fd2.append("file",files[0]);
-    const[r1,r2]=await Promise.all([fetch(API+"/scan-sensitive",{method:"POST",body:fd1}),fetch(API+"/migration-risk",{method:"POST",body:fd2})]);
+    const[r1,r2]=await Promise.all([fetch(API+"/scan-sensitive",{method:"POST",body:fd1}),fetch(API+"/predict-risk",{method:"POST",body:fd2})]);
     const d1=await r1.json(),d2=await r2.json();
     setSmartScan({security_issues:(d1.findings||[]).length,risk_level:d2.risk_level||"Unknown",risk_score:d2.migration_risk});
   }catch(e){setSmartScan({error:"Could not run smart scan"});}
@@ -1453,6 +1453,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
