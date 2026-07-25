@@ -307,6 +307,7 @@ const[dashboardData,setDashboardData]=useState(null);
 const[roadmapData,setRoadmapData]=useState(null);
 const[roadmapLoading,setRoadmapLoading]=useState(false);
 const[showDashboard,setShowDashboard]=useState(false);
+const[showHomePage,setShowHomePage]=useState(true);
 const dashChartRef=useRef(null);
 const dashChartInstance=useRef(null);
 useEffect(()=>{
@@ -713,6 +714,14 @@ Home
 <div style={{background:"linear-gradient(135deg, rgba(56,189,248,0.1), rgba(56,189,248,0.02))",border:"1px solid rgba(56,189,248,0.25)",borderRadius:"14px",padding:"20px 24px",marginBottom:"20px"}}>
 <h1 style={{color:"#38bdf8",fontSize:"36px",fontWeight:"800",letterSpacing:"-0.02em",marginBottom:"6px"}}>StarBuild</h1>
 <p style={{color:subtext,fontSize:"15px",marginBottom:"0"}}>Migrate, audit, and secure legacy code with confidence scoring and verification.</p></div>
+{showHomePage&&<div style={{background:"#0b0f1a",border:"1px solid #1e2d45",borderRadius:"10px",padding:"20px",marginBottom:"16px"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><h2 style={{color:"#f1f5f9",fontSize:"18px",fontWeight:"700",margin:0}}>Migration Dashboard</h2><button onClick={()=>setShowHomePage(false)} style={{background:"transparent",border:"1px solid #243350",color:"#94a3b8",cursor:"pointer",fontSize:"11px",borderRadius:"6px",padding:"5px 12px"}}>Hide Dashboard</button></div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px"}}>
+<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#60a5fa"}}>69</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Total Features</div></div>
+<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#22c55e"}}>4</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Languages Supported</div></div>
+<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#f59e0b"}}>8</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Phases Complete</div></div>
+<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#a78bfa"}}>Live</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Backend Status</div></div>
+</div></div>}
 </div>
 <div style={{maxWidth:"1000px",margin:"0 auto",padding:"8px 32px 48px"}}>
 <div style={{background:card,border:"1px solid "+border,borderRadius:"12px",padding:"24px",marginBottom:"16px"}}>
@@ -1424,6 +1433,10 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
+
+
 
 
 
