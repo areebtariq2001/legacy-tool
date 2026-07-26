@@ -742,7 +742,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').textContent = confPct + '%';
   document.getElementById('confPct').style.color = cColor;
   document.getElementById('sv-conf').textContent = confPct + '%';
-  migrated = R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
+  migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
   document.getElementById('diffOld').textContent = original.substring(0, 1000) + (original.length > 1000 ? '\n…' : '');
   document.getElementById('diffNew').textContent = migrated.substring(0, 1000) + (migrated.length > 1000 ? '\n…' : '');
   const issues = buildIssues(R);
