@@ -19,8 +19,6 @@
 }
 html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;line-height:1.5;overflow:hidden}
 .shell{display:flex;height:100vh}
-
-/* ── SIDEBAR ── */
 .sidebar{width:220px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column}
 .logo{padding:18px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px}
 .logo-mark{width:28px;height:28px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
@@ -40,8 +38,6 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .live-label{font-size:11px;font-weight:600;color:var(--t2)}
 .live-sub{font-size:10px;color:var(--t3)}
-
-/* ── TOPBAR ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;border-bottom:1px solid var(--b1);background:var(--s1);flex-shrink:0}
 .tb-left{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3)}
@@ -60,13 +56,9 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .btn-ghost:hover{background:var(--s3);color:var(--t1)}
 .btn-danger{background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.2)}
 .btn-success{background:rgba(34,197,94,.08);color:var(--green);border:1px solid rgba(34,197,94,.2)}
-
-/* ── CONTENT ── */
 .content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
 .page{display:none;flex-direction:column;gap:16px}
 .page.active{display:flex}
-
-/* ── CARDS ── */
 .card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px}
 .card-head{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
 .card-head-a{font-size:10px;color:var(--blue-l);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0}
@@ -75,8 +67,6 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .stat-val{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1.1;margin-bottom:4px}
 .stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .stat-sub{font-size:10px;color:var(--t4);margin-top:2px}
-
-/* ── UPLOAD ── */
 .drop-area{border:1px dashed var(--b2);border-radius:var(--r);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--s2);position:relative}
 .drop-area:hover,.drop-area.drag{border-color:var(--blue);background:var(--cglow)}
 .drop-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -89,8 +79,6 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .chip-file{display:inline-flex;align-items:center;gap:5px;background:var(--s3);border:1px solid var(--b2);border-radius:4px;padding:3px 8px;font-size:10px;font-family:var(--mono);color:var(--blue-l)}
 .chip-rm{color:var(--t4);cursor:pointer;font-size:12px;line-height:1}
 .chip-rm:hover{color:var(--red)}
-
-/* ── CONFIG ── */
 .cfg-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cfg-lbl{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;width:60px;flex-shrink:0}
 .sel-row{display:flex;gap:4px}
@@ -100,8 +88,6 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .chk-row{display:flex;gap:4px;flex-wrap:wrap}
 .chk-btn{padding:3px 9px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;font-family:var(--sans);border:1px solid var(--b2);background:var(--s3);color:var(--t3);transition:all .12s}
 .chk-btn.active{background:rgba(34,197,94,.08);color:var(--green);border-color:rgba(34,197,94,.3)}
-
-/* ── 4-STEP PROGRESS PIPELINE ── */
 .pipeline{display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--b1)}
 .pipeline.show{display:flex}
 .pipe-step{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--s2);border-bottom:1px solid var(--b1);transition:all .2s;position:relative}
@@ -122,19 +108,13 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .spinner-sm{width:14px;height:14px;border:1.5px solid var(--b2);border-top-color:var(--blue);border-radius:50%;animation:spin .5s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 .pipe-time{font-size:10px;color:var(--t4);font-family:var(--mono);flex-shrink:0}
-
-/* ── RESULTS ── */
 .results{display:none;flex-direction:column;gap:14px}
 .results.show{display:flex}
-
-/* Summary bar */
 .sum-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .sum-card{background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 12px;text-align:center;position:relative;overflow:hidden}
 .sum-card::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--al)}
 .sum-val{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
 .sum-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;font-weight:600}
-
-/* Issue list */
 .issue-list{display:flex;flex-direction:column;gap:4px}
 .issue{display:flex;align-items:flex-start;gap:0;border-radius:6px;border:1px solid var(--b1);overflow:hidden;background:var(--s2);transition:border-color .15s}
 .issue:hover{border-color:var(--b2)}
@@ -154,86 +134,59 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .tag-green{background:rgba(34,197,94,.1);color:var(--green)}
 .issue-file{font-size:9px;color:var(--t4);font-family:var(--mono)}
 .issue-action{padding:9px 10px;display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0}
-
-/* Health chart layout */
 .health-layout{display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:start}
-
-/* Donut */
 .donut-wrap{position:relative;flex-shrink:0}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
 .donut-num{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1}
 .donut-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
-
-/* Prog bars */
 .prog{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .prog:last-child{margin-bottom:0}
 .prog-lbl{font-size:10px;color:var(--t2);width:72px;flex-shrink:0}
 .prog-bar{flex:1;height:4px;background:var(--b1);border-radius:2px;overflow:hidden}
 .prog-fill{height:100%;border-radius:2px;transition:width .6s ease}
 .prog-val{font-size:10px;font-family:var(--mono);color:var(--t3);min-width:30px;text-align:right}
-
-/* Diff */
 .diff-wrap{display:grid;grid-template-columns:1fr 1fr;gap:1px;border-radius:6px;overflow:hidden;border:1px solid var(--b1)}
 .diff-pane{background:var(--s2)}
 .diff-head{padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--b1)}
 .diff-head.old{color:var(--red)}
 .diff-head.new{color:var(--green)}
 .diff-body{padding:10px;font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--t3);white-space:pre;overflow-x:auto;min-height:100px;max-height:220px;overflow-y:auto}
-
-/* Conf */
 .conf-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .conf-bar{flex:1;height:5px;background:var(--b2);border-radius:3px;overflow:hidden}
 .conf-fill{height:100%;border-radius:3px;transition:width .6s ease}
 .conf-pct{font-size:13px;font-weight:700;font-family:var(--mono);min-width:38px}
-
-/* Approval */
 .approval{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .approval-text{font-size:12px;color:var(--t2)}
 .approval-text strong{color:var(--t1)}
 .approval-actions{display:flex;gap:5px;flex-shrink:0}
-
-/* Result box */
 .result-box{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;display:none}
 .result-box.show{display:block}
 .result-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--b1)}
 .result-lbl{font-size:9px;font-weight:700;color:var(--t1);text-transform:uppercase;letter-spacing:.1em}
 .result-copy{font-size:10px;color:var(--blue-l);cursor:pointer}
 .result-body{font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--t2);white-space:pre-wrap;max-height:200px;overflow-y:auto}
-
-/* Scan input */
 .scan-row{display:flex;gap:6px;margin-top:8px}
 .scan-input{flex:1;background:var(--s3);border:1px solid var(--b2);border-radius:6px;padding:6px 10px;font-size:11px;font-family:var(--mono);color:var(--t1);outline:none}
 .scan-input:focus{border-color:var(--blue)}
 .scan-input::placeholder{color:var(--t4)}
 .sec-lbl{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
-
-/* Grid */
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .g-main{display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:start}
-
-/* Chart */
 .chart-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:14px}
 .chart-wrap{position:relative;height:140px}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t3)}
 .leg-dot{width:8px;height:3px;border-radius:1px;flex-shrink:0}
-
-/* Empty */
 .empty{text-align:center;padding:28px 16px}
 .empty-title{font-size:13px;font-weight:600;color:var(--t2);margin-bottom:4px}
 .empty-sub{font-size:11px;color:var(--t4)}
-
-/* Loading */
 .loading{display:none;align-items:center;gap:8px;padding:10px 0}
 .loading.show{display:flex}
 .spinner{width:14px;height:14px;border:1.5px solid var(--b2);border-top-color:var(--blue);border-radius:50%;animation:spin .5s linear infinite;flex-shrink:0}
 .loading-txt{font-size:11px;color:var(--t3)}
-
-/* Ask page */
 textarea.ask-ta{width:100%;background:var(--s3);border:1px solid var(--b2);border-radius:6px;padding:9px 10px;font-size:12px;color:var(--t1);font-family:var(--sans);resize:vertical;min-height:80px;outline:none;line-height:1.6}
 textarea.ask-ta:focus{border-color:var(--blue)}
-
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
@@ -241,8 +194,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 </head>
 <body>
 <div class="shell">
-
-<!-- ══ SIDEBAR ══ -->
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-mark">SB</div>
@@ -251,7 +202,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <div class="logo-tag">Enterprise · v1.0</div>
     </div>
   </div>
-
   <div class="sb-section">
     <div class="sb-label">Workspace</div>
     <a class="sb-item active" onclick="nav('modernize',this)"><span class="sb-dot"></span>Modernize Code</a>
@@ -260,27 +210,22 @@ textarea.ask-ta:focus{border-color:var(--blue)}
     <a class="sb-item" onclick="nav('docs',this)"><span class="sb-dot"></span>Documentation</a>
     <a class="sb-item" onclick="nav('roi',this)"><span class="sb-dot"></span>ROI & Debt</a>
   </div>
-
   <div class="divider"></div>
-
   <div class="sb-section">
     <div class="sb-label">Settings</div>
     <a class="sb-item"><span class="sb-dot"></span>API Keys</a>
     <a class="sb-item"><span class="sb-dot"></span>On-Premise AI</a>
   </div>
-
   <div class="sb-bottom">
     <div class="status-pill">
-      <div class="live-dot"></div>
+      <div class="live-dot" id="liveDot" style="background:#64748b"></div>
       <div>
-        <div class="live-label">Groq AI · Connected</div>
-        <div class="live-sub">Backend live on Render</div>
+        <div class="live-label" id="liveLabel">Checking backend...</div>
+        <div class="live-sub" id="liveSub">Connecting...</div>
       </div>
     </div>
   </div>
 </aside>
-
-<!-- ══ MAIN ══ -->
 <div class="main">
   <header class="topbar">
     <div class="tb-left">
@@ -293,15 +238,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
   </header>
-
   <div class="content">
-
-    <!-- ══════════════════════════════
-         PAGE: MODERNIZE (Smart Workflow)
-    ══════════════════════════════ -->
     <div class="page active" id="page-modernize">
-
-      <!-- Page Header -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">Modernize Code</div>
@@ -309,13 +247,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
         </div>
         <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="resetAll()">Reset</button>
       </div>
-
       <div class="g-main">
-
-        <!-- ── LEFT COLUMN ── -->
         <div style="display:flex;flex-direction:column;gap:14px">
-
-          <!-- UPLOAD CARD -->
           <div class="card">
             <div class="card-head">Upload File</div>
             <div class="drop-area" id="dropArea"
@@ -334,7 +267,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
             </div>
             <div class="chips" id="fileChips"></div>
-
             <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--b1)">
               <div class="sec-lbl">Or scan a GitHub repository</div>
               <div class="scan-row">
@@ -344,8 +276,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 Python files.</div>
             </div>
           </div>
-
-          <!-- CONFIG CARD -->
           <div class="card">
             <div class="card-head">Configuration</div>
             <div style="display:flex;flex-direction:column;gap:9px">
@@ -377,18 +307,12 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
             </div>
           </div>
-
-          <!-- RUN BUTTON -->
           <button class="btn btn-primary" id="runBtn"
             style="width:100%;justify-content:center;padding:11px;font-size:13px;border-radius:8px;opacity:.5;cursor:not-allowed"
             onclick="runAnalysis()" disabled>
             Run Full Analysis
           </button>
-
-          <!-- ── 4-STEP PIPELINE ── -->
           <div class="pipeline" id="pipeline">
-
-            <!-- Step 1: Analyze -->
             <div class="pipe-step waiting" id="ps-analyze">
               <div class="pipe-num pn-wait" id="pn-analyze">1</div>
               <div class="pipe-info">
@@ -398,8 +322,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="pb-analyze"></div>
               <div class="pipe-time" id="pt-analyze"></div>
             </div>
-
-            <!-- Step 2: Migrate -->
             <div class="pipe-step waiting" id="ps-migrate">
               <div class="pipe-num pn-wait" id="pn-migrate">2</div>
               <div class="pipe-info">
@@ -409,8 +331,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="pb-migrate"></div>
               <div class="pipe-time" id="pt-migrate"></div>
             </div>
-
-            <!-- Step 3: Security -->
             <div class="pipe-step waiting" id="ps-security">
               <div class="pipe-num pn-wait" id="pn-security">3</div>
               <div class="pipe-info">
@@ -420,8 +340,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="pb-security"></div>
               <div class="pipe-time" id="pt-security"></div>
             </div>
-
-            <!-- Step 4: Debt -->
             <div class="pipe-step waiting" id="ps-debt">
               <div class="pipe-num pn-wait" id="pn-debt">4</div>
               <div class="pipe-info">
@@ -431,13 +349,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="pb-debt"></div>
               <div class="pipe-time" id="pt-debt"></div>
             </div>
-
           </div>
-
-          <!-- ── RESULTS ── -->
           <div class="results" id="results">
-
-            <!-- Summary bar -->
             <div class="sum-bar">
               <div class="sum-card" style="--al:var(--red)">
                 <div class="sum-val" id="sv-critical" style="color:var(--red)">—</div>
@@ -456,14 +369,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="sum-lbl">Debt Score</div>
               </div>
             </div>
-
-            <!-- Issue List -->
             <div class="card">
               <div class="card-head">Issues & Recommendations <span class="card-head-a" id="issue-count"></span></div>
               <div class="issue-list" id="issueList"></div>
             </div>
-
-            <!-- Migration Diff -->
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span></div>
               <div class="conf-row">
@@ -481,8 +390,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 </div>
               </div>
             </div>
-
-            <!-- Human-in-the-loop Approval -->
             <div class="approval" id="approvalBox">
               <div class="approval-text">
                 <strong>Human Review Required</strong><br>
@@ -494,14 +401,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-success" style="font-size:11px" onclick="doApprove()">Approve</button>
               </div>
             </div>
-
           </div>
         </div>
-
-        <!-- ── RIGHT COLUMN: Health Panel ── -->
         <div style="display:flex;flex-direction:column;gap:12px;position:sticky;top:0">
-
-          <!-- Codebase Health Donut -->
           <div class="card">
             <div class="card-head">Codebase Health</div>
             <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
@@ -539,8 +441,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               Run analysis to see health score.
             </div>
           </div>
-
-          <!-- Run History -->
           <div class="card">
             <div class="card-head">Run History</div>
             <div id="runHistory">
@@ -550,8 +450,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
             </div>
           </div>
-
-          <!-- Platform Info -->
           <div class="card">
             <div class="card-head">Platform</div>
             <div style="display:flex;flex-direction:column;gap:0">
@@ -573,14 +471,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
-
-    <!-- ══════════════════════════════
-         PAGE: DASHBOARD
-    ══════════════════════════════ -->
     <div class="page" id="page-dashboard">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
@@ -626,10 +519,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
         </div>
       </div>
     </div>
-
-    <!-- ══════════════════════════════
-         PAGE: ASK
-    ══════════════════════════════ -->
     <div class="page" id="page-ask">
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">Ask Codebase</div><div style="font-size:12px;color:var(--t3)">Ask natural language questions about your code.</div></div>
       <div class="g2">
@@ -653,10 +542,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
         </div>
       </div>
     </div>
-
-    <!-- ══════════════════════════════
-         PAGE: DOCS
-    ══════════════════════════════ -->
     <div class="page" id="page-docs">
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">Documentation</div><div style="font-size:12px;color:var(--t3)">AI-generated handover docs and audit-ready reports.</div></div>
       <div class="g2">
@@ -673,10 +558,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
         <div class="card"><div class="empty"><div class="empty-title">Ready to generate</div><div class="empty-sub">Upload files and choose a document type.</div></div></div>
       </div>
     </div>
-
-    <!-- ══════════════════════════════
-         PAGE: ROI
-    ══════════════════════════════ -->
     <div class="page" id="page-roi">
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">ROI & Technical Debt</div><div style="font-size:12px;color:var(--t3)">Quantify tech debt in dollars. Show leadership the real cost of legacy code.</div></div>
       <div class="g4">
@@ -687,32 +568,25 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       </div>
       <div class="card"><div class="empty"><div class="empty-title">Upload files to calculate ROI</div><div class="empty-sub">StarBuild estimates tech debt, fix hours, and breach risk costs for your codebase.</div></div></div>
     </div>
-
   </div>
 </div>
 </div>
-
 <script>
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
 let files = [], lang = 'python', mode = 'rule', checks = new Set(['security','debt','compliance']);
 let migrated = '', sessionApproved = 0;
-
-// ── CHARTS ──
 let healthChart, statusChart;
-
 function initCharts() {
   healthChart = new Chart(document.getElementById('healthChart'), {
     type: 'doughnut',
     data: { labels: ['Score','Gap'], datasets: [{ data: [0,100], backgroundColor: ['#3b82f6','#1a2438'], borderWidth: 0 }] },
     options: { cutout: '78%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 0 } }
   });
-
   statusChart = new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: { labels: ['Done','Review','Pending'], datasets: [{ data: [0,0,1], backgroundColor: ['#22c55e','#f59e0b','#1a2438'], borderWidth: 0 }] },
     options: { cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 600 } }
   });
-
   new Chart(document.getElementById('trendChart'), {
     type: 'line',
     data: {
@@ -733,8 +607,24 @@ function initCharts() {
   });
 }
 initCharts();
-
-// ── NAV ──
+async function checkBackendHealth() {
+  try {
+    const r = await fetch(BACKEND + '/', { method: 'GET' });
+    if (r.ok) {
+      document.getElementById('liveDot').style.background = '#22c55e';
+      document.getElementById('liveLabel').textContent = 'Backend Live';
+      document.getElementById('liveSub').textContent = 'Connected to Render';
+    } else {
+      throw new Error('bad status');
+    }
+  } catch (e) {
+    document.getElementById('liveDot').style.background = '#ef4444';
+    document.getElementById('liveLabel').textContent = 'Backend Unreachable';
+    document.getElementById('liveSub').textContent = 'May be waking up (free tier)';
+  }
+}
+checkBackendHealth();
+setInterval(checkBackendHealth, 30000);
 function nav(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -743,8 +633,6 @@ function nav(page, el) {
   const titles = { modernize: 'Modernize Code', dashboard: 'Dashboard', ask: 'Ask Codebase', docs: 'Documentation', roi: 'ROI & Debt' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
 }
-
-// ── FILES ──
 function onFileInput(fs) { for (const f of fs) if (!files.find(x => x.name === f.name)) files.push(f); renderChips(); enableRun(); }
 function onDrop(e) { e.preventDefault(); document.getElementById('dropArea').classList.remove('drag'); onFileInput(e.dataTransfer.files); }
 function removeFile(i) { files.splice(i, 1); renderChips(); if (!files.length) disableRun(); }
@@ -761,8 +649,6 @@ function disableRun() {
   const b = document.getElementById('runBtn');
   b.disabled = true; b.style.opacity = '.5'; b.style.cursor = 'not-allowed';
 }
-
-// ── CONFIG ──
 function setLang(el, l) {
   document.querySelectorAll('.sel-row .sel-btn').forEach(b => { if (b.onclick && b.onclick.toString().includes('setLang')) b.classList.remove('active'); });
   el.classList.add('active'); lang = l;
@@ -774,20 +660,16 @@ function setMode(m) {
   document.getElementById('mDesc').textContent = m === 'rule' ? 'Predictable, AST-verified.' : 'AI-powered with confidence score.';
 }
 function toggleChk(el, c) { el.classList.toggle('active'); el.classList.contains('active') ? checks.add(c) : checks.delete(c); }
-
-// ── PIPELINE STATE ──
 const stepIds = ['analyze', 'migrate', 'security', 'debt'];
 function pipeWait(id) { setState(id, 'wait', null, ''); }
 function pipeRun(id, sub) { setState(id, 'run', sub, '<div class="spinner-sm"></div>'); }
 function pipeDone(id, sub, badgeHtml, timeStr) { setState(id, 'done', sub, badgeHtml); if (timeStr) document.getElementById('pt-' + id).textContent = timeStr; }
 function pipeErr(id, sub) { setState(id, 'error', sub, '<span class="badge b-red" style="font-size:9px">Failed</span>'); }
-
 function setState(id, state, sub, badge) {
   const step = document.getElementById('ps-' + id);
   const num = document.getElementById('pn-' + id);
   const subEl = document.getElementById('ps-' + id + '-sub');
   const badgeEl = document.getElementById('pb-' + id);
-
   step.className = 'pipe-step ' + ({ wait: 'waiting', run: 'running', done: 'done', error: 'error' }[state]);
   num.className = 'pipe-num ' + ({ wait: 'pn-wait', run: 'pn-run', done: 'pn-done', error: 'pn-err' }[state]);
   if (state === 'done') num.textContent = '✓';
@@ -796,76 +678,62 @@ function setState(id, state, sub, badge) {
   if (sub) subEl.textContent = sub;
   badgeEl.innerHTML = badge;
 }
-
-// ── MAIN ANALYSIS ──
 async function runAnalysis() {
   if (!files.length) return;
   const code = await files[0].text();
   const fname = files[0].name;
   const t0 = Date.now();
-
-  // Show pipeline, hide results
   document.getElementById('pipeline').classList.add('show');
   document.getElementById('results').classList.remove('show');
   stepIds.forEach(pipeWait);
-
   const R = {};
-
-  // ── 1. Analyze ──
   pipeRun('analyze', 'Parsing code structure, imports, functions…');
   const t1 = Date.now();
   try {
-    const r = await fetch(BACKEND + '/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, language: lang, filename: fname }) });
+    const fd1 = new FormData(); fd1.append('file', files[0]);
+    const r = await fetch(BACKEND + '/analyze', { method: 'POST', body: fd1 });
     R.analyze = await r.json();
     pipeDone('analyze', 'Structure analyzed', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t1)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('analyze', e.message); R.analyze = null; }
-
-  // ── 2. Migrate ──
   pipeRun('migrate', 'Running ' + (mode === 'ai' ? 'AI' : 'rule-based') + ' migration…');
   const t2 = Date.now();
   try {
     const ep = mode === 'ai' ? '/ai-migrate' : '/migrate';
-    const r = await fetch(BACKEND + ep, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, language: lang, filename: fname }) });
+    const fd2 = new FormData(); fd2.append('file', files[0]);
+    const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
     const confStr = conf != null ? Math.round(conf) + '%' : 'N/A';
     pipeDone('migrate', 'Migration ready · Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
-
-  // ── 3. Security ──
   if (checks.has('security')) {
     pipeRun('security', 'Scanning for vulnerabilities, secrets, weak crypto…');
     const t3 = Date.now();
     try {
-      const r = await fetch(BACKEND + '/data-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, language: lang }) });
+      const fd3 = new FormData(); fd3.append('file', files[0]);
+      const r = await fetch(BACKEND + '/scan-sensitive', { method: 'POST', body: fd3 });
       R.security = await r.json();
       pipeDone('security', 'Security scan complete', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t3)/1000).toFixed(1)+'s');
     } catch (e) { pipeErr('security', e.message); R.security = null; }
   } else {
     pipeDone('security', 'Skipped', '<span class="badge" style="font-size:9px;background:var(--s3);color:var(--t3);border:1px solid var(--b2)">Skip</span>', '');
   }
-
-  // ── 4. Tech Debt ──
   if (checks.has('debt')) {
     pipeRun('debt', 'Calculating complexity, legacy patterns, compliance gaps…');
     const t4 = Date.now();
     try {
-      const r = await fetch(BACKEND + '/tech-debt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, language: lang, filename: fname }) });
+      const fd4 = new FormData(); fd4.append('file', files[0]);
+      const r = await fetch(BACKEND + '/tech-debt', { method: 'POST', body: fd4 });
       R.debt = await r.json();
       pipeDone('debt', 'Debt analysis complete', '<span class="badge b-amber" style="font-size:9px">Done</span>', ((Date.now()-t4)/1000).toFixed(1)+'s');
     } catch (e) { pipeErr('debt', e.message); R.debt = null; }
   } else {
     pipeDone('debt', 'Skipped', '<span class="badge" style="font-size:9px;background:var(--s3);color:var(--t3);border:1px solid var(--b2)">Skip</span>', '');
   }
-
-  // ── Render Results ──
   renderResults(R, code, fname, Date.now() - t0);
 }
-
 function renderResults(R, original, fname, totalMs) {
   document.getElementById('results').classList.add('show');
-
-  // Confidence
   const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : 75);
   const confPct = Math.round(conf);
   const cColor = confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
@@ -874,22 +742,16 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').textContent = confPct + '%';
   document.getElementById('confPct').style.color = cColor;
   document.getElementById('sv-conf').textContent = confPct + '%';
-
-  // Diff
   migrated = R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
   document.getElementById('diffOld').textContent = original.substring(0, 1000) + (original.length > 1000 ? '\n…' : '');
   document.getElementById('diffNew').textContent = migrated.substring(0, 1000) + (migrated.length > 1000 ? '\n…' : '');
-
-  // Build issues
   const issues = buildIssues(R);
   const critCount = issues.filter(i => i.sev === 'critical').length;
   const warnCount = issues.filter(i => i.sev === 'warning').length;
-
   document.getElementById('sv-critical').textContent = critCount;
   document.getElementById('sv-warnings').textContent = warnCount;
   document.getElementById('sv-debt').textContent = R.debt ? 'Medium' : 'N/A';
   document.getElementById('issue-count').textContent = issues.length + ' items';
-
   document.getElementById('issueList').innerHTML = issues.map(i => `
     <div class="issue">
       <div class="issue-bar ${i.sev}"></div>
@@ -903,47 +765,34 @@ function renderResults(R, original, fname, totalMs) {
       </div>
     </div>
   `).join('');
-
-  // Health scores
   const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
   const migScore = confPct;
   const debtScore = R.debt ? 55 : 80;
   const compScore = 72;
   const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
-
   document.getElementById('healthNum').textContent = overall;
   healthChart.data.datasets[0].data = [overall, 100 - overall];
   const hColor = overall >= 70 ? '#22c55e' : overall >= 50 ? '#f59e0b' : '#ef4444';
   healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
   healthChart.update();
   document.getElementById('healthNote').textContent = overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
-
   setProg('security', secScore);
   setProg('migration', migScore);
   setProg('debt', debtScore);
   setProg('compliance', compScore);
-
-  // Update dashboard stats
   document.getElementById('dash-conf').textContent = confPct + '%';
   document.getElementById('dash-issues').textContent = critCount + warnCount;
-
-  // Add to run history
   addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
-
-  // Scroll to results
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-
 function buildIssues(R) {
   const issues = [];
   const getText = d => typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
-
   if (R.analyze) {
     const t = getText(R.analyze).toLowerCase();
     if (t.includes('print ') || t.includes('print(')) issues.push({ sev: 'warning', title: 'Python 2 print statements detected', desc: 'Use print() function instead of print statement for Python 3 compatibility.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (t.includes('legacy') || t.includes('deprecated')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
   }
-
   if (R.security) {
     const t = getText(R.security).toLowerCase();
     if (t.includes('password') && (t.includes('hardcoded') || t.includes('hardcode'))) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null });
@@ -952,25 +801,20 @@ function buildIssues(R) {
     if (t.includes('api_key') || t.includes('apikey') || t.includes('secret')) issues.push({ sev: 'critical', title: 'API key or secret exposed', desc: 'Hardcoded API keys or secrets found in source code. Move to environment variables immediately.', tag: 'Critical', tagClass: 'tag-red', file: null });
     if (t.includes('no issues') || t.includes('no vulnerabilit') || t.includes('clean')) issues.push({ sev: 'ok', title: 'No security vulnerabilities detected', desc: 'Security scan passed — no hardcoded secrets, SQL injection, or weak crypto found.', tag: 'Clean', tagClass: 'tag-green', file: null });
   }
-
   if (R.debt) {
     const t = getText(R.debt).toLowerCase();
     if (t.includes('complex') || t.includes('long function') || t.includes('too long')) issues.push({ sev: 'warning', title: 'High code complexity detected', desc: 'Functions with high cyclomatic complexity found. Consider refactoring into smaller, focused functions.', tag: 'Debt', tagClass: 'tag-amber', file: null });
     if (t.includes('duplicate') || t.includes('repetition')) issues.push({ sev: 'warning', title: 'Code duplication detected', desc: 'Duplicate code blocks found. Extract shared logic into reusable functions or modules.', tag: 'Debt', tagClass: 'tag-amber', file: null });
     if (t.includes('comment') || t.includes('documentation')) issues.push({ sev: 'info', title: 'Missing documentation', desc: 'Low comment density detected. Adding docstrings and inline comments will improve maintainability.', tag: 'Quality', tagClass: 'tag-blue', file: null });
   }
-
   if (!R.security && !R.analyze && !R.debt) issues.push({ sev: 'info', title: 'Analysis incomplete', desc: 'Some checks failed or were skipped. Enable all checks and re-run for a full report.', tag: 'Info', tagClass: 'tag-blue', file: null });
   if (issues.length === 0) issues.push({ sev: 'ok', title: 'No major issues detected', desc: 'Code looks clean. Migration is ready to approve.', tag: 'Clean', tagClass: 'tag-green', file: null });
-
   return issues;
 }
-
 function setProg(id, pct) {
   document.getElementById('pg-' + id).style.width = pct + '%';
   document.getElementById('pv-' + id).textContent = pct + '%';
 }
-
 function addHistory(fname, conf, issues, time) {
   const hEl = document.getElementById('runHistory');
   const confColor = conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--amber)' : 'var(--red)';
@@ -987,8 +831,6 @@ function addHistory(fname, conf, issues, time) {
   if (hEl.querySelector('.empty')) hEl.innerHTML = item;
   else hEl.innerHTML = item + hEl.innerHTML;
 }
-
-// ── APPROVAL ──
 function doApprove() {
   sessionApproved++;
   document.getElementById('dash-approved').textContent = sessionApproved;
@@ -997,8 +839,6 @@ function doApprove() {
 function doReject() { document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected.</div>'; }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
-
-// ── RESET ──
 function resetAll() {
   files = []; renderChips(); disableRun();
   document.getElementById('pipeline').classList.remove('show');
@@ -1006,8 +846,6 @@ function resetAll() {
   stepIds.forEach(pipeWait);
   document.getElementById('fi').value = '';
 }
-
-// ── ASK ──
 function setQ(q) { document.getElementById('askInput').value = q; }
 async function runAsk() {
   if (!files.length) { alert('Upload a file first.'); return; }
@@ -1018,7 +856,8 @@ async function runAsk() {
   document.getElementById('askResult').classList.remove('show');
   document.getElementById('askLoad').classList.add('show');
   try {
-    const r = await fetch(BACKEND + '/ask-codebase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, question: q, language: lang }) });
+    const fd5 = new FormData(); fd5.append('file', files[0]); fd5.append('question', q);
+    const r = await fetch(BACKEND + '/answer-code-question', { method: 'POST', body: fd5 });
     const d = await r.json();
     document.getElementById('askLoad').classList.remove('show');
     document.getElementById('askBody').textContent = typeof d === 'string' ? d : (d.answer ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
@@ -1028,7 +867,6 @@ async function runAsk() {
     document.getElementById('askEmpty').style.display = 'block';
   }
 }
-
 function copyEl(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
 function scanRepo() { const u = document.getElementById('repoUrl').value.trim(); if (!u) { alert('Enter a GitHub repo URL.'); return; } alert('Scanning: ' + u); }
 </script>
