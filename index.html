@@ -218,10 +218,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
   </div>
   <div class="sb-bottom">
     <div class="status-pill">
-      <div class="live-dot"></div>
+      <div class="live-dot" id="liveDot" style="background:#64748b"></div>
       <div>
-        <div class="live-label">Groq AI · Connected</div>
-        <div class="live-sub">Backend live on Render</div>
+        <div class="live-label" id="liveLabel">Checking backend...</div>
+        <div class="live-sub" id="liveSub">Connecting...</div>
       </div>
     </div>
   </div>
@@ -607,6 +607,24 @@ function initCharts() {
   });
 }
 initCharts();
+async function checkBackendHealth() {
+  try {
+    const r = await fetch(BACKEND + '/', { method: 'GET' });
+    if (r.ok) {
+      document.getElementById('liveDot').style.background = '#22c55e';
+      document.getElementById('liveLabel').textContent = 'Backend Live';
+      document.getElementById('liveSub').textContent = 'Connected to Render';
+    } else {
+      throw new Error('bad status');
+    }
+  } catch (e) {
+    document.getElementById('liveDot').style.background = '#ef4444';
+    document.getElementById('liveLabel').textContent = 'Backend Unreachable';
+    document.getElementById('liveSub').textContent = 'May be waking up (free tier)';
+  }
+}
+checkBackendHealth();
+setInterval(checkBackendHealth, 30000);
 function nav(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
