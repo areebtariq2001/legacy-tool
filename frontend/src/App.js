@@ -759,11 +759,11 @@ Home
 </div>
 {showHomePage&&<div style={{background:"#0b0f1a",border:"1px solid #1e2d45",borderRadius:"10px",padding:"20px",marginBottom:"16px"}}>
 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><h2 style={{color:"#f1f5f9",fontSize:"18px",fontWeight:"700",margin:0}}>Migration Dashboard</h2><button onClick={()=>setShowHomePage(false)} style={{background:"transparent",border:"1px solid #243350",color:"#94a3b8",cursor:"pointer",fontSize:"11px",borderRadius:"6px",padding:"5px 12px"}}>Hide Dashboard</button></div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px"}}>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px"}}>
 <div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#60a5fa"}}>69</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Total Features</div></div>
 <div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#22c55e"}}>4</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Languages Supported</div></div>
 <div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#f59e0b"}}>8</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Phases Complete</div></div>
-<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#a78bfa"}}>Live</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Backend Status</div></div>
+<div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#a78bfa"}}>Live</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Backend Status</div></div><div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#22c55e"}}>{runHistory.length>0?runHistory[0].confidence+"%":"—"}</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Last Confidence</div></div><div style={{background:"#0f1525",border:"1px solid #1e2d45",borderRadius:"8px",padding:"14px 16px"}}><div style={{fontSize:"24px",fontWeight:"700",color:"#ef4444"}}>{runHistory.length>0?runHistory[0].issues:"—"}</div><div style={{fontSize:"10px",color:"#64748b",textTransform:"uppercase",letterSpacing:"0.08em"}}>Last Issues Found</div></div>
 </div></div>}
 </div>
 <div style={{maxWidth:"1000px",margin:"0 auto",padding:"8px 32px 48px"}}>
@@ -1486,6 +1486,8 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
+
 
 
 
