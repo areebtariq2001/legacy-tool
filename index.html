@@ -633,7 +633,23 @@ function nav(page, el) {
   const titles = { modernize: 'Modernize Code', dashboard: 'Dashboard', ask: 'Ask Codebase', docs: 'Documentation', roi: 'ROI & Debt' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
 }
-function onFileInput(fs) { for (const f of fs) if (!files.find(x => x.name === f.name)) files.push(f); renderChips(); enableRun(); }
+function onFileInput(fs) {
+  for (const f of fs) if (!files.find(x => x.name === f.name)) files.push(f);
+  renderChips(); enableRun();
+  if (files.length > 0) {
+    const ext = files[0].name.split('.').pop().toLowerCase();
+    const extMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
+    const detected = extMap[ext];
+    if (detected && detected !== lang) {
+      lang = detected;
+      document.querySelectorAll('.sel-row .sel-btn').forEach(b => {
+        if (b.onclick && b.onclick.toString().includes('setLang')) {
+          b.classList.toggle('active', b.textContent.toLowerCase() === detected || (detected==='cobol' && b.textContent==='COBOL'));
+        }
+      });
+    }
+  }
+}
 function onDrop(e) { e.preventDefault(); document.getElementById('dropArea').classList.remove('drag'); onFileInput(e.dataTransfer.files); }
 function removeFile(i) { files.splice(i, 1); renderChips(); if (!files.length) disableRun(); }
 function renderChips() {
@@ -698,7 +714,8 @@ async function runAnalysis() {
   pipeRun('migrate', 'Running ' + (mode === 'ai' ? 'AI' : 'rule-based') + ' migration…');
   const t2 = Date.now();
   try {
-    const ep = mode === 'ai' ? '/ai-migrate' : '/migrate';
+    const langEp = { python: mode==='ai'?'/ai-migrate':'/migrate', java: '/migrate-java', php: '/migrate-php', cobol: '/migrate-cobol' };
+    const ep = langEp[lang] || '/migrate';
     const fd2 = new FormData(); fd2.append('file', files[0]);
     const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
