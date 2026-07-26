@@ -807,7 +807,7 @@ def generate_documentation(source, filename):
         "functions": analysis.get("functions", []),
         "classes": analysis.get("classes", []),
         "imports": analysis.get("imports", []),
-        "total_functions": callgraph.get("total_functions", 0),
+        "total_functions": callgraph.get("total_functions", 0) or len(analysis.get("functions", [])),
         "entry_points": callgraph.get("entry_points", []),
         "overall_risk": risk.get("overall_risk", "N/A"),
         "high_count": risk.get("high_count", 0),
