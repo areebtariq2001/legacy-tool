@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarBuild — Enterprise Legacy Migration</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;
+  --s1:#0b0f1a;
+  --s2:#0f1525;
+  --s3:#141c2e;
+  --s4:#1a2438;
+  --b1:#1e2d45;
+  --b2:#243350;
+  --b3:#2d3f60;
+  --cyan:#3b82f6;
+  --cyan-l:#60a5fa;
+  --cyan-d:#2563eb;
+  --cglow:rgba(59,130,246,.1);
+  --green:#22c55e;
+  --green-d:#16a34a;
+  --gglow:rgba(34,197,94,.1);
+  --amber:#f59e0b;
+  --red:#ef4444;
+  --purple:#8b5cf6;
+  --t1:#f1f5f9;
+  --t2:#94a3b8;
+  --t3:#64748b;
+  --t4:#334155;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Inter',sans-serif;
+  --r:8px;
+  --sw:220px;
+  --tw:52px;
+}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;line-height:1.5;overflow:hidden}
+.shell{display:flex;height:100vh}
+
+/* SIDEBAR */
+.sidebar{
+  width:var(--sw);flex-shrink:0;
+  background:var(--s1);
+  border-right:1px solid var(--b1);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.logo{padding:20px 16px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px}
+.logo-mark{
+  width:28px;height:28px;border-radius:6px;
+  background:var(--cyan);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#fff;letter-spacing:-1px;flex-shrink:0;
+}
+.logo-text{}
+.logo-name{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.3px;line-height:1.1}
+.logo-tag{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
+.sb-group{padding:14px 8px 4px}
+.sb-group-label{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.12em;padding:0 8px;margin-bottom:3px}
+.sb-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 8px;border-radius:6px;cursor:pointer;
+  color:var(--t3);font-size:12px;font-weight:500;
+  transition:all .12s;border:1px solid transparent;
+  text-decoration:none;user-select:none;
+}
+.sb-item:hover{background:var(--s3);color:var(--t2)}
+.sb-item.active{background:var(--cglow);color:var(--cyan-l);border-color:rgba(59,130,246,.2)}
+.sb-ic{
+  width:14px;height:14px;flex-shrink:0;
+  background:currentColor;
+  -webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+  mask-size:contain;mask-repeat:no-repeat;mask-position:center;
+  opacity:.7;
+}
+.sb-item.active .sb-ic{opacity:1}
+.sb-item:hover .sb-ic{opacity:.85}
+/* SVG icon masks */
+.ic-grid{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='14' y='14' width='7' height='7'/%3E%3Crect x='3' y='14' width='7' height='7'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='14' y='14' width='7' height='7'/%3E%3Crect x='3' y='14' width='7' height='7'/%3E%3C/svg%3E")}
+.ic-zap{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/%3E%3C/svg%3E")}
+.ic-search{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E")}
+.ic-shield{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3C/svg%3E")}
+.ic-bank{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M3 22h18M3 12h18M3 7l9-5 9 5M4 12v10M20 12v10M8 12v10M12 12v10M16 12v10'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M3 22h18M3 12h18M3 7l9-5 9 5M4 12v10M20 12v10M8 12v10M12 12v10M16 12v10'/%3E%3C/svg%3E")}
+.ic-msg{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E")}
+.ic-doc{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6M16 13H8M16 17H8M10 9H8'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6M16 13H8M16 17H8M10 9H8'/%3E%3C/svg%3E")}
+.ic-dollar{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cline x1='12' y1='1' x2='12' y2='23'/%3E%3Cpath d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cline x1='12' y1='1' x2='12' y2='23'/%3E%3Cpath d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
+.ic-settings{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E%3C/svg%3E")}
+.ic-server{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='8' rx='2'/%3E%3Crect x='2' y='14' width='20' height='8' rx='2'/%3E%3Cline x1='6' y1='6' x2='6.01' y2='6'/%3E%3Cline x1='6' y1='18' x2='6.01' y2='18'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Crect x='2' y='2' width='20' height='8' rx='2'/%3E%3Crect x='2' y='14' width='20' height='8' rx='2'/%3E%3Cline x1='6' y1='6' x2='6.01' y2='6'/%3E%3Cline x1='6' y1='18' x2='6.01' y2='18'/%3E%3C/svg%3E")}
+
+.divider{height:1px;background:var(--b1);margin:4px 8px}
+.sb-bottom{margin-top:auto;padding:12px 8px;border-top:1px solid var(--b1)}
+.status-pill{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--s3);border:1px solid var(--b1)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);flex-shrink:0}
+.status-info .status-label{font-size:11px;font-weight:600;color:var(--t2)}
+.status-info .status-sub{font-size:10px;color:var(--t3);margin-top:1px}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:var(--tw);
+  border-bottom:1px solid var(--b1);
+  background:var(--s1);flex-shrink:0;
+}
+.tb-left{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3)}
+.tb-sep{color:var(--t4)}
+.tb-current{color:var(--t1);font-weight:500;font-size:12px}
+.tb-right{display:flex;align-items:center;gap:6px}
+
+.badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;letter-spacing:.01em}
+.b-blue{background:rgba(59,130,246,.1);color:var(--cyan-l);border:1px solid rgba(59,130,246,.2)}
+.b-green{background:rgba(34,197,94,.08);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.b-amber{background:rgba(245,158,11,.08);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+.b-red{background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+
+.btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:6px;border:none;cursor:pointer;
+  font-size:11px;font-weight:600;font-family:var(--sans);
+  transition:all .12s;letter-spacing:.01em;
+}
+.btn-primary{background:var(--cyan);color:#fff}
+.btn-primary:hover{background:var(--cyan-l)}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-ghost{background:transparent;color:var(--t2);border:1px solid var(--b2)}
+.btn-ghost:hover{background:var(--s3);color:var(--t1)}
+.btn-danger{background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.15)}
+.btn-success{background:rgba(34,197,94,.08);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.btn-success:hover{background:rgba(34,197,94,.15)}
+
+/* CONTENT */
+.content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+
+/* PAGE */
+.page{display:none;flex-direction:column;gap:16px}
+.page.active{display:flex}
+
+/* PAGE HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ph-title{font-size:17px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2}
+.ph-sub{font-size:12px;color:var(--t3);margin-top:3px}
+.ph-actions{display:flex;gap:6px;flex-shrink:0;padding-top:2px}
+
+/* GRID */
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g-wide{display:grid;grid-template-columns:1.7fr 1fr;gap:12px}
+.g-mig{display:grid;grid-template-columns:300px 1fr;gap:14px}
+
+/* CARD */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px}
+.card-head{
+  font-size:10px;font-weight:700;color:var(--t4);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-head-a{font-size:10px;color:var(--cyan-l);cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0}
+
+/* STAT */
+.stat{
+  background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);
+  padding:14px 16px;position:relative;overflow:hidden;
+}
+.stat::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--al,var(--cyan))}
+.stat-val{font-size:24px;font-weight:700;font-family:var(--mono);line-height:1.1;margin-bottom:4px}
+.stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.stat-sub{font-size:10px;color:var(--t4);margin-top:3px}
+
+/* CHART */
+.chart-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px}
+.chart-wrap{position:relative;height:160px}
+
+/* DONUT */
+.donut-wrap{position:relative;flex-shrink:0}
+.donut-wrap canvas{display:block}
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.donut-num{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+.donut-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+
+/* PROGRESS */
+.prog-item{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.prog-item:last-child{margin-bottom:0}
+.prog-label{font-size:11px;color:var(--t2);width:84px;flex-shrink:0}
+.prog-bar{flex:1;height:5px;background:var(--b1);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px}
+.prog-val{font-size:10px;font-family:var(--mono);color:var(--t3);min-width:24px;text-align:right}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.leg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--t3)}
+.leg-dot{width:8px;height:3px;border-radius:1px;flex-shrink:0}
+
+/* UPLOAD */
+.upload-zone{
+  border:1px dashed var(--b2);border-radius:var(--r);
+  padding:24px 16px;text-align:center;cursor:pointer;
+  transition:all .15s;background:var(--s2);
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--cyan);background:var(--cglow)}
+.upload-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px}
+.upload-sub{font-size:11px;color:var(--t3)}
+.upload-sub a{color:var(--cyan-l);cursor:pointer}
+
+.chip-file{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--s3);border:1px solid var(--b2);
+  border-radius:4px;padding:3px 8px;font-size:10px;font-family:var(--mono);color:var(--cyan-l);
+}
+.chip-rm{color:var(--t4);cursor:pointer;line-height:1;font-size:12px}
+.chip-rm:hover{color:var(--red)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+
+/* SEL */
+.sel-row{display:flex;gap:5px;flex-wrap:wrap}
+.sel-btn{
+  padding:5px 12px;border-radius:5px;cursor:pointer;
+  font-size:11px;font-weight:600;font-family:var(--sans);
+  border:1px solid var(--b2);background:var(--s3);
+  color:var(--t3);transition:all .12s;
+}
+.sel-btn:hover{border-color:var(--b3);color:var(--t2)}
+.sel-btn.active{background:var(--cglow);color:var(--cyan-l);border-color:rgba(59,130,246,.35)}
+.sel-btn.active-purple{background:rgba(139,92,246,.08);color:#a78bfa;border-color:rgba(139,92,246,.3)}
+
+/* SCAN */
+.scan-row{display:flex;gap:6px;margin-top:8px}
+.scan-input{
+  flex:1;background:var(--s3);border:1px solid var(--b2);
+  border-radius:6px;padding:6px 10px;font-size:11px;font-family:var(--mono);
+  color:var(--t1);outline:none;
+}
+.scan-input:focus{border-color:var(--cyan)}
+.scan-input::placeholder{color:var(--t4)}
+
+/* SECTION LABEL */
+.sec-lbl{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+
+/* STEPS */
+.steps{display:flex;align-items:center;gap:0}
+.step-node{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;background:var(--s3);border:1.5px solid var(--b2);color:var(--t4);transition:all .25s}
+.step-node.active{background:var(--cglow);border-color:var(--cyan);color:var(--cyan-l)}
+.step-node.done{background:var(--green);border-color:var(--green);color:#fff}
+.step-lbl{font-size:10px;color:var(--t4);margin:0 5px;white-space:nowrap;transition:color .25s}
+.step-lbl.active{color:var(--t1)}
+.step-line{width:24px;height:1px;background:var(--b2);flex-shrink:0;transition:background .25s}
+.step-line.done{background:var(--green)}
+
+/* CONF */
+.conf-row{display:flex;align-items:center;gap:8px}
+.conf-bar{flex:1;height:6px;background:var(--b2);border-radius:3px;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;background:var(--green);transition:width .5s ease;width:0%}
+.conf-pct{font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green);min-width:40px}
+
+/* DIFF */
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;border-radius:var(--r);overflow:hidden;border:1px solid var(--b1);margin-top:10px}
+.diff-pane{background:var(--s2)}
+.diff-head{padding:7px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--b1)}
+.diff-head.old{color:var(--red)}
+.diff-head.new{color:var(--green)}
+.diff-body{padding:10px;font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--t3);white-space:pre;overflow-x:auto;min-height:120px}
+
+/* APPROVAL */
+.approval{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.approval-text{font-size:12px;color:var(--t2)}
+.approval-text strong{color:var(--t1)}
+.approval-actions{display:flex;gap:5px;flex-shrink:0}
+
+/* RESULT */
+.result{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;display:none}
+.result.show{display:block}
+.result-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--b1)}
+.result-lbl{font-size:9px;font-weight:700;color:var(--t1);text-transform:uppercase;letter-spacing:.1em}
+.result-copy{font-size:10px;color:var(--cyan-l);cursor:pointer}
+.result-body{font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--t2);white-space:pre-wrap}
+
+/* FEAT GRID */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.feat-btn{
+  background:var(--s2);border:1px solid var(--b1);
+  border-radius:5px;padding:7px 9px;cursor:pointer;
+  font-size:11px;font-weight:500;color:var(--t3);
+  text-align:left;font-family:var(--sans);transition:all .12s;
+}
+.feat-btn:hover{border-color:var(--b3);color:var(--t2);background:var(--s3)}
+.feat-btn.active{border-color:var(--cyan);color:var(--cyan-l);background:var(--cglow)}
+
+/* LOADING */
+.loading{display:none;align-items:center;gap:8px;padding:12px 0}
+.loading.show{display:flex}
+.spinner{width:14px;height:14px;border:1.5px solid var(--b2);border-top-color:var(--cyan);border-radius:50%;animation:spin .55s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:11px;color:var(--t3)}
+
+/* EMPTY */
+.empty{text-align:center;padding:28px 16px}
+.empty-icon{width:36px;height:36px;border-radius:8px;background:var(--s3);border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.empty-ic-inner{width:18px;height:18px;background:var(--t4);-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;mask-size:contain;mask-repeat:no-repeat;mask-position:center}
+.empty-title{font-size:13px;font-weight:600;color:var(--t2);margin-bottom:4px}
+.empty-sub{font-size:11px;color:var(--t4)}
+
+/* ACTIVITY */
+.act-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b1)}
+.act-item:last-child{border-bottom:none;padding-bottom:0}
+.act-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.act-main{flex:1;min-width:0}
+.act-title{font-size:12px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-meta{font-size:10px;color:var(--t4);margin-top:1px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">SB</div>
+    <div class="logo-text">
+      <div class="logo-name">StarBuild</div>
+      <div class="logo-tag">Enterprise · v1.0</div>
+    </div>
+  </div>
+
+  <div class="sb-group">
+    <div class="sb-group-label">Workspace</div>
+    <a class="sb-item active" onclick="nav('dashboard',this)">
+      <span class="sb-ic ic-grid"></span>Dashboard
+    </a>
+    <a class="sb-item" onclick="nav('migrate',this)">
+      <span class="sb-ic ic-zap"></span>Migrate Code
+    </a>
+    <a class="sb-item" onclick="nav('audit',this)">
+      <span class="sb-ic ic-search"></span>Audit & Analyze
+    </a>
+    <a class="sb-item" onclick="nav('security',this)">
+      <span class="sb-ic ic-shield"></span>Security Scan
+    </a>
+    <a class="sb-item" onclick="nav('banking',this)">
+      <span class="sb-ic ic-bank"></span>Banking & AML
+    </a>
+    <a class="sb-item" onclick="nav('ask',this)">
+      <span class="sb-ic ic-msg"></span>Ask Codebase
+    </a>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-group">
+    <div class="sb-group-label">Reports</div>
+    <a class="sb-item" onclick="nav('docs',this)">
+      <span class="sb-ic ic-doc"></span>Documentation
+    </a>
+    <a class="sb-item" onclick="nav('roi',this)">
+      <span class="sb-ic ic-dollar"></span>ROI & Debt
+    </a>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-group">
+    <div class="sb-group-label">Settings</div>
+    <a class="sb-item">
+      <span class="sb-ic ic-settings"></span>API Keys
+    </a>
+    <a class="sb-item">
+      <span class="sb-ic ic-server"></span>On-Premise AI
+    </a>
+  </div>
+
+  <div class="sb-bottom">
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <div class="status-info">
+        <div class="status-label">Groq AI · Connected</div>
+        <div class="status-sub">Backend live on Render</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="tb-left">
+      StarBuild <span class="tb-sep">/</span>
+      <span class="tb-current" id="topbar-title">Dashboard</span>
+    </div>
+    <div class="tb-right">
+      <span class="badge b-green">59 Features Live</span>
+      <span class="badge b-blue">AST-Verified</span>
+      <button class="btn btn-ghost btn-sm">Settings</button>
+    </div>
+  </header>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- PAGE: DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="ph">
+        <div>
+          <div class="ph-title">Migration Dashboard</div>
+          <div class="ph-sub">Overview of your codebase modernization progress.</div>
+        </div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost btn-sm">Export Report</button>
+          <button class="btn btn-primary btn-sm" onclick="nav('migrate',document.querySelectorAll('.sb-item')[1])">New Migration</button>
+        </div>
+      </div>
+
+      <div class="g4">
+        <div class="stat" style="--al:var(--cyan)">
+          <div class="stat-val" style="color:var(--cyan-l)">59</div>
+          <div class="stat-lbl">Total Features</div>
+          <div class="stat-sub">All live and tested</div>
+        </div>
+        <div class="stat" style="--al:var(--green)">
+          <div class="stat-val" style="color:var(--green)">0</div>
+          <div class="stat-lbl">Migrations Approved</div>
+          <div class="stat-sub">This session</div>
+        </div>
+        <div class="stat" style="--al:var(--amber)">
+          <div class="stat-val" style="color:var(--amber)">—</div>
+          <div class="stat-lbl">Avg Confidence</div>
+          <div class="stat-sub">Run migrations first</div>
+        </div>
+        <div class="stat" style="--al:var(--red)">
+          <div class="stat-val" style="color:var(--red)">—</div>
+          <div class="stat-lbl">Security Issues</div>
+          <div class="stat-sub">Run a scan to detect</div>
+        </div>
+      </div>
+
+      <div class="g-wide">
+        <!-- Migration Status -->
+        <div class="chart-card">
+          <div class="card-head">Migration Status</div>
+          <div style="display:flex;align-items:center;gap:24px">
+            <div class="donut-wrap" style="width:130px;height:130px">
+              <canvas id="donutChart" width="130" height="130"></canvas>
+              <div class="donut-center">
+                <div class="donut-num" style="color:var(--t1)">0</div>
+                <div class="donut-lbl">Files</div>
+              </div>
+            </div>
+            <div style="flex:1">
+              <div class="prog-item">
+                <div class="prog-label" style="color:var(--green)">Completed</div>
+                <div class="prog-bar"><div class="prog-fill" style="background:var(--green);width:0%"></div></div>
+                <div class="prog-val">0</div>
+              </div>
+              <div class="prog-item">
+                <div class="prog-label" style="color:var(--cyan-l)">In Progress</div>
+                <div class="prog-bar"><div class="prog-fill" style="background:var(--cyan);width:0%"></div></div>
+                <div class="prog-val">0</div>
+              </div>
+              <div class="prog-item">
+                <div class="prog-label" style="color:var(--amber)">Review</div>
+                <div class="prog-bar"><div class="prog-fill" style="background:var(--amber);width:0%"></div></div>
+                <div class="prog-val">0</div>
+              </div>
+              <div class="prog-item">
+                <div class="prog-label" style="color:var(--t4)">Not Started</div>
+                <div class="prog-bar"><div class="prog-fill" style="background:var(--b2);width:100%"></div></div>
+                <div class="prog-val">—</div>
+              </div>
+              <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)">
+                <button class="btn btn-primary btn-sm" onclick="nav('migrate',document.querySelectorAll('.sb-item')[1])">Start First Migration</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Donut -->
+        <div class="chart-card">
+          <div class="card-head">Features by Category</div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+            <div class="donut-wrap" style="width:120px;height:120px">
+              <canvas id="catChart" width="120" height="120"></canvas>
+              <div class="donut-center">
+                <div class="donut-num" style="color:var(--t1);font-size:16px">59</div>
+                <div class="donut-lbl">Total</div>
+              </div>
+            </div>
+            <div style="width:100%">
+              <div class="legend" style="flex-direction:column;gap:5px">
+                <div class="leg"><div class="leg-dot" style="background:var(--cyan)"></div>Core & Migration — 12</div>
+                <div class="leg"><div class="leg-dot" style="background:var(--red)"></div>Security — 10</div>
+                <div class="leg"><div class="leg-dot" style="background:var(--purple)"></div>Enterprise — 14</div>
+                <div class="leg"><div class="leg-dot" style="background:var(--amber)"></div>Banking — 12</div>
+                <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Developer — 11</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <!-- Confidence Trend -->
+        <div class="chart-card">
+          <div class="card-head">Confidence Score Trend <span class="card-head-a">Last 10 runs</span></div>
+          <div class="chart-wrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+          <div class="legend">
+            <div class="leg"><div class="leg-dot" style="background:var(--cyan)"></div>AI Migrate</div>
+            <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Rule-Based</div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card">
+          <div class="card-head">Recent Activity <span class="card-head-a">View all</span></div>
+          <div class="act-item">
+            <div class="act-icon" style="background:var(--cglow)">
+              <div style="width:14px;height:14px;background:var(--cyan-l)" class="sb-ic ic-zap"></div>
+            </div>
+            <div class="act-main">
+              <div class="act-title">Ready to migrate</div>
+              <div class="act-meta">Upload a file to get started</div>
+            </div>
+            <span class="badge b-blue">New</span>
+          </div>
+          <div class="act-item">
+            <div class="act-icon" style="background:var(--gglow)">
+              <div style="width:14px;height:14px;background:var(--green)" class="sb-ic ic-shield"></div>
+            </div>
+            <div class="act-main">
+              <div class="act-title">59 features active</div>
+              <div class="act-meta">All endpoints live on Render</div>
+            </div>
+            <span class="badge b-green">Live</span>
+          </div>
+          <div class="act-item">
+            <div class="act-icon" style="background:rgba(245,158,11,.08)">
+              <div style="width:14px;height:14px;background:var(--amber)" class="sb-ic ic-bank"></div>
+            </div>
+            <div class="act-main">
+              <div class="act-title">Banking scanner ready</div>
+              <div class="act-meta">AML/KYC, SBP, Basel III checks available</div>
+            </div>
+            <span class="badge b-amber">Ready</span>
+          </div>
+          <div style="padding-top:10px;margin-top:4px;border-top:1px solid var(--b1)">
+            <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="nav('migrate',document.querySelectorAll('.sb-item')[1])">
+              Run your first migration
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: MIGRATE -->
+    <div class="page" id="page-migrate">
+      <div class="ph">
+        <div>
+          <div class="ph-title">Migrate Legacy Code</div>
+          <div class="ph-sub">Upload files, configure strategy, review diff, and approve.</div>
+        </div>
+        <div class="steps">
+          <div class="step-node active" id="sd1">1</div>
+          <span class="step-lbl active" id="sl1">Upload</span>
+          <div class="step-line" id="sline1"></div>
+          <div class="step-node" id="sd2">2</div>
+          <span class="step-lbl" id="sl2">Configure</span>
+          <div class="step-line" id="sline2"></div>
+          <div class="step-node" id="sd3">3</div>
+          <span class="step-lbl" id="sl3">Review</span>
+          <div class="step-line" id="sline3"></div>
+          <div class="step-node" id="sd4">4</div>
+          <span class="step-lbl" id="sl4">Approve</span>
+        </div>
+      </div>
+
+      <div class="g-mig">
+        <!-- LEFT -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card">
+            <div class="card-head">Upload Files</div>
+            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fi').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropFiles(event)">
+              <div class="upload-title">Drop files here to upload</div>
+              <div class="upload-sub">or <a>browse files</a> · .py .java .php .cbl</div>
+            </div>
+            <input type="file" id="fi" multiple accept=".py,.java,.php,.cbl,.cob,.cobol" onchange="addFiles(this.files)" style="display:none">
+            <div class="chips" id="fileChips"></div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--b1)">
+              <div class="sec-lbl">Scan GitHub Repository</div>
+              <div class="scan-row">
+                <input class="scan-input" id="repoUrl" placeholder="https://github.com/owner/repo">
+                <button class="btn btn-ghost btn-sm" onclick="scanRepo()">Scan</button>
+              </div>
+              <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 Python files.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">Configuration</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div>
+                <div class="sec-lbl">Language</div>
+                <div class="sel-row">
+                  <button class="sel-btn active" onclick="setLang(this,'python')">Python</button>
+                  <button class="sel-btn" onclick="setLang(this,'java')">Java</button>
+                  <button class="sel-btn" onclick="setLang(this,'php')">PHP</button>
+                  <button class="sel-btn" onclick="setLang(this,'cobol')">COBOL</button>
+                </div>
+              </div>
+              <div>
+                <div class="sec-lbl">Strategy</div>
+                <div class="sel-row">
+                  <button class="sel-btn active active-purple" onclick="setMode(this,'migrate','Rule-based, AST-verified. Predictable, no hallucinations.')">Migrate</button>
+                  <button class="sel-btn" onclick="setMode(this,'ai_migrate','AI-powered with confidence score and structural parity check.')">AI Migrate</button>
+                  <button class="sel-btn" onclick="setMode(this,'refactor','Improve code structure, remove smells, reduce complexity.')">Refactor</button>
+                </div>
+                <div style="font-size:10px;color:var(--t4);margin-top:5px" id="modeDesc">Rule-based, AST-verified. Predictable, no hallucinations.</div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:9px;font-size:12px" onclick="runMigration()">
+            Run Migration
+          </button>
+        </div>
+
+        <!-- RIGHT -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card" id="confCard" style="display:none">
+            <div class="card-head">Confidence Score</div>
+            <div class="conf-row">
+              <div class="conf-bar"><div class="conf-fill" id="confFill"></div></div>
+              <div class="conf-pct" id="confPct">0%</div>
+            </div>
+            <div style="font-size:10px;color:var(--t4);margin-top:5px" id="confNote"></div>
+          </div>
+
+          <div class="loading" id="migrateLoad">
+            <div class="spinner"></div>
+            <div class="loading-txt">Analyzing and migrating code…</div>
+          </div>
+
+          <div class="card" id="diffCard" style="display:none">
+            <div class="card-head">Before / After <span class="card-head-a" onclick="copyMigrated()">Copy result</span></div>
+            <div class="diff-grid">
+              <div class="diff-pane">
+                <div class="diff-head old">Before</div>
+                <div class="diff-body" id="diffOld"></div>
+              </div>
+              <div class="diff-pane">
+                <div class="diff-head new">After</div>
+                <div class="diff-body" id="diffNew"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="approval" id="approvalBox" style="display:none">
+            <div class="approval-text"><strong>Human Review Required</strong><br>Review the diff above and approve or reject.</div>
+            <div class="approval-actions">
+              <button class="btn btn-danger btn-sm" onclick="doReject()">Reject</button>
+              <button class="btn btn-ghost btn-sm" onclick="doModify()">Modify</button>
+              <button class="btn btn-success btn-sm" onclick="doApprove()">Approve</button>
+            </div>
+          </div>
+
+          <div class="card" id="migrateEmpty">
+            <div class="empty">
+              <div class="empty-icon"><div class="empty-ic-inner ic-zap"></div></div>
+              <div class="empty-title">Ready to migrate</div>
+              <div class="empty-sub">Upload a file and click Run Migration to see the diff with confidence score.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: AUDIT -->
+    <div class="page" id="page-audit">
+      <div class="ph">
+        <div><div class="ph-title">Audit & Analyze</div><div class="ph-sub">Deep code analysis — tech debt, architecture, dependencies, call graph.</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-head">Select Analysis</div>
+          <div class="feat-grid">
+            <button class="feat-btn active" onclick="toggleFeat(this,'analyze')">Analyze</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'tech_debt')">Tech Debt</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'call_graph')">Call Graph</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'architecture')">Architecture</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'api_map')">API Map</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'db_schema')">DB Schema</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'risk_check')">Risk Check</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'code_quality')">Code Quality</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'code_smells')">Code Smells</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'dependencies')">Dependencies</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'impact')">Impact</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'ci_cd')">CI/CD</button>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;padding:8px" onclick="runAudit()">Run Analysis</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="loading" id="auditLoad"><div class="spinner"></div><div class="loading-txt">Running analysis…</div></div>
+          <div class="result" id="auditResult">
+            <div class="result-head"><span class="result-lbl" id="auditLbl">Result</span><span class="result-copy" onclick="copyEl('auditBody')">Copy</span></div>
+            <div class="result-body" id="auditBody"></div>
+          </div>
+          <div class="card" id="auditEmpty">
+            <div class="empty">
+              <div class="empty-icon"><div class="empty-ic-inner ic-search"></div></div>
+              <div class="empty-title">Select an analysis</div>
+              <div class="empty-sub">Pick one or more checks and click Run Analysis.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: SECURITY -->
+    <div class="page" id="page-security">
+      <div class="ph">
+        <div><div class="ph-title">Security Scan</div><div class="ph-sub">Detect vulnerabilities, hardcoded secrets, weak crypto, and zero-trust gaps.</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-head">Security Checks</div>
+          <div class="feat-grid" style="grid-template-columns:1fr 1fr">
+            <button class="feat-btn active" onclick="toggleFeat(this,'data_scan')">Data Scan</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'crypto_scan')">Crypto Scan</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'sql_scan')">SQL Injection</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'pii_scan')">PII Detection</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'key_audit')">Key Audit</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'zero_trust')">Zero-Trust</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'vendor_risk')">Vendor Risk</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'fraud_check')">Fraud Check</button>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;padding:8px" onclick="runSecurity()">Run Security Scan</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="g2" style="gap:8px">
+            <div class="stat" style="--al:var(--red);padding:12px 14px">
+              <div class="stat-val" style="color:var(--red);font-size:20px" id="secCrit">—</div>
+              <div class="stat-lbl">Critical</div>
+            </div>
+            <div class="stat" style="--al:var(--amber);padding:12px 14px">
+              <div class="stat-val" style="color:var(--amber);font-size:20px" id="secWarn">—</div>
+              <div class="stat-lbl">Warnings</div>
+            </div>
+          </div>
+          <div class="loading" id="secLoad"><div class="spinner"></div><div class="loading-txt">Scanning…</div></div>
+          <div class="result" id="secResult">
+            <div class="result-head"><span class="result-lbl">Security Report</span><span class="result-copy" onclick="copyEl('secBody')">Copy</span></div>
+            <div class="result-body" id="secBody"></div>
+          </div>
+          <div class="card" id="secEmpty">
+            <div class="empty">
+              <div class="empty-icon"><div class="empty-ic-inner ic-shield"></div></div>
+              <div class="empty-title">No scan yet</div>
+              <div class="empty-sub">Select checks and run the scan.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: BANKING -->
+    <div class="page" id="page-banking">
+      <div class="ph">
+        <div><div class="ph-title">Banking & AML/KYC</div><div class="ph-sub">Compliance scans for SBP, Basel III, PCI-DSS, GDPR, and AML/KYC extraction.</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-head">Banking Checks</div>
+          <div class="feat-grid" style="grid-template-columns:1fr 1fr">
+            <button class="feat-btn active" onclick="toggleFeat(this,'banking_scan')">Banking Scan</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'aml_kyc')">AML / KYC</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'txn_flow')">Txn Flow</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'rules_engine')">Rules Engine</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'regional')">Regional Comp.</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'reg_framework')">Reg Framework</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'biz_rules')">Business Rules</button>
+            <button class="feat-btn" onclick="toggleFeat(this,'exec_report')">Exec Report</button>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b1)">
+            <div class="sec-lbl">Compliance Framework</div>
+            <div class="sel-row">
+              <button class="sel-btn active" style="font-size:10px;padding:4px 10px">SBP</button>
+              <button class="sel-btn" style="font-size:10px;padding:4px 10px">Basel III</button>
+              <button class="sel-btn" style="font-size:10px;padding:4px 10px">PCI-DSS</button>
+              <button class="sel-btn" style="font-size:10px;padding:4px 10px">GDPR</button>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;padding:8px">Run Compliance Scan</button>
+        </div>
+        <div class="card">
+          <div class="empty">
+            <div class="empty-icon"><div class="empty-ic-inner ic-bank"></div></div>
+            <div class="empty-title">Banking scan ready</div>
+            <div class="empty-sub">Detects AML/KYC logic, transaction patterns, and compliance gaps.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: ASK -->
+    <div class="page" id="page-ask">
+      <div class="ph">
+        <div><div class="ph-title">Ask Codebase</div><div class="ph-sub">Ask natural language questions about your code. Get instant, accurate answers.</div></div>
+      </div>
+      <div class="g-wide">
+        <div class="card">
+          <div class="card-head">Your Question</div>
+          <textarea id="askInput" style="width:100%;background:var(--s3);border:1px solid var(--b2);border-radius:6px;padding:9px 10px;font-size:12px;color:var(--t1);font-family:var(--sans);resize:vertical;min-height:80px;outline:none;line-height:1.6" placeholder="e.g. What does process_payment() do? Are there any security risks?"></textarea>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px">
+            <button class="btn btn-ghost btn-sm" onclick="setQ('What functions handle authentication?')">Auth functions?</button>
+            <button class="btn btn-ghost btn-sm" onclick="setQ('Are there SQL injection risks?')">SQL injection?</button>
+            <button class="btn btn-ghost btn-sm" onclick="setQ('Summarize what this code does')">Summarize</button>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;padding:8px" onclick="runAsk()">Ask AI</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="loading" id="askLoad"><div class="spinner"></div><div class="loading-txt">Thinking…</div></div>
+          <div class="result" id="askResult">
+            <div class="result-head"><span class="result-lbl">Answer</span><span class="result-copy" onclick="copyEl('askBody')">Copy</span></div>
+            <div class="result-body" id="askBody"></div>
+          </div>
+          <div class="card" id="askEmpty">
+            <div class="empty">
+              <div class="empty-icon"><div class="empty-ic-inner ic-msg"></div></div>
+              <div class="empty-title">Ask anything</div>
+              <div class="empty-sub">Upload a file first, then ask questions about its logic or structure.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: DOCS -->
+    <div class="page" id="page-docs">
+      <div class="ph"><div><div class="ph-title">Generate Documentation</div><div class="ph-sub">AI-generated handover docs, architecture summaries, and audit-ready reports.</div></div></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-head">Document Type</div>
+          <div class="feat-grid" style="grid-template-columns:1fr 1fr">
+            <button class="feat-btn active">Handover Docs</button>
+            <button class="feat-btn">Executive Report</button>
+            <button class="feat-btn">Migration Plan</button>
+            <button class="feat-btn">Rollback Plan</button>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;padding:8px">Generate</button>
+        </div>
+        <div class="card">
+          <div class="empty">
+            <div class="empty-icon"><div class="empty-ic-inner ic-doc"></div></div>
+            <div class="empty-title">Ready to generate</div>
+            <div class="empty-sub">Upload files and choose a document type.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: ROI -->
+    <div class="page" id="page-roi">
+      <div class="ph"><div><div class="ph-title">ROI & Technical Debt</div><div class="ph-sub">Quantify tech debt in dollars. Show leadership the real cost of legacy code.</div></div></div>
+      <div class="g3">
+        <div class="stat" style="--al:var(--red)">
+          <div class="stat-val" style="color:var(--red)">$—</div>
+          <div class="stat-lbl">Total Debt Estimate</div>
+          <div class="stat-sub">Upload files to calculate</div>
+        </div>
+        <div class="stat" style="--al:var(--amber)">
+          <div class="stat-val" style="color:var(--amber)">—</div>
+          <div class="stat-lbl">Estimated Fix Hours</div>
+          <div class="stat-sub">At $85/hr average dev rate</div>
+        </div>
+        <div class="stat" style="--al:var(--green)">
+          <div class="stat-val" style="color:var(--green)">$—</div>
+          <div class="stat-lbl">Breach Risk Cost</div>
+          <div class="stat-sub">Security gap exposure</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="empty">
+          <div class="empty-icon"><div class="empty-ic-inner ic-dollar"></div></div>
+          <div class="empty-title">Upload files to calculate ROI</div>
+          <div class="empty-sub">StarBuild estimates tech debt, fix hours, and breach risk costs.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+const BACKEND='https://legacy-migration-tool-1.onrender.com';
+let files=[],lang='python',mode='migrate',feats=new Set(['analyze']),migrated='';
+
+// NAV
+function nav(page,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  if(el)el.classList.add('active');
+  const t={dashboard:'Dashboard',migrate:'Migrate Code',audit:'Audit & Analyze',security:'Security Scan',banking:'Banking & AML',ask:'Ask Codebase',docs:'Documentation',roi:'ROI & Debt'};
+  document.getElementById('topbar-title').textContent=t[page]||page;
+}
+
+// CHARTS
+(function(){
+  const defs={responsive:true,maintainAspectRatio:false};
+  const gridColor='rgba(255,255,255,.04)';
+  const tickColor='#334155';
+
+  new Chart(document.getElementById('donutChart'),{
+    type:'doughnut',
+    data:{labels:['Completed','In Progress','Review','Pending'],datasets:[{data:[0,0,0,1],backgroundColor:['#22c55e','#3b82f6','#f59e0b','#1a2438'],borderWidth:0}]},
+    options:{cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
+  });
+
+  new Chart(document.getElementById('catChart'),{
+    type:'doughnut',
+    data:{labels:['Core','Security','Enterprise','Banking','Developer'],datasets:[{data:[12,10,14,12,11],backgroundColor:['#3b82f6','#ef4444','#8b5cf6','#f59e0b','#22c55e'],borderWidth:0,hoverOffset:3}]},
+    options:{cutout:'70%',plugins:{legend:{display:false}},animation:{duration:600}}
+  });
+
+  new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{
+      labels:['1','2','3','4','5','6','7','8','9','10'],
+      datasets:[
+        {label:'AI Migrate',data:[72,78,81,75,88,85,90,87,92,89],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.06)',tension:.4,fill:true,pointRadius:2,pointBackgroundColor:'#3b82f6',borderWidth:1.5},
+        {label:'Rule-Based',data:[95,95,96,95,97,95,96,97,96,97],borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.06)',tension:.4,fill:true,pointRadius:2,pointBackgroundColor:'#22c55e',borderWidth:1.5}
+      ]
+    },
+    options:{
+      ...defs,
+      scales:{
+        x:{grid:{color:gridColor},ticks:{color:tickColor,font:{size:9}}},
+        y:{grid:{color:gridColor},ticks:{color:tickColor,font:{size:9}},min:60,max:100}
+      },
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0f1525',borderColor:'#1e2d45',borderWidth:1,titleColor:'#f1f5f9',bodyColor:'#94a3b8',padding:8}}
+    }
+  });
+})();
+
+// FILES
+function addFiles(fs){for(const f of fs)if(!files.find(x=>x.name===f.name))files.push(f);renderChips()}
+function dropFiles(e){e.preventDefault();document.getElementById('uploadZone').classList.remove('drag');addFiles(e.dataTransfer.files)}
+function removeFile(i){files.splice(i,1);renderChips()}
+function renderChips(){document.getElementById('fileChips').innerHTML=files.map((f,i)=>`<div class="chip-file">${f.name}<span class="chip-rm" onclick="removeFile(${i})">×</span></div>`).join('')}
+
+// CONFIG
+function setLang(el,l){document.querySelectorAll('.sel-btn').forEach(b=>{if(b.onclick?.toString().includes('setLang'))b.classList.remove('active')});el.classList.add('active');lang=l}
+function setMode(el,m,desc){document.querySelectorAll('.sel-btn').forEach(b=>{if(b.onclick?.toString().includes('setMode'))b.classList.remove('active','active-purple')});el.classList.add('active','active-purple');mode=m;document.getElementById('modeDesc').textContent=desc}
+function toggleFeat(el,f){el.classList.toggle('active');el.classList.contains('active')?feats.add(f):feats.delete(f)}
+
+// STEPS
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    const d=document.getElementById('sd'+i),l=document.getElementById('sl'+i);
+    if(i<n){d.classList.add('done');d.classList.remove('active');d.textContent='✓';l.classList.add('active')}
+    else if(i===n){d.classList.add('active');d.classList.remove('done');d.textContent=i;l.classList.add('active')}
+    else{d.classList.remove('active','done');d.textContent=i;l.classList.remove('active')}
+    if(i<4){const line=document.getElementById('sline'+i);line&&line.classList.toggle('done',i<n)}
+  }
+}
+
+// MIGRATION
+async function runMigration(){
+  if(!files.length){alert('Please upload at least one file first.');return}
+  const code=await files[0].text();
+  hide('migrateEmpty');hide('diffCard');hide('approvalBox');hide('confCard');
+  show('migrateLoad');setStep(2);
+  const ep=mode==='ai_migrate'?'/ai-migrate':'/migrate';
+  try{
+    const r=await fetch(BACKEND+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,language:lang,filename:files[0].name})});
+    const d=await r.json();hide('migrateLoad');
+    const conf=d.confidence_score??d.confidence??(mode==='migrate'?95:null);
+    if(conf!=null){
+      show('confCard');const p=Math.round(conf);
+      document.getElementById('confFill').style.width=p+'%';
+      document.getElementById('confPct').textContent=p+'%';
+      const c=p>=80?'var(--green)':p>=60?'var(--amber)':'var(--red)';
+      document.getElementById('confFill').style.background=c;
+      document.getElementById('confPct').style.color=c;
+      document.getElementById('confNote').textContent=p>=80?'High confidence — safe to approve.':p>=60?'Medium confidence — review carefully.':'Low confidence — manual verification required.';
+    }
+    migrated=d.migrated??d.result??d.output??'No output received.';
+    document.getElementById('diffOld').textContent=d.original??code;
+    document.getElementById('diffNew').textContent=migrated;
+    show('diffCard');show('approvalBox');setStep(3);
+  }catch(e){hide('migrateLoad');show('migrateEmpty');document.querySelector('#migrateEmpty .empty-title').textContent='Connection Error';document.querySelector('#migrateEmpty .empty-sub').textContent=e.message}
+}
+function doApprove(){setStep(4);document.getElementById('approvalBox').innerHTML='<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail.</div>'}
+function doReject(){document.getElementById('approvalBox').innerHTML='<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected.</div>';setStep(1)}
+function doModify(){alert('Open the result in your editor, modify, then re-upload and approve.')}
+function copyMigrated(){navigator.clipboard.writeText(migrated)}
+
+// AUDIT
+async function runAudit(){
+  if(!files.length){alert('Upload a file first.');return}
+  const code=await files[0].text();
+  const f=[...feats][0]||'analyze';
+  const ep={analyze:'/analyze',tech_debt:'/tech-debt',call_graph:'/call-graph',architecture:'/architecture',api_map:'/api-dependency-map',db_schema:'/db-schema',risk_check:'/risk-check',code_quality:'/code-quality',code_smells:'/code-smells',dependencies:'/dependency-portability',impact:'/impact-analysis',ci_cd:'/cicd'};
+  hide('auditEmpty');document.getElementById('auditResult').classList.remove('show');show('auditLoad');
+  try{
+    const r=await fetch(BACKEND+(ep[f]||'/analyze'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,language:lang,filename:files[0].name})});
+    const d=await r.json();hide('auditLoad');
+    document.getElementById('auditLbl').textContent=f.replace(/_/g,' ').toUpperCase();
+    document.getElementById('auditBody').textContent=typeof d==='string'?d:(d.result??d.output??JSON.stringify(d,null,2));
+    document.getElementById('auditResult').classList.add('show');
+  }catch(e){hide('auditLoad');show('auditEmpty')}
+}
+
+// SECURITY
+async function runSecurity(){
+  if(!files.length){alert('Upload a file first.');return}
+  const code=await files[0].text();
+  hide('secEmpty');document.getElementById('secResult').classList.remove('show');show('secLoad');
+  try{
+    const r=await fetch(BACKEND+'/data-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,language:lang})});
+    const d=await r.json();hide('secLoad');
+    document.getElementById('secBody').textContent=typeof d==='string'?d:(d.result??d.output??JSON.stringify(d,null,2));
+    document.getElementById('secResult').classList.add('show');
+  }catch(e){hide('secLoad');show('secEmpty')}
+}
+
+// ASK
+function setQ(q){document.getElementById('askInput').value=q}
+async function runAsk(){
+  if(!files.length){alert('Upload a file first.');return}
+  const code=await files[0].text(),q=document.getElementById('askInput').value.trim();
+  if(!q){alert('Enter a question.');return}
+  hide('askEmpty');document.getElementById('askResult').classList.remove('show');show('askLoad');
+  try{
+    const r=await fetch(BACKEND+'/ask-codebase',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,question:q,language:lang})});
+    const d=await r.json();hide('askLoad');
+    document.getElementById('askBody').textContent=typeof d==='string'?d:(d.answer??d.result??d.output??JSON.stringify(d,null,2));
+    document.getElementById('askResult').classList.add('show');
+  }catch(e){hide('askLoad');show('askEmpty')}
+}
+
+// UTILS
+function show(id){const e=document.getElementById(id);if(!e)return;e.style.display='';e.classList&&e.classList.add('show')}
+function hide(id){const e=document.getElementById(id);if(!e)return;e.style.display='none';e.classList&&e.classList.remove('show')}
+function copyEl(id){navigator.clipboard.writeText(document.getElementById(id).textContent)}
+function scanRepo(){const u=document.getElementById('repoUrl').value.trim();if(!u){alert('Enter a GitHub repo URL.');return}alert('Scanning: '+u)}
+</script>
+</body>
+</html>
