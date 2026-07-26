@@ -943,7 +943,9 @@ def migrate_cobol(source):
     lines = source.split(chr(10))
     in_working_storage = False
     in_procedure = False
-    indent = "    "
+    if_depth = 0
+    def cur_indent():
+        return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
     import re as _seqre
     for raw_line in lines:
         line = raw_line.strip()
@@ -985,7 +987,7 @@ def migrate_cobol(source):
         disp_m = _mre.match(r"^DISPLAY\s+(.+?)\.?$", line, _mre.IGNORECASE)
         if disp_m:
             content = disp_m.group(1).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + "print(" + content + ")")
+            out_lines.append(cur_indent() + "print(" + content + ")")
             changes.append("DISPLAY -> print()")
             continue
         move_m = _mre.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
@@ -994,41 +996,51 @@ def migrate_cobol(source):
             if not (src_val.startswith(chr(34)) or src_val.startswith(chr(39))):
                 src_val = src_val.replace("-", "_")
             dst_var = move_m.group(2).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + dst_var + " = " + src_val)
+            out_lines.append(cur_indent() + dst_var + " = " + src_val)
             changes.append("MOVE -> assignment")
             continue
         if upper.startswith("STOP RUN"):
-            out_lines.append((indent if in_procedure else "") + "return")
+            out_lines.append(cur_indent() + "return")
             changes.append("STOP RUN -> return")
             continue
         compute_m = _mre.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, _mre.IGNORECASE)
         if compute_m:
             var_name = compute_m.group(1).replace("-", "_")
             expr = compute_m.group(2).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + var_name + " = " + expr)
+            out_lines.append(cur_indent() + var_name + " = " + expr)
             changes.append("COMPUTE -> assignment")
             continue
         add_m = _mre.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
         if add_m:
             src_val = add_m.group(1).replace("-", "_")
             dst_var = add_m.group(2).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + dst_var + " += " + src_val)
+            out_lines.append(cur_indent() + dst_var + " += " + src_val)
             changes.append("ADD -> +=")
             continue
         sub_m = _mre.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
         if sub_m:
             src_val = sub_m.group(1).replace("-", "_")
             dst_var = sub_m.group(2).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + dst_var + " -= " + src_val)
+            out_lines.append(cur_indent() + dst_var + " -= " + src_val)
             changes.append("SUBTRACT -> -=")
             continue
         perform_m = _mre.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, _mre.IGNORECASE)
         if perform_m:
             para_name = perform_m.group(1).replace("-", "_").lower()
             cond = perform_m.group(2).replace("-", "_")
-            out_lines.append((indent if in_procedure else "") + "while not (" + cond + "):")
-            out_lines.append((indent if in_procedure else "") + "    " + para_name + "()")
+            out_lines.append(cur_indent() + "while not (" + cond + "):")
+            out_lines.append(cur_indent() + "    " + para_name + "()")
             changes.append("PERFORM UNTIL -> while loop")
+            continue
+        if upper.rstrip(".") == "ELSE":
+            if_depth = max(0, if_depth - 1)
+            out_lines.append(cur_indent() + "else:")
+            if_depth += 1
+            changes.append("ELSE -> else")
+            continue
+        if upper.startswith("END-IF"):
+            if_depth = max(0, if_depth - 1)
+            changes.append("END-IF removed (Python uses indentation)")
             continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
@@ -1041,10 +1053,11 @@ def migrate_cobol(source):
                 else:
                     _fixed_words.append(_w)
             cond = " ".join(_fixed_words)
-            out_lines.append((indent if in_procedure else "") + "if " + cond + ":")
+            out_lines.append(cur_indent() + "if " + cond + ":")
+            if_depth += 1
             changes.append("IF -> if (= converted to ==)")
             continue
-        out_lines.append((indent if in_procedure else "") + "# TODO: manual review - " + line)
+        out_lines.append(cur_indent() + "# TODO: manual review - " + line)
     if in_procedure:
         out_lines.append("")
         out_lines.append("if __name__ == " + chr(39) + "__main__" + chr(39) + ":")

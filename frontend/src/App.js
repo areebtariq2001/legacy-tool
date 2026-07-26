@@ -776,7 +776,7 @@ Home
 ))}
 </div>
 <div style={{display:"flex",gap:"8px",marginBottom:"16px",flexWrap:"wrap"}}>
-{(()=>{const cat={analyze:"Core",migrate:"Core",aimigrate:"Core",callgraph:"Core",risk:"Core",debt:"Core",docs:"Core",scan:"Security",banking:"Security",crypto:"Security",amlkyc:"Security",sqli:"Security",pii:"Security",keyaudit:"Security",fraud:"Security",ainative:"Enterprise",migrisk:"Enterprise",cicd:"Enterprise",dbschema:"Enterprise",apimap:"Enterprise",architecture:"Enterprise",techstack:"Enterprise",cost:"Enterprise",bizrules:"Banking",execreport:"Banking",impact:"Banking",txnflow:"Banking",rollback:"Banking",rulesengine:"Banking",regional:"Banking",ai:"AI Tools",explain:"AI Tools",tests:"AI Tools"};let lastCat="";return modes.map(([m,label,color],mi)=>{const c=cat[m]||"Other";const showLabel=c!==lastCat;lastCat=c;return <div key={m} style={{display:"contents"}}>
+{(()=>{const cat={analyze:"Core",migrate:"Core",aimigrate:"Core",callgraph:"Core",risk:"Core",debt:"Core",docs:"Core",scan:"Security",banking:"Security",crypto:"Security",amlkyc:"Security",sqli:"Security",pii:"Security",keyaudit:"Security",fraud:"Security",ainative:"Enterprise",migrisk:"Enterprise",cicd:"Enterprise",dbschema:"Enterprise",apimap:"Enterprise",architecture:"Enterprise",techstack:"Enterprise",cost:"Enterprise",bizrules:"Banking",execreport:"Banking",impact:"Banking",txnflow:"Banking",rollback:"Banking",rulesengine:"Banking",regional:"Banking",ai:"AI Tools",explain:"AI Tools",tests:"AI Tools"};let lastCat="";return currentPage==="modernize"&&modes.map(([m,label,color],mi)=>{const c=cat[m]||"Other";const showLabel=c!==lastCat;lastCat=c;return <div key={m} style={{display:"contents"}}>
 <button key={m} onClick={()=>setMode(m)} onMouseEnter={e=>{if(mode!==m)e.currentTarget.style.background=color+"14";}} onMouseLeave={e=>{if(mode!==m)e.currentTarget.style.background="transparent";}} style={{flex:"1 1 22%",padding:"11px 12px",borderRadius:"10px",border:mode===m?"2px solid "+color:"1px solid "+border,background:mode===m?color+"18":"transparent",color:mode===m?color:subtext,cursor:"pointer",fontSize:"13px",fontWeight:mode===m?"700":"500",boxShadow:mode===m?"0 2px 8px "+color+"33":"none",transition:"all 0.15s ease"}}>
 {label}
 </button>
@@ -1486,6 +1486,7 @@ rightTitle="Migrated"
 );
 }
 export default App;
+
 
 
 
