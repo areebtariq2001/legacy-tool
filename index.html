@@ -963,7 +963,7 @@ async function previewArchitecture() {
   try {
     const fd = new FormData();
     fd.append('file', files[0]);
-    const r = await fetch(BACKEND + '/architecture', { method: 'POST', body: fd });
+    const r = await fetch(BACKEND + '/generate-architecture', { method: 'POST', body: fd });
     const d = await r.json();
     loading.style.display = 'none';
     result.style.display = 'block';
