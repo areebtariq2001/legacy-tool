@@ -374,7 +374,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="issue-list" id="issueList"></div>
             </div>
             <div class="card" id="diffCard">
-              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span></div>
+              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
+              <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
               <div class="conf-row">
                 <div class="conf-bar"><div class="conf-fill" id="confFill" style="background:var(--green);width:0%"></div></div>
                 <div class="conf-pct" id="confPct" style="color:var(--green)">0%</div>
@@ -882,6 +883,21 @@ function doApprove() {
 function doReject() { document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected.</div>'; }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
+async function runExplain() {
+  if (!files.length) return;
+  const box = document.getElementById('explainBox');
+  box.style.display = 'block';
+  box.textContent = 'Thinking...';
+  try {
+    const fd = new FormData();
+    fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/explain', { method: 'POST', body: fd });
+    const d = await r.json();
+    box.textContent = (typeof d === 'string' ? d : (d.explanation ?? d.result ?? d.output ?? 'No explanation received.'));
+  } catch (e) {
+    box.textContent = 'Could not generate explanation: ' + e.message;
+  }
+}
 function resetAll() {
   files = []; renderChips(); disableRun();
   document.getElementById('pipeline').classList.remove('show');
