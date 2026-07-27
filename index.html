@@ -411,6 +411,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 Review the analysis and diff above, then approve or reject this migration.
               </div>
               <div class="approval-actions">
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
                 <button class="btn btn-success" style="font-size:11px" onclick="doApprove()">Approve</button>
@@ -973,6 +974,49 @@ function doApprove() {
 function doReject() { document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected.</div>'; }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
+function downloadReport() {
+  const fname = files.length ? files[0].name : 'unknown';
+  const conf = document.getElementById('confPct').textContent;
+  const health = document.getElementById('healthNum').textContent;
+  const issuesText = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => '- ' + e.textContent).join('\n');
+  const rulesText = Array.from(document.querySelectorAll('#rulesList > div')).map(e => '- ' + e.textContent.replace(/\s+/g, ' ').trim()).join('\n');
+  const suggestText = Array.from(document.querySelectorAll('#suggestList > div')).map(e => '- ' + e.textContent.trim()).join('\n');
+  const fixTime = document.getElementById('impact-time').textContent;
+  const fixCost = document.getElementById('impact-cost').textContent;
+  const risk = document.getElementById('impact-risk').textContent;
+  const report = `StarBuild Migration Report
+Generated: ${new Date().toLocaleString()}
+File: ${fname}
+
+CONFIDENCE: ${conf}
+CODEBASE HEALTH SCORE: ${health}/100
+
+ISSUES FOUND:
+${issuesText || 'None'}
+
+BUSINESS RULES DETECTED:
+${rulesText || 'None'}
+
+RECOMMENDED NEXT ACTIONS:
+${suggestText || 'None'}
+
+MIGRATION IMPACT (ESTIMATE):
+Est. Fix Time: ${fixTime}
+Est. Cost: ${fixCost}
+Risk Level: ${risk}
+
+---
+This is an automated aid for planning and review. Pattern-based analysis may include false positives.
+Always confirm findings with a qualified reviewer before making migration decisions.
+`;
+  const blob = new Blob([report], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname.replace(/\.[^.]+$/, '') + '_migration_report.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 async function previewArchitecture() {
   if (!files.length) { alert('Upload a file first.'); return; }
   const loading = document.getElementById('archLoading');
