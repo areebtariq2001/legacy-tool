@@ -575,7 +575,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
 let files = [], lang = 'python', mode = 'rule', checks = new Set(['security','debt','compliance']);
 let migrated = '', sessionApproved = 0;
-let healthChart, statusChart;
+let healthChart, statusChart, trendChart;
 function initCharts() {
   healthChart = new Chart(document.getElementById('healthChart'), {
     type: 'doughnut',
@@ -587,20 +587,19 @@ function initCharts() {
     data: { labels: ['Done','Review','Pending'], datasets: [{ data: [0,0,1], backgroundColor: ['#22c55e','#f59e0b','#1a2438'], borderWidth: 0 }] },
     options: { cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 600 } }
   });
-  new Chart(document.getElementById('trendChart'), {
+  trendChart = new Chart(document.getElementById('trendChart'), {
     type: 'line',
     data: {
-      labels: ['1','2','3','4','5','6','7','8','9','10'],
+      labels: [],
       datasets: [
-        { label: 'AI', data: [72,78,81,75,88,85,90,87,92,89], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.06)', tension: .4, fill: true, pointRadius: 2, pointBackgroundColor: '#3b82f6', borderWidth: 1.5 },
-        { label: 'Rule', data: [95,95,96,95,97,95,96,97,96,97], borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.06)', tension: .4, fill: true, pointRadius: 2, pointBackgroundColor: '#22c55e', borderWidth: 1.5 }
+        { label: 'Confidence', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.06)', tension: .4, fill: true, pointRadius: 3, pointBackgroundColor: '#3b82f6', borderWidth: 1.5 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
         x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#334155', font: { size: 9 } } },
-        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#334155', font: { size: 9 } }, min: 60, max: 100 }
+        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#334155', font: { size: 9 } }, min: 0, max: 100 }
       },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f1525', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 8 } }
     }
@@ -833,6 +832,16 @@ function setProg(id, pct) {
   document.getElementById('pv-' + id).textContent = pct + '%';
 }
 function addHistory(fname, conf, issues, time) {
+  if (trendChart) {
+    const label = trendChart.data.labels.length + 1;
+    trendChart.data.labels.push('Run ' + label);
+    trendChart.data.datasets[0].data.push(conf);
+    if (trendChart.data.labels.length > 10) {
+      trendChart.data.labels.shift();
+      trendChart.data.datasets[0].data.shift();
+    }
+    trendChart.update();
+  }
   const hEl = document.getElementById('runHistory');
   const confColor = conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--amber)' : 'var(--red)';
   const item = `
