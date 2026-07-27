@@ -369,6 +369,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="sum-lbl">Debt Score</div>
               </div>
             </div>
+            <div class="card" id="execSummaryCard" style="display:none">
+              <div class="card-head">Executive Summary</div>
+              <div id="execSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8"></div>
+            </div>
             <div class="card">
               <div class="card-head">Issues & Recommendations <span class="card-head-a" id="issue-count"></span></div>
               <div class="issue-list" id="issueList"></div>
@@ -412,6 +416,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
               <div class="approval-actions">
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadJSON()">Export JSON</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
                 <button class="btn btn-success" style="font-size:11px" onclick="doApprove()">Approve</button>
@@ -834,6 +839,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-files').textContent = files.length;
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
+  renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function generateSuggestions(issues, critCount, warnCount) {
@@ -924,6 +930,50 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
     }
     return '<div>' + esc + '</div>';
   }).join('');
+}
+let lastRulesCount = 0;
+function renderExecSummary(critCount, warnCount, confPct, fixHours) {
+  const rulesCount = document.querySelectorAll('#rulesList > div').length;
+  const recommendation = critCount === 0 ? 'Migration Safe' : critCount === 1 ? 'Review Before Migration' : 'High Risk - Manual Review Required';
+  const recColor = critCount === 0 ? '#22c55e' : critCount === 1 ? '#f59e0b' : '#ef4444';
+  const card = document.getElementById('execSummaryCard');
+  const text = document.getElementById('execSummaryText');
+  card.style.display = 'block';
+  text.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+      <div>Critical Issues: <strong style="color:#f1f5f9">${critCount}</strong></div>
+      <div>Warnings: <strong style="color:#f1f5f9">${warnCount}</strong></div>
+      <div>Business Rules Found: <strong style="color:#f1f5f9">${rulesCount}</strong></div>
+      <div>Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+      <div>Estimated Effort: <strong style="color:#f1f5f9">${fixHours.toFixed(1)} hrs</strong></div>
+      <div>Recommendation: <strong style="color:${recColor}">${recommendation}</strong></div>
+    </div>
+  `;
+}
+function downloadJSON() {
+  const fname = files.length ? files[0].name : 'unknown';
+  const data = {
+    file: fname,
+    generated: new Date().toISOString(),
+    confidence: document.getElementById('confPct').textContent,
+    health_score: document.getElementById('healthNum').textContent,
+    issues: Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => e.textContent),
+    business_rules: Array.from(document.querySelectorAll('#rulesList > div')).map(e => e.textContent.replace(/\s+/g, ' ').trim()),
+    recommended_actions: Array.from(document.querySelectorAll('#suggestList > div')).map(e => e.textContent.trim()),
+    migration_impact: {
+      fix_time: document.getElementById('impact-time').textContent,
+      cost: document.getElementById('impact-cost').textContent,
+      risk_level: document.getElementById('impact-risk').textContent
+    },
+    disclaimer: 'Automated aid for planning and review. Pattern-based analysis may include false positives.'
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname.replace(/\.[^.]+$/, '') + '_migration_report.json';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 function buildIssues(R) {
   const issues = [];
