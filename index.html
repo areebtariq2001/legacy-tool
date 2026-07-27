@@ -880,13 +880,13 @@ function findEnclosingFunction(codeLines, lineIdx) {
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
   const rules = [
-    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], specific: true, service: 'Transaction Policy Service' },
-    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], specific: false, service: 'Interest Calculation Service' },
-    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'], specific: true, service: 'AML Screening Service' },
-    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'], specific: true, service: 'Credit Risk Service' },
-    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], specific: false, service: 'Account Service' },
-    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], specific: true, service: 'Authentication Service' },
-    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], specific: false, service: 'Transaction Service' },
+    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], baseConf: 92, service: 'Transaction Policy Service' },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], baseConf: 68, service: 'Interest Calculation Service' },
+    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'], baseConf: 88, service: 'AML Screening Service' },
+    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'], baseConf: 90, service: 'Credit Risk Service' },
+    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], baseConf: 60, service: 'Account Service' },
+    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], baseConf: 90, service: 'Authentication Service' },
+    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], baseConf: 62, service: 'Transaction Service' },
   ];
   const found = [];
   rules.forEach(r => {
@@ -895,7 +895,8 @@ function detectBusinessRules(code) {
       const hit = r.patterns.find(p => lineLower.includes(p));
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
-        const conf = r.specific ? 90 : 65;
+        const matchLen = hit.length;
+        const conf = Math.min(98, r.baseConf + Math.min(6, matchLen - 4));
         found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf, service: r.service });
         break;
       }
