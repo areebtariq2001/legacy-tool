@@ -373,6 +373,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Issues & Recommendations <span class="card-head-a" id="issue-count"></span></div>
               <div class="issue-list" id="issueList"></div>
             </div>
+            <div class="card" id="rulesCard" style="display:none">
+              <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected via keyword patterns</span></div>
+              <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
               <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
@@ -817,7 +821,34 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
+  detectBusinessRules(original);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function detectBusinessRules(code) {
+  const lower = code.toLowerCase();
+  const rules = [
+    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'] },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'] },
+    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'] },
+    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'] },
+    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'] },
+    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'] },
+    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'] },
+  ];
+  const found = rules.filter(r => r.patterns.some(p => lower.includes(p)));
+  const card = document.getElementById('rulesCard');
+  const list = document.getElementById('rulesList');
+  if (found.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  list.innerHTML = found.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
+      <span style="color:#22c55e;font-size:12px">✓</span>
+      <span style="color:#f1f5f9;font-size:12px">${r.label}</span>
+    </div>
+  `).join('');
 }
 function buildIssues(R) {
   const issues = [];
