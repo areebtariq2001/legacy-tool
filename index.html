@@ -377,6 +377,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected via keyword patterns</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
+            <div class="card" id="suggestCard" style="display:none">
+              <div class="card-head">Recommended Next Actions</div>
+              <div id="suggestList" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
               <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
@@ -822,7 +826,30 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
   detectBusinessRules(original);
+  generateSuggestions(issues, critCount, warnCount);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function generateSuggestions(issues, critCount, warnCount) {
+  const suggestions = [];
+  const titles = issues.map(i => i.title.toLowerCase());
+  if (titles.some(t => t.includes('password'))) suggestions.push('Remove hardcoded credentials - move to environment variables or a secrets manager');
+  if (titles.some(t => t.includes('sql injection'))) suggestions.push('Fix SQL injection risk - use parameterized queries');
+  if (titles.some(t => t.includes('weak cryptography') || t.includes('md5') || t.includes('sha1'))) suggestions.push('Upgrade weak hashing/encryption to SHA-256, AES-256, or bcrypt');
+  if (titles.some(t => t.includes('complexity'))) suggestions.push('Refactor high-complexity functions into smaller, focused units');
+  if (titles.some(t => t.includes('duplicate'))) suggestions.push('Remove duplicate code blocks - extract shared logic');
+  if (titles.some(t => t.includes('deprecated'))) suggestions.push('Update deprecated syntax/APIs before deployment');
+  if (titles.some(t => t.includes('documentation'))) suggestions.push('Add docstrings/comments to improve maintainability');
+  if (critCount === 0 && warnCount === 0) suggestions.push('Code looks clean - proceed with standard code review before merging');
+  const card = document.getElementById('suggestCard');
+  const list = document.getElementById('suggestList');
+  if (suggestions.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = suggestions.map(s => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #3b82f6">
+      <span style="color:#60a5fa;font-size:12px">→</span>
+      <span style="color:#f1f5f9;font-size:12px;line-height:1.5">${s}</span>
+    </div>
+  `).join('');
 }
 function detectBusinessRules(code) {
   const lower = code.toLowerCase();
