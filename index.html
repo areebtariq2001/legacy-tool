@@ -757,14 +757,14 @@ async function runAnalysis() {
 }
 function renderResults(R, original, fname, totalMs) {
   document.getElementById('results').classList.add('show');
-  const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : 75);
-  const confPct = Math.round(conf);
-  const cColor = confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('confFill').style.width = confPct + '%';
+  const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
+  const confPct = conf != null ? Math.round(conf) : null;
+  const cColor = confPct == null ? '#64748b' : confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('confFill').style.width = (confPct ?? 0) + '%';
   document.getElementById('confFill').style.background = cColor;
-  document.getElementById('confPct').textContent = confPct + '%';
+  document.getElementById('confPct').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('confPct').style.color = cColor;
-  document.getElementById('sv-conf').textContent = confPct + '%';
+  document.getElementById('sv-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
   document.getElementById('diffOld').textContent = original;
   document.getElementById('diffNew').textContent = migrated;
@@ -789,7 +789,7 @@ function renderResults(R, original, fname, totalMs) {
     </div>
   `).join('');
   const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
-  const migScore = confPct;
+  const migScore = confPct ?? 70;
   const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
   const compScore = critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5));
   const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
@@ -803,9 +803,9 @@ function renderResults(R, original, fname, totalMs) {
   setProg('migration', migScore);
   setProg('debt', debtScore);
   setProg('compliance', compScore);
-  document.getElementById('dash-conf').textContent = confPct + '%';
+  document.getElementById('dash-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('dash-issues').textContent = critCount + warnCount;
-  addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
+  addHistory(fname, confPct ?? 0, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
 
   // Migration Impact panel - derived from real analysis data
   const fixHours = (critCount * 2 + warnCount * 1) || 0.5;
