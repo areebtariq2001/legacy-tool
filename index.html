@@ -760,8 +760,8 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').style.color = cColor;
   document.getElementById('sv-conf').textContent = confPct + '%';
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
-  document.getElementById('diffOld').textContent = original.substring(0, 1000) + (original.length > 1000 ? '\n…' : '');
-  document.getElementById('diffNew').textContent = migrated.substring(0, 1000) + (migrated.length > 1000 ? '\n…' : '');
+  document.getElementById('diffOld').textContent = original;
+  document.getElementById('diffNew').textContent = migrated;
   const issues = buildIssues(R);
   const critCount = issues.filter(i => i.sev === 'critical').length;
   const warnCount = issues.filter(i => i.sev === 'warning').length;
@@ -784,8 +784,8 @@ function renderResults(R, original, fname, totalMs) {
   `).join('');
   const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
   const migScore = confPct;
-  const debtScore = R.debt ? 55 : 80;
-  const compScore = 72;
+  const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
+  const compScore = critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5));
   const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
   document.getElementById('healthNum').textContent = overall;
   healthChart.data.datasets[0].data = [overall, 100 - overall];
