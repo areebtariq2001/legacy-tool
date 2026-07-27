@@ -451,25 +451,26 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
           </div>
           <div class="card">
-            <div class="card-head">Platform</div>
-            <div style="display:flex;flex-direction:column;gap:0">
+            <div class="card-head">Migration Impact</div>
+            <div style="display:flex;flex-direction:column;gap:0" id="impactPanel">
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
-                <span style="font-size:11px;color:var(--t2)">Features</span>
-                <span class="badge b-blue">69 Live</span>
+                <span style="font-size:11px;color:var(--t2)">Est. Fix Time</span>
+                <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-time">—</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
-                <span style="font-size:11px;color:var(--t2)">Languages</span>
-                <span style="font-size:10px;font-family:var(--mono);color:var(--t1)">4</span>
+                <span style="font-size:11px;color:var(--t2)">Est. Cost</span>
+                <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-cost">—</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
-                <span style="font-size:11px;color:var(--t2)">AI Provider</span>
-                <span class="badge b-green">Groq</span>
+                <span style="font-size:11px;color:var(--t2)">Risk Level</span>
+                <span class="badge b-blue" id="impact-risk">—</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
-                <span style="font-size:11px;color:var(--t2)">On-Premise</span>
-                <span class="badge b-amber">Ollama</span>
+                <span style="font-size:11px;color:var(--t2)">Files Processed</span>
+                <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-files">0</span>
               </div>
             </div>
+            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate from detected issues, not a guaranteed figure.</div>
           </div>
         </div>
       </div>
@@ -741,6 +742,11 @@ async function runAnalysis() {
       const fd4 = new FormData(); fd4.append('file', files[0]);
       const r = await fetch(BACKEND + '/tech-debt', { method: 'POST', body: fd4 });
       R.debt = await r.json();
+      try {
+        const fd4b = new FormData(); fd4b.append('file', files[0]);
+        const rc = await fetch(BACKEND + '/tech-debt-cost', { method: 'POST', body: fd4b });
+        R.debtCost = await rc.json();
+      } catch (e2) { R.debtCost = null; }
       pipeDone('debt', 'Debt analysis complete', '<span class="badge b-amber" style="font-size:9px">Done</span>', ((Date.now()-t4)/1000).toFixed(1)+'s');
     } catch (e) { pipeErr('debt', e.message); R.debt = null; }
   } else {
@@ -799,6 +805,17 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('dash-conf').textContent = confPct + '%';
   document.getElementById('dash-issues').textContent = critCount + warnCount;
   addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
+
+  // Migration Impact panel - derived from real analysis data
+  const fixHours = (critCount * 2 + warnCount * 1) || 0.5;
+  const fixCost = Math.round(fixHours * 15);
+  const riskLevel = critCount >= 1 ? 'High' : warnCount >= 1 ? 'Medium' : 'Low';
+  const riskColor = riskLevel === 'High' ? 'b-red' : riskLevel === 'Medium' ? 'b-amber' : 'b-green';
+  document.getElementById('impact-time').textContent = fixHours.toFixed(1) + ' hrs';
+  document.getElementById('impact-cost').textContent = '$' + fixCost;
+  document.getElementById('impact-risk').textContent = riskLevel;
+  document.getElementById('impact-risk').className = 'badge ' + riskColor;
+  document.getElementById('impact-files').textContent = files.length;
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function buildIssues(R) {
