@@ -871,13 +871,13 @@ function findEnclosingFunction(codeLines, lineIdx) {
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
   const rules = [
-    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], specific: true },
-    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], specific: false },
-    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'], specific: true },
-    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'], specific: true },
-    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], specific: false },
-    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], specific: true },
-    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], specific: false },
+    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], specific: true, service: 'Transaction Policy Service' },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], specific: false, service: 'Interest Calculation Service' },
+    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'], specific: true, service: 'AML Screening Service' },
+    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'], specific: true, service: 'Credit Risk Service' },
+    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], specific: false, service: 'Account Service' },
+    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], specific: true, service: 'Authentication Service' },
+    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], specific: false, service: 'Transaction Service' },
   ];
   const found = [];
   rules.forEach(r => {
@@ -887,7 +887,7 @@ function detectBusinessRules(code) {
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = r.specific ? 90 : 65;
-        found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf });
+        found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf, service: r.service });
         break;
       }
     }
@@ -907,6 +907,7 @@ function detectBusinessRules(code) {
       </div>
       <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + r.fn + '()</span> · ' : ''}Line ${r.line}</div>
       <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
+      <div style="font-size:9px;color:#a78bfa;margin-top:4px">→ Suggested Service: <span style="font-weight:600">${r.service}</span></div>
     </div>
   `).join('');
 }
