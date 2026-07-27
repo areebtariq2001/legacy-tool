@@ -1091,7 +1091,7 @@ async function runAsk() {
   document.getElementById('askLoad').classList.add('show');
   try {
     const fd5 = new FormData(); fd5.append('file', files[0]); fd5.append('question', q);
-    const r = await fetch(BACKEND + '/answer-code-question', { method: 'POST', body: fd5 });
+    const r = await fetch(BACKEND + '/ask-code-question', { method: 'POST', body: fd5 });
     const d = await r.json();
     document.getElementById('askLoad').classList.remove('show');
     document.getElementById('askBody').textContent = typeof d === 'string' ? d : (d.answer ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
