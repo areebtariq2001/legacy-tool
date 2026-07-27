@@ -967,7 +967,14 @@ async function previewArchitecture() {
     const d = await r.json();
     loading.style.display = 'none';
     result.style.display = 'block';
-    result.textContent = typeof d === 'string' ? d : (d.architecture ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
+    if (d.architecture_layers) {
+      let out = (d.arch_summary || '') + '\n\n';
+      d.architecture_layers.forEach(l => { out += l.layer + ':\n  ' + l.items.join(', ') + '\n\n'; });
+      out += (d.arch_disclaimer || '');
+      result.textContent = out;
+    } else {
+      result.textContent = typeof d === 'string' ? d : (d.architecture ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
+    }
   } catch (e) {
     loading.style.display = 'none';
     result.style.display = 'block';
