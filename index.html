@@ -781,8 +781,8 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').style.color = cColor;
   document.getElementById('sv-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
-  document.getElementById('diffOld').textContent = original;
-  document.getElementById('diffNew').textContent = migrated;
+  renderDiffHighlighted('diffOld', original, migrated, false);
+  renderDiffHighlighted('diffNew', migrated, original, true);
   const issues = buildIssues(R);
   const critCount = issues.filter(i => i.sev === 'critical').length;
   const warnCount = issues.filter(i => i.sev === 'warning').length;
@@ -909,6 +909,20 @@ function detectBusinessRules(code) {
       <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
     </div>
   `).join('');
+}
+function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
+  const el = document.getElementById(elId);
+  const otherLines = new Set(otherCode.split('\n').map(l => l.trim()));
+  const thisLines = thisCode.split('\n');
+  el.innerHTML = thisLines.map(line => {
+    const changed = line.trim() !== '' && !otherLines.has(line.trim());
+    const esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (changed) {
+      const bg = isNew ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.1)';
+      return '<div style="background:' + bg + '">' + esc + '</div>';
+    }
+    return '<div>' + esc + '</div>';
+  }).join('');
 }
 function buildIssues(R) {
   const issues = [];
