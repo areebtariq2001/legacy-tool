@@ -857,23 +857,38 @@ function generateSuggestions(issues, critCount, warnCount) {
     </div>
   `).join('');
 }
+function findEnclosingFunction(codeLines, lineIdx) {
+  const fnPatterns = [/^\s*def\s+(\w+)/, /^\s*function\s+(\w+)/, /^\s*(?:public|private|protected|static)?\s*\w+\s+(\w+)\s*\(/, /^\s*\d{6}\s+([\w-]+)\.\s*$/, /^\s*([\w-]+)\.\s*$/];
+  for (let i = lineIdx; i >= 0; i--) {
+    for (const p of fnPatterns) {
+      const m = codeLines[i].match(p);
+      if (m && m[1]) return m[1];
+    }
+  }
+  return null;
+}
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
   const rules = [
-    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'] },
-    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'] },
-    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'] },
-    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'] },
-    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'] },
-    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'] },
-    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'] },
+    { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], specific: true },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], specific: false },
+    { label: 'AML Validation', patterns: ['aml', 'anti-money', 'money laundering', 'flagged'], specific: true },
+    { label: 'Credit Check', patterns: ['credit_check', 'credit check', 'creditscore', 'credit_score'], specific: true },
+    { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], specific: false },
+    { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], specific: true },
+    { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], specific: false },
   ];
   const found = [];
   rules.forEach(r => {
     for (let i = 0; i < codeLines.length; i++) {
       const lineLower = codeLines[i].toLowerCase();
       const hit = r.patterns.find(p => lineLower.includes(p));
-      if (hit) { found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60) }); break; }
+      if (hit) {
+        const fn = findEnclosingFunction(codeLines, i);
+        const conf = r.specific ? 90 : 65;
+        found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf });
+        break;
+      }
     }
   });
   const card = document.getElementById('rulesCard');
@@ -885,8 +900,12 @@ function detectBusinessRules(code) {
   card.style.display = 'block';
   list.innerHTML = found.map(r => `
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
-      <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
-      <div style="font-size:9px;color:#64748b;margin-top:3px;font-family:monospace">Line ${r.line}: ${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${r.conf}% match</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + r.fn + '()</span> · ' : ''}Line ${r.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
     </div>
   `).join('');
 }
