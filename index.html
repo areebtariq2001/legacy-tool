@@ -374,7 +374,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="issue-list" id="issueList"></div>
             </div>
             <div class="card" id="rulesCard" style="display:none">
-              <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected via keyword patterns</span></div>
+              <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
             <div class="card" id="suggestCard" style="display:none">
@@ -852,7 +852,7 @@ function generateSuggestions(issues, critCount, warnCount) {
   `).join('');
 }
 function detectBusinessRules(code) {
-  const lower = code.toLowerCase();
+  const codeLines = code.split('\n');
   const rules = [
     { label: 'Daily Withdrawal/Transaction Limit', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'] },
     { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'] },
@@ -862,7 +862,14 @@ function detectBusinessRules(code) {
     { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'] },
     { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'] },
   ];
-  const found = rules.filter(r => r.patterns.some(p => lower.includes(p)));
+  const found = [];
+  rules.forEach(r => {
+    for (let i = 0; i < codeLines.length; i++) {
+      const lineLower = codeLines[i].toLowerCase();
+      const hit = r.patterns.find(p => lineLower.includes(p));
+      if (hit) { found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60) }); break; }
+    }
+  });
   const card = document.getElementById('rulesCard');
   const list = document.getElementById('rulesList');
   if (found.length === 0) {
@@ -871,9 +878,9 @@ function detectBusinessRules(code) {
   }
   card.style.display = 'block';
   list.innerHTML = found.map(r => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
-      <span style="color:#22c55e;font-size:12px">✓</span>
-      <span style="color:#f1f5f9;font-size:12px">${r.label}</span>
+    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
+      <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
+      <div style="font-size:9px;color:#64748b;margin-top:3px;font-family:monospace">Line ${r.line}: ${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
     </div>
   `).join('');
 }
