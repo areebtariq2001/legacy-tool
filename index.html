@@ -366,7 +366,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
               <div class="sum-card" style="--al:var(--purple)">
                 <div class="sum-val" id="sv-debt" style="color:var(--purple)">—</div>
-                <div class="sum-lbl">Debt Score</div>
+                <div class="sum-lbl">Debt Severity</div>
               </div>
             </div>
             <div class="card" id="execSummaryCard" style="display:none">
@@ -447,7 +447,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                   <span class="prog-val" id="pv-migration">—</span>
                 </div>
                 <div class="prog">
-                  <span class="prog-lbl" style="color:var(--amber)">Debt</span>
+                  <span class="prog-lbl" style="color:var(--amber)">Debt Health</span>
                   <div class="prog-bar"><div class="prog-fill" id="pg-debt" style="background:var(--amber);width:0%"></div></div>
                   <span class="prog-val" id="pv-debt">—</span>
                 </div>
@@ -818,7 +818,10 @@ function renderResults(R, original, fname, totalMs) {
   const hColor = overall >= 70 ? '#22c55e' : overall >= 50 ? '#f59e0b' : '#ef4444';
   healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
   healthChart.update();
-  document.getElementById('healthNote').textContent = overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  document.getElementById('healthNote').textContent = healthNoteText;
+  document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : '#64748b';
+  document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
   setProg('security', secScore);
   setProg('migration', migScore);
   setProg('debt', debtScore);
