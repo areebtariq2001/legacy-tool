@@ -946,6 +946,8 @@ def migrate_cobol(source):
     if_depth = 0
     def cur_indent():
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
+    eval_subject = None
+    eval_first_when = False
     import re as _seqre
     for raw_line in lines:
         line = raw_line.strip()
@@ -1031,6 +1033,35 @@ def migrate_cobol(source):
             out_lines.append(cur_indent() + "while not (" + cond + "):")
             out_lines.append(cur_indent() + "    " + para_name + "()")
             changes.append("PERFORM UNTIL -> while loop")
+            continue
+        if upper.startswith("EVALUATE "):
+            eval_subject = line[9:].rstrip(".").strip().replace("-", "_")
+            eval_first_when = True
+            changes.append("EVALUATE -> if/elif chain")
+            continue
+        if upper.startswith("WHEN OTHER"):
+            if not eval_first_when:
+                if_depth = max(0, if_depth - 1)
+            out_lines.append(cur_indent() + "else:")
+            if_depth += 1
+            eval_first_when = False
+            changes.append("WHEN OTHER -> else")
+            continue
+        if upper.startswith("WHEN ") and eval_subject is not None:
+            when_val = line[5:].rstrip(".").strip()
+            if not eval_first_when:
+                if_depth = max(0, if_depth - 1)
+                out_lines.append(cur_indent() + "elif " + eval_subject + " == " + when_val + ":")
+            else:
+                out_lines.append(cur_indent() + "if " + eval_subject + " == " + when_val + ":")
+                eval_first_when = False
+            if_depth += 1
+            changes.append("WHEN -> if/elif")
+            continue
+        if upper.startswith("END-EVALUATE"):
+            if_depth = max(0, if_depth - 1)
+            eval_subject = None
+            changes.append("END-EVALUATE removed")
             continue
         if upper.rstrip(".") == "ELSE":
             if_depth = max(0, if_depth - 1)
