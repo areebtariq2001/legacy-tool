@@ -455,10 +455,52 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card">
-              <div class="card-head">Advanced Checks</div>
-              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;margin-bottom:6px" onclick="runCryptoScan()" id="cryptoBtn">Crypto Scan</button>
-              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;margin-bottom:6px" onclick="runBankingScan()" id="bankingScanBtn">Banking Pattern Scan</button>
-              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px" onclick="runExecReport()" id="execReportBtn">Generate Executive Report</button>
+              <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities</span></div>
+
+              <div style="font-size:10px;color:#60a5fa;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph')">Call Graph</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sensitive','Data Scan')">Data Scan</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sqli','SQL Scan')">SQL Scan</button>
+              </div>
+
+              <div style="font-size:10px;color:#22c55e;font-weight:700;margin:6px 0 4px">🔄 Migration</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/rollback-plan','Rollback Plan')">Rollback</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-impact','Impact')">Impact</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/predict-risk','Migration Risk')">Migration Risk</button>
+              </div>
+
+              <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">🏦 Banking &amp; Compliance</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/extract-aml-kyc','AML/KYC')">AML/KYC</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/banking-patterns','Banking Scan')">Banking Scan</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check')">Fraud Check</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance')">Regional Compliance</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework')">Reg Framework</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-pii','PII Scan')">PII Scan</button>
+              </div>
+
+              <div style="font-size:10px;color:#f59e0b;font-weight:700;margin:6px 0 4px">🏗️ Architecture</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/map-api-dependencies','API Map')">API Map</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-db-schema','DB Schema')">DB Schema</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/discover-rules','Business Rules')">Business Rules</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-tech-stack','Tech Stack')">Tech Stack</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/vendor-lockin','Vendor Risk')">Vendor Risk</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/zero-trust-score','Zero-Trust')">Zero-Trust</button>
+              </div>
+
+              <div style="font-size:10px;color:#a78bfa;font-weight:700;margin:6px 0 4px">🤖 AI &amp; Reports</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/generate-docs','Gen Docs')">Gen Docs</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ai-suggest','AI Suggest')">AI Suggest</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/executive-report','Exec Report')">Exec Report</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/refactor-suggest','AI Refactor')">AI Refactor</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-crypto','Crypto Scan')">Crypto Scan</button>
+                <button class="btn btn-ghost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/audit-keys','Key Audit')">Key Audit</button>
+              </div>
+
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
               <div id="advResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
@@ -1715,6 +1757,20 @@ function renderArchDiagram() {
     '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   dia.innerHTML = svg;
+}
+async function runGenericScan(endpoint, label) {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  document.getElementById('advTitle').textContent = label + ' Result';
+  loading.style.display = 'block'; result.style.display = 'none';
+  try {
+    const fd = new FormData(); fd.append('file', files[0]);
+    const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
+    const d = await r.json();
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
+  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = label + ' failed: ' + e.message; }
 }
 async function runCryptoScan() {
   if (!files.length) { alert('Upload a file first.'); return; }
