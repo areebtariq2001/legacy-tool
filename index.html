@@ -377,6 +377,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Issues & Recommendations <span class="card-head-a" id="issue-count"></span></div>
               <div class="issue-list" id="issueList"></div>
             </div>
+            <div class="card" id="bankingCard" style="display:none">
+              <div class="card-head">Detected Banking Modules <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Core Banking Intelligence</span></div>
+              <div id="bankingList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -840,6 +844,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
+  detectBankingModules(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -876,6 +881,28 @@ function findEnclosingFunction(codeLines, lineIdx) {
     }
   }
   return null;
+}
+function detectBankingModules(code) {
+  const lower = code.toLowerCase();
+  const modules = [
+    { label: 'Customer Accounts', patterns: ['customer', 'account_holder', 'accountholder'] },
+    { label: 'Savings/Current Accounts', patterns: ['savings', 'current_account', 'checking_account'] },
+    { label: 'Loan Processing', patterns: ['loan', 'emi', 'mortgage'] },
+    { label: 'Credit Cards', patterns: ['credit_card', 'creditcard', 'card_number'] },
+    { label: 'Deposits', patterns: ['deposit'] },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'] },
+    { label: 'Transaction Processing', patterns: ['transaction', 'txn_', 'transfer'] },
+    { label: 'Branch Operations', patterns: ['branch', 'teller'] },
+    { label: 'Ledger Entries', patterns: ['ledger', 'gl_entry', 'journal_entry'] },
+    { label: 'Balance Validation', patterns: ['balance', 'insufficient funds', 'insufficient_funds'] },
+    { label: 'Daily Transaction Limits', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'] },
+  ];
+  const found = modules.filter(m => m.patterns.some(p => lower.includes(p)));
+  const card = document.getElementById('bankingCard');
+  const list = document.getElementById('bankingList');
+  if (found.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = found.map(m => `<span style="font-size:11px;padding:5px 10px;border-radius:14px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25)">✓ ${m.label}</span>`).join('');
 }
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
