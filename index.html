@@ -393,6 +393,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Detected Insurance Modules <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Insurance Intelligence</span></div>
               <div id="insuranceList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
+            <div class="card" id="mainframeCard" style="display:none">
+              <div class="card-head">Mainframe Assets <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Mainframe Intelligence (COBOL only)</span></div>
+              <div id="mainframeList" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -860,6 +864,7 @@ function renderResults(R, original, fname, totalMs) {
   detectCompliance(original);
   detectPaymentSystems(original);
   detectInsurance(original);
+  detectMainframeAssets(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -896,6 +901,30 @@ function findEnclosingFunction(codeLines, lineIdx) {
     }
   }
   return null;
+}
+function detectMainframeAssets(code) {
+  const card = document.getElementById('mainframeCard');
+  const list = document.getElementById('mainframeList');
+  if (lang !== 'cobol') { card.style.display = 'none'; return; }
+  const countMatches = (regex) => (code.match(regex) || []).length;
+  const assets = [
+    { label: 'COBOL Programs', count: countMatches(/PROGRAM-ID\./gi) },
+    { label: 'Copybooks (COPY statements)', count: countMatches(/^\s*(?:\d{6}\s+)?COPY\s+/gim) },
+    { label: 'CICS Commands', count: countMatches(/EXEC\s+CICS/gi) },
+    { label: 'IMS/DL-I Calls', count: countMatches(/EXEC\s+DLI/gi) },
+    { label: 'Embedded SQL (DB2)', count: countMatches(/EXEC\s+SQL/gi) },
+    { label: 'VSAM Indicators', count: countMatches(/ORGANIZATION\s+IS\s+INDEXED|ACCESS\s+MODE\s+IS\s+DYNAMIC/gi) },
+    { label: 'Paragraphs (batch logic units)', count: countMatches(/^(?:\d{6}\s+)?[\w-]+\.\s*$/gim) },
+  ];
+  const found = assets.filter(a => a.count > 0);
+  if (found.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px">' + found.map(a => `
+    <div style="padding:8px 12px;background:#0f1525;border-radius:6px;border:1px solid #1e2d45;flex:1;min-width:140px;text-align:center">
+      <div style="font-size:18px;font-weight:700;color:#f1f5f9;font-family:monospace">${a.count}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px">${a.label}</div>
+    </div>
+  `).join('') + '</div>';
 }
 function detectInsurance(code) {
   const codeLines = code.split(String.fromCharCode(10));
