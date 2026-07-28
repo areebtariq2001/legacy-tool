@@ -457,6 +457,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <div class="card">
               <div class="card-head">Advanced Checks</div>
               <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;margin-bottom:6px" onclick="runCryptoScan()" id="cryptoBtn">Crypto Scan</button>
+              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;margin-bottom:6px" onclick="runBankingScan()" id="bankingScanBtn">Banking Pattern Scan</button>
               <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px" onclick="runExecReport()" id="execReportBtn">Generate Executive Report</button>
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
               <div id="advResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
@@ -1727,6 +1728,19 @@ async function runCryptoScan() {
     loading.style.display = 'none'; result.style.display = 'block';
     result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
   } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Crypto scan failed: ' + e.message; }
+}
+async function runBankingScan() {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  loading.style.display = 'block'; result.style.display = 'none';
+  try {
+    const fd = new FormData(); fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/banking-patterns', { method: 'POST', body: fd });
+    const d = await r.json();
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
+  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Banking scan failed: ' + e.message; }
 }
 async function runExecReport() {
   if (!files.length) { alert('Upload a file first.'); return; }
