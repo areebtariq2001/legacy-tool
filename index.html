@@ -1277,9 +1277,33 @@ function detectDatabaseIntelligence(code) {
   crud.Delete = (code.match(/DELETE\s+FROM/gi) || []).length;
   const execSql = (code.match(/EXEC\s+SQL/gi) || []).length;
   const totalOps = crud.Create + crud.Read + crud.Update + crud.Delete;
+  const joins = [];
+  const joinRx = /FROM\s+([A-Za-z_][\w]*)[^;]*?JOIN\s+([A-Za-z_][\w]*)/gi;
+  let jm;
+  while ((jm = joinRx.exec(code)) !== null) { joins.push([jm[1].toUpperCase(), jm[2].toUpperCase()]); }
   if (tables.size === 0 && totalOps === 0 && execSql === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   let html = '';
+  if (tables.size >= 2) {
+    const tArr = [...tables];
+    const boxW = 90, boxH = 28, gapX = 30, y = 15;
+    let svgTables = '';
+    let svgLines = '';
+    tArr.forEach((t, i) => {
+      const x = 10 + i * (boxW + gapX);
+      svgTables += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH + '" rx="4" fill="#0f1525" stroke="#3b82f6" stroke-width="1.2"/><text x="' + (x + boxW/2) + '" y="' + (y + boxH/2 + 3) + '" text-anchor="middle" fill="#60a5fa" font-size="9" font-family="monospace">' + t + '</text>';
+    });
+    joins.forEach(([a, b]) => {
+      const ia = tArr.indexOf(a), ib = tArr.indexOf(b);
+      if (ia >= 0 && ib >= 0 && ia !== ib) {
+        const x1 = 10 + ia * (boxW + gapX) + boxW/2, x2 = 10 + ib * (boxW + gapX) + boxW/2;
+        svgLines += '<line x1="' + x1 + '" y1="' + (y+boxH) + '" x2="' + x2 + '" y2="' + (y+boxH) + '" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="3,2"/>';
+      }
+    });
+    const totalW = 10 + tArr.length * (boxW + gapX);
+    html += '<div style="font-size:9px;color:#64748b;margin-bottom:4px">' + (joins.length > 0 ? 'Table Relationships (JOIN detected)' : 'Tables (no JOIN relationships detected in this file)') + '</div>' +
+      '<svg width="100%" viewBox="0 0 ' + totalW + ' 55" style="margin-bottom:8px">' + svgLines + svgTables + '</svg>';
+  }
   if (tables.size > 0) {
     html += '<div style="font-size:9px;color:#64748b;margin-bottom:4px">Tables Referenced</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">' +
       [...tables].map(t => `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);font-family:monospace">${t}</span>`).join('') + '</div>';
