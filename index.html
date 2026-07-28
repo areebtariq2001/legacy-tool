@@ -808,7 +808,6 @@ async function runAnalysisOrBatch() {
   files = allFiles;
   renderChips();
   document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
-  const diffNote = document.getElementById('batchDiffNote');
   if (diffNote) diffNote.style.display = 'block';
   document.getElementById('pipeline').style.display = '';
   btn.disabled = false;
