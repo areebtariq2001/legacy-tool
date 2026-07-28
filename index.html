@@ -454,6 +454,13 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="archDiagram" style="display:none;margin-top:10px"></div>
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
+            <div class="card">
+              <div class="card-head">Advanced Checks</div>
+              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;margin-bottom:6px" onclick="runCryptoScan()" id="cryptoBtn">Crypto Scan</button>
+              <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px" onclick="runExecReport()" id="execReportBtn">Generate Executive Report</button>
+              <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
+              <div id="advResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
+            </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
               <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
@@ -1707,6 +1714,32 @@ function renderArchDiagram() {
     '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   dia.innerHTML = svg;
+}
+async function runCryptoScan() {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  loading.style.display = 'block'; result.style.display = 'none';
+  try {
+    const fd = new FormData(); fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/scan-crypto', { method: 'POST', body: fd });
+    const d = await r.json();
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
+  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Crypto scan failed: ' + e.message; }
+}
+async function runExecReport() {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  loading.style.display = 'block'; result.style.display = 'none';
+  try {
+    const fd = new FormData(); fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/executive-report', { method: 'POST', body: fd });
+    const d = await r.json();
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
+  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Executive report failed: ' + e.message; }
 }
 async function previewArchitecture() {
   if (!files.length) { alert('Upload a file first.'); return; }
