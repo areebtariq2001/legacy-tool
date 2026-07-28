@@ -871,6 +871,7 @@ async function runAnalysis() {
   renderResults(R, code, fname, Date.now() - t0);
 }
 function renderResults(R, original, fname, totalMs) {
+  window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
   document.getElementById('results').classList.add('show');
   const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
   const confPct = conf != null ? Math.round(conf) : null;
@@ -1433,10 +1434,17 @@ function updateRepositorySummary() {
   const rulesCount = document.querySelectorAll('#rulesList > div').length;
   const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
   const serviceSpans = lastUniqueServices || [];
-  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans };
+  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, snapshot: window.lastFileSnapshot };
   sessionFileResults = sessionFileResults.filter(e => e.fname !== fname);
   sessionFileResults.push(entry);
   renderRepositorySummary();
+}
+function viewFileReport(idx) {
+  const e = sessionFileResults[idx];
+  if (!e || !e.snapshot) { alert('Detailed report not available for this file.'); return; }
+  if (e.snapshot.fileObj) files = [e.snapshot.fileObj];
+  renderResults(e.snapshot.R, e.snapshot.original, e.snapshot.fname, e.snapshot.totalMs);
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function renderRepositorySummary() {
   const card = document.getElementById('repoSummaryCard');
@@ -1451,9 +1459,11 @@ function renderRepositorySummary() {
   const allTables = new Set(sessionFileResults.flatMap(e => e.tables));
   const allServices = new Set(sessionFileResults.flatMap(e => e.services));
   const overallRisk = totalCrit > 0 ? 'High' : totalWarn > 2 ? 'Medium' : 'Low';
+  const needsReview = sessionFileResults.filter(e => e.critCount > 0).length;
+  const successful = sessionFileResults.length - needsReview;
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
-      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files (${successful} OK, ${needsReview} Review)</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${langs.size}</div><div style="font-size:9px;color:#64748b">Languages</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${totalRules}</div><div style="font-size:9px;color:#64748b">Business Rules</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#ef4444">${totalCrit}</div><div style="font-size:9px;color:#64748b">Critical Issues</div></div>
@@ -1462,12 +1472,19 @@ function renderRepositorySummary() {
       <div><div style="font-size:18px;font-weight:700;color:${overallRisk === 'High' ? '#ef4444' : overallRisk === 'Medium' ? '#f59e0b' : '#22c55e'}">${overallRisk}</div><div style="font-size:9px;color:#64748b">Overall Risk</div></div>
     </div>
   `;
-  fileList.innerHTML = sessionFileResults.map(e => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px">
-      <span style="font-size:11px;color:#f1f5f9;font-family:monospace">${e.fname}</span>
-      <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa">${e.confText}</span>
+  fileList.innerHTML = sessionFileResults.map((e, idx) => {
+    const statusIcon = e.critCount > 0 ? '⚠' : '✓';
+    const statusColor = e.critCount > 0 ? '#f59e0b' : '#22c55e';
+    const statusLabel = e.critCount > 0 ? 'Needs Review' : 'View Report';
+    return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px;cursor:pointer" onclick="viewFileReport(${idx})">
+      <span style="font-size:11px;color:${statusColor}">${statusIcon}</span>
+      <span style="font-size:11px;color:#f1f5f9;font-family:monospace;flex:1;margin-left:6px">${e.fname}</span>
+      <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;margin-right:6px">${e.confText}</span>
+      <span style="font-size:9px;color:#60a5fa;text-decoration:underline">${statusLabel}</span>
     </div>
-  `).join('');
+    `;
+  }).join('');
   renderCrossFileGraph();
 }
 function renderCrossFileGraph() {
