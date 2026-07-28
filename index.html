@@ -406,6 +406,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Regulatory Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Compliance Detection</span></div>
               <div id="regComplianceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
+            <div class="card" id="dbIntelCard" style="display:none">
+              <div class="card-head">Database Intelligence <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Tables, Queries & CRUD Inventory</span></div>
+              <div id="dbIntelList" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
             <div class="card">
               <div class="card-head">Risk Engine <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Multi-Dimensional Risk Assessment</span></div>
               <div id="riskEngineList" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
@@ -880,6 +884,7 @@ function renderResults(R, original, fname, totalMs) {
   detectInsurance(original);
   detectMainframeAssets(original);
   detectRegulatoryCompliance(original, R);
+  detectDatabaseIntelligence(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -929,6 +934,8 @@ function detectMainframeAssets(code) {
     { label: 'IMS/DL-I Calls', count: countMatches(/EXEC\s+DLI/gi) },
     { label: 'Embedded SQL (DB2)', count: countMatches(/EXEC\s+SQL/gi) },
     { label: 'VSAM Indicators', count: countMatches(/ORGANIZATION\s+IS\s+INDEXED|ACCESS\s+MODE\s+IS\s+DYNAMIC/gi) },
+    { label: 'JCL Job Cards', count: countMatches(/^\/\/\w+\s+JOB\s/gim) },
+    { label: 'Online Transactions (CICS TRANSID)', count: countMatches(/TRANSID\s*\(/gi) },
     { label: 'Paragraphs (batch logic units)', count: countMatches(/^(?:\d{6}\s+)?[\w-]+\.\s*$/gim) },
   ];
   const found = assets.filter(a => a.count > 0);
@@ -1175,6 +1182,36 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
       <div style="font-size:14px;font-weight:700;color:${i.r.color}">${i.r.label}</div>
     </div>
   `).join('');
+}
+function detectDatabaseIntelligence(code) {
+  const card = document.getElementById('dbIntelCard');
+  const list = document.getElementById('dbIntelList');
+  const tables = new Set();
+  const crud = { Create: 0, Read: 0, Update: 0, Delete: 0 };
+  const tableRegexes = [
+    /FROM\s+([A-Za-z_][\w]*)/gi,
+    /INSERT\s+INTO\s+([A-Za-z_][\w]*)/gi,
+    /UPDATE\s+([A-Za-z_][\w]*)\s+SET/gi,
+    /DELETE\s+FROM\s+([A-Za-z_][\w]*)/gi,
+  ];
+  tableRegexes.forEach(rx => { let m; while ((m = rx.exec(code)) !== null) { tables.add(m[1].toUpperCase()); } });
+  crud.Read = (code.match(/SELECT\s+/gi) || []).length;
+  crud.Create = (code.match(/INSERT\s+INTO/gi) || []).length;
+  crud.Update = (code.match(/UPDATE\s+\w+\s+SET/gi) || []).length;
+  crud.Delete = (code.match(/DELETE\s+FROM/gi) || []).length;
+  const execSql = (code.match(/EXEC\s+SQL/gi) || []).length;
+  const totalOps = crud.Create + crud.Read + crud.Update + crud.Delete;
+  if (tables.size === 0 && totalOps === 0 && execSql === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  let html = '';
+  if (tables.size > 0) {
+    html += '<div style="font-size:9px;color:#64748b;margin-bottom:4px">Tables Referenced</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">' +
+      [...tables].map(t => `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);font-family:monospace">${t}</span>`).join('') + '</div>';
+  }
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">' +
+    Object.entries(crud).map(([k, v]) => `<div style="text-align:center;padding:6px;background:#0f1525;border-radius:6px"><div style="font-size:14px;font-weight:700;color:#f1f5f9">${v}</div><div style="font-size:8px;color:#64748b">${k}</div></div>`).join('') + '</div>';
+  if (execSql > 0) html += '<div style="font-size:9px;color:#64748b;margin-top:8px">Embedded SQL (EXEC SQL) blocks: <span style="color:#f1f5f9;font-weight:600">' + execSql + '</span></div>';
+  list.innerHTML = html;
 }
 function detectRegulatoryCompliance(code, R) {
   const lower = code.toLowerCase();
