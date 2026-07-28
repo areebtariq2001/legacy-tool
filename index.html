@@ -370,6 +370,11 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="sum-lbl">Debt Severity</div>
               </div>
             </div>
+            <div class="card" id="repoSummaryCard" style="display:none">
+              <div class="card-head">Repository Summary <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Accumulated across all files analyzed this session</span></div>
+              <div id="repoSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8;margin-bottom:10px"></div>
+              <div id="repoFileList" style="display:flex;flex-direction:column;gap:5px"></div>
+            </div>
             <div class="card" id="execSummaryCard" style="display:none">
               <div class="card-head">Executive Summary</div>
               <div id="execSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8"></div>
@@ -646,6 +651,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 <script>
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
 let files = [], lang = 'python', mode = 'rule', checks = new Set(['security','debt','compliance']);
+let sessionFileResults = [];
 let migrated = '', sessionApproved = 0;
 let healthChart, statusChart, trendChart;
 function initCharts() {
@@ -897,6 +903,7 @@ function renderResults(R, original, fname, totalMs) {
   detectInsurance(original);
   detectMainframeAssets(original);
   detectRegulatoryCompliance(original, R);
+  setTimeout(updateRepositorySummary, 50);
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
   detectCallGraph(original);
@@ -1359,6 +1366,51 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
   }).join('');
 }
 let lastRulesCount = 0;
+function updateRepositorySummary() {
+  if (!files.length) return;
+  const fname = files[0].name;
+  const confText = document.getElementById('confPct').textContent;
+  const critCount = parseInt(document.getElementById('sv-critical').textContent) || 0;
+  const warnCount = parseInt(document.getElementById('sv-warnings').textContent) || 0;
+  const rulesCount = document.querySelectorAll('#rulesList > div').length;
+  const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
+  const serviceSpans = lastUniqueServices || [];
+  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans };
+  sessionFileResults = sessionFileResults.filter(e => e.fname !== fname);
+  sessionFileResults.push(entry);
+  renderRepositorySummary();
+}
+function renderRepositorySummary() {
+  const card = document.getElementById('repoSummaryCard');
+  const text = document.getElementById('repoSummaryText');
+  const fileList = document.getElementById('repoFileList');
+  if (sessionFileResults.length < 2) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const langs = new Set(sessionFileResults.map(e => e.lang));
+  const totalRules = sessionFileResults.reduce((s, e) => s + e.rulesCount, 0);
+  const totalCrit = sessionFileResults.reduce((s, e) => s + e.critCount, 0);
+  const totalWarn = sessionFileResults.reduce((s, e) => s + e.warnCount, 0);
+  const allTables = new Set(sessionFileResults.flatMap(e => e.tables));
+  const allServices = new Set(sessionFileResults.flatMap(e => e.services));
+  const overallRisk = totalCrit > 0 ? 'High' : totalWarn > 2 ? 'Medium' : 'Low';
+  text.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${langs.size}</div><div style="font-size:9px;color:#64748b">Languages</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${totalRules}</div><div style="font-size:9px;color:#64748b">Business Rules</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#ef4444">${totalCrit}</div><div style="font-size:9px;color:#64748b">Critical Issues</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${allTables.size}</div><div style="font-size:9px;color:#64748b">DB Tables</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#a78bfa">${allServices.size}</div><div style="font-size:9px;color:#64748b">Microservices</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:${overallRisk === 'High' ? '#ef4444' : overallRisk === 'Medium' ? '#f59e0b' : '#22c55e'}">${overallRisk}</div><div style="font-size:9px;color:#64748b">Overall Risk</div></div>
+    </div>
+  `;
+  fileList.innerHTML = sessionFileResults.map(e => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px">
+      <span style="font-size:11px;color:#f1f5f9;font-family:monospace">${e.fname}</span>
+      <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa">${e.confText}</span>
+    </div>
+  `).join('');
+}
 function renderExecSummary(critCount, warnCount, confPct, fixHours) {
   const rulesCount = document.querySelectorAll('#rulesList > div').length;
   const recommendation = critCount === 0 ? 'Migration Safe' : critCount === 1 ? 'Review Before Migration' : 'High Risk - Manual Review Required';
