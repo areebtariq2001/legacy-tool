@@ -375,6 +375,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="repoSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8;margin-bottom:10px"></div>
               <div id="repoFileList" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
+            <div class="card" id="crossFileCard" style="display:none">
+              <div class="card-head">Cross-File Dependencies <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Files sharing tables or suggested services</span></div>
+              <div id="crossFileGraph"></div>
+            </div>
             <div class="card" id="execSummaryCard" style="display:none">
               <div class="card-head">Executive Summary</div>
               <div id="execSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8"></div>
@@ -1447,6 +1451,31 @@ function renderRepositorySummary() {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px">
       <span style="font-size:11px;color:#f1f5f9;font-family:monospace">${e.fname}</span>
       <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa">${e.confText}</span>
+    </div>
+  `).join('');
+  renderCrossFileGraph();
+}
+function renderCrossFileGraph() {
+  const el = document.getElementById('crossFileGraph');
+  if (!el) return;
+  const edges = [];
+  for (let i = 0; i < sessionFileResults.length; i++) {
+    for (let j = i + 1; j < sessionFileResults.length; j++) {
+      const a = sessionFileResults[i], b = sessionFileResults[j];
+      const sharedTables = a.tables.filter(t => b.tables.includes(t));
+      const sharedServices = a.services.filter(s => b.services.includes(s));
+      if (sharedTables.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedTables.join(', '), type: 'table' });
+      if (sharedServices.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedServices.join(', '), type: 'service' });
+    }
+  }
+  const card = document.getElementById('crossFileCard');
+  if (edges.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  el.innerHTML = edges.map(e => `
+    <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#0f1525;border-radius:6px;margin-bottom:4px">
+      <span style="color:#60a5fa;font-family:monospace">${e.from}</span>
+      <span style="color:#64748b">↔ shares ${e.type} (${e.via}) ↔</span>
+      <span style="color:#a78bfa;font-family:monospace">${e.to}</span>
     </div>
   `).join('');
 }
