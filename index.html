@@ -456,6 +456,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
+              <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
               <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
               <div class="conf-row">
                 <div class="conf-bar"><div class="conf-fill" id="confFill" style="background:var(--green);width:0%"></div></div>
@@ -781,7 +782,8 @@ function setState(id, state, sub, badge) {
   badgeEl.innerHTML = badge;
 }
 async function runAnalysisOrBatch() {
-  if (files.length <= 1) { await runAnalysis(); return; }
+  const diffNote = document.getElementById('batchDiffNote');
+  if (files.length <= 1) { if (diffNote) diffNote.style.display = 'none'; await runAnalysis(); return; }
   const allFiles = [...files];
   const btn = document.getElementById('runBtn');
   const originalText = btn.textContent;
@@ -805,6 +807,9 @@ async function runAnalysisOrBatch() {
   progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Completed ' + allFiles.length + ' files. See Repository Summary below.</div>';
   files = allFiles;
   renderChips();
+  document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
+  const diffNote = document.getElementById('batchDiffNote');
+  if (diffNote) diffNote.style.display = 'block';
   document.getElementById('pipeline').style.display = '';
   btn.disabled = false;
   btn.textContent = originalText;
@@ -1442,6 +1447,8 @@ function updateRepositorySummary() {
 function viewFileReport(idx) {
   const e = sessionFileResults[idx];
   if (!e || !e.snapshot) { alert('Detailed report not available for this file.'); return; }
+  const diffNote = document.getElementById('batchDiffNote');
+  if (diffNote) diffNote.style.display = 'none';
   if (e.snapshot.fileObj) files = [e.snapshot.fileObj];
   renderResults(e.snapshot.R, e.snapshot.original, e.snapshot.fname, e.snapshot.totalMs);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
