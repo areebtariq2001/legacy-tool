@@ -655,7 +655,7 @@ function nav(page, el) {
   document.getElementById('topbar-title').textContent = titles[page] || page;
 }
 function onFileInput(fs) {
-  for (const f of fs) if (!files.find(x => x.name === f.name)) files.push(f);
+  files = Array.from(fs);
   renderChips(); enableRun();
   if (files.length > 0) {
     const ext = files[0].name.split('.').pop().toLowerCase();
