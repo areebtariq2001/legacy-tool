@@ -385,6 +385,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Detected Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">AML & Fraud Intelligence</span></div>
               <div id="complianceList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
+            <div class="card" id="paymentCard" style="display:none">
+              <div class="card-head">Detected Payment Systems <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Payment Intelligence</span></div>
+              <div id="paymentList" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -850,6 +854,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-files').textContent = files.length;
   detectBankingModules(original);
   detectCompliance(original);
+  detectPaymentSystems(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -886,6 +891,46 @@ function findEnclosingFunction(codeLines, lineIdx) {
     }
   }
   return null;
+}
+function detectPaymentSystems(code) {
+  const codeLines = code.split(String.fromCharCode(10));
+  const items = [
+    { label: 'SWIFT', patterns: ['swift', 'bic_code', 'swiftcode'], baseConf: 92 },
+    { label: 'SEPA', patterns: ['sepa'], baseConf: 90 },
+    { label: 'ACH', patterns: ['ach_', 'ach transfer', 'automated clearing'], baseConf: 88 },
+    { label: 'RTGS', patterns: ['rtgs'], baseConf: 92 },
+    { label: 'NEFT', patterns: ['neft'], baseConf: 92 },
+    { label: 'Wire Transfer', patterns: ['wire_transfer', 'wire transfer'], baseConf: 85 },
+    { label: 'Internal Transfer', patterns: ['internal_transfer', 'internal transfer'], baseConf: 70 },
+    { label: 'Payment Gateway', patterns: ['payment_gateway', 'paymentgateway', 'payment gateway'], baseConf: 88 },
+    { label: 'Card Processing', patterns: ['card_number', 'cardnumber', 'card_processing'], baseConf: 80 },
+  ];
+  const found = [];
+  items.forEach(m => {
+    for (let i = 0; i < codeLines.length; i++) {
+      const lineLower = codeLines[i].toLowerCase();
+      const hit = m.patterns.find(p => lineLower.includes(p));
+      if (hit) {
+        const fn = findEnclosingFunction(codeLines, i);
+        const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
+        found.push({ label: m.label, line: i + 1, fn, conf });
+        break;
+      }
+    }
+  });
+  const card = document.getElementById('paymentCard');
+  const list = document.getElementById('paymentList');
+  if (found.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = found.map(m => `
+    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #f59e0b;min-width:180px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,0.1);color:#f59e0b">${m.conf}%</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+    </div>
+  `).join('');
 }
 function detectCompliance(code) {
   const codeLines = code.split(String.fromCharCode(10));
