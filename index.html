@@ -401,6 +401,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Recommended Microservices <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Microservice Advisor - derived from detected business rules</span></div>
               <div id="microserviceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
+            <div class="card" id="regComplianceCard" style="display:none">
+              <div class="card-head">Regulatory Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Compliance Detection</span></div>
+              <div id="regComplianceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -869,6 +873,7 @@ function renderResults(R, original, fname, totalMs) {
   detectPaymentSystems(original);
   detectInsurance(original);
   detectMainframeAssets(original);
+  detectRegulatoryCompliance(original, R);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -1137,6 +1142,27 @@ function detectBusinessRules(code) {
     </div>
   `).join('');
   renderMicroserviceSummary(found);
+}
+function detectRegulatoryCompliance(code, R) {
+  const lower = code.toLowerCase();
+  const secText = (R.security ? (typeof R.security === 'string' ? R.security : JSON.stringify(R.security)) : '').toLowerCase();
+  const items = [];
+  if (lower.includes('aml') || lower.includes('anti-money')) items.push({ label: 'AML', ok: true });
+  if (lower.includes('kyc')) items.push({ label: 'KYC', ok: true });
+  if (lower.includes('pci') || lower.includes('card_number') || lower.includes('cardnumber')) items.push({ label: 'PCI-DSS Relevant Data', ok: !secText.includes('weak') });
+  if (lower.includes('gdpr') || lower.includes('personal_data') || lower.includes('pii')) items.push({ label: 'GDPR', ok: true });
+  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logs', ok: true });
+  if (secText.includes('weak') || secText.includes('md5') || secText.includes('sha1')) {
+    items.push({ label: 'Encryption', ok: false, note: 'Weak algorithm detected' });
+  } else if (lower.includes('encrypt') || lower.includes('hash')) {
+    items.push({ label: 'Encryption', ok: true });
+  }
+  if (lower.includes('access_control') || lower.includes('role') || lower.includes('permission')) items.push({ label: 'Access Control', ok: true });
+  const card = document.getElementById('regComplianceCard');
+  const list = document.getElementById('regComplianceList');
+  if (items.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : '⚠'} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
 }
 function renderMicroserviceSummary(rules) {
   const mCard = document.getElementById('microserviceCard');
