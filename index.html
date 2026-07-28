@@ -415,6 +415,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Banking Domain Detection <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Domain Classification</span></div>
               <div id="domainList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
+            <div class="card" id="capabilityCard" style="display:none">
+              <div class="card-head">Business Capability Map <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">For business stakeholders</span></div>
+              <div id="capabilityList" style="display:flex;gap:20px;flex-wrap:wrap"></div>
+            </div>
             <div class="card" id="callGraphCard" style="display:none">
               <div class="card-head">Call Graph <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Within-file function/paragraph calls only - not cross-file</span></div>
               <div id="callGraphList" style="display:flex;flex-direction:column;gap:5px"></div>
@@ -920,6 +924,7 @@ function renderResults(R, original, fname, totalMs) {
   detectMainframeAssets(original);
   detectRegulatoryCompliance(original, R);
   setTimeout(updateRepositorySummary, 50);
+  setTimeout(renderCapabilityMap, 60);
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
   detectCallGraph(original);
@@ -1382,6 +1387,24 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
   }).join('');
 }
 let lastRulesCount = 0;
+function renderCapabilityMap() {
+  const card = document.getElementById('capabilityCard');
+  const list = document.getElementById('capabilityList');
+  const bankingItems = Array.from(document.querySelectorAll('#domainList span')).map(s => s.textContent.replace('✓', '').trim());
+  const insuranceItems = Array.from(document.querySelectorAll('#insuranceList > div span')).filter(s => s.textContent.includes('✓')).map(s => s.textContent.replace('✓', '').trim());
+  if (bankingItems.length === 0 && insuranceItems.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  let html = '';
+  if (bankingItems.length > 0) {
+    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#22d3ee;margin-bottom:6px">Banking</div>' +
+      bankingItems.map((it, i) => `<div style="font-size:11px;color:#94a3b8;padding-left:12px;position:relative;margin-bottom:4px">${i === bankingItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
+  }
+  if (insuranceItems.length > 0) {
+    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:6px">Insurance</div>' +
+      insuranceItems.map((it, i) => `<div style="font-size:11px;color:#94a3b8;padding-left:12px;position:relative;margin-bottom:4px">${i === insuranceItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
+  }
+  list.innerHTML = html;
+}
 function updateRepositorySummary() {
   if (!files.length) return;
   const fname = files[0].name;
