@@ -414,6 +414,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Call Graph <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Within-file function/paragraph calls only - not cross-file</span></div>
               <div id="callGraphList" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
+            <div class="card" id="copybookCard" style="display:none">
+              <div class="card-head">Copybook References <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">COBOL COPY statements found in this file</span></div>
+              <div id="copybookList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
             <div class="card" id="dbIntelCard" style="display:none">
               <div class="card-head">Database Intelligence <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Tables, Queries & CRUD Inventory</span></div>
               <div id="dbIntelList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -896,6 +900,7 @@ function renderResults(R, original, fname, totalMs) {
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
   detectCallGraph(original);
+  detectCopybooks(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
@@ -1193,6 +1198,18 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
       <div style="font-size:14px;font-weight:700;color:${i.r.color}">${i.r.label}</div>
     </div>
   `).join('');
+}
+function detectCopybooks(code) {
+  const card = document.getElementById('copybookCard');
+  const list = document.getElementById('copybookList');
+  if (lang !== 'cobol') { card.style.display = 'none'; return; }
+  const rx = /^\s*(?:\d{6}\s+)?COPY\s+([\w-]+)/gim;
+  const names = new Set();
+  let m;
+  while ((m = rx.exec(code)) !== null) { names.add(m[1]); }
+  if (names.size === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = [...names].map(n => `<span style="font-size:11px;padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.25);font-family:monospace">📄 ${n}</span>`).join('');
 }
 function detectCallGraph(code) {
   const codeLines = code.split(String.fromCharCode(10));
