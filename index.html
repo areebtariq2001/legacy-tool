@@ -426,6 +426,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Architecture Preview</div>
               <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px" onclick="previewArchitecture()" id="archBtn">Preview New Architecture</button>
               <div id="archLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Analyzing structure...</div>
+              <div id="archDiagram" style="display:none;margin-top:10px"></div>
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card" id="diffCard">
@@ -1234,10 +1235,12 @@ function detectRegulatoryCompliance(code, R) {
   card.style.display = 'block';
   list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : '⚠'} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
 }
+let lastUniqueServices = [];
 function renderMicroserviceSummary(rules) {
   const mCard = document.getElementById('microserviceCard');
   const mList = document.getElementById('microserviceList');
   const uniqueServices = [...new Set(rules.map(r => r.service))];
+  lastUniqueServices = uniqueServices;
   if (uniqueServices.length === 0) { mCard.style.display = 'none'; return; }
   mCard.style.display = 'block';
   mList.innerHTML = uniqueServices.map(s => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.25)">✓ ${s}</span>`).join('');
@@ -1407,8 +1410,29 @@ Always confirm findings with a qualified reviewer before making migration decisi
   a.click();
   URL.revokeObjectURL(url);
 }
+function renderArchDiagram() {
+  const dia = document.getElementById('archDiagram');
+  const services = lastUniqueServices;
+  if (!services || services.length === 0) { dia.style.display = 'none'; return; }
+  dia.style.display = 'block';
+  const boxH = 32, gap = 10, startY = 50;
+  let svgBoxes = '';
+  services.forEach((s, i) => {
+    const y = startY + i * (boxH + gap);
+    svgBoxes += '<line x1="110" y1="20" x2="260" y2="' + (y + boxH/2) + '" stroke="#243350" stroke-width="1.5"/>';
+    svgBoxes += '<rect x="260" y="' + y + '" width="220" height="' + boxH + '" rx="6" fill="#0f1525" stroke="#8b5cf6" stroke-width="1.5"/>';
+    svgBoxes += '<text x="370" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="#f1f5f9" font-size="10" font-family="monospace">' + s + '</text>';
+  });
+  const totalH = startY + services.length * (boxH + gap) + 10;
+  const svg = '<svg width="100%" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#0f1525" stroke="#3b82f6" stroke-width="1.5"/>' +
+    '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
+    svgBoxes + '</svg>';
+  dia.innerHTML = svg;
+}
 async function previewArchitecture() {
   if (!files.length) { alert('Upload a file first.'); return; }
+  renderArchDiagram();
   const loading = document.getElementById('archLoading');
   const result = document.getElementById('archResult');
   loading.style.display = 'block';
