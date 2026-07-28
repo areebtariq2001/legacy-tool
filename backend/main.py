@@ -1002,7 +1002,8 @@ def migrate_cobol(source):
             continue
         disp_m = _mre.match(r"^DISPLAY\s+(.+?)\.?$", line, _mre.IGNORECASE)
         if disp_m:
-            content = disp_m.group(1).replace("-", "_")
+            _disp_val = disp_m.group(1)
+            content = _disp_val if (_disp_val.strip().startswith(chr(34)) or _disp_val.strip().startswith(chr(39))) else _disp_val.replace("-", "_")
             out_lines.append(cur_indent() + "print(" + content + ")")
             changes.append("DISPLAY -> print()")
             continue
