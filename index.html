@@ -785,13 +785,28 @@ async function runAnalysisOrBatch() {
   const allFiles = [...files];
   const btn = document.getElementById('runBtn');
   const originalText = btn.textContent;
+  btn.disabled = true;
+  document.getElementById('pipeline').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
+  let progBar = document.getElementById('batchProgress');
+  if (!progBar) {
+    progBar = document.createElement('div');
+    progBar.id = 'batchProgress';
+    progBar.style.cssText = 'margin-top:10px;background:#0f1525;border-radius:6px;padding:10px;border:1px solid #1e2d45';
+    btn.parentNode.insertBefore(progBar, btn.nextSibling);
+  }
+  progBar.style.display = 'block';
   for (let i = 0; i < allFiles.length; i++) {
-    btn.textContent = 'Analyzing ' + (i + 1) + ' of ' + allFiles.length + '...';
+    const pct = Math.round(((i) / allFiles.length) * 100);
+    progBar.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#f1f5f9;font-family:monospace">' + allFiles[i].name + '</span></div><div style="height:6px;background:#1e2d45;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
     files = [allFiles[i]];
     await runAnalysis();
   }
+  progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Completed ' + allFiles.length + ' files. See Repository Summary below.</div>';
   files = allFiles;
   renderChips();
+  document.getElementById('pipeline').style.display = '';
+  btn.disabled = false;
   btn.textContent = originalText;
   document.getElementById('repoSummaryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
