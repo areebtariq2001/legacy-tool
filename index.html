@@ -397,6 +397,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Mainframe Assets <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Mainframe Intelligence (COBOL only)</span></div>
               <div id="mainframeList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
+            <div class="card" id="microserviceCard" style="display:none">
+              <div class="card-head">Recommended Microservices <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Microservice Advisor - derived from detected business rules</span></div>
+              <div id="microserviceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
               <div id="rulesList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -1132,6 +1136,15 @@ function detectBusinessRules(code) {
       <div style="font-size:9px;color:#a78bfa;margin-top:4px">→ Suggested Service: <span style="font-weight:600">${r.service}</span></div>
     </div>
   `).join('');
+  renderMicroserviceSummary(found);
+}
+function renderMicroserviceSummary(rules) {
+  const mCard = document.getElementById('microserviceCard');
+  const mList = document.getElementById('microserviceList');
+  const uniqueServices = [...new Set(rules.map(r => r.service))];
+  if (uniqueServices.length === 0) { mCard.style.display = 'none'; return; }
+  mCard.style.display = 'block';
+  mList.innerHTML = uniqueServices.map(s => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.25)">✓ ${s}</span>`).join('');
 }
 function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
   const el = document.getElementById(elId);
