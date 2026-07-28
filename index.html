@@ -379,11 +379,11 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="bankingCard" style="display:none">
               <div class="card-head">Detected Banking Modules <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Core Banking Intelligence</span></div>
-              <div id="bankingList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+              <div id="bankingList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
             <div class="card" id="complianceCard" style="display:none">
               <div class="card-head">Detected Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">AML & Fraud Intelligence</span></div>
-              <div id="complianceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+              <div id="complianceList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
             <div class="card" id="rulesCard" style="display:none">
               <div class="card-head">Business Rules Found <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Detected from Source Analysis</span></div>
@@ -888,46 +888,86 @@ function findEnclosingFunction(codeLines, lineIdx) {
   return null;
 }
 function detectCompliance(code) {
-  const lower = code.toLowerCase();
+  const codeLines = code.split(String.fromCharCode(10));
   const items = [
-    { label: 'AML Rules', patterns: ['aml', 'anti-money', 'money laundering'] },
-    { label: 'KYC Validation', patterns: ['kyc', 'know your customer', 'customer verification'] },
-    { label: 'Suspicious Transactions', patterns: ['suspicious', 'unusual_activity', 'flagged'] },
-    { label: 'Daily Limits', patterns: ['daily_limit', 'daily-limit', 'daily limit'] },
-    { label: 'Transaction Monitoring', patterns: ['monitor', 'transaction_watch'] },
-    { label: 'Fraud Detection', patterns: ['fraud'] },
-    { label: 'Sanction Screening', patterns: ['sanction', 'ofac', 'blacklist'] },
-    { label: 'High-Risk Customers', patterns: ['high_risk', 'high-risk', 'highrisk'] },
-    { label: 'PEP Detection', patterns: ['pep', 'politically exposed'] },
+    { label: 'AML Rules', patterns: ['aml', 'anti-money', 'money laundering'], baseConf: 88 },
+    { label: 'KYC Validation', patterns: ['kyc', 'know your customer', 'customer verification'], baseConf: 90 },
+    { label: 'Suspicious Transactions', patterns: ['suspicious', 'unusual_activity', 'flagged'], baseConf: 62 },
+    { label: 'Daily Limits', patterns: ['daily_limit', 'daily-limit', 'daily limit'], baseConf: 92 },
+    { label: 'Transaction Monitoring', patterns: ['monitor', 'transaction_watch'], baseConf: 70 },
+    { label: 'Fraud Detection', patterns: ['fraud'], baseConf: 80 },
+    { label: 'Sanction Screening', patterns: ['sanction', 'ofac', 'blacklist'], baseConf: 90 },
+    { label: 'High-Risk Customers', patterns: ['high_risk', 'high-risk', 'highrisk'], baseConf: 90 },
+    { label: 'PEP Detection', patterns: ['pep', 'politically exposed'], baseConf: 92 },
   ];
-  const found = items.filter(m => m.patterns.some(p => lower.includes(p)));
+  const found = [];
+  items.forEach(m => {
+    for (let i = 0; i < codeLines.length; i++) {
+      const lineLower = codeLines[i].toLowerCase();
+      const hit = m.patterns.find(p => lineLower.includes(p));
+      if (hit) {
+        const fn = findEnclosingFunction(codeLines, i);
+        const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
+        found.push({ label: m.label, line: i + 1, fn, conf });
+        break;
+      }
+    }
+  });
   const card = document.getElementById('complianceCard');
   const list = document.getElementById('complianceList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `<span style="font-size:11px;padding:5px 10px;border-radius:14px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.25)">✓ ${m.label}</span>`).join('');
+  list.innerHTML = found.map(m => `
+    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #ef4444;min-width:180px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#f87171">${m.conf}%</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+    </div>
+  `).join('');
 }
 function detectBankingModules(code) {
-  const lower = code.toLowerCase();
+  const codeLines = code.split(String.fromCharCode(10));
   const modules = [
-    { label: 'Customer Accounts', patterns: ['customer', 'account_holder', 'accountholder'] },
-    { label: 'Savings/Current Accounts', patterns: ['savings', 'current_account', 'checking_account'] },
-    { label: 'Loan Processing', patterns: ['loan', 'emi', 'mortgage'] },
-    { label: 'Credit Cards', patterns: ['credit_card', 'creditcard', 'card_number'] },
-    { label: 'Deposits', patterns: ['deposit'] },
-    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'] },
-    { label: 'Transaction Processing', patterns: ['transaction', 'txn_', 'transfer'] },
-    { label: 'Branch Operations', patterns: ['branch', 'teller'] },
-    { label: 'Ledger Entries', patterns: ['ledger', 'gl_entry', 'journal_entry'] },
-    { label: 'Balance Validation', patterns: ['balance', 'insufficient funds', 'insufficient_funds'] },
-    { label: 'Daily Transaction Limits', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'] },
+    { label: 'Customer Accounts', patterns: ['customer', 'account_holder', 'accountholder'], baseConf: 65 },
+    { label: 'Savings/Current Accounts', patterns: ['savings', 'current_account', 'checking_account'], baseConf: 90 },
+    { label: 'Loan Processing', patterns: ['loan', 'emi', 'mortgage'], baseConf: 85 },
+    { label: 'Credit Cards', patterns: ['credit_card', 'creditcard', 'card_number'], baseConf: 90 },
+    { label: 'Deposits', patterns: ['deposit'], baseConf: 60 },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], baseConf: 68 },
+    { label: 'Transaction Processing', patterns: ['transaction', 'txn_', 'transfer'], baseConf: 70 },
+    { label: 'Branch Operations', patterns: ['branch', 'teller'], baseConf: 80 },
+    { label: 'Ledger Entries', patterns: ['ledger', 'gl_entry', 'journal_entry'], baseConf: 88 },
+    { label: 'Balance Validation', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], baseConf: 62 },
+    { label: 'Daily Transaction Limits', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], baseConf: 92 },
   ];
-  const found = modules.filter(m => m.patterns.some(p => lower.includes(p)));
+  const found = [];
+  modules.forEach(m => {
+    for (let i = 0; i < codeLines.length; i++) {
+      const lineLower = codeLines[i].toLowerCase();
+      const hit = m.patterns.find(p => lineLower.includes(p));
+      if (hit) {
+        const fn = findEnclosingFunction(codeLines, i);
+        const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
+        found.push({ label: m.label, line: i + 1, fn, conf });
+        break;
+      }
+    }
+  });
   const card = document.getElementById('bankingCard');
   const list = document.getElementById('bankingList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `<span style="font-size:11px;padding:5px 10px;border-radius:14px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25)">✓ ${m.label}</span>`).join('');
+  list.innerHTML = found.map(m => `
+    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #3b82f6;min-width:180px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${m.conf}%</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+    </div>
+  `).join('');
 }
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
