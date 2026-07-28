@@ -310,7 +310,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
           </div>
           <button class="btn btn-primary" id="runBtn"
             style="width:100%;justify-content:center;padding:11px;font-size:13px;border-radius:8px;opacity:.5;cursor:not-allowed"
-            onclick="runAnalysis()" disabled>
+            onclick="runAnalysisOrBatch()" disabled>
             Run Full Analysis
           </button>
           <div class="pipeline" id="pipeline">
@@ -737,6 +737,7 @@ function renderChips() {
 function enableRun() {
   const b = document.getElementById('runBtn');
   b.disabled = false; b.style.opacity = '1'; b.style.cursor = 'pointer';
+  b.textContent = files.length > 1 ? 'Analyze All ' + files.length + ' Files' : 'Run Full Analysis';
 }
 function disableRun() {
   const b = document.getElementById('runBtn');
@@ -770,6 +771,21 @@ function setState(id, state, sub, badge) {
   else num.textContent = stepIds.indexOf(id) + 1;
   if (sub) subEl.textContent = sub;
   badgeEl.innerHTML = badge;
+}
+async function runAnalysisOrBatch() {
+  if (files.length <= 1) { await runAnalysis(); return; }
+  const allFiles = [...files];
+  const btn = document.getElementById('runBtn');
+  const originalText = btn.textContent;
+  for (let i = 0; i < allFiles.length; i++) {
+    btn.textContent = 'Analyzing ' + (i + 1) + ' of ' + allFiles.length + '...';
+    files = [allFiles[i]];
+    await runAnalysis();
+  }
+  files = allFiles;
+  renderChips();
+  btn.textContent = originalText;
+  document.getElementById('repoSummaryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function runAnalysis() {
   if (!files.length) return;
