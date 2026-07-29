@@ -407,6 +407,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Mainframe Assets <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Mainframe Intelligence (COBOL only)</span></div>
               <div id="mainframeList" style="display:flex;flex-direction:column;gap:6px"></div>
             </div>
+            <div class="card" id="knowledgeGraphCard" style="display:none">
+              <div class="card-head">Legacy Knowledge Graph <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All detected entities, grouped</span></div>
+              <div id="knowledgeGraphList" style="display:flex;flex-direction:column;gap:8px"></div>
+            </div>
             <div class="card" id="txnFlowCard" style="display:none">
               <div class="card-head">Transaction Flow <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Business rules in source-code order</span></div>
               <div id="txnFlowList"></div>
@@ -1025,6 +1029,7 @@ function renderResults(R, original, fname, totalMs) {
   detectRegulatoryCompliance(original, R);
   setTimeout(updateRepositorySummary, 50);
   setTimeout(renderCapabilityMap, 60);
+  setTimeout(renderKnowledgeGraph, 70);
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
   detectCallGraph(original);
@@ -1394,17 +1399,26 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
     </div>
   `).join('');
 }
+let lastCopybookNames = [];
 function detectCopybooks(code) {
   const card = document.getElementById('copybookCard');
   const list = document.getElementById('copybookList');
+  lastCopybookNames = [];
   if (lang !== 'cobol') { card.style.display = 'none'; return; }
   const rx = /^\s*(?:\d{6}\s+)?COPY\s+([\w-]+)/gim;
   const names = new Set();
   let m;
   while ((m = rx.exec(code)) !== null) { names.add(m[1]); }
   if (names.size === 0) { card.style.display = 'none'; return; }
+  lastCopybookNames = [...names];
   card.style.display = 'block';
-  list.innerHTML = [...names].map(n => `<span style="font-size:11px;padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.25);font-family:monospace">📄 ${n}</span>`).join('');
+  list.innerHTML = [...names].map(n => {
+    const sharedWith = sessionFileResults.filter(e => e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e => e.fname);
+    return `<div style="padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);min-width:140px">
+      <span style="font-size:11px;color:#a78bfa;font-family:monospace">📄 ${n}</span>
+      ${sharedWith.length > 0 ? '<div style="font-size:9px;color:#64748b;margin-top:3px">Also used by: ' + sharedWith.join(', ') + '</div>' : '<div style="font-size:9px;color:#64748b;margin-top:3px">Not seen in other files analyzed this session</div>'}
+    </div>`;
+  }).join('');
 }
 function detectCallGraph(code) {
   const codeLines = code.split(String.fromCharCode(10));
@@ -1558,6 +1572,32 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew) {
   }).join('');
 }
 let lastRulesCount = 0;
+function renderKnowledgeGraph() {
+  const card = document.getElementById('knowledgeGraphCard');
+  const list = document.getElementById('knowledgeGraphList');
+  const tables = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
+  const copybooks = lastCopybookNames || [];
+  const services = lastUniqueServices || [];
+  const rules = Array.from(document.querySelectorAll('#rulesList > div > div span')).filter(s => s.textContent.includes('%') === false).map(s => s.textContent.replace('✓', '').trim()).filter(Boolean);
+  const fname = files.length ? files[0].name : 'this file';
+  const groups = [
+    { label: 'Program', items: [fname], color: '#3b82f6' },
+    { label: 'Database Tables', items: tables, color: '#22c55e' },
+    { label: 'Copybooks', items: copybooks, color: '#a78bfa' },
+    { label: 'Suggested Services', items: services, color: '#f59e0b' },
+  ];
+  const nonEmpty = groups.filter(g => g.items.length > 0);
+  if (nonEmpty.length <= 1) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = nonEmpty.map(g => `
+    <div>
+      <div style="font-size:9px;color:${g.color};font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">${g.label} (${g.items.length})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${g.items.map(i => `<span style="font-size:10px;padding:4px 8px;border-radius:6px;background:#0f1525;color:#e2e8f0;font-family:monospace">${i}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
 function renderCapabilityMap() {
   const card = document.getElementById('capabilityCard');
   const list = document.getElementById('capabilityList');
@@ -1585,7 +1625,7 @@ function updateRepositorySummary() {
   const rulesCount = document.querySelectorAll('#rulesList > div').length;
   const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
   const serviceSpans = lastUniqueServices || [];
-  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, snapshot: window.lastFileSnapshot };
+  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot };
   sessionFileResults = sessionFileResults.filter(e => e.fname !== fname);
   sessionFileResults.push(entry);
   renderRepositorySummary();
