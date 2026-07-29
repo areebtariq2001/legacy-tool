@@ -970,9 +970,10 @@ function renderResults(R, original, fname, totalMs) {
   const hColor = overall >= 70 ? '#22c55e' : overall >= 50 ? '#f59e0b' : '#ef4444';
   healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
   healthChart.update();
-  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
+  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : mediumOrWorseRisks >= 3 ? 'Multiple medium-risk areas (' + mediumOrWorseRisks + ' of 6 risk dimensions) — review recommended before migrating, even though no critical issues were found.' : overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
-  document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : '#64748b';
+  document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
   document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
   setProg('security', secScore);
   setProg('migration', migScore);
