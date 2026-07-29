@@ -433,7 +433,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div style="text-align:center;color:#334155;font-size:10px">↓</div>
                 <div style="padding:8px 10px;background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;border-radius:4px"><span style="font-size:10px;color:#a78bfa;font-weight:700">PHASE 5</span> <span style="font-size:11px;color:#f1f5f9">Cloud-Ready Deployment</span></div>
               </div>
-              <div style="font-size:9px;color:#64748b;margin-top:8px">Generic reference roadmap - not customized to this specific codebase.</div>
+              <div style="font-size:9px;color:#64748b;margin-top:8px">Generated from analysis results - a standard reference roadmap, not customized line-by-line to this codebase.</div>
             </div>
             <div class="card" id="regComplianceCard" style="display:none">
               <div class="card-head">Regulatory Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Compliance Detection</span></div>
@@ -483,7 +483,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card">
-              <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities</span></div>
+              <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
 
               <div style="font-size:10px;color:#60a5fa;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
@@ -626,7 +626,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-cost">—</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b1)">
-                <span style="font-size:11px;color:var(--t2)">Risk Level</span>
+                <span style="font-size:11px;color:var(--t2)">Overall Risk (see Risk Engine for breakdown)</span>
                 <span class="badge b-blue" id="impact-risk">—</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
@@ -920,7 +920,9 @@ async function runAnalysis() {
     R.migrate = await r.json();
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
     const confStr = conf != null ? Math.round(conf) + '%' : 'N/A';
-    pipeDone('migrate', 'Migration ready · Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
+    const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
+    const migLabel = changeCount <= 2 ? 'Compatibility fix ready' : 'Migration ready';
+    pipeDone('migrate', migLabel + ' · Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
   if (checks.has('security')) {
     pipeRun('security', 'Scanning for vulnerabilities, secrets, weak crypto…');
@@ -1000,7 +1002,7 @@ function renderResults(R, original, fname, totalMs) {
   healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
   healthChart.update();
   const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
-  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : mediumOrWorseRisks >= 3 ? 'Multiple medium-risk areas (' + mediumOrWorseRisks + ' of 6 risk dimensions) — review recommended before migrating, even though no critical issues were found.' : overall >= 70 ? 'Good health — safe to migrate.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
   document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
   document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
@@ -1764,6 +1766,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
   const card = document.getElementById('execSummaryCard');
   const text = document.getElementById('execSummaryText');
   card.style.display = 'block';
+  const svcCount = (lastUniqueServices || []).length;
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
       <div>Critical Issues: <strong style="color:#f1f5f9">${critCount}</strong></div>
@@ -1773,6 +1776,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
       <div>Estimated Effort: <strong style="color:#f1f5f9">${fixHours.toFixed(1)} hrs</strong></div>
       <div>Recommendation: <strong style="color:${recColor}">${recommendation}</strong></div>
     </div>
+    ${svcCount > 0 ? '<div style="font-size:10px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #1e2d45">' + rulesCount + ' detected business rule' + (rulesCount === 1 ? '' : 's') + ' and detected banking modules together map to ' + svcCount + ' recommended service' + (svcCount === 1 ? '' : 's') + ' (a single rule or module can map to more than one service).</div>' : ''}
   `;
 }
 function downloadJSON() {
