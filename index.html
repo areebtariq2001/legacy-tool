@@ -803,6 +803,15 @@ function nav(page, el) {
   document.getElementById('topbar-title').textContent = titles[page] || page;
 }
 function onFileInput(fs) {
+  const supportedExt = ['py', 'java', 'php', 'cbl', 'cob', 'cobol'];
+  const incoming = Array.from(fs);
+  const unsupported = incoming.filter(f => !supportedExt.includes(f.name.split('.').pop().toLowerCase()));
+  if (unsupported.length > 0) {
+    alert('Unsupported file type: ' + unsupported.map(f => f.name).join(', ') + '. StarBuild supports .py, .java, .php, and .cbl/.cob files.');
+    const supported = incoming.filter(f => supportedExt.includes(f.name.split('.').pop().toLowerCase()));
+    if (supported.length === 0) return;
+    fs = supported;
+  }
   files = Array.from(fs);
   renderChips(); enableRun();
   if (files.length > 0) {
@@ -901,6 +910,10 @@ async function runAnalysis() {
   if (!files.length) return;
   const code = await files[0].text();
   const fname = files[0].name;
+  if (!code || !code.trim()) {
+    alert('This file is empty. Please upload a file that contains code.');
+    return;
+  }
   const t0 = Date.now();
   document.getElementById('pipeline').classList.add('show');
   document.getElementById('results').classList.remove('show');
