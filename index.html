@@ -234,7 +234,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
     </div>
     <div class="tb-right">
       <span class="badge b-green">72 Backend Capabilities</span>
-      <span class="badge b-blue">AST-Verified</span>
+      <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree before being shown to you.">AST-Verified</span>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
   </header>
@@ -264,6 +264,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="drop-langs">
                   <span class="lang-pill">Python</span><span class="lang-pill">Java</span><span class="lang-pill">PHP</span><span class="lang-pill">COBOL</span>
                 </div>
+                <div style="font-size:9px;color:var(--t4);margin-top:6px">UTF-8 encoded text files</div>
               </div>
             </div>
             <div class="chips" id="fileChips"></div>
@@ -2152,6 +2153,7 @@ async function runExplain() {
   }
 }
 function resetAll() {
+  if (files.length > 0 && !confirm('Reset analysis? This will clear the current file and results.')) return;
   files = []; renderChips(); disableRun();
   document.getElementById('pipeline').classList.remove('show');
   document.getElementById('results').classList.remove('show');
