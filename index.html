@@ -1280,12 +1280,12 @@ function riskLabel(score) {
   return { label: 'HIGH', color: '#ef4444' };
 }
 function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct) {
-  const migRisk = riskLabel(confPct != null ? confPct : 70);
-  const bizRisk = riskLabel(critCount === 0 ? 85 : Math.max(20, 85 - critCount * 25));
+  const migRisk = critCount >= 1 ? { label: 'HIGH', color: '#ef4444' } : warnCount >= 1 ? { label: 'MEDIUM', color: '#f59e0b' } : { label: 'LOW', color: '#22c55e' };
+  const bizRisk = riskLabel(critCount >= 1 ? Math.max(20, 85 - critCount * 25) : warnCount >= 1 ? 65 : 85);
   const secRisk = riskLabel(secScore);
   const opRisk = riskLabel(debtScore);
   const compRisk = riskLabel(compScore);
-  const downtimeRisk = riskLabel(critCount === 0 && warnCount <= 1 ? 85 : Math.max(25, 85 - (critCount * 20) - (warnCount * 5)));
+  const downtimeRisk = riskLabel(critCount >= 1 ? Math.max(25, 85 - (critCount * 20) - (warnCount * 5)) : warnCount >= 1 ? 65 : 85);
   const items = [
     { label: 'Migration Risk', r: migRisk },
     { label: 'Business Risk', r: bizRisk },
@@ -1613,6 +1613,13 @@ function downloadJSON() {
 function buildIssues(R) {
   const issues = [];
   const getText = d => typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
+  if (R.migrate && Array.isArray(R.migrate.changes)) {
+    R.migrate.changes.forEach(c => {
+      if (typeof c === 'string' && c.startsWith('REVIEW NEEDED')) {
+        issues.push({ sev: 'warning', title: 'Integer division behavior may have changed (Python 2→3)', desc: c.replace('REVIEW NEEDED: ', ''), tag: 'Migration', tagClass: 'tag-amber', file: null });
+      }
+    });
+  }
   if (R.analyze) {
     const t = getText(R.analyze).toLowerCase();
     if (t.includes('print ') || t.includes('print(')) issues.push({ sev: 'warning', title: 'Python 2 print statements detected', desc: 'Use print() function instead of print statement for Python 3 compatibility.', tag: 'Migration', tagClass: 'tag-amber', file: null });
