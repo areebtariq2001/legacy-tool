@@ -926,6 +926,7 @@ async function runAnalysis() {
 }
 function renderResults(R, original, fname, totalMs) {
   window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
+  extraServicesFromModules = [];
   document.getElementById('results').classList.add('show');
   const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
   const confPct = conf != null ? Math.round(conf) : null;
@@ -1190,17 +1191,17 @@ function detectCompliance(code) {
 function detectBankingModules(code) {
   const codeLines = code.split(String.fromCharCode(10));
   const modules = [
-    { label: 'Customer Accounts', patterns: ['customer', 'account_holder', 'accountholder'], baseConf: 65 },
-    { label: 'Savings/Current Accounts', patterns: ['savings', 'current_account', 'checking_account'], baseConf: 90 },
-    { label: 'Loan Processing', patterns: ['loan', 'emi', 'mortgage'], baseConf: 85 },
-    { label: 'Credit Cards', patterns: ['credit_card', 'creditcard', 'card_number'], baseConf: 90 },
-    { label: 'Deposits', patterns: ['deposit'], baseConf: 60 },
-    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], baseConf: 68 },
-    { label: 'Transaction Processing', patterns: ['transaction', 'txn_', 'transfer'], baseConf: 70 },
-    { label: 'Branch Operations', patterns: ['branch', 'teller'], baseConf: 80 },
-    { label: 'Ledger Entries', patterns: ['ledger', 'gl_entry', 'journal_entry'], baseConf: 88 },
-    { label: 'Balance Validation', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], baseConf: 62 },
-    { label: 'Daily Transaction Limits', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], baseConf: 92 },
+    { label: 'Customer Accounts', patterns: ['customer', 'account_holder', 'accountholder'], baseConf: 65, service: 'Customer Service' },
+    { label: 'Savings/Current Accounts', patterns: ['savings', 'current_account', 'checking_account'], baseConf: 90, service: 'Account Service' },
+    { label: 'Loan Processing', patterns: ['loan', 'emi', 'mortgage'], baseConf: 85, service: 'Loan Service' },
+    { label: 'Credit Cards', patterns: ['credit_card', 'creditcard', 'card_number'], baseConf: 90, service: 'Card Service' },
+    { label: 'Deposits', patterns: ['deposit'], baseConf: 60, service: 'Deposit Service' },
+    { label: 'Interest Calculation', patterns: ['interest', 'apr', 'apy'], baseConf: 68, service: 'Interest Calculation Service' },
+    { label: 'Transaction Processing', patterns: ['transaction', 'txn_', 'transfer'], baseConf: 70, service: 'Transaction Service' },
+    { label: 'Branch Operations', patterns: ['branch', 'teller'], baseConf: 80, service: 'Branch Service' },
+    { label: 'Ledger Entries', patterns: ['ledger', 'gl_entry', 'journal_entry'], baseConf: 88, service: 'Ledger Service' },
+    { label: 'Balance Validation', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], baseConf: 62, service: 'Account Service' },
+    { label: 'Daily Transaction Limits', patterns: ['daily_limit', 'daily-limit', 'dailylimit', 'daily limit'], baseConf: 92, service: 'Transaction Policy Service' },
   ];
   const found = [];
   modules.forEach(m => {
@@ -1210,11 +1211,12 @@ function detectBankingModules(code) {
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
-        found.push({ label: m.label, line: i + 1, fn, conf });
+        found.push({ label: m.label, line: i + 1, fn, conf, service: m.service });
         break;
       }
     }
   });
+  mergeServicesIntoMicroservices(found.map(f => f.service));
   const card = document.getElementById('bankingCard');
   const list = document.getElementById('bankingList');
   if (found.length === 0) { card.style.display = 'none'; return; }
@@ -1437,10 +1439,14 @@ function detectRegulatoryCompliance(code, R) {
   list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : '⚠'} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
 }
 let lastUniqueServices = [];
+let extraServicesFromModules = [];
+function mergeServicesIntoMicroservices(services) {
+  extraServicesFromModules = services.filter(Boolean);
+}
 function renderMicroserviceSummary(rules) {
   const mCard = document.getElementById('microserviceCard');
   const mList = document.getElementById('microserviceList');
-  const uniqueServices = [...new Set(rules.map(r => r.service))];
+  const uniqueServices = [...new Set([...rules.map(r => r.service), ...extraServicesFromModules])];
   lastUniqueServices = uniqueServices;
   if (uniqueServices.length === 0) { mCard.style.display = 'none'; return; }
   mCard.style.display = 'block';
