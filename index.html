@@ -799,8 +799,13 @@ function initCharts() {
 }
 initCharts();
 async function checkBackendHealth() {
+  document.getElementById('liveLabel').textContent = 'Checking backend...';
+  document.getElementById('liveSub').textContent = 'May take up to a minute on first load';
   try {
-    const r = await fetch(BACKEND + '/', { method: 'GET' });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const r = await fetch(BACKEND + '/', { method: 'GET', signal: controller.signal });
+    clearTimeout(timeoutId);
     if (r.ok) {
       document.getElementById('liveDot').style.background = '#22c55e';
       document.getElementById('liveLabel').textContent = 'Backend Live';
@@ -811,7 +816,7 @@ async function checkBackendHealth() {
   } catch (e) {
     document.getElementById('liveDot').style.background = '#ef4444';
     document.getElementById('liveLabel').textContent = 'Backend Unreachable';
-    document.getElementById('liveSub').textContent = 'May be waking up (free tier)';
+    document.getElementById('liveSub').textContent = e.name === 'AbortError' ? 'Timed out - try refreshing' : 'May be waking up (free tier)';
   }
 }
 checkBackendHealth();
