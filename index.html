@@ -364,7 +364,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
               <div class="sum-card" style="--al:var(--green)">
                 <div class="sum-val" id="sv-conf" style="color:var(--green)">—</div>
-                <div class="sum-lbl">Confidence</div>
+                <div class="sum-lbl" title="Rule-Based confidence reflects deterministic, AST-verified transformation rules. AI Migrate confidence reflects the model's self-reported certainty, syntax validity, and variable-name preservation.">Confidence ⓘ</div>
               </div>
               <div class="sum-card" style="--al:var(--purple)">
                 <div class="sum-val" id="sv-debt" style="color:var(--purple)">—</div>
@@ -1372,7 +1372,7 @@ function detectBusinessRules(code) {
         const fn = findEnclosingFunction(codeLines, i);
         const matchLen = hit.length;
         const conf = Math.min(98, r.baseConf + Math.min(6, matchLen - 4));
-        found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf, service: r.service });
+        found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf, service: r.service, matchedKeyword: hit });
         break;
       }
     }
@@ -1388,7 +1388,7 @@ function detectBusinessRules(code) {
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${r.conf}% match</span>
+        <span title="Matched because the source contains the keyword: &quot;${r.matchedKeyword || ''}&quot;" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa;cursor:help">${r.conf}% match ⓘ</span>
       </div>
       <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + r.fn + '()</span> · ' : ''}Line ${r.line}</div>
       <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
@@ -1432,12 +1432,15 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
     { label: 'Compliance Risk', r: compRisk },
     { label: 'Downtime Risk', r: downtimeRisk },
   ];
-  document.getElementById('riskEngineList').innerHTML = items.map(i => `
+  document.getElementById('riskEngineList').innerHTML = items.map(i => {
+    const emoji = i.r.label === 'LOW' ? '🟢' : i.r.label === 'MEDIUM' ? '🟡' : '🔴';
+    return `
     <div style="padding:10px;background:#0f1525;border-radius:6px;border:1px solid #1e2d45;text-align:center">
       <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">${i.label}</div>
-      <div style="font-size:14px;font-weight:700;color:${i.r.color}">${i.r.label}</div>
+      <div style="font-size:14px;font-weight:700;color:${i.r.color}">${emoji} ${i.r.label}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 let lastCopybookNames = [];
 function detectCopybooks(code) {
