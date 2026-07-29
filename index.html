@@ -1620,6 +1620,9 @@ function downloadJSON() {
 function buildIssues(R) {
   const issues = [];
   const getText = d => typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
+  if (mode === 'ai' && lang !== 'python') {
+    issues.push({ sev: 'warning', title: 'AI Migrate selected but not available for this language', desc: 'AI Migrate is currently only available for Python. This file was migrated using Rule-Based migration instead, even though AI Migrate was selected.', tag: 'Migration', tagClass: 'tag-amber', file: null });
+  }
   if (R.migrate && Array.isArray(R.migrate.changes)) {
     R.migrate.changes.forEach(c => {
       if (typeof c === 'string' && c.startsWith('REVIEW NEEDED')) {
