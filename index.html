@@ -535,6 +535,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
+              <div id="changeCountNote" style="display:none;font-size:10px;color:#22c55e;margin-bottom:6px;font-weight:600"></div>
               <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
               <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
               <div class="conf-row">
@@ -921,7 +922,9 @@ async function runAnalysis() {
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
     const confStr = conf != null ? Math.round(conf) + '%' : 'N/A';
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
-    const migLabel = changeCount <= 2 ? 'Compatibility fix ready' : 'Migration ready';
+    const migLabel = lang === 'cobol' ? 'Migration ready (COBOL → Python)' : changeCount === 0 ? 'No changes needed' : changeCount <= 2 ? 'Compatibility fix ready' : 'Modernization ready';
+    const ccNote = document.getElementById('changeCountNote');
+    if (ccNote) { ccNote.style.display = 'block'; ccNote.textContent = changeCount + ' compatibility change' + (changeCount === 1 ? '' : 's') + ' applied (highlighted in the diff below).'; }
     pipeDone('migrate', migLabel + ' · Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
   if (checks.has('security')) {
@@ -1582,10 +1585,12 @@ function renderKnowledgeGraph() {
   const tables = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
   const copybooks = lastCopybookNames || [];
   const services = lastUniqueServices || [];
-  const rules = Array.from(document.querySelectorAll('#rulesList > div > div span')).filter(s => s.textContent.includes('%') === false).map(s => s.textContent.replace('✓', '').trim()).filter(Boolean);
   const fname = files.length ? files[0].name : 'this file';
+  const funcTexts = Array.from(document.querySelectorAll('#bankingList div div span, #rulesList div div span')).map(s => s.textContent).filter(t => t.includes('()'));
+  const functions = [...new Set(funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean))];
   const groups = [
     { label: 'Program', items: [fname], color: '#3b82f6' },
+    { label: 'Functions Referenced', items: functions, color: '#22d3ee' },
     { label: 'Database Tables', items: tables, color: '#22c55e' },
     { label: 'Copybooks', items: copybooks, color: '#a78bfa' },
     { label: 'Suggested Services', items: services, color: '#f59e0b' },
@@ -1767,8 +1772,12 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
   const text = document.getElementById('execSummaryText');
   card.style.display = 'block';
   const svcCount = (lastUniqueServices || []).length;
+  const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Python (converted)' }[lang] || 'Modernized';
+  const sourceLabel = { python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[lang] || lang;
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+      <div>Source: <strong style="color:#f1f5f9">${sourceLabel}</strong></div>
+      <div>Target: <strong style="color:#f1f5f9">${targetLabel}</strong></div>
       <div>Critical Issues: <strong style="color:#f1f5f9">${critCount}</strong></div>
       <div>Warnings: <strong style="color:#f1f5f9">${warnCount}</strong></div>
       <div>Business Rules Found: <strong style="color:#f1f5f9">${rulesCount}</strong></div>
@@ -1987,8 +1996,10 @@ function formatGenericResult(d, label) {
   let riskKey = keys.find(k => /^risk|risk_level|severity/i.test(k) && typeof d[k] === 'string');
   let confKey = keys.find(k => /confidence|score/i.test(k) && (typeof d[k] === 'number' || typeof d[k] === 'string'));
   if (!detectedKey && !findingsKey && !summaryKey) {
+    const relevantKeys = keys.filter(k => k !== 'filename');
+    if (relevantKeys.length === 0) return '<div style="font-size:11px;color:#64748b">No findings for this codebase with this check.</div>';
     let html = '<div style="display:flex;flex-direction:column;gap:6px">';
-    keys.filter(k => k !== 'filename').forEach(k => {
+    relevantKeys.forEach(k => {
       const v = d[k];
       const vStr = Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : (typeof v === 'object' ? JSON.stringify(v) : String(v));
       html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> <span style="color:#e2e8f0">' + vStr + '</span></div>';
