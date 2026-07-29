@@ -2055,11 +2055,20 @@ function formatGenericResult(d, label) {
     html += '</div>';
     return html;
   }
-  const isPositive = detectedKey ? !d[detectedKey] : (findingsKey ? d[findingsKey].length === 0 : true);
-  const statusIcon = isPositive ? '🟢' : '🔴';
-  const statusText = isPositive ? 'Low Risk' : 'Findings Detected';
+  let isPositive;
+  if (riskKey && typeof d[riskKey] === 'string') {
+    isPositive = /low/i.test(d[riskKey]);
+  } else if (detectedKey) {
+    isPositive = !d[detectedKey];
+  } else if (findingsKey) {
+    isPositive = d[findingsKey].length === 0;
+  } else {
+    isPositive = null;
+  }
+  const statusIcon = isPositive === null ? 'ℹ️' : isPositive ? '🟢' : '🔴';
+  const statusText = isPositive === null ? 'Result' : isPositive ? 'Low Risk' : (riskKey ? d[riskKey] + ' Risk' : 'Findings Detected');
   let html = '<div style="display:flex;flex-direction:column;gap:10px">';
-  html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + statusText + '</span>' + (riskKey ? ' <span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">' + d[riskKey] + '</span>' : '') + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + d[confKey] + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + statusText + '</span>' + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + d[confKey] + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
   if (findingsKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
     if (d[findingsKey].length === 0) {
