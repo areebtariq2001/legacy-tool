@@ -519,6 +519,32 @@ def migrate_code(source):
     return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
 
 # ---------- VALIDATOR (PYTHON) ----------
+def validate_php(code):
+    open_braces = code.count("{")
+    close_braces = code.count("}")
+    open_parens = code.count("(")
+    close_parens = code.count(")")
+    has_php_tag = "<?php" in code or "<?" in code
+    issues = []
+    if open_braces != close_braces:
+        issues.append(f"Mismatched braces: {open_braces} open vs {close_braces} close")
+    if open_parens != close_parens:
+        issues.append(f"Mismatched parentheses: {open_parens} open vs {close_parens} close")
+    if not has_php_tag and code.strip():
+        issues.append("No <?php tag found")
+    if issues:
+        return {"valid": False, "validation_message": "Structural issues detected: " + "; ".join(issues) + ". This is a basic structural check, not a full PHP parser - please review carefully."}
+    return {"valid": True, "validation_message": "Basic structural check passed (brace/paren balance). This is not a full PHP parser - please review carefully."}
+
+def validate_cobol(code):
+    try:
+        ast.parse(code)
+        return {"valid": True, "validation_message": "Migrated Python output parses successfully as valid Python syntax. Note: this validates the Python output, not the original COBOL - please review the business logic conversion carefully."}
+    except SyntaxError as e:
+        return {"valid": False, "validation_message": "Migrated output has a Python syntax error: " + str(e) + ". This migration likely needs manual correction before use."}
+    except Exception as e:
+        return {"valid": False, "validation_message": "Warning: could not verify migrated output (" + str(e) + "). Please review carefully."}
+
 def validate_python(code):
     try:
         ast.parse(code)
@@ -873,7 +899,8 @@ def migrate_php(source):
     if re.search(r'var\s+\$(\w+)', migrated):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
         changes.append("var -> public")
-    return {"migrated_code": migrated, "changes": changes}
+    check = validate_php(migrated)
+    return {"migrated_code": migrated, "changes": changes, "validation": check}
 
 # ---------- JAVA ----------
 def analyze_java(source):
@@ -1109,7 +1136,8 @@ def migrate_cobol(source):
         out_lines.append("if __name__ == " + chr(39) + "__main__" + chr(39) + ":")
         out_lines.append("    main()")
     migrated = chr(10).join(out_lines)
-    return {"migrated_code": migrated, "changes": changes}
+    check = validate_cobol(migrated)
+    return {"migrated_code": migrated, "changes": changes, "validation": check}
 
 
 # ---------- AI ----------
