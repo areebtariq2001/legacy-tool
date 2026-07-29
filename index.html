@@ -742,6 +742,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 </div>
 <script>
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 let files = [], lang = 'python', mode = 'rule', checks = new Set(['security','debt','compliance']);
 let sessionFileResults = [];
 let migrated = '', sessionApproved = 0;
@@ -832,7 +835,7 @@ function onDrop(e) { e.preventDefault(); document.getElementById('dropArea').cla
 function removeFile(i) { files.splice(i, 1); renderChips(); if (!files.length) disableRun(); }
 function renderChips() {
   document.getElementById('fileChips').innerHTML = files.map((f, i) =>
-    `<div class="chip-file">${f.name}<span class="chip-rm" onclick="removeFile(${i})">×</span></div>`
+    `<div class="chip-file">${escapeHtml(f.name)}<span class="chip-rm" onclick="removeFile(${i})">×</span></div>`
   ).join('');
 }
 function enableRun() {
@@ -1657,7 +1660,7 @@ function renderKnowledgeGraph() {
     <div>
       <div style="font-size:9px;color:${g.color};font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">${g.label} (${g.items.length})</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px">
-        ${g.items.map(i => `<span style="font-size:10px;padding:4px 8px;border-radius:6px;background:#0f1525;color:#e2e8f0;font-family:monospace">${i}</span>`).join('')}
+        ${g.items.map(i => `<span style="font-size:10px;padding:4px 8px;border-radius:6px;background:#0f1525;color:#e2e8f0;font-family:monospace">${escapeHtml(i)}</span>`).join('')}
       </div>
     </div>
   `).join('');
@@ -1785,7 +1788,7 @@ function renderRepositorySummary() {
     return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px;cursor:pointer" onclick="viewFileReport(${idx})">
       <span style="font-size:11px;color:${statusColor}">${statusIcon}</span>
-      <span style="font-size:11px;color:#f1f5f9;font-family:monospace;flex:1;margin-left:6px">${e.fname}</span>
+      <span style="font-size:11px;color:#f1f5f9;font-family:monospace;flex:1;margin-left:6px">${escapeHtml(e.fname)}</span>
       <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;margin-right:6px">${e.confText}</span>
       <span style="font-size:9px;color:#60a5fa;text-decoration:underline">${statusLabel}</span>
     </div>
@@ -1813,9 +1816,9 @@ function renderCrossFileGraph() {
   if (edges.length === 0) { el.innerHTML = '<div style="font-size:10px;color:#64748b">No files in this session share a table or service - each analyzed file appears independent so far.</div>'; return; }
   el.innerHTML = edges.map(e => `
     <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#0f1525;border-radius:6px;margin-bottom:4px">
-      <span style="color:#60a5fa;font-family:monospace">${e.from}</span>
-      <span style="color:#64748b">↔ shares ${e.type} (${e.via}) ↔</span>
-      <span style="color:#a78bfa;font-family:monospace">${e.to}</span>
+      <span style="color:#60a5fa;font-family:monospace">${escapeHtml(e.from)}</span>
+      <span style="color:#64748b">↔ shares ${escapeHtml(e.type)} (${escapeHtml(e.via)}) ↔</span>
+      <span style="color:#a78bfa;font-family:monospace">${escapeHtml(e.to)}</span>
     </div>
   `).join('');
 }
@@ -1926,7 +1929,7 @@ function addHistory(fname, conf, issues, time) {
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)">
       <div style="width:5px;height:5px;border-radius:50%;background:${confColor};flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:11px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fname}</div>
+        <div style="font-size:11px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(fname)}</div>
         <div style="font-size:9px;color:var(--t4);margin-top:1px">${new Date().toLocaleTimeString()} · ${time} · ${issues} issues</div>
       </div>
       <span class="badge b-blue" style="font-size:9px">${conf}%</span>
