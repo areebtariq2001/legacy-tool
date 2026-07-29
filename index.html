@@ -531,7 +531,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
 
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
-              <div id="advResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
+              <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#94a3b8;line-height:1.6;max-height:280px;overflow-y:auto;background:#07090f;border-radius:6px;padding:14px"></div>
             </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
@@ -1974,8 +1974,46 @@ async function runGenericScan(endpoint, label) {
     const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
     const d = await r.json();
     loading.style.display = 'none'; result.style.display = 'block';
-    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
+    result.innerHTML = formatGenericResult(d, label);
   } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = label + ' failed: ' + e.message; }
+}
+function formatGenericResult(d, label) {
+  if (typeof d === 'string') return '<div style="font-size:11px">' + d + '</div>';
+  if (typeof d !== 'object' || d === null) return '<div style="font-size:11px">' + JSON.stringify(d) + '</div>';
+  const keys = Object.keys(d);
+  let detectedKey = keys.find(k => /detected$/i.test(k) && typeof d[k] === 'boolean');
+  let findingsKey = keys.find(k => /findings|issues|results/i.test(k) && Array.isArray(d[k]));
+  let summaryKey = keys.find(k => /summary|verdict|message|recommendation/i.test(k) && typeof d[k] === 'string');
+  let riskKey = keys.find(k => /^risk|risk_level|severity/i.test(k) && typeof d[k] === 'string');
+  let confKey = keys.find(k => /confidence|score/i.test(k) && (typeof d[k] === 'number' || typeof d[k] === 'string'));
+  if (!detectedKey && !findingsKey && !summaryKey) {
+    let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+    keys.filter(k => k !== 'filename').forEach(k => {
+      const v = d[k];
+      const vStr = Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+      html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> <span style="color:#e2e8f0">' + vStr + '</span></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+  const isPositive = detectedKey ? !d[detectedKey] : (findingsKey ? d[findingsKey].length === 0 : true);
+  const statusIcon = isPositive ? '🟢' : '🔴';
+  const statusText = isPositive ? 'Low Risk' : 'Findings Detected';
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + statusText + '</span>' + (riskKey ? ' <span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">' + d[riskKey] + '</span>' : '') + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + d[confKey] + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
+  if (findingsKey) {
+    html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
+    if (d[findingsKey].length === 0) {
+      html += '<div style="font-size:11px;color:#94a3b8">✅ No vendor-specific or risk components detected.</div>';
+    } else {
+      html += '<div style="display:flex;flex-direction:column;gap:4px">' + d[findingsKey].map(f => '<div style="font-size:11px;color:#e2e8f0">⚠ ' + (typeof f === 'string' ? f : JSON.stringify(f)) + '</div>').join('') + '</div>';
+    }
+  }
+  if (summaryKey) {
+    html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:4px">Summary</div><div style="font-size:11.5px;color:#e2e8f0">' + d[summaryKey] + '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 async function runCryptoScan() {
   if (!files.length) { alert('Upload a file first.'); return; }
