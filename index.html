@@ -2065,7 +2065,19 @@ function formatGenericResult(d, label) {
     if (d[findingsKey].length === 0) {
       html += '<div style="font-size:11px;color:#94a3b8">✅ No vendor-specific or risk components detected.</div>';
     } else {
-      html += '<div style="display:flex;flex-direction:column;gap:4px">' + d[findingsKey].map(f => '<div style="font-size:11px;color:#e2e8f0">⚠ ' + (typeof f === 'string' ? f : JSON.stringify(f)) + '</div>').join('') + '</div>';
+      html += '<div style="display:flex;flex-direction:column;gap:6px">' + d[findingsKey].map(f => {
+      if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + f + '</div>';
+      if (typeof f === 'object' && f !== null) {
+        const fKeys = Object.keys(f);
+        const title = f.issue || f.title || f.name || fKeys[0] ? (f[fKeys[0]]) : 'Finding';
+        const rest = fKeys.filter(k => f[k] !== title);
+        return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#0f1525;border-radius:5px;border-left:2px solid #f59e0b">' +
+          '<div style="font-weight:600;margin-bottom:3px">⚠ ' + title + '</div>' +
+          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#94a3b8">' + f[k] + '</span></div>').join('') +
+        '</div>';
+      }
+      return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + JSON.stringify(f) + '</div>';
+    }).join('') + '</div>';
     }
   }
   if (summaryKey) {
