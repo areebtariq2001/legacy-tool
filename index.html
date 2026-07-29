@@ -1222,13 +1222,27 @@ function detectBankingModules(code) {
   const list = document.getElementById('bankingList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `
+  const grouped = [];
+  const byFn = {};
+  found.forEach(m => {
+    if (m.fn && byFn[m.fn]) {
+      byFn[m.fn].labels.push(m.label);
+      byFn[m.fn].maxConf = Math.max(byFn[m.fn].maxConf, m.conf);
+    } else if (m.fn) {
+      const entry = { labels: [m.label], maxConf: m.conf, fn: m.fn, line: m.line };
+      byFn[m.fn] = entry;
+      grouped.push(entry);
+    } else {
+      grouped.push({ labels: [m.label], maxConf: m.conf, fn: null, line: m.line });
+    }
+  });
+  list.innerHTML = grouped.map(g => `
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #3b82f6;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${m.conf}%</span>
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${g.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${g.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${g.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + g.fn + '()</span> · ' : ''}Line ${g.line}${g.labels.length > 1 ? ' <span style="color:#f59e0b">(this function matches ' + g.labels.length + ' categories)</span>' : ''}</div>
     </div>
   `).join('');
 }
