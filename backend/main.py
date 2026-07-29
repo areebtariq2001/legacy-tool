@@ -2247,13 +2247,16 @@ def analyze_vendor_lockin(source, filename):
     return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": (str(len(findings)) + " vendor dependency type(s) found - migration may require vendor-specific rework") if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
 
 def answer_code_question(source, question, filename):
+    numbered_source = chr(10).join(str(i + 1) + ": " + ln for i, ln in enumerate(source.split(chr(10))))
     prompt = ("You are a senior developer helping someone understand a legacy codebase. "
+              "The code below has line numbers prefixed (e.g. '12: some code'). "
               "Based ONLY on the code below, answer the question clearly and concisely in plain English. "
+              "IMPORTANT: When you reference a specific function, variable, or behavior, cite the line number(s) it appears on, e.g. 'the calculate_interest() function (line 4) does X'. "
               "If the code does not contain enough information to answer, say so honestly. "
               "IMPORTANT: Only describe functionality that is ACTUALLY implemented in the code. Do not infer behavior from function/variable names alone (e.g. a function named 'log' or 'buildLog' that only returns a string, without any file-write or logging-library call, does NOT have a real logging mechanism - describe only what the code literally does).\n\n"
-              "CODE:\n" + source[:6000] + "\n\n"
+              "CODE (with line numbers):\n" + numbered_source[:6500] + "\n\n"
               "QUESTION: " + question + "\n\n"
-              "ANSWER:")
+              "ANSWER (cite line numbers for every function or behavior you mention):")
     try:
         answer = call_ai_provider(prompt, max_tokens=600)
         if not answer or len(answer.strip()) < 3 or answer.startswith("AI_ERROR") or answer.startswith("AI service error"):
