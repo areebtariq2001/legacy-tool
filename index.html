@@ -782,7 +782,7 @@ async function checkBackendHealth() {
     if (r.ok) {
       document.getElementById('liveDot').style.background = '#22c55e';
       document.getElementById('liveLabel').textContent = 'Backend Live';
-      document.getElementById('liveSub').textContent = 'Connected to Render';
+      document.getElementById('liveSub').textContent = 'All systems operational';
     } else {
       throw new Error('bad status');
     }
