@@ -563,6 +563,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="conf-pct" id="confPct" style="color:var(--green)">0%</div>
               </div>
               <div id="changesChecklist" style="display:none;margin-bottom:12px"></div>
+              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#0f1525;border-radius:6px;border-left:2px solid #3b82f6">ℹ️ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong> auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
               <div class="diff-wrap">
                 <div class="diff-pane">
                   <div class="diff-head old">Original Source</div>
