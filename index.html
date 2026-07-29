@@ -1099,11 +1099,12 @@ function detectInsurance(code) {
   const list = document.getElementById('insuranceList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `
+  const grouped = groupByFunction(found);
+  list.innerHTML = grouped.map(m => `
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #8b5cf6;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,0.1);color:#a78bfa">${m.conf}%</span>
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,0.1);color:#a78bfa">${m.maxConf}%</span>
       </div>
       <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
@@ -1139,15 +1140,33 @@ function detectPaymentSystems(code) {
   const list = document.getElementById('paymentList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `
+  const grouped = groupByFunction(found);
+  list.innerHTML = grouped.map(m => `
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #f59e0b;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,0.1);color:#f59e0b">${m.conf}%</span>
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,0.1);color:#f59e0b">${m.maxConf}%</span>
       </div>
       <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
+}
+function groupByFunction(found) {
+  const grouped = [];
+  const byFn = {};
+  found.forEach(m => {
+    if (m.fn && byFn[m.fn]) {
+      byFn[m.fn].labels.push(m.label);
+      byFn[m.fn].maxConf = Math.max(byFn[m.fn].maxConf, m.conf);
+    } else if (m.fn) {
+      const entry = { labels: [m.label], maxConf: m.conf, fn: m.fn, line: m.line };
+      byFn[m.fn] = entry;
+      grouped.push(entry);
+    } else {
+      grouped.push({ labels: [m.label], maxConf: m.conf, fn: null, line: m.line });
+    }
+  });
+  return grouped;
 }
 function detectCompliance(code) {
   const codeLines = code.split(String.fromCharCode(10));
@@ -1179,11 +1198,12 @@ function detectCompliance(code) {
   const list = document.getElementById('complianceList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(m => `
+  const grouped = groupByFunction(found);
+  list.innerHTML = grouped.map(m => `
     <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #ef4444;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.label}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#f87171">${m.conf}%</span>
+        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#f87171">${m.maxConf}%</span>
       </div>
       <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
