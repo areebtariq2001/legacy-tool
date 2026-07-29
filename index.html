@@ -545,11 +545,11 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="changesChecklist" style="display:none;margin-bottom:12px"></div>
               <div class="diff-wrap">
                 <div class="diff-pane">
-                  <div class="diff-head old">Before</div>
+                  <div class="diff-head old">Original Source</div>
                   <div class="diff-body" id="diffOld"></div>
                 </div>
                 <div class="diff-pane">
-                  <div class="diff-head new">After (Migrated)</div>
+                  <div class="diff-head new">Migrated Output</div>
                   <div class="diff-body" id="diffNew"></div>
                 </div>
               </div>
@@ -636,7 +636,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-files">0</span>
               </div>
             </div>
-            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate from detected issues, not a guaranteed figure.</div>
+            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate based on detected issue count and estimated engineering hours × hourly rate. Not a guaranteed figure.</div>
           </div>
         </div>
       </div>
@@ -940,7 +940,11 @@ async function runAnalysis() {
       checklist.innerHTML = '<div style="font-size:10px;color:#64748b;font-weight:600;margin-bottom:6px">Compatibility Changes</div>' +
         allChanges.map(c => {
           const isReview = typeof c === 'string' && c.startsWith('REVIEW NEEDED');
-          const text = isReview ? c.replace('REVIEW NEEDED: ', '') : c;
+          let text = isReview ? c.replace('REVIEW NEEDED: ', '') : c;
+          if (isReview && text.length > 60) {
+            const lineMatch = text.match(/line\(s\)\s+([\d,\s]+)/i);
+            text = (text.split(' - ')[0] || text.substring(0, 50)) + (lineMatch ? '' : '') + ' — see Issues & Recommendations for details.';
+          }
           return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#94a3b8') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
         }).join('');
     }
