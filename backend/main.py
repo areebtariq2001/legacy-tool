@@ -1153,7 +1153,7 @@ def ai_suggest(source, language):
     return {"suggestions": result}
 
 def ai_explain(source, language):
-    prompt = f"You are a programming teacher. Explain this {language} code in simple terms, section by section, so a beginner can understand what it does. IMPORTANT: When mentioning function or variable names, wrap them in backticks (like `function_name`) so underscores render correctly and are not mistaken for markdown formatting:\n\n{source}"
+    prompt = f"You are a senior software engineer and security reviewer explaining {language} code to another developer. Explain the code in simple terms, section by section, so a beginner can understand what it does. IMPORTANT: When mentioning function or variable names, wrap them in backticks (like `function_name`) so underscores render correctly and are not mistaken for markdown formatting. If you notice a genuine security or compliance risk in the code (such as hardcoded credentials, SQL injection risk, weak cryptography, or command injection), add a short 'Risk Notes' section at the end covering, for each risk found: Why it is dangerous, likely Impact if exploited, and a brief suggested fix direction (do not invent specific OWASP numbers unless you are certain they are correct - it is fine to describe the risk category in plain English instead, e.g. 'this is a form of injection risk' rather than citing a specific unverified reference number). Only include the Risk Notes section if there is a genuine risk in the code - do not fabricate risks that are not present:\n\n{source}"
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)

@@ -1,0 +1,16 @@
+FOUND AT LINE: 1401
+1401: async def explain_endpoint(file: UploadFile = File(...)):
+1402:     source = (await file.read()).decode("utf-8", errors='ignore')
+1403:     result = ai_explain(source, detect_language(file.filename))
+1404:     result["filename"] = file.filename
+1405:     track_usage("explain", file.filename)
+1406:     return result
+1407: 
+1408: @app.post("/generate-tests")
+1409: async def generate_tests_endpoint(file: UploadFile = File(...)):
+1410:     source = (await file.read()).decode("utf-8", errors='ignore')
+1411:     result = ai_generate_tests(source, detect_language(file.filename))
+1412:     result["filename"] = file.filename
+1413:     track_usage("generate-tests", file.filename)
+1414:     return result
+1415: 
