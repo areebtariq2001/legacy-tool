@@ -962,7 +962,7 @@ async function runAnalysis() {
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
     const reviewNeededCount = allChanges.filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
-    const migLabel = lang === 'cobol' ? 'Migration ready (COBOL → Python)' : autoAppliedCount === 0 ? 'No changes needed' : autoAppliedCount <= 2 ? 'Compatibility fix ready' : 'Modernization ready';
+    const migLabel = lang === 'cobol' ? 'Migration Ready (COBOL → Python)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
     const ccNote = document.getElementById('changeCountNote');
     if (ccNote) {
       ccNote.style.display = 'block';
@@ -1073,7 +1073,7 @@ function renderResults(R, original, fname, totalMs) {
   healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
   healthChart.update();
   const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
-  const healthNoteText = critCount >= 1 ? 'Critical issue(s) unresolved in migrated code — NOT safe to migrate without manual review.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  const healthNoteText = critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
   document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
   document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
