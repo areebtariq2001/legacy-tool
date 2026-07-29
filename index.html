@@ -377,6 +377,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="crossFileCard" style="display:none">
               <div class="card-head">Cross-File Dependencies <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Files sharing tables or suggested services</span></div>
+              <div id="depChainSVG" style="margin-bottom:10px;overflow-x:auto"></div>
               <div id="crossFileGraph"></div>
             </div>
             <div class="card" id="execSummaryCard" style="display:none">
@@ -1599,6 +1600,55 @@ function renderKnowledgeGraph() {
     </div>
   `).join('');
 }
+function renderDependencyChainSVG() {
+  const container = document.getElementById('depChainSVG');
+  if (!container) return;
+  const files_ = sessionFileResults;
+  const allTables = [...new Set(files_.flatMap(f => f.tables))];
+  const allCopybooks = [...new Set(files_.flatMap(f => f.copybooks || []))];
+  const allServices = [...new Set(files_.flatMap(f => f.services))];
+  const layers = [
+    { items: files_.map(f => f.fname), y: 20, color: '#60a5fa', label: 'Program' },
+  ];
+  if (allTables.length > 0) layers.push({ items: allTables, y: 0, color: '#4ade80', label: 'DB Table' });
+  if (allCopybooks.length > 0) layers.push({ items: allCopybooks, y: 0, color: '#a78bfa', label: 'Copybook' });
+  if (allServices.length > 0) layers.push({ items: allServices, y: 0, color: '#fbbf24', label: 'Suggested Service' });
+  if (layers.length < 2) { container.innerHTML = ''; return; }
+  const boxH = 26, boxGapX = 14, layerGapY = 60;
+  let svgContent = '';
+  const positions = [];
+  layers.forEach((layer, li) => {
+    const y = 20 + li * layerGapY;
+    const totalW = layer.items.length * 130;
+    layer.items.forEach((item, ii) => {
+      const x = ii * 140 + 10;
+      positions.push({ layer: li, item, x, y, w: 130 });
+      svgContent += '<rect x="' + x + '" y="' + y + '" width="130" height="' + boxH + '" rx="5" fill="#0f1525" stroke="' + layer.color + '" stroke-width="1.3"/>';
+      const shortLabel = item.length > 18 ? item.substring(0, 16) + '…' : item;
+      svgContent += '<text x="' + (x + 65) + '" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="' + layer.color + '" font-size="9" font-family="monospace">' + shortLabel + '</text>';
+    });
+  });
+  let linesContent = '';
+  for (let li = 0; li < layers.length - 1; li++) {
+    files_.forEach(f => {
+      const fromItems = li === 0 ? [f.fname] : (layers[li].label === 'DB Table' ? f.tables : layers[li].label === 'Copybook' ? (f.copybooks || []) : f.services);
+      const toItems = layers[li + 1].label === 'DB Table' ? f.tables : layers[li + 1].label === 'Copybook' ? (f.copybooks || []) : f.services;
+      fromItems.forEach(fi => {
+        toItems.forEach(ti => {
+          const p1 = positions.find(p => p.layer === li && p.item === fi);
+          const p2 = positions.find(p => p.layer === li + 1 && p.item === ti);
+          if (p1 && p2) {
+            linesContent += '<line x1="' + (p1.x + 65) + '" y1="' + (p1.y + boxH) + '" x2="' + (p2.x + 65) + '" y2="' + p2.y + '" stroke="#243350" stroke-width="1"/>';
+          }
+        });
+      });
+    });
+  }
+  const maxItemsInLayer = Math.max(...layers.map(l => l.items.length));
+  const svgW = Math.max(400, maxItemsInLayer * 140 + 20);
+  const svgH = 20 + layers.length * layerGapY + 10;
+  container.innerHTML = '<svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '">' + linesContent + svgContent + '</svg>';
+}
 function renderCapabilityMap() {
   const card = document.getElementById('capabilityCard');
   const list = document.getElementById('capabilityList');
@@ -1695,8 +1745,10 @@ function renderCrossFileGraph() {
     }
   }
   const card = document.getElementById('crossFileCard');
-  if (edges.length === 0) { card.style.display = 'none'; return; }
+  if (sessionFileResults.length < 2) { card.style.display = 'none'; return; }
   card.style.display = 'block';
+  renderDependencyChainSVG();
+  if (edges.length === 0) { el.innerHTML = '<div style="font-size:10px;color:#64748b">No files in this session share a table or service - each analyzed file appears independent so far.</div>'; return; }
   el.innerHTML = edges.map(e => `
     <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#0f1525;border-radius:6px;margin-bottom:4px">
       <span style="color:#60a5fa;font-family:monospace">${e.from}</span>
