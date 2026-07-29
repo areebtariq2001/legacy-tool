@@ -1688,7 +1688,8 @@ function logAuditEntry(action) {
 function downloadAuditLog() {
   if (auditLog.length === 0) { alert('No audit entries yet. Approve or reject a migration first.'); return; }
   const csvRows = ['Timestamp,File,Action,Confidence,Critical Issues'];
-  auditLog.forEach(e => { csvRows.push(e.timestamp + ',' + e.file + ',' + e.action + ',' + e.confidence + ',' + e.criticalIssues); });
+  const csvSafe = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  auditLog.forEach(e => { csvRows.push([e.timestamp, csvSafe(e.file), e.action, e.confidence, e.criticalIssues].join(',')); });
   const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
