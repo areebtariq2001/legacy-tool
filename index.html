@@ -411,9 +411,28 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Recommended Microservices <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Microservice Advisor - derived from detected business rules</span></div>
               <div id="microserviceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
+            <div class="card">
+              <div class="card-head">Modernization Roadmap <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Suggested phases, board-ready</span></div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="padding:8px 10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:4px"><span style="font-size:10px;color:#f87171;font-weight:700">PHASE 1</span> <span style="font-size:11px;color:#f1f5f9">Fix Security & Compliance Issues</span></div>
+                <div style="text-align:center;color:#334155;font-size:10px">↓</div>
+                <div style="padding:8px 10px;background:rgba(245,158,11,0.08);border-left:3px solid #f59e0b;border-radius:4px"><span style="font-size:10px;color:#f59e0b;font-weight:700">PHASE 2</span> <span style="font-size:11px;color:#f1f5f9">Extract Business Rules</span></div>
+                <div style="text-align:center;color:#334155;font-size:10px">↓</div>
+                <div style="padding:8px 10px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;border-radius:4px"><span style="font-size:10px;color:#22c55e;font-weight:700">PHASE 3</span> <span style="font-size:11px;color:#f1f5f9">Generate APIs from Legacy Logic</span></div>
+                <div style="text-align:center;color:#334155;font-size:10px">↓</div>
+                <div style="padding:8px 10px;background:rgba(59,130,246,0.08);border-left:3px solid #3b82f6;border-radius:4px"><span style="font-size:10px;color:#60a5fa;font-weight:700">PHASE 4</span> <span style="font-size:11px;color:#f1f5f9">Split into Microservices</span></div>
+                <div style="text-align:center;color:#334155;font-size:10px">↓</div>
+                <div style="padding:8px 10px;background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;border-radius:4px"><span style="font-size:10px;color:#a78bfa;font-weight:700">PHASE 5</span> <span style="font-size:11px;color:#f1f5f9">Cloud-Ready Deployment</span></div>
+              </div>
+              <div style="font-size:9px;color:#64748b;margin-top:8px">Generic reference roadmap - not customized to this specific codebase.</div>
+            </div>
             <div class="card" id="regComplianceCard" style="display:none">
               <div class="card-head">Regulatory Compliance <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Compliance Detection</span></div>
               <div id="regComplianceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+            <div class="card" id="batchJobsCard" style="display:none">
+              <div class="card-head">Detected Batch Jobs <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Banking Batch Intelligence</span></div>
+              <div id="batchJobsList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
             <div class="card" id="domainCard" style="display:none">
               <div class="card-head">Banking Domain Detection <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Domain Classification</span></div>
@@ -993,6 +1012,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
+  detectBatchJobs(original);
   detectBankingModules(original);
   detectCompliance(original);
   detectPaymentSystems(original);
@@ -1208,6 +1228,23 @@ function detectCompliance(code) {
       <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
+}
+function detectBatchJobs(code) {
+  const lower = code.toLowerCase();
+  const jobs = [
+    { label: 'End Of Day (EOD)', patterns: ['eod', 'end_of_day', 'end-of-day'] },
+    { label: 'End Of Month (EOM)', patterns: ['eom', 'end_of_month', 'end-of-month'] },
+    { label: 'Daily Settlement', patterns: ['settlement', 'settle_batch'] },
+    { label: 'Interest Posting', patterns: ['interest_posting', 'post_interest', 'interest posting'] },
+    { label: 'Night Batch', patterns: ['night_batch', 'nightly_batch', 'batch_job'] },
+    { label: 'Reconciliation', patterns: ['reconcile', 'reconciliation'] },
+  ];
+  const found = jobs.filter(j => j.patterns.some(p => lower.includes(p)));
+  const card = document.getElementById('batchJobsCard');
+  const list = document.getElementById('batchJobsList');
+  if (found.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = found.map(j => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(20,184,166,0.1);color:#2dd4bf;border:1px solid rgba(20,184,166,0.25)">✓ ${j.label}</span>`).join('');
 }
 function detectBankingModules(code) {
   const codeLines = code.split(String.fromCharCode(10));
