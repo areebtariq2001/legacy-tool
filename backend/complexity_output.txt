@@ -1,0 +1,31 @@
+FOUND AT LINE: 266
+266: def calculate_complexity(source):
+267:     keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
+268:     score = 1
+269:     for kw in keywords:
+270:         score += source.count(kw)
+271:     if score <= 5:
+272:         level = "Low complexity"
+273:     elif score <= 10:
+274:         level = "Moderate complexity"
+275:     elif score <= 20:
+276:         level = "High complexity"
+277:     else:
+278:         level = "Very high complexity"
+279:     return {"complexity_score": score, "complexity_level": level}
+280: 
+281: def calculate_tech_debt(source, filename=""):
+282:     items = []
+283:     total_count = 0
+284:     total_minutes = 0
+285:     active_rules = list(DEBT_RULES_COMPILED)
+286:     if filename.lower().endswith(".java"):
+287:         active_rules += JAVA_DEBT_RULES_COMPILED
+288:     elif filename.lower().endswith(".php"):
+289:         active_rules += PHP_DEBT_RULES_COMPILED
+290:     elif filename.lower().endswith(".cbl") or filename.lower().endswith(".cob"):
+291:         active_rules += COBOL_DEBT_RULES_COMPILED
+292:     for pattern, label, mins in active_rules:
+293:         matches = pattern.findall(source)
+294:         count = len(matches)
+295:         if count > 0:

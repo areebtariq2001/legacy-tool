@@ -265,9 +265,15 @@ COBOL_DEBT_RULES_COMPILED = [
 
 def calculate_complexity(source):
     keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
-    score = 1
+    raw_score = 1
     for kw in keywords:
-        score += source.count(kw)
+        raw_score += source.count(kw)
+    func_patterns = [r"\bdef\s+\w+\s*\(", r"\bfunction\s+\w+\s*\(", r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("]
+    func_count = 0
+    for fp in func_patterns:
+        func_count += len(re.findall(fp, source))
+    func_count = max(1, func_count)
+    score = round(raw_score / func_count, 1) if func_count > 1 else raw_score
     if score <= 5:
         level = "Low complexity"
     elif score <= 10:
@@ -276,7 +282,8 @@ def calculate_complexity(source):
         level = "High complexity"
     else:
         level = "Very high complexity"
-    return {"complexity_score": score, "complexity_level": level}
+    return {"complexity_score": score, "complexity_level": level, "raw_keyword_count": raw_score, "estimated_functions": func_count}
+
 
 def calculate_tech_debt(source, filename=""):
     items = []

@@ -1,0 +1,8 @@
+266: def calculate_complexity(source):
+306:         _comp = calculate_complexity(source)
+1364:         comp = calculate_complexity(source)
+3126:     comp = calculate_complexity(source)
+3218:     orig = calculate_complexity(original_code)
+3219:     mig = calculate_complexity(migrated_code)
+3504:     comp = calculate_complexity(source)
+3781:     complexity = calculate_complexity(source)
