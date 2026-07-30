@@ -45,45 +45,41 @@ async def cors_handler(request: Request, call_next):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
-STATS_FILE = "stats.json"
+import threading
+_stats_lock = threading.Lock()
+_in_memory_stats = {"total_files": 0, "total_migrations": 0, "total_analyses": 0, "logs": []}
+_in_memory_audit_log = []
 
 def load_stats():
-    try:
-        with open(STATS_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"total_files": 0, "total_migrations": 0, "total_analyses": 0, "logs": []}
+    with _stats_lock:
+        return dict(_in_memory_stats)
 
 def save_stats(stats):
-    try:
-        with open(STATS_FILE, "w") as f:
-            json.dump(stats, f)
-    except:
-        pass
+    with _stats_lock:
+        _in_memory_stats.update(stats)
 
 def write_audit_log(action, filename, result_summary):
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_line = f"[{timestamp}] action={action} | file={filename} | result={result_summary}\n"
-        with open("audit_log.txt", "a", encoding="utf-8") as f:
-            f.write(log_line)
+        with _stats_lock:
+            _in_memory_audit_log.insert(0, f"[{timestamp}] action={action} | file={filename} | result={result_summary}")
+            del _in_memory_audit_log[50:]
     except:
         pass
 
 def track_usage(action, filename):
-    stats = load_stats()
-    stats["total_files"] += 1
-    if "migrate" in action:
-        stats["total_migrations"] += 1
-    elif "analyze" in action:
-        stats["total_analyses"] += 1
-    stats["logs"].insert(0, {
-        "action": action,
-        "filename": filename,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-    stats["logs"] = stats["logs"][:50]
-    save_stats(stats)
+    with _stats_lock:
+        _in_memory_stats["total_files"] += 1
+        if "migrate" in action:
+            _in_memory_stats["total_migrations"] += 1
+        elif "analyze" in action:
+            _in_memory_stats["total_analyses"] += 1
+        _in_memory_stats["logs"].insert(0, {
+            "action": action,
+            "filename": filename,
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        del _in_memory_stats["logs"][50:]
 
 def call_ollama(prompt):
     import requests as _req
@@ -1424,38 +1420,33 @@ def get_stats():
 
 @app.get("/audit-log")
 def get_audit_log():
-    try:
-        with open("audit_log.txt", "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        return {"total_entries": len(lines), "recent": lines[-50:]}
-    except:
-        return {"total_entries": 0, "recent": []}
+    with _stats_lock:
+        recent = list(_in_memory_audit_log[:50])
+    return {"total_entries": len(recent), "recent": recent}
 
 @app.get("/audit-log-json")
 def get_audit_log_json():
     entries = []
-    try:
-        with open("audit_log.txt", "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                entry = {"raw": line}
-                try:
-                    if line.startswith("["):
-                        entry["timestamp"] = line.split("]")[0][1:]
-                    if "action=" in line:
-                        entry["action"] = line.split("action=")[1].split(" |")[0].strip()
-                    if "file=" in line:
-                        entry["file"] = line.split("file=")[1].split(" |")[0].strip()
-                    if "result=" in line:
-                        entry["result"] = line.split("result=")[1].strip()
-                except:
-                    pass
-                entries.append(entry)
-        return {"audit_ready": True, "total_entries": len(entries), "entries": entries[-100:]}
-    except:
-        return {"audit_ready": True, "total_entries": 0, "entries": []}
+    with _stats_lock:
+        raw_lines = list(_in_memory_audit_log)
+    for line in raw_lines:
+        line = line.strip()
+        if not line:
+            continue
+        entry = {"raw": line}
+        try:
+            if line.startswith("["):
+                entry["timestamp"] = line.split("]")[0][1:]
+            if "action=" in line:
+                entry["action"] = line.split("action=")[1].split(" |")[0].strip()
+            if "file=" in line:
+                entry["file"] = line.split("file=")[1].split(" |")[0].strip()
+            if "result=" in line:
+                entry["result"] = line.split("result=")[1].strip()
+        except:
+            pass
+        entries.append(entry)
+    return {"audit_ready": True, "total_entries": len(entries), "entries": entries[:100]}
 
 SENSITIVE_PATTERNS = [
     (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
