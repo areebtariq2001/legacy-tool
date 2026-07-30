@@ -674,7 +674,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
         </div>
       </div>
       <div class="g4">
-        <div class="stat" style="--al:var(--blue)"><div class="stat-val" style="color:var(--blue-l)">69</div><div class="stat-lbl">Total Features</div><div class="stat-sub">All live and tested</div></div>
+        <div class="stat" style="--al:var(--blue)"><div class="stat-val" style="color:var(--blue-l)">72</div><div class="stat-lbl">Backend Capabilities</div><div class="stat-sub">Live and tested</div></div>
         <div class="stat" style="--al:var(--green)"><div class="stat-val" style="color:var(--green)" id="dash-approved">0</div><div class="stat-lbl">Approved Migrations</div><div class="stat-sub">This session</div></div>
         <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="dash-conf">—</div><div class="stat-lbl">Last Confidence</div><div class="stat-sub">Run analysis first</div></div>
         <div class="stat" style="--al:var(--red)"><div class="stat-val" style="color:var(--red)" id="dash-issues">—</div><div class="stat-lbl">Issues Found</div><div class="stat-sub">Last scan</div></div>
@@ -749,10 +749,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
     <div class="page" id="page-roi">
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">ROI & Technical Debt</div><div style="font-size:12px;color:var(--t3)">Quantify tech debt in dollars. Show leadership the real cost of legacy code.</div></div>
       <div class="g4">
-        <div class="stat" style="--al:var(--red)"><div class="stat-val" style="color:var(--red)">$—</div><div class="stat-lbl">Total Debt</div><div class="stat-sub">Upload to calculate</div></div>
-        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At $85/hr dev rate</div></div>
-        <div class="stat" style="--al:var(--green)"><div class="stat-val" style="color:var(--green)">$—</div><div class="stat-lbl">Breach Risk Cost</div><div class="stat-sub">Security gap exposure</div></div>
-        <div class="stat" style="--al:var(--purple)"><div class="stat-val" style="color:var(--purple)">—</div><div class="stat-lbl">Debt Score</div><div class="stat-sub">1–100 scale</div></div>
+        <div class="stat" style="--al:var(--red)"><div class="stat-val" style="color:var(--red)" id="roi-debt">$—</div><div class="stat-lbl">Total Debt</div><div class="stat-sub">Upload to calculate</div></div>
+        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="roi-hours">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At $15/hr dev rate</div></div>
+        <div class="stat" style="--al:var(--green)"><div class="stat-val" style="color:var(--green)" id="roi-breach">$—</div><div class="stat-lbl">Breach Risk Cost</div><div class="stat-sub">Security gap exposure</div></div>
+        <div class="stat" style="--al:var(--purple)"><div class="stat-val" style="color:var(--purple)" id="roi-score">—</div><div class="stat-lbl">Debt Score</div><div class="stat-sub">1–100 scale</div></div>
       </div>
       <div class="card"><div class="empty"><div class="empty-title">Upload files to calculate ROI</div><div class="empty-sub">StarBuild estimates tech debt, fix hours, and breach risk costs for your codebase.</div></div></div>
     </div>
@@ -1072,6 +1072,16 @@ function renderResults(R, original, fname, totalMs) {
   const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
   const compScore = critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5));
   renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct);
+  const roiFixHours = (critCount * 2 + warnCount * 1) || 0.5;
+  const roiTotalDebt = Math.round(roiFixHours * 15);
+  const roiBreachCost = critCount >= 1 ? Math.round(roiTotalDebt * 8) : 0;
+  const roiDebtEl = document.getElementById('roi-debt');
+  if (roiDebtEl) {
+    roiDebtEl.textContent = '$' + roiTotalDebt;
+    document.getElementById('roi-hours').textContent = roiFixHours.toFixed(1);
+    document.getElementById('roi-breach').textContent = critCount >= 1 ? '$' + roiBreachCost.toLocaleString() : '$0';
+    document.getElementById('roi-score').textContent = debtScore;
+  }
   const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
   document.getElementById('healthNum').textContent = overall;
   healthChart.data.datasets[0].data = [overall, 100 - overall];
