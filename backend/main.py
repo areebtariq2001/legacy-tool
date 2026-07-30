@@ -94,8 +94,7 @@ def call_ollama(prompt):
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
 
 def get_ai_response(prompt):
-    import os as _os
-    provider = _os.environ.get("AI_PROVIDER", "groq").lower()
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
         if "not reachable" not in result and "error" not in result.lower()[:50]:
@@ -114,6 +113,8 @@ def call_ai_provider(prompt, max_tokens=500):
 
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    if not GROQ_API_KEY:
+        return "AI_ERROR: GROQ_API_KEY is not configured on the server."
     try:
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
