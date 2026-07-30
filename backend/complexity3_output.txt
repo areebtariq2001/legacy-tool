@@ -1,0 +1,26 @@
+FOUND AT LINE: 266
+266: def calculate_complexity(source):
+267:     keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
+268:     raw_score = 1
+269:     for kw in keywords:
+270:         raw_score += source.count(kw)
+271:     func_patterns = [r"\bdef\s+\w+\s*\(", r"\bfunction\s+\w+\s*\(", r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("]
+272:     func_count = 0
+273:     for fp in func_patterns:
+274:         func_count += len(re.findall(fp, source))
+275:     func_count = max(1, func_count)
+276:     score = round(raw_score / func_count, 1) if func_count > 1 else raw_score
+277:     if score <= 5:
+278:         level = "Low complexity"
+279:     elif score <= 10:
+280:         level = "Moderate complexity"
+281:     elif score <= 20:
+282:         level = "High complexity"
+283:     else:
+284:         level = "Very high complexity"
+285:     return {"complexity_score": score, "complexity_level": level, "raw_keyword_count": raw_score, "estimated_functions": func_count}
+286: 
+287: 
+288: def calculate_tech_debt(source, filename=""):
+289:     items = []
+290:     total_count = 0

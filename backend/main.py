@@ -263,17 +263,51 @@ COBOL_DEBT_RULES_COMPILED = [
     (re.compile(r"(?i)ALTER\s"), "ALTER statement (deprecated, dynamic GOTO)", 20),
 ]
 
+def _ast_complexity_python(source):
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return None
+    func_scores = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            complexity = 1
+            for child in ast.walk(node):
+                if isinstance(child, (ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler, ast.With, ast.AsyncWith)):
+                    complexity += 1
+                elif isinstance(child, ast.BoolOp):
+                    complexity += max(0, len(child.values) - 1)
+                elif isinstance(child, ast.IfExp):
+                    complexity += 1
+                elif isinstance(child, (ast.comprehension,)):
+                    complexity += len(child.ifs)
+            func_scores.append(complexity)
+    if not func_scores:
+        return None
+    avg_score = round(sum(func_scores) / len(func_scores), 1)
+    max_score = max(func_scores)
+    return {"avg": avg_score, "max": max_score, "func_count": len(func_scores)}
+
 def calculate_complexity(source):
-    keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
-    raw_score = 1
-    for kw in keywords:
-        raw_score += source.count(kw)
-    func_patterns = [r"\bdef\s+\w+\s*\(", r"\bfunction\s+\w+\s*\(", r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("]
-    func_count = 0
-    for fp in func_patterns:
-        func_count += len(re.findall(fp, source))
-    func_count = max(1, func_count)
-    score = round(raw_score / func_count, 1) if func_count > 1 else raw_score
+    ast_result = _ast_complexity_python(source)
+    if ast_result is not None:
+        score = ast_result["avg"]
+        method = "ast"
+        func_count = ast_result["func_count"]
+        extra = {"max_function_complexity": ast_result["max"], "method": "ast (McCabe cyclomatic complexity, averaged per function)"}
+    else:
+        keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
+        raw_score = 1
+        for kw in keywords:
+            raw_score += source.count(kw)
+        func_patterns = [r"\bdef\s+\w+\s*\(", r"\bfunction\s+\w+\s*\(", r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("]
+        func_count = 0
+        for fp in func_patterns:
+            func_count += len(re.findall(fp, source))
+        func_count = max(1, func_count)
+        score = round(raw_score / func_count, 1) if func_count > 1 else raw_score
+        method = "keyword-heuristic"
+        extra = {"method": "keyword-based heuristic (approximate - full parser not available for this language)"}
     if score <= 5:
         level = "Low complexity"
     elif score <= 10:
@@ -282,7 +316,10 @@ def calculate_complexity(source):
         level = "High complexity"
     else:
         level = "Very high complexity"
-    return {"complexity_score": score, "complexity_level": level, "raw_keyword_count": raw_score, "estimated_functions": func_count}
+    result = {"complexity_score": score, "complexity_level": level, "estimated_functions": func_count}
+    result.update(extra)
+    return result
+
 
 
 def calculate_tech_debt(source, filename=""):
