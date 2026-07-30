@@ -1196,6 +1196,10 @@ def safe_read_file(content_bytes, filename):
     return source, None
 
 # ---------- ENDPOINTS ----------
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": "1.0"}
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     try:
