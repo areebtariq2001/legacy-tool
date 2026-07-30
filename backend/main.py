@@ -160,14 +160,47 @@ WHY_RULES = [
     ("except", "Python 3 requires the 'except Exception as e' syntax. The old comma form 'except Exception, e' was removed."),
 ]
 
-def get_why_explanations(original_source):
+JAVA_WHY_RULES = [
+    ("Vector", "Vector is a legacy synchronized collection from Java 1.0. ArrayList is preferred unless thread-safety is specifically required."),
+    ("Hashtable", "Hashtable is a legacy synchronized map. HashMap or ConcurrentHashMap is the modern equivalent."),
+    ("StringBuffer", "StringBuffer is synchronized and slower than StringBuilder. Use StringBuilder unless multiple threads mutate the same instance."),
+    ("System.out.println", "Direct println calls are hard to control in production. A logging framework such as SLF4J allows log levels and centralized output."),
+]
+
+PHP_WHY_RULES = [
+    ("mysql_", "The mysql_ extension was removed in PHP 7. mysqli or PDO should be used instead, and both support prepared statements which also prevent SQL injection."),
+    ("each(", "each() was removed in PHP 8. Use a foreach loop instead, which is simpler and faster."),
+    ("create_function", "create_function() was removed in PHP 8 due to security risks. Use an anonymous function (closure) instead."),
+]
+
+COBOL_WHY_RULES = [
+    ("GO TO", "GO TO creates unstructured control flow that is difficult to trace and migrate automatically."),
+    ("REDEFINES", "REDEFINES reinterprets the same memory as a different data type, which has no direct equivalent in modern languages."),
+    ("ALTER", "The ALTER statement dynamically changes a GO TO target at runtime and needs manual review to convert safely."),
+]
+
+def get_why_explanations(original_source, language="python"):
     explanations = []
-    if "print " in original_source and not "print(" in original_source.split("print ")[0][-5:]:
-        explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
-    for keyword, reason in WHY_RULES:
-        if keyword in original_source:
-            explanations.append({"change": keyword, "why": reason})
+    if language == "python":
+        if "print " in original_source and not "print(" in original_source.split("print ")[0][-5:]:
+            explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
+        for keyword, reason in WHY_RULES:
+            if keyword in original_source:
+                explanations.append({"change": keyword, "why": reason})
+    elif language == "java":
+        for keyword, reason in JAVA_WHY_RULES:
+            if keyword in original_source:
+                explanations.append({"change": keyword, "why": reason})
+    elif language == "php":
+        for keyword, reason in PHP_WHY_RULES:
+            if keyword in original_source:
+                explanations.append({"change": keyword, "why": reason})
+    elif language == "cobol":
+        for keyword, reason in COBOL_WHY_RULES:
+            if keyword.upper() in original_source.upper():
+                explanations.append({"change": keyword, "why": reason})
     return explanations
+
 
 # ---------- DEPENDENCY REQUIREMENTS ----------
 DEPENDENCY_RULES = [
