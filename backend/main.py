@@ -212,6 +212,24 @@ DEBT_RULES = [
     (r'\bboto\b', "boto (AWS legacy)", 90),
 ]
 
+DEBT_RULES_COMPILED = [(re.compile(p), l, m) for p, l, m in DEBT_RULES]
+JAVA_DEBT_RULES_COMPILED = [
+    (re.compile(r"\bVector\b"), "Vector (legacy collection)", 5),
+    (re.compile(r"\bHashtable\b"), "Hashtable (legacy collection)", 5),
+    (re.compile(r"\bStringBuffer\b"), "StringBuffer (use StringBuilder)", 5),
+    (re.compile(r"System\.out\.println"), "System.out.println (use logging framework)", 5),
+]
+PHP_DEBT_RULES_COMPILED = [
+    (re.compile(r"\bmysql_\w+\b"), "mysql_* (deprecated, use mysqli/PDO)", 10),
+    (re.compile(r"\beach\("), "each() (removed in PHP 8)", 5),
+    (re.compile(r"\bcreate_function\b"), "create_function() (removed in PHP 8)", 5),
+]
+COBOL_DEBT_RULES_COMPILED = [
+    (re.compile(r"(?i)GO\s+TO"), "GO TO (unstructured control flow)", 10),
+    (re.compile(r"(?i)REDEFINES"), "REDEFINES (implicit type reinterpretation, hard to migrate)", 15),
+    (re.compile(r"(?i)ALTER\s"), "ALTER statement (deprecated, dynamic GOTO)", 20),
+]
+
 def calculate_complexity(source):
     keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
     score = 1
@@ -231,15 +249,15 @@ def calculate_tech_debt(source, filename=""):
     items = []
     total_count = 0
     total_minutes = 0
-    active_rules = list(DEBT_RULES)
+    active_rules = list(DEBT_RULES_COMPILED)
     if filename.lower().endswith(".java"):
-        active_rules += [(r"\bVector\b", "Vector (legacy collection)", 5), (r"\bHashtable\b", "Hashtable (legacy collection)", 5), (r"\bStringBuffer\b", "StringBuffer (use StringBuilder)", 5), (r"System\.out\.println", "System.out.println (use logging framework)", 5)]
+        active_rules += JAVA_DEBT_RULES_COMPILED
     elif filename.lower().endswith(".php"):
-        active_rules += [(r"\bmysql_\w+\b", "mysql_* (deprecated, use mysqli/PDO)", 10), (r"\beach\(", "each() (removed in PHP 8)", 5), (r"\bcreate_function\b", "create_function() (removed in PHP 8)", 5)]
+        active_rules += PHP_DEBT_RULES_COMPILED
     elif filename.lower().endswith(".cbl") or filename.lower().endswith(".cob"):
-        active_rules += [(r"(?i)GO\s+TO", "GO TO (unstructured control flow)", 10), (r"(?i)REDEFINES", "REDEFINES (implicit type reinterpretation, hard to migrate)", 15), (r"(?i)ALTER\s", "ALTER statement (deprecated, dynamic GOTO)", 20)]
+        active_rules += COBOL_DEBT_RULES_COMPILED
     for pattern, label, mins in active_rules:
-        matches = re.findall(pattern, source)
+        matches = pattern.findall(source)
         count = len(matches)
         if count > 0:
             items.append({
