@@ -88,7 +88,7 @@ def track_usage(action, filename):
 def call_ollama(prompt):
     import requests as _req
     try:
-        r = _req.post("http://localhost:11434/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=180)
+        r = _req.post(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=180)
         return r.json().get("response", "No response from local model.")
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
@@ -129,7 +129,7 @@ def call_groq(prompt, max_tokens=500):
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=180
+            timeout=45
         )
         result = response.json()
         if "choices" in result:
