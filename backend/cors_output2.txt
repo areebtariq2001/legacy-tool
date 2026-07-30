@@ -1,0 +1,45 @@
+1: from fastapi import FastAPI, UploadFile, File, Request
+2: from fastapi.responses import Response, JSONResponse
+3: from fastapi.middleware.cors import CORSMiddleware
+4: from pydantic import BaseModel
+5: import ast
+6: import re
+7: import os
+8: import requests
+9: import json
+10: from datetime import datetime
+11: 
+12: try:
+13:     import javalang
+14:     JAVALANG_AVAILABLE = True
+15: except:
+16:     JAVALANG_AVAILABLE = False
+17: 
+18: app = FastAPI()
+19: 
+20: app.add_middleware(
+21:     CORSMiddleware,
+22:     allow_origins=["*"],
+23:     allow_credentials=False,
+24:     allow_methods=["*"],
+25:     allow_headers=["*"],
+26:     expose_headers=["*"],
+27: )
+28: 
+29: @app.middleware("http")
+30: async def cors_handler(request: Request, call_next):
+31:     if request.method == "OPTIONS":
+32:         return JSONResponse(
+33:             content={},
+34:             status_code=200,
+35:             headers={
+36:                 "Access-Control-Allow-Origin": "*",
+37:                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+38:                 "Access-Control-Allow-Headers": "*",
+39:                 "Access-Control-Max-Age": "86400",
+40:             }
+41:         )
+42:     response = await call_next(request)
+43:     response.headers["Access-Control-Allow-Origin"] = "*"
+44:     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+45:     response.headers["Access-Control-Allow-Headers"] = "*"
