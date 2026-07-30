@@ -804,7 +804,7 @@ async function checkBackendHealth() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
-    const r = await fetch(BACKEND + '/', { method: 'GET', signal: controller.signal });
+    const r = await fetch(BACKEND + '/health', { method: 'GET', signal: controller.signal });
     clearTimeout(timeoutId);
     if (r.ok) {
       document.getElementById('liveDot').style.background = '#22c55e';
