@@ -1,0 +1,21 @@
+1350: @app.post("/analyze")
+1351: async def analyze(file: UploadFile = File(...)):
+1352:     try:
+1353:         content = await file.read()
+1354:         source, error = safe_read_file(content, file.filename)
+1355:         if error:
+1356:             return {"filename": file.filename, "error": error}
+1357:         result = analyze_code(source)
+1358:         result["filename"] = file.filename
+1359:         track_usage("analyze", file.filename)
+1360:         write_audit_log("analyze", file.filename, f"issues={len(result.get('issues', []))}")
+1361:         return result
+1362:     except Exception as e:
+1363:         return {"filename": file.filename, "error": f"Analysis failed safely: {str(e)}"}
+1364: 
+1365: @app.post("/migrate")
+1366: async def migrate(file: UploadFile = File(...)):
+1367:     try:
+1368:         content = await file.read()
+1369:         source, error = safe_read_file(content, file.filename)
+1370:         if error:

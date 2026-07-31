@@ -1,0 +1,34 @@
+767: def ai_advanced_migrate(source, language):
+768:     code_lines = [ln for ln in source.split("\n") if ln.strip() and not ln.strip().startswith("#")]
+769:     if not code_lines:
+770:         if language == "python":
+771:             return {
+772:                 "migrated_code": source, "ai_powered": True, "valid": True,
+773:                 "validation_message": "File has no executable code (empty or comments only).",
+774:                 "verified": True, "verify_message": "Nothing to verify - no executable code.",
+775:                 "vars_ok": True, "var_message": "", "confidence_score": 100,
+776:                 "confidence_level": "High confidence", "confidence_reason": "no executable code to migrate",
+777:                 "why_explanations": [], "dependencies": []
+778:             }
+779:         else:
+780:             return {"migrated_code": source, "ai_powered": True,
+781:                     "valid": True, "validation_message": "File has no executable code.",
+782:                     "confidence_score": 100, "confidence_level": "High confidence",
+783:                     "confidence_reason": "no executable code to migrate"}
+784:     prompt = (
+785:         f"You are an expert {language} developer. "
+786:         f"Convert this legacy {language} code to modern {language}. "
+787:         f"ONLY fix syntax and APIs that are strictly required for modern {language} compatibility. "
+788:         f"Do NOT rename any variables, functions, or classes. "
+789:         f"Do NOT add or remove comments. Do NOT change formatting, logic, or style. "
+790:         f"Keep everything exactly the same except the required fixes. "
+791:         f"CRITICAL: If the language is COBOL, this is an extremely high-risk conversion - only use standard COBOL divisions (IDENTIFICATION, ENVIRONMENT, DATA, PROCEDURE), standard sections (WORKING-STORAGE, FILE), and standard verbs (MOVE, DISPLAY, PERFORM, IF, COMPUTE, ACCEPT, STOP RUN, CALL). NEVER invent non-standard divisions/sections (like SECURITY AREA) or non-standard function calls that do not exist in real COBOL. Keep line numbers/sequence in the original order - never reorder statements. If uncertain about correct COBOL syntax for a construct, leave that line unchanged rather than guessing. "
+792:         f"CRITICAL: Do NOT replace hardcoded literal values (strings, numbers) with new variable names (e.g. do NOT change $db_host = \x27localhost\x27 into using an undefined $config['db_host'] or similar) unless that variable is already defined elsewhere in the same file. Any variable you reference in the output MUST already exist in the original code or be defined by you in the same file - never introduce an undefined variable. "
+793:         f"Return ONLY the converted code, no explanations, no markdown.\n\n"
+794:         f"Legacy code:\n{source}"
+795:     )
+796:     result = call_ai_provider(prompt, max_tokens=2000)
+797:     if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
+798:         rule_result = migrate_code(source) if language == "python" else (migrate_java(source) if language == "java" else {"migrated_code": source})
+799:         fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+800:         try:

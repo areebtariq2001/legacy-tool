@@ -1,0 +1,6 @@
+FOUND 'exec ' at char 30246
+use built-in filter()"),
+        ('.sort(cmp=', "sort(cmp=...) found - use key= instead"),
+        ('exec ', "exec statement found - use exec() function"),
+        ('<>', "<> operator found - use !="),
+        ('apply(', "apply() found - use func(*ar
