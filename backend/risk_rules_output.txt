@@ -1,0 +1,13 @@
+FOUND AT LINE: 391
+391: RISK_RULES = [
+392:     ("MySQLdb", "Database", "High", "MySQLdb (MySQL driver) is not compatible with Python 3 as-is.", "Migrate to mysqlclient or PyMySQL and re-test all DB queries."),
+393:     ("psycopg2", "Database", "Medium", "psycopg2 (PostgreSQL driver) versions differ between Python 2 and 3.", "Pin a Python 3-compatible version and verify connection handling."),
+394:     ("sqlite3", "Database", "Low", "sqlite3 is built-in but cursor/text handling changed slightly in Python 3.", "Verify text vs bytes handling on query results."),
+395:     ("cx_Oracle", "Database", "High", "cx_Oracle has different builds and behavior across Python versions.", "Use a Python 3 build and re-test stored-procedure calls."),
+396:     ("pymongo", "Database", "Medium", "pymongo API changed across major versions.", "Confirm the driver version matches your MongoDB server."),
+397:     ("sqlalchemy", "Database", "Medium", "SQLAlchemy ORM behavior can differ across versions during migration.", "Run your full test suite against the target version."),
+398:     ("urllib2", "API / Network", "High", "urllib2 does not exist in Python 3; network calls will break.", "Replace with urllib.request / urllib.error."),
+399:     ("httplib", "API / Network", "High", "httplib was renamed to http.client in Python 3.", "Update imports to http.client."),
+400:     ("requests", "API / Network", "Low", "requests works on both, but old pinned versions may have TLS issues.", "Upgrade to a current requests version and re-test endpoints."),
+401:     ("urlfetch", "API / Network", "High", "urlfetch (App Engine) is legacy and may not be supported.", "Replace with requests or urllib.request."),
+402:     ("xmlrpclib", "API / Network", "Medium", "xmlrpclib was renamed to xmlrpc.client in Python 3.", "Update imports to xmlrpc.client."),

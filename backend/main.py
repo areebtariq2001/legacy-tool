@@ -408,26 +408,53 @@ RISK_RULES = [
     ("paramiko", "API / Network", "Medium", "paramiko (SSH) versions differ in behavior.", "Pin a Python 3-compatible version."),
 ]
 
+JAVA_RISK_RULES = [
+    ("log4j", "Logging", "High", "Older Log4j versions have had serious remote-code-execution vulnerabilities (e.g. Log4Shell).", "Upgrade to Log4j 2.17.1+ or migrate to a maintained logging framework."),
+    ("commons-collections", "Library", "High", "Older Apache Commons Collections versions are associated with known deserialization exploits.", "Upgrade to a patched version and avoid deserializing untrusted data."),
+    ("Struts", "Framework", "High", "Apache Struts has had multiple critical remote-code-execution CVEs.", "Upgrade to the latest supported Struts version or migrate off it."),
+    ("XMLDecoder", "Serialization", "High", "XMLDecoder can execute arbitrary code when deserializing untrusted XML.", "Avoid XMLDecoder on untrusted input; use a safe data format instead."),
+    ("ObjectInputStream", "Serialization", "Medium", "Java native deserialization of untrusted data is a common source of RCE vulnerabilities.", "Validate/allow-list classes before deserializing, or avoid native serialization for untrusted input."),
+    ("javax.xml", "XML", "Medium", "Default Java XML parsers can be vulnerable to XXE (XML External Entity) attacks if not configured securely.", "Disable external entity resolution explicitly when parsing untrusted XML."),
+]
+
+PHP_RISK_RULES = [
+    ("mysql_", "Database", "High", "The mysql_* extension was removed in PHP 7 and has no built-in SQL-injection protection.", "Migrate to mysqli or PDO with prepared statements."),
+    ("eval(", "Code Execution", "High", "eval() executes arbitrary PHP code and is a common source of remote-code-execution vulnerabilities.", "Remove eval() usage; use a safer, explicit alternative for the intended logic."),
+    ("unserialize(", "Deserialization", "High", "unserialize() on untrusted input can lead to object injection and remote code execution.", "Use json_decode() for untrusted data, or restrict allowed classes if unserialize() is required."),
+    ("create_function", "Code Execution", "Medium", "create_function() was removed in PHP 8 and had similar risks to eval().", "Replace with an anonymous function (closure)."),
+    ("md5(", "Cryptography", "Medium", "MD5 is not a secure hashing algorithm for passwords or security-sensitive data.", "Use password_hash() for passwords, or SHA-256+ for general hashing."),
+    ("extract(", "Code Execution", "Medium", "extract() on untrusted input can overwrite variables unexpectedly and enable injection attacks.", "Avoid extract() on user-supplied data; access array keys explicitly."),
+]
+
 def assess_dependency_risk(source, filename="file.py"):
-    if not filename.lower().endswith(".py"):
-        return {"findings": [], "overall_risk": "Not Analyzed", "total_issues": 0, "not_analyzed_reason": "Dependency risk analysis currently only supports Python. This file was not analyzed - do not interpret this as a low-risk result."}
-    try:
-        tree = ast.parse(source)
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for a in node.names:
-                    imported.add(a.name.split(".")[0])
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    imported.add(node.module.split(".")[0])
-    except:
-        imported = set()
+    fname_lower = filename.lower()
+    if fname_lower.endswith(".cbl") or fname_lower.endswith(".cob"):
+        return {"findings": [], "overall_risk": "Not Analyzed", "total_issues": 0, "not_analyzed_reason": "Dependency risk analysis does not apply to COBOL in the same way as library-based languages - COBOL does not have an equivalent package/import ecosystem to scan. This file was not analyzed - do not interpret this as a low-risk result."}
+    imported = set()
+    if fname_lower.endswith(".py"):
+        active_rules = RISK_RULES
+        try:
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for a in node.names:
+                        imported.add(a.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imported.add(node.module.split(".")[0])
+        except:
+            imported = set()
+    elif fname_lower.endswith(".java"):
+        active_rules = JAVA_RISK_RULES
+    elif fname_lower.endswith(".php"):
+        active_rules = PHP_RISK_RULES
+    else:
+        active_rules = RISK_RULES
     findings = []
     seen = set()
-    for pattern, category, level, desc, rec in RISK_RULES:
+    for pattern, category, level, desc, rec in active_rules:
         in_imports = pattern in imported
-        in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+        in_source = re.search(r'\b' + re.escape(pattern) + r'\b' if pattern[-1].isalnum() else re.escape(pattern), source) is not None
         if (in_imports or in_source) and pattern not in seen:
             seen.add(pattern)
             findings.append({
