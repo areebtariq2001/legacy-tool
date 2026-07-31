@@ -1,0 +1,17 @@
+FOUND AT LINE: 661
+661: def validate_php(code):
+662:     open_braces = code.count("{")
+663:     close_braces = code.count("}")
+664:     open_parens = code.count("(")
+665:     close_parens = code.count(")")
+666:     has_php_tag = "<?php" in code or "<?" in code
+667:     issues = []
+668:     if open_braces != close_braces:
+669:         issues.append(f"Mismatched braces: {open_braces} open vs {close_braces} close")
+670:     if open_parens != close_parens:
+671:         issues.append(f"Mismatched parentheses: {open_parens} open vs {close_parens} close")
+672:     if not has_php_tag and code.strip():
+673:         issues.append("No <?php tag found")
+674:     if issues:
+675:         return {"valid": False, "validation_message": "Structural issues detected: " + "; ".join(issues) + ". This is a basic structural check, not a full PHP parser - please review carefully."}
+676:     return {"valid": True, "validation_message": "Basic structural check passed (brace/paren balance). This is not a full PHP parser - please review carefully."}

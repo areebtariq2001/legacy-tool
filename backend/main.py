@@ -659,10 +659,14 @@ def migrate_code(source):
 
 # ---------- VALIDATOR (PYTHON) ----------
 def validate_php(code):
-    open_braces = code.count("{")
-    close_braces = code.count("}")
-    open_parens = code.count("(")
-    close_parens = code.count(")")
+    code_no_strings = re.sub(r'"(?:[^"\\\\]|\\\\.)*"', '""', code)
+    code_no_strings = re.sub(r"'(?:[^'\\\\]|\\\\.)*'", "''", code_no_strings)
+    code_no_comments = re.sub(r'//.*', '', code_no_strings)
+    code_no_comments = re.sub(r'/\*.*?\*/', '', code_no_comments, flags=re.DOTALL)
+    open_braces = code_no_comments.count("{")
+    close_braces = code_no_comments.count("}")
+    open_parens = code_no_comments.count("(")
+    close_parens = code_no_comments.count(")")
     has_php_tag = "<?php" in code or "<?" in code
     issues = []
     if open_braces != close_braces:

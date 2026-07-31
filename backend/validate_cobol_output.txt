@@ -1,0 +1,13 @@
+FOUND AT LINE: 678
+678: def validate_cobol(code):
+679:     try:
+680:         ast.parse(code)
+681:         return {"valid": True, "validation_message": "Migrated Python output parses successfully as valid Python syntax. Note: this validates the Python output, not the original COBOL - please review the business logic conversion carefully."}
+682:     except SyntaxError as e:
+683:         return {"valid": False, "validation_message": "Migrated output has a Python syntax error: " + str(e) + ". This migration likely needs manual correction before use."}
+684:     except Exception as e:
+685:         return {"valid": False, "validation_message": "Warning: could not verify migrated output (" + str(e) + "). Please review carefully."}
+686: 
+687: def validate_python(code):
+688:     try:
+689:         ast.parse(code)
