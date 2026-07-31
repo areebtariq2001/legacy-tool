@@ -114,15 +114,6 @@ def call_ollama(prompt):
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
 
-def get_ai_response(prompt):
-    provider = os.environ.get("AI_PROVIDER", "groq").lower()
-    if provider == "ollama":
-        result = call_ollama(prompt)
-        if "not reachable" not in result and "error" not in result.lower()[:50]:
-            return result
-        return call_groq(prompt)
-    return call_groq(prompt)
-
 def call_ai_provider(prompt, max_tokens=500):
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
