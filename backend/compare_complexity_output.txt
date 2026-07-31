@@ -1,0 +1,20 @@
+FOUND AT LINE: 801
+799:         fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+800:         try:
+801:             fallback_output.update(compare_complexity(source, rule_result["migrated_code"]))
+802:         except Exception:
+803:             pass
+804:         return fallback_output
+805:     cleaned = result.replace(f"```{language}", "").replace("```python", "").replace("```java", "").replace("```php", "").replace("```", "").strip()
+806:     output = {"migrated_code": cleaned, "ai_powered": True}
+---
+FOUND AT LINE: 841
+839:                 output["fallback_used"] = True
+840:         try:
+841:             output.update(compare_complexity(source, output.get("migrated_code", source)))
+842:         except Exception:
+843:             pass
+844:         output["why_explanations"] = get_why_explanations(source)
+845:         output["dependencies"] = check_dependencies(source)
+846:     elif language == "java":
+---

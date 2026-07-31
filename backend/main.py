@@ -799,8 +799,8 @@ def ai_advanced_migrate(source, language):
         fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
         try:
             fallback_output.update(compare_complexity(source, rule_result["migrated_code"]))
-        except Exception:
-            pass
+        except Exception as e:
+            print("Warning: compare_complexity failed in ai_advanced_migrate fallback: " + str(e))
         return fallback_output
     cleaned = result.replace(f"```{language}", "").replace("```python", "").replace("```java", "").replace("```php", "").replace("```", "").strip()
     output = {"migrated_code": cleaned, "ai_powered": True}
@@ -839,8 +839,8 @@ def ai_advanced_migrate(source, language):
                 output["fallback_used"] = True
         try:
             output.update(compare_complexity(source, output.get("migrated_code", source)))
-        except Exception:
-            pass
+        except Exception as e:
+            print("Warning: compare_complexity failed in ai_advanced_migrate: " + str(e))
         output["why_explanations"] = get_why_explanations(source)
         output["dependencies"] = check_dependencies(source)
     elif language == "java":
