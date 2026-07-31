@@ -352,17 +352,21 @@ def calculate_tech_debt(source, filename=""):
             })
             total_count += count
             total_minutes += count * mins
-    debt_score = min(100, total_count * 8)
+    ISSUE_WEIGHT_PER_MINUTE = 8
+    MIN_SCORE_HIGH_COMPLEXITY = 25
+    MIN_SCORE_MODERATE_COMPLEXITY = 15
+    MIN_MINUTES_IF_COMPLEX = 60
+    debt_score = min(100, total_count * ISSUE_WEIGHT_PER_MINUTE)
     try:
         _comp = calculate_complexity(source)
         if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
-            debt_score = 25
+            debt_score = MIN_SCORE_HIGH_COMPLEXITY
         elif _comp["complexity_level"] == "Moderate complexity" and debt_score < 15:
-            debt_score = 15
+            debt_score = MIN_SCORE_MODERATE_COMPLEXITY
         if _comp["complexity_level"] in ["High complexity", "Very high complexity", "Moderate complexity"] and total_minutes < 60:
-            total_minutes = max(total_minutes, 60)
-    except Exception:
-        pass
+            total_minutes = max(total_minutes, MIN_MINUTES_IF_COMPLEX)
+    except Exception as e:
+        print("Warning: complexity calculation failed in calculate_tech_debt: " + str(e))
     if debt_score == 0:
         debt_level = "Minimal debt"
     elif debt_score < 30:

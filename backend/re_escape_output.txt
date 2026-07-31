@@ -1,0 +1,1 @@
+430:         in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
