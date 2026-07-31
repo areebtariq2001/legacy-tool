@@ -538,6 +538,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Vendor Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/vendor-lockin','Vendor Risk', this)">Vendor Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Zero-Trust" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/zero-trust-score','Zero-Trust', this)">Zero-Trust</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="CI/CD Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/cicd-recommendations','CI/CD Plan', this)">CI/CD Plan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Strangler Fig" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/strangler-fig','Strangler Fig', this)">Strangler Fig</button>
               </div>
 
               <div style="font-size:10px;color:#a78bfa;font-weight:700;margin:6px 0 4px">🤖 AI &amp; Reports</div>
@@ -2145,10 +2146,16 @@ function formatGenericResult(d, label) {
   let summaryKey = keys.find(k => /summary|verdict|message|recommendation/i.test(k) && typeof d[k] === 'string');
   let riskKey = keys.find(k => /^risk|risk_level|severity/i.test(k) && typeof d[k] === 'string');
   let confKey = keys.find(k => /confidence|score/i.test(k) && (typeof d[k] === 'number' || typeof d[k] === 'string'));
+  let codeKey = keys.find(k => /_code$/i.test(k) && typeof d[k] === 'string' && d[k].length > 40);
   if (!detectedKey && !findingsKey && !summaryKey) {
-    const relevantKeys = keys.filter(k => k !== 'filename');
-    if (relevantKeys.length === 0) return '<div style="font-size:11px;color:#64748b">No findings for this codebase with this check.</div>';
-    let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+    const relevantKeys = keys.filter(k => k !== 'filename' && k !== codeKey);
+    let codeBlock = '';
+    if (codeKey) {
+      const escCode = d[codeKey].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      codeBlock = '<div style="margin-bottom:10px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#07090f;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode + '</pre></div>';
+    }
+    if (relevantKeys.length === 0 && !codeKey) return '<div style="font-size:11px;color:#64748b">No findings for this codebase with this check.</div>';
+    let html = codeBlock + '<div style="display:flex;flex-direction:column;gap:6px">';
     relevantKeys.forEach(k => {
       const v = d[k];
       const vStr = Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : (typeof v === 'object' ? JSON.stringify(v) : String(v));
