@@ -1,0 +1,59 @@
+3772: def get_codebase_history(repo_url, file_path=""):
+3773:     import re as _hre
+3774:     m = _hre.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
+3775:     if not m:
+3776:         return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
+3777:     owner, repo = m.group(1), m.group(2)
+3778:     gh_token = os.environ.get("GITHUB_TOKEN", "")
+3779:     gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+3780:     try:
+3781:         commits_url = "https://api.github.com/repos/" + owner + "/" + repo + "/commits"
+3782:         params = {"per_page": 20}
+3783:         if file_path:
+3784:             params["path"] = file_path
+3785:         r = requests.get(commits_url, headers=gh_headers, params=params, timeout=20)
+3786:         if r.status_code != 200:
+3787:             return {"error": "Could not access commit history (status " + str(r.status_code) + "). Make sure the repo is public."}
+3788:         commits = r.json()
+3789:     except Exception as e:
+3790:         return {"error": "GitHub history lookup failed: " + str(e)}
+3791:     if not commits:
+3792:         return {"has_history": False, "history_summary": "No commit history found" + (" for this file" if file_path else "") + ".", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository. Limited to the 20 most recent commits."}
+3793:     authors = {}
+3794:     dates = []
+3795:     recent_messages = []
+3796:     for c in commits:
+3797:         author_name = (c.get("commit", {}).get("author", {}) or {}).get("name", "Unknown")
+3798:         authors[author_name] = authors.get(author_name, 0) + 1
+3799:         date = (c.get("commit", {}).get("author", {}) or {}).get("date", "")
+3800:         if date: dates.append(date)
+3801:         msg = (c.get("commit", {}).get("message", "") or "").split(chr(10))[0][:100]
+3802:         recent_messages.append({"message": msg, "author": author_name, "date": date})
+3803:     top_authors = sorted(authors.items(), key=lambda x: -x[1])[:5]
+3804:     last_modified = dates[0] if dates else "Unknown"
+3805:     change_frequency = "High" if len(commits) >= 15 else "Medium" if len(commits) >= 5 else "Low"
+3806:     hotspot_note = "This file has changed frequently (" + str(len(commits)) + " commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
+3807:     return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": str(len(commits)) + " commit(s) found" + (" for this file" if file_path else " for this repo") + " - " + change_frequency + " change frequency, " + str(len(authors)) + " author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
+3808: 
+3809: @app.post("/codebase-history")
+3810: async def codebase_history_endpoint(payload: dict):
+3811:     try:
+3812:         repo_url = payload.get("repo_url", "")
+3813:         file_path = payload.get("file_path", "")
+3814:         result = get_codebase_history(repo_url, file_path)
+3815:         track_usage("codebase-history", repo_url)
+3816:         return result
+3817:     except Exception as e:
+3818:         return {"error": "Codebase history lookup failed safely: " + str(e)}
+3819: 
+3820: def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=None):
+3821:     debt = calculate_tech_debt(source, filename)
+3822:     hours = debt.get("estimated_hours", 0)
+3823:     rates = {"pakistan": 15, "us": 75, "custom": custom_rate if custom_rate else 50}
+3824:     hourly_rate = rates.get(region, 15)
+3825:     total_cost = round(hours * hourly_rate, 2)
+3826:     days = round(hours / 8.0, 1)
+3827:     return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": ("$" + str(total_cost) + " estimated cost to fix (" + str(hours) + " hours, ~" + str(days) + " working days at $" + str(hourly_rate) + "/hr)") if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
+3828: 
+3829: @app.post("/tech-debt-cost")
+3830: async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):

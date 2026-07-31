@@ -24,15 +24,10 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
+# Note: CORSMiddleware intentionally NOT used here - the custom cors_handler
+# below already sets all needed CORS headers on every request (including
+# OPTIONS preflight), so adding CORSMiddleware as well would set duplicate
+# headers on every response.
 @app.middleware("http")
 async def cors_handler(request: Request, call_next):
     origin = request.headers.get("origin", "")
@@ -113,9 +108,8 @@ def track_usage(action, filename):
 
 
 def call_ollama(prompt):
-    import requests as _req
     try:
-        r = _req.post(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=180)
+        r = requests.post(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=15)
         return r.json().get("response", "No response from local model.")
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)

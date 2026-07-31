@@ -1,0 +1,9 @@
+3696: def generate_strangler_fig_wrapper(source, filename):
+3717:         wrapper_lines.append("    \"\"\"Strangler Fig facade - routes calls to legacy or new implementation.\"\"\"")
+3754:         return {"wrapper_generated": False, "wrapper_code": "", "functions_wrapped": [], "strangler_summary": "No functions found to wrap - nothing to generate a facade for.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
+3756:     return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "strangler_summary": "Generated a facade wrapping " + str(len(funcs)) + " function(s) - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
+3758: @app.post("/strangler-fig")
+3759: async def strangler_fig_endpoint(file: UploadFile = File(...)):
+3765:         result = generate_strangler_fig_wrapper(source, file.filename)
+3767:         track_usage("strangler-fig", file.filename)
+3770:         return {"filename": file.filename, "error": "Strangler fig wrapper generation failed safely: " + str(e)}

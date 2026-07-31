@@ -1,0 +1,26 @@
+FOUND AT LINE: 473
+473: def deep_verify_python(code):
+474:     try:
+475:         ast.parse(code)
+476:     except SyntaxError as e:
+477:         return {"verified": False, "verify_message": f"Compilation failed: syntax error on line {e.lineno}. Code is not execution-ready."}
+478:     try:
+479:         compile(code, "<migrated>", "exec")
+480:     except Exception as e:
+481:         return {"verified": False, "verify_message": f"Compilation failed: {str(e)}. Code is not execution-ready."}
+482:     return {"verified": True, "verify_message": "Code compiles successfully and is execution-ready (compile-level verification passed)."}
+483: 
+484: # ---------- JAVA GUARDRAILS ----------
+485: def validate_java(code):
+486:     if not JAVALANG_AVAILABLE:
+487:         return {"valid": True, "validation_message": "Java parser not available; skipped syntax check."}
+488:     try:
+489:         javalang.parse.parse(code)
+490:         return {"valid": True, "validation_message": "Output is valid Java syntax (parsed successfully)."}
+491:     except Exception as e:
+492:         return {"valid": False, "validation_message": f"Warning: output has a Java syntax error. Please review before use."}
+493: 
+494: def extract_java_names(code):
+495:     names = set()
+496:     if not JAVALANG_AVAILABLE:
+497:         return names

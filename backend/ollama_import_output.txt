@@ -1,0 +1,9 @@
+FOUND AT LINE: 115
+115: def call_ollama(prompt):
+116:     import requests as _req
+117:     try:
+118:         r = _req.post(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/generate", json={"model": "codellama:13b", "prompt": prompt, "stream": False}, timeout=180)
+119:         return r.json().get("response", "No response from local model.")
+120:     except Exception as e:
+121:         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
+122: 

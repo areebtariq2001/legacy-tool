@@ -1,0 +1,21 @@
+FOUND AT LINE: 3250
+3250: async def migration_dashboard_endpoint():
+3251:     try:
+3252:         result = get_migration_dashboard()
+3253:         return result
+3254:     except Exception as e:
+3255:         return {"error": "Dashboard load failed safely: " + str(e)}
+3256: 
+3257: def generate_migration_roadmap(repo_result):
+3258:     if repo_result.get("error"):
+3259:         return {"error": repo_result["error"]}
+3260:     reports = repo_result.get("file_reports", [])
+3261:     risk_order = {"Low": 0, "Medium": 1, "High": 2, "Unknown": 1}
+3262:     sorted_files = sorted(reports, key=lambda r: risk_order.get(r.get("risk_level", "Unknown"), 1))
+3263:     phases = {"Phase 1 - Quick Wins (Low Risk)": [], "Phase 2 - Standard Migration (Medium Risk)": [], "Phase 3 - Careful Review Needed (High Risk)": []}
+3264:     for f in sorted_files:
+3265:         lvl = f.get("risk_level", "Unknown").lower()
+3266:         if "high" in lvl:
+3267:             phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
+3268:         elif "low" in lvl or "no known" in lvl:
+3269:             phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])

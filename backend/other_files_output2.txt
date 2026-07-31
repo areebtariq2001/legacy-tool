@@ -1,0 +1,5 @@
+open(...)
+open(\1)
+open(log_file, "r")
+open(log_file, "w")
+open("approval_log.json", "r")

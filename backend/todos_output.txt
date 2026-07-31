@@ -1,0 +1,6 @@
+1256:         out_lines.append(cur_indent() + "# TODO: manual review - " + line)
+3006:         with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+3650:         with _tf2.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+3724:             wrapper_lines.append("            # TODO: call new implementation of " + fn)
+3734:             wrapper_lines.append("            // TODO: call new implementation of " + fn)
+3747:             wrapper_lines.append("            // TODO: call new implementation of " + fn)
