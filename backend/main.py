@@ -70,13 +70,34 @@ def save_stats(stats):
 def write_audit_log(action, filename, result_summary):
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = _get_db_connection()
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("INSERT INTO usage_log (action, filename, result_summary) VALUES (%s, %s, %s)", (action, filename, result_summary))
+                conn.commit()
+                cur.close()
+                conn.close()
+                return
+            except Exception:
+                pass
         with _stats_lock:
             _in_memory_audit_log.insert(0, f"[{timestamp}] action={action} | file={filename} | result={result_summary}")
             del _in_memory_audit_log[50:]
-    except:
+    except Exception:
         pass
 
 def track_usage(action, filename):
+    conn = _get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO usage_log (action, filename, result_summary) VALUES (%s, %s, %s)", (action, filename, "tracked"))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     with _stats_lock:
         _in_memory_stats["total_files"] += 1
         if "migrate" in action:
@@ -89,6 +110,7 @@ def track_usage(action, filename):
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         del _in_memory_stats["logs"][50:]
+
 
 def call_ollama(prompt):
     import requests as _req

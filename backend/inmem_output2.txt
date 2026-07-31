@@ -1,0 +1,37 @@
+56: 
+57: import threading
+58: _stats_lock = threading.Lock()
+59: _in_memory_stats = {"total_files": 0, "total_migrations": 0, "total_analyses": 0, "logs": []}
+60: _in_memory_audit_log = []
+61: 
+62: def load_stats():
+63:     with _stats_lock:
+64:         return dict(_in_memory_stats)
+65: 
+66: def save_stats(stats):
+67:     with _stats_lock:
+68:         _in_memory_stats.update(stats)
+69: 
+70: def write_audit_log(action, filename, result_summary):
+71:     try:
+72:         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+73:         with _stats_lock:
+74:             _in_memory_audit_log.insert(0, f"[{timestamp}] action={action} | file={filename} | result={result_summary}")
+75:             del _in_memory_audit_log[50:]
+76:     except:
+77:         pass
+78: 
+79: def track_usage(action, filename):
+80:     with _stats_lock:
+81:         _in_memory_stats["total_files"] += 1
+82:         if "migrate" in action:
+83:             _in_memory_stats["total_migrations"] += 1
+84:         elif "analyze" in action:
+85:             _in_memory_stats["total_analyses"] += 1
+86:         _in_memory_stats["logs"].insert(0, {
+87:             "action": action,
+88:             "filename": filename,
+89:             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+90:         })
+91:         del _in_memory_stats["logs"][50:]
+92: 
