@@ -698,6 +698,9 @@ def validate_python(code):
         return {"valid": False, "validation_message": f"Warning: could not verify output ({str(e)}). Please review carefully."}
 
 # ---------- VARIABLE SCOPE MAPPING (PYTHON) ----------
+_PY_BUILTINS = set(__builtins__.keys()) if isinstance(__builtins__, dict) else set(dir(__builtins__))
+_PY_BUILTINS |= {"True", "False", "None", "self", "cls"}
+
 def extract_variables(code):
     names = set()
     try:
@@ -706,7 +709,8 @@ def extract_variables(code):
         return names
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
-            names.add(node.id)
+            if node.id not in _PY_BUILTINS:
+                names.add(node.id)
         elif isinstance(node, ast.FunctionDef):
             names.add(node.name)
             for arg in node.args.args:
