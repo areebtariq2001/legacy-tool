@@ -554,7 +554,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#94a3b8;line-height:1.6;max-height:280px;overflow-y:auto;background:#07090f;border-radius:6px;padding:14px"></div>
             </div>
             <div class="card" id="diffCard">
-              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span></div>
+              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span> <span class="card-head-a" id="behaviorTestBtn" onclick="runBehaviorTest()" style="margin-left:8px" title="Runs the original and migrated Python code and compares their printed output">Test Behavior</span></div>
               <div id="changeCountNote" style="display:none;font-size:10px;color:#22c55e;margin-bottom:6px;font-weight:600"></div>
               <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
               <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
@@ -574,6 +574,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                   <div class="diff-body" id="diffNew"></div>
                 </div>
               </div>
+              <div id="behaviorTestResult" style="display:none;margin-top:10px;padding:10px;background:#0f1525;border-radius:6px"></div>
             </div>
             <div class="approval" id="approvalBox">
               <div class="approval-text">
@@ -2276,6 +2277,45 @@ async function runExplain() {
     box.textContent = (typeof d === 'string' ? d : (d.explanation ?? d.result ?? d.output ?? 'No explanation received.'));
   } catch (e) {
     box.textContent = 'Could not generate explanation: ' + e.message;
+  }
+}
+async function runBehaviorTest() {
+  const resultBox = document.getElementById('behaviorTestResult');
+  resultBox.style.display = 'block';
+  if (lang !== 'python') {
+    resultBox.innerHTML = '<div style="font-size:11px;color:#64748b">Characterization testing currently only supports Python files.</div>';
+    return;
+  }
+  if (!window.lastFileSnapshot) { resultBox.innerHTML = '<div style="font-size:11px;color:#64748b">Run an analysis first.</div>'; return; }
+  const { original, fileObj, R } = window.lastFileSnapshot;
+  const migratedCode = R?.migrate?.migrated_code ?? R?.migrate?.migrated ?? R?.migrate?.result ?? R?.migrate?.output ?? '';
+  if (!migratedCode) { resultBox.innerHTML = '<div style="font-size:11px;color:#64748b">No migrated code available to test.</div>'; return; }
+  resultBox.innerHTML = '<div style="font-size:11px;color:#64748b">Running original and migrated code in a lightweight sandbox…</div>';
+  try {
+    const fd = new FormData();
+    fd.append('original_file', new Blob([original], { type: 'text/plain' }), fileObj ? fileObj.name : 'original.py');
+    fd.append('migrated_file', new Blob([migratedCode], { type: 'text/plain' }), 'migrated.py');
+    const r = await fetch(BACKEND + '/behavior-snapshot', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { resultBox.innerHTML = '<div style="font-size:11px;color:#ef4444">Error: ' + escapeHtml(d.error) + '</div>'; return; }
+    const matchColor = d.match === true ? '#22c55e' : d.match === false ? '#ef4444' : '#64748b';
+    const matchIcon = d.match === true ? '✅' : d.match === false ? '⚠️' : 'ℹ️';
+    resultBox.innerHTML = `
+      <div style="font-size:12px;font-weight:600;color:${matchColor};margin-bottom:8px">${matchIcon} ${escapeHtml(d.verdict || '')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:10px">
+        <div style="background:#07090f;padding:8px;border-radius:4px">
+          <div style="color:#64748b;margin-bottom:4px">Original Output</div>
+          <div style="color:#e2e8f0;font-family:monospace;white-space:pre-wrap">${escapeHtml((d.original_run && d.original_run.output) || (d.original_run && d.original_run.error) || '(no output)')}</div>
+        </div>
+        <div style="background:#07090f;padding:8px;border-radius:4px">
+          <div style="color:#64748b;margin-bottom:4px">Migrated Output</div>
+          <div style="color:#e2e8f0;font-family:monospace;white-space:pre-wrap">${escapeHtml((d.migrated_run && d.migrated_run.output) || (d.migrated_run && d.migrated_run.error) || '(no output)')}</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:8px">${escapeHtml(d.snapshot_disclaimer || '')}</div>
+    `;
+  } catch (e) {
+    resultBox.innerHTML = '<div style="font-size:11px;color:#ef4444">Could not run behavior test: ' + escapeHtml(e.message) + '</div>';
   }
 }
 function resetAll() {
