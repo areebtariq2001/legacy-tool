@@ -1038,7 +1038,9 @@ function renderResults(R, original, fname, totalMs) {
   window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
   extraServicesFromModules = [];
   document.getElementById('results').classList.add('show');
-  const conf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
+  const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
+  const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
+  const conf = baseConf != null ? Math.max(40, baseConf - (reviewNeededCountForConf * 8)) : null;
   const confPct = conf != null ? Math.round(conf) : null;
   const cColor = confPct == null ? '#64748b' : confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
   document.getElementById('confFill').style.width = (confPct ?? 0) + '%';
