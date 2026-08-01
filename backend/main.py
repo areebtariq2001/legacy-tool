@@ -1477,7 +1477,7 @@ async def tech_debt_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return {"filename": file.filename, "error": error}
-        result = calculate_tech_debt(source)
+        result = calculate_tech_debt(source, file.filename)
         comp = calculate_complexity(source)
         result["complexity_score"] = comp["complexity_score"]
         result["complexity_level"] = comp["complexity_level"]
