@@ -1,0 +1,6 @@
+605:     for pattern, msg in py_issue_checks:
+606:         if pattern in source:
+607:             issues.append(msg)
+608:     if re.search(r'\bprint\s+[^(]', source):
+609:         issues.append("print statement found - use print()")
+610:     if re.search(r'\bexcept\s+\w+\s*,', source):

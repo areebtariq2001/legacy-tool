@@ -562,22 +562,27 @@ def calculate_confidence_java(source, migrated, valid, vars_ok):
 
 # ---------- PYTHON ----------
 def analyze_code(source):
+    functions, classes, imports, issues = [], [], [], []
+    parse_failed = False
     try:
         tree = ast.parse(source)
-    except:
-        return {"functions": [], "classes": [], "imports": [], "issues": ["Could not parse - this analysis only supports valid Python 3 code. Non-Python files will show this."]}
-    functions, classes, imports, issues = [], [], [], []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            functions.append(node.name)
-        elif isinstance(node, ast.ClassDef):
-            classes.append(node.name)
-        elif isinstance(node, ast.Import):
-            for a in node.names:
-                imports.append(a.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                functions.append(node.name)
+            elif isinstance(node, ast.ClassDef):
+                classes.append(node.name)
+            elif isinstance(node, ast.Import):
+                for a in node.names:
+                    imports.append(a.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.append(node.module)
+    except Exception:
+        parse_failed = True
+        func_matches = re.findall(r"^\s*def\s+(\w+)", source, re.MULTILINE)
+        functions.extend(func_matches)
+        class_matches = re.findall(r"^\s*class\s+(\w+)", source, re.MULTILINE)
+        classes.extend(class_matches)
     py_issue_checks = [
         ('xrange', "xrange() found - use range()"),
         ('raw_input', "raw_input() found - use input()"),
@@ -593,7 +598,6 @@ def analyze_code(source):
         ('itertools.imap', "imap found - use built-in map()"),
         ('itertools.ifilter', "ifilter found - use built-in filter()"),
         ('.sort(cmp=', "sort(cmp=...) found - use key= instead"),
-        ('exec ', "exec statement found - use exec() function"),
         ('<>', "<> operator found - use !="),
         ('apply(', "apply() found - use func(*args)"),
         ('execfile(', "execfile() found - use exec(open(...).read())"),
@@ -607,9 +611,13 @@ def analyze_code(source):
             issues.append(msg)
     if re.search(r'\bprint\s+[^(]', source):
         issues.append("print statement found - use print()")
+    if re.search(r'\bexec\s+[^(]', source):
+        issues.append("exec statement found (Python 2 style, no parentheses) - use exec() function")
     if re.search(r'\bexcept\s+\w+\s*,', source):
         issues.append("old except syntax found - use 'except X as e'")
-    return {"functions": functions, "classes": classes, "imports": imports, "issues": issues}
+    if parse_failed:
+        issues.insert(0, "Could not fully parse with Python's AST (likely Python 2-only syntax) - showing pattern-based findings below; function/class detection may be incomplete.")
+    return {"functions": functions, "classes": classes, "imports": imports, "issues": issues, "ast_parse_failed": parse_failed}
 
 def migrate_code(source):
     changes = []
