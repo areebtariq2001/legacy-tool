@@ -998,7 +998,9 @@ def generate_documentation(source, filename):
 # ---------- PHP ----------
 def analyze_php(source):
     issues = []
-    if re.search(r"(?i)(password|passwd|pwd|api_key|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+    _source_no_comments = re.sub(r'//.*', '', source)
+    _source_no_comments = re.sub(r'#.*', '', _source_no_comments)
+    if re.search(r"(?i)(password|passwd|pwd|api_key|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     php_checks = [
         (r"\bmysql_\w+\b", "Deprecated mysql_* functions - use mysqli or PDO"),
