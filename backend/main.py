@@ -1110,10 +1110,14 @@ def analyze_java(source):
     except Exception:
         pass
     classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
-    methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+    methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
     imports = re.findall(r"import\s+([\w\.\*]+);", source)
     methods = [m for m in methods if m not in classes]
-    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": list(dict.fromkeys(methods))[:20], "imports": list(dict.fromkeys(imports)), "java_summary": str(len(classes)) + " class(es), " + str(len(methods)) + " method(s), " + str(len(imports)) + " import(s), " + str(len(issues)) + " legacy pattern(s) found"}
+    wildcard_imports = [i for i in imports if i.endswith(".*")]
+    if wildcard_imports:
+        issues.append("Wildcard import(s) found: " + ", ".join(wildcard_imports) + " - use specific imports instead")
+    all_methods = list(dict.fromkeys(methods))
+    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": str(len(classes)) + " class(es), " + str(len(methods)) + " method(s), " + str(len(imports)) + " import(s), " + str(len(issues)) + " legacy pattern(s) found"}
 
 def migrate_java(source):
     changes = []
