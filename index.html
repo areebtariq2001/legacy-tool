@@ -1161,7 +1161,7 @@ function generateSuggestions(issues, critCount, warnCount) {
   `).join('');
 }
 function findEnclosingFunction(codeLines, lineIdx) {
-  const fnPatterns = [/^\s*def\s+(\w+)/, /^\s*function\s+(\w+)/, /^\s*(?:public|private|protected|static)?\s*\w+\s+(\w+)\s*\(/, /^\s*\d{6}\s+([\w-]+)\.\s*$/, /^\s*([\w-]+)\.\s*$/];
+  const fnPatterns = [/^\s*def\s+(\w+)/, /^\s*function\s+(\w+)/, /^\s*(?:public|private|protected|static)?\s*(?!return\b|echo\b|print\b|if\b|while\b|for\b|foreach\b|switch\b|throw\b|new\b|else\b|elseif\b)\w+\s+(\w+)\s*\([^)]*\)\s*\{/, /^\s*\d{6}\s+([\w-]+)\.\s*$/, /^\s*([\w-]+)\.\s*$/];
   for (let i = lineIdx; i >= 0; i--) {
     for (const p of fnPatterns) {
       const m = codeLines[i].match(p);
