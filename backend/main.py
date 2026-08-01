@@ -1498,7 +1498,10 @@ async def download(file: UploadFile = File(...)):
 
 @app.post("/analyze-php")
 async def analyze_php_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = analyze_php(source)
     result["filename"] = file.filename
     track_usage("analyze-php", file.filename)
@@ -1506,7 +1509,10 @@ async def analyze_php_endpoint(file: UploadFile = File(...)):
 
 @app.post("/migrate-php")
 async def migrate_php_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = migrate_php(source)
     result["filename"] = file.filename
     track_usage("migrate-php", file.filename)
@@ -1515,7 +1521,10 @@ async def migrate_php_endpoint(file: UploadFile = File(...)):
 
 @app.post("/analyze-java")
 async def analyze_java_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = analyze_java(source)
     result["filename"] = file.filename
     track_usage("analyze-java", file.filename)
@@ -1523,7 +1532,10 @@ async def analyze_java_endpoint(file: UploadFile = File(...)):
 
 @app.post("/migrate-java")
 async def migrate_java_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = migrate_java(source)
     result["filename"] = file.filename
     track_usage("migrate-java", file.filename)
@@ -1532,7 +1544,10 @@ async def migrate_java_endpoint(file: UploadFile = File(...)):
 
 @app.post("/analyze-cobol")
 async def analyze_cobol_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = analyze_cobol(source)
     result["filename"] = file.filename
     track_usage("analyze-cobol", file.filename)
@@ -1540,7 +1555,10 @@ async def analyze_cobol_endpoint(file: UploadFile = File(...)):
 
 @app.post("/migrate-cobol")
 async def migrate_cobol_endpoint(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return {"filename": file.filename, "error": error}
     result = migrate_cobol(source)
     result["filename"] = file.filename
     track_usage("migrate-cobol", file.filename)

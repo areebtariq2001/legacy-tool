@@ -1,0 +1,13 @@
+FOUND AT LINE: 1507
+1507: @app.post("/migrate-php")
+1508: async def migrate_php_endpoint(file: UploadFile = File(...)):
+1509:     source = (await file.read()).decode("utf-8", errors='ignore')
+1510:     result = migrate_php(source)
+1511:     result["filename"] = file.filename
+1512:     track_usage("migrate-php", file.filename)
+1513:     write_audit_log("migrate-php", file.filename, f"changes={len(result.get('changes', []))}")
+1514:     return result
+1515: 
+1516: @app.post("/analyze-java")
+1517: async def analyze_java_endpoint(file: UploadFile = File(...)):
+1518:     source = (await file.read()).decode("utf-8", errors='ignore')

@@ -1,0 +1,6 @@
+analyze-php uses safe_read_file: False
+migrate-php uses safe_read_file: False
+analyze-java uses safe_read_file: False
+migrate-java uses safe_read_file: False
+analyze-cobol uses safe_read_file: False
+migrate-cobol uses safe_read_file: False
