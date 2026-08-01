@@ -633,8 +633,9 @@ def migrate_code(source):
         (r'\bStringIO\.StringIO\b', 'io.StringIO', "StringIO -> io.StringIO"),
     ]
     for pattern, repl, label in rules:
-        if re.search(pattern, migrated):
-            migrated = re.sub(pattern, repl, migrated)
+        _new_migrated = re.sub(pattern, repl, migrated)
+        if _new_migrated != migrated:
+            migrated = _new_migrated
             changes.append(label)
     new_lines = []
     for line in migrated.split('\n'):
@@ -1048,8 +1049,9 @@ def migrate_php(source):
         migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
         changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
     for pattern, repl, label in rules:
-        if re.search(pattern, migrated):
-            migrated = re.sub(pattern, repl, migrated)
+        _new_migrated = re.sub(pattern, repl, migrated)
+        if _new_migrated != migrated:
+            migrated = _new_migrated
             changes.append(label)
     review_rules = [
         (r'\bmysql_connect\b', "mysql_connect() found - migrating to mysqli requires restructuring to pass a connection object as the first argument to every mysqli_* call (mysqli_query($conn, $sql), not just renaming functions)."),
@@ -1133,8 +1135,9 @@ def migrate_java(source):
         (r'\bimport javax\.ejb\.', 'import jakarta.ejb.', "javax.ejb -> jakarta.ejb (Jakarta EE 9+ namespace)"),
     ]
     for pattern, repl, label in rules:
-        if re.search(pattern, migrated):
-            migrated = re.sub(pattern, repl, migrated)
+        _new_migrated = re.sub(pattern, repl, migrated)
+        if _new_migrated != migrated:
+            migrated = _new_migrated
             changes.append(label)
     review_rules = [
         (r'\bStringBuffer\b', "StringBuffer found - StringBuilder is the modern replacement, but StringBuffer is thread-safe and StringBuilder is NOT. Only switch if this code is genuinely single-threaded."),
