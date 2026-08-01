@@ -1074,7 +1074,7 @@ def migrate_php(source):
             changes.append("REVIEW NEEDED: " + msg)
     if re.search(r'var\s+\$(\w+)', migrated):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
-        changes.append("var -> public")
+        changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
     check = validate_php(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check}
 
@@ -1119,7 +1119,7 @@ def analyze_java(source):
     if wildcard_imports:
         issues.append("Wildcard import(s) found: " + ", ".join(wildcard_imports) + " - use specific imports instead")
     all_methods = list(dict.fromkeys(methods))
-    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": str(len(classes)) + " class(es), " + str(len(methods)) + " method(s), " + str(len(imports)) + " import(s), " + str(len(issues)) + " legacy pattern(s) found"}
+    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": f"{len(classes)} class(es), {len(methods)} method(s), {len(imports)} import(s), {len(issues)} legacy pattern(s) found"}
 
 def migrate_java(source):
     changes = []
