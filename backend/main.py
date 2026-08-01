@@ -1041,6 +1041,10 @@ def migrate_php(source):
         (r'\bmysql_error\b', 'mysqli_error', "mysql_error -> mysqli_error"),
         (r'\bcall_user_method\b', 'call_user_func', "call_user_method -> call_user_func"),
     ]
+    curly_brace_pattern = r'(\$\w+)\{(\d+|\$\w+)\}'
+    if re.search(curly_brace_pattern, migrated):
+        migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
+        changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
     for pattern, repl, label in rules:
         if re.search(pattern, migrated):
             migrated = re.sub(pattern, repl, migrated)
