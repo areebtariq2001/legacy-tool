@@ -1,0 +1,26 @@
+FOUND AT LINE: 2370
+2370: def scan_sql_injection(source, filename):
+2371:     import re as _sq
+2372:     lines = source.split(chr(10))
+2373:     issues = []
+2374:     checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk")]
+2375:     if filename.lower().endswith(".php"):
+2376:         checks += [("SELECT", " . ", "SQL SELECT built with . (PHP) concatenation - injection risk"), ("INSERT", " . ", "SQL INSERT built with . (PHP) concatenation - injection risk"), ("UPDATE", " . ", "SQL UPDATE built with . (PHP) concatenation - injection risk"), ("DELETE", " . ", "SQL DELETE built with . (PHP) concatenation - injection risk"), ("WHERE", " . ", "SQL WHERE clause built with . (PHP) concatenation - injection risk")]
+2377:     cobol_exec_sql = _sq.search(r"(?is)EXEC\s+SQL.*?WHERE.*?=\s*['\"][^'\"]+['\"].*?END-EXEC", source)
+2378:     if cobol_exec_sql:
+2379:         issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
+2380:     for i, line in enumerate(lines):
+2381:         up = line.upper()
+2382:         for kw, danger, msg in checks:
+2383:             if kw.upper() in up and danger in line:
+2384:                 issues.append({"line": i+1, "code": line.strip()[:120], "issue": msg, "severity": "High"})
+2385:                 break
+2386:     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
+2387: 
+2388: def _old_scan_sql_injection_unused(source, filename):
+2389:     import re as _re8
+2390:     lines = source.split(chr(10))
+2391:     issues = []
+2392:     patterns = [(r"(?i)(execute|executemany)\s*\(.*[+%]", "String concatenation/formatting in SQL query - use parameterized queries instead"), (r"(?i)(SELECT|INSERT|UPDATE|DELETE).*[+].*(request|input|user|param|arg|var)", "SQL string built with concatenation - injection risk"), (r"(?i)(query|sql)\s*=\s*.*%\s*[a-zA-Z]", "SQL built with string formatting - injection risk"), (r"(?i)\.format\s*\(.*(SELECT|INSERT|UPDATE|DELETE|WHERE)", "SQL built with .format() - injection risk"), (r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{", "SQL built with f-string variables - injection risk")]
+2393:     for i, line in enumerate(lines):
+2394:         for pat, msg in patterns:
