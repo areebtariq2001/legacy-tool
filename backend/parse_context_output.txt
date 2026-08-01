@@ -1,0 +1,17 @@
+554:     if score >= 90:
+555:         level = "High confidence"
+556:     elif score >= 60:
+557:         level = "Medium confidence - review recommended"
+558:     else:
+559:         level = "Low confidence - manual review required"
+560:     reason_text = "; ".join(reasons) if reasons else "all checks passed"
+561:     return {"confidence_score": score, "confidence_level": level, "confidence_reason": reason_text}
+562: 
+563: # ---------- PYTHON ----------
+564: def analyze_code(source):
+565:     try:
+566:         tree = ast.parse(source)
+567:     except:
+568:         return {"functions": [], "classes": [], "imports": [], "issues": ["Could not parse - this analysis only supports valid Python 3 code. Non-Python files will show this."]}
+569:     functions, classes, imports, issues = [], [], [], []
+570:     for node in ast.walk(tree):
