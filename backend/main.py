@@ -1243,6 +1243,8 @@ def migrate_cobol(source):
             expr = compute_m.group(2).replace("-", "_")
             out_lines.append(cur_indent() + var_name + " = " + expr)
             changes.append("COMPUTE -> assignment")
+            if "/" in expr or "*" in expr:
+                changes.append("REVIEW NEEDED: COMPUTE " + var_name + " = " + expr + " - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
         add_m = _mre.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
         if add_m:

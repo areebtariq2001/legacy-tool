@@ -1,0 +1,5 @@
+70:         compute_m = _mre.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, _mre.IGNORECASE)
+71:         if compute_m:
+72:             var_name = compute_m.group(1).replace("-", "_")
+73:             expr = compute_m.group(2).replace("-", "_")
+75:             changes.append("COMPUTE -> assignment")
