@@ -508,7 +508,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 
               <div style="font-size:10px;color:#60a5fa;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
-                <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" title="Currently supports Python files only" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Data Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sensitive','Data Scan', this)">Data Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="SQL Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sqli','SQL Scan', this)">SQL Scan</button>
               </div>
