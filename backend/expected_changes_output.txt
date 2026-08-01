@@ -1,0 +1,11 @@
+FOUND AT LINE: 728
+726:         return {"vars_ok": True, "var_message": ""}
+727:     missing = orig_vars - new_vars
+728:     expected_changes = {"xrange", "raw_input", "unicode", "basestring", "iteritems", "itervalues", "iterkeys", "has_key"}
+729:     real_missing = [v for v in missing if v not in expected_changes]
+730:     if real_missing:
+731:         return {"vars_ok": False, "var_message": "Warning: AI may have renamed or removed these names: " + ", ".join(sorted(real_missing)) + ". Review required."}
+732:     return {"vars_ok": True, "var_message": "All original variable names preserved."}
+733: 
+734: # ---------- CONFIDENCE SCORE (PYTHON) ----------
+735: def calculate_confidence(source, migrated, valid, vars_ok, verified):

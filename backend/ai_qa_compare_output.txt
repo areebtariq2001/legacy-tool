@@ -1,0 +1,16 @@
+FOUND AT LINE: 876
+876: def ai_qa_compare(original, migrated):
+877:     prompt = (
+878:         "You are a senior QA engineer reviewing a code migration. "
+879:         "Compare the ORIGINAL and MIGRATED code below. "
+880:         "Answer in this exact format:\n"
+881:         "VERDICT: SAME or DIFFERENT\n"
+882:         "REASON: one short sentence.\n"
+883:         "Only say DIFFERENT if the migrated code would behave differently or lose functionality.\n\n"
+884:         f"ORIGINAL:\n{original}\n\nMIGRATED:\n{migrated}"
+885:     )
+886:     response = call_groq(prompt, max_tokens=300)
+887:     verdict = "UNKNOWN"
+888:     if "VERDICT:" in response:
+889:         after = response.split("VERDICT:")[1].strip()
+890:         if after.upper().startswith("SAME"):

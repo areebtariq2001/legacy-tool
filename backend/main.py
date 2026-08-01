@@ -725,7 +725,7 @@ def check_variable_integrity(original, migrated):
     if not orig_vars or not new_vars:
         return {"vars_ok": True, "var_message": ""}
     missing = orig_vars - new_vars
-    expected_changes = {"xrange", "raw_input", "unicode", "basestring", "iteritems", "itervalues", "iterkeys", "has_key"}
+    expected_changes = {"xrange", "raw_input", "unicode", "basestring", "iteritems", "itervalues", "iterkeys", "has_key", "urllib2", "cPickle", "StringIO", "cStringIO", "httplib", "xmlrpclib", "urlfetch", "cmp", "execfile", "reload", "unichr", "long"}
     real_missing = [v for v in missing if v not in expected_changes]
     if real_missing:
         return {"vars_ok": False, "var_message": "Warning: AI may have renamed or removed these names: " + ", ".join(sorted(real_missing)) + ". Review required."}
@@ -883,7 +883,7 @@ def ai_qa_compare(original, migrated):
         "Only say DIFFERENT if the migrated code would behave differently or lose functionality.\n\n"
         f"ORIGINAL:\n{original}\n\nMIGRATED:\n{migrated}"
     )
-    response = call_groq(prompt, max_tokens=300)
+    response = call_ai_provider(prompt, max_tokens=300)
     verdict = "UNKNOWN"
     if "VERDICT:" in response:
         after = response.split("VERDICT:")[1].strip()
