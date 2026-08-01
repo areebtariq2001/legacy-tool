@@ -1987,6 +1987,8 @@ function buildIssues(R) {
         const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
         const lower = issText.toLowerCase();
         const isSecurity = lower.includes('sql injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key');
+        const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
+        if (alreadyCoveredElsewhere) return;
         issues.push({
           sev: isSecurity ? 'critical' : 'warning',
           title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
