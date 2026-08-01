@@ -952,8 +952,10 @@ async function runAnalysis() {
   pipeRun('analyze', 'Parsing code structure, imports, functions…');
   const t1 = Date.now();
   try {
+    const analyzeEp = { python: '/analyze', java: '/analyze-java', php: '/analyze-php', cobol: '/analyze-cobol' };
+    const aep = analyzeEp[lang] || '/analyze';
     const fd1 = new FormData(); fd1.append('file', files[0]);
-    const r = await fetch(BACKEND + '/analyze', { method: 'POST', body: fd1 });
+    const r = await fetch(BACKEND + aep, { method: 'POST', body: fd1 });
     R.analyze = await r.json();
     pipeDone('analyze', 'Structure analyzed', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t1)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('analyze', e.message); R.analyze = null; }
@@ -1980,6 +1982,21 @@ function buildIssues(R) {
     const t = getText(R.analyze).toLowerCase();
     if (lang === 'python' && (t.includes('print ') || t.includes('print('))) issues.push({ sev: 'warning', title: 'Python 2 print statements detected', desc: 'Use print() function instead of print statement for Python 3 compatibility.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (t.includes('legacy') || t.includes('deprecated')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
+    if (Array.isArray(R.analyze.issues)) {
+      R.analyze.issues.forEach(iss => {
+        const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
+        const lower = issText.toLowerCase();
+        const isSecurity = lower.includes('sql injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key');
+        issues.push({
+          sev: isSecurity ? 'critical' : 'warning',
+          title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
+          desc: issText,
+          tag: isSecurity ? 'Security' : 'Migration',
+          tagClass: isSecurity ? 'tag-red' : 'tag-amber',
+          file: null
+        });
+      });
+    }
   }
   if (R.security) {
     const t = getText(R.security).toLowerCase();
