@@ -1092,6 +1092,14 @@ def analyze_java(source):
     for pattern, msg in java_checks:
         if re.search(pattern, source):
             issues.append(msg)
+    if re.search(r"(?i)(password|passwd|pwd|pass|api_key|apikey|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+        issues.append("Hardcoded password/credential found - move to environment variable")
+    try:
+        _sqli_result = scan_sql_injection(source, "file.java")
+        for _sqli_issue in _sqli_result.get("sqli_issues", []):
+            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+    except Exception:
+        pass
     classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
     methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
     imports = re.findall(r"import\s+([\w\.\*]+);", source)
@@ -1150,6 +1158,14 @@ def analyze_cobol(source):
     for pattern, msg in cobol_checks:
         if pattern in source:
             issues.append(msg)
+    if re.search(r"(?i)(password|passwd|pwd|pass|api-key|apikey|secret)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
+        issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
+    try:
+        _sqli_result = scan_sql_injection(source, "file.cbl")
+        for _sqli_issue in _sqli_result.get("sqli_issues", []):
+            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+    except Exception:
+        pass
     return {"issues": issues}
 
 def migrate_cobol(source):
