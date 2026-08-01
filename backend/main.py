@@ -1021,6 +1021,8 @@ def analyze_php(source):
         (r'\bini_set\s*\(\s*[\x22\x27]safe_mode', "safe_mode ini setting found - removed in PHP 7, has no effect"),
         (r'\bereg_replace\(', "ereg_replace() found - use preg_replace() (pattern needs delimiters added)"),
         (r'\bsql_regcase\b', "sql_regcase() found - removed in PHP 7"),
+        (r'\bmoney_format\s*\(', "money_format() found - removed in PHP 8.0, use NumberFormatter instead"),
+        (r'class\s+(\w+)\s*\{[^}]*?function\s+\1\s*\(', "PHP 4-style constructor (method name matches class name) found - removed in PHP 8, use __construct() instead"),
     ]
     for pattern, msg in php_checks:
         if re.search(pattern, source):
