@@ -764,6 +764,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 </div>
 <script>
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
+function isCommentLine(trimmedLine) {
+  return trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*/');
+}
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -1210,6 +1213,8 @@ function detectInsurance(code) {
   const found = [];
   items.forEach(m => {
     for (let i = 0; i < codeLines.length; i++) {
+      const trimmed = codeLines[i].trim();
+      if (isCommentLine(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
       const hit = m.patterns.find(p => lineLower.includes(p));
       if (hit) {
@@ -1251,6 +1256,8 @@ function detectPaymentSystems(code) {
   const found = [];
   items.forEach(m => {
     for (let i = 0; i < codeLines.length; i++) {
+      const trimmed = codeLines[i].trim();
+      if (isCommentLine(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
       const hit = m.patterns.find(p => lineLower.includes(p));
       if (hit) {
@@ -1309,6 +1316,8 @@ function detectCompliance(code) {
   const found = [];
   items.forEach(m => {
     for (let i = 0; i < codeLines.length; i++) {
+      const trimmed = codeLines[i].trim();
+      if (isCommentLine(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
       const hit = m.patterns.find(p => lineLower.includes(p));
       if (hit) {
@@ -1369,6 +1378,8 @@ function detectBankingModules(code) {
   const found = [];
   modules.forEach(m => {
     for (let i = 0; i < codeLines.length; i++) {
+      const trimmed = codeLines[i].trim();
+      if (isCommentLine(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
       const hit = m.patterns.find(p => lineLower.includes(p));
       if (hit) {
@@ -1422,6 +1433,8 @@ function detectBusinessRules(code) {
   const found = [];
   rules.forEach(r => {
     for (let i = 0; i < codeLines.length; i++) {
+      const trimmed = codeLines[i].trim();
+      if (isCommentLine(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
       const hit = r.patterns.find(p => lineLower.includes(p));
       if (hit) {
