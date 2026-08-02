@@ -1,0 +1,14 @@
+522: 
+523: def check_java_integrity(original, migrated):
+524:     orig = extract_java_names(original)
+525:     new = extract_java_names(migrated)
+526:     if not orig or not new:
+527:         return {"vars_ok": True, "var_message": ""}
+---
+523: def check_java_integrity(original, migrated):
+524:     orig = extract_java_names(original)
+525:     new = extract_java_names(migrated)
+526:     if not orig or not new:
+527:         return {"vars_ok": True, "var_message": ""}
+528:     missing = orig - new
+---

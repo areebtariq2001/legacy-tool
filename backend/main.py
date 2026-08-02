@@ -509,15 +509,23 @@ def validate_java(code):
 
 def extract_java_names(code):
     names = set()
-    if not JAVALANG_AVAILABLE:
-        return names
-    try:
-        tree = javalang.parse.parse(code)
-        for path, node in tree:
-            if hasattr(node, "name") and node.name:
-                names.add(node.name)
-    except:
-        pass
+    parsed_ok = False
+    if JAVALANG_AVAILABLE:
+        try:
+            tree = javalang.parse.parse(code)
+            for path, node in tree:
+                if hasattr(node, "name") and node.name:
+                    names.add(node.name)
+            parsed_ok = True
+        except Exception:
+            pass
+    if not parsed_ok:
+        for _m in re.finditer(r"\b(?:class|interface|enum)\s+(\w+)", code):
+            names.add(_m.group(1))
+        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\(", code):
+            names.add(_m.group(1))
+        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\]]+\s+(\w+)\s*[=;]", code):
+            names.add(_m.group(1))
     return names
 
 def check_java_integrity(original, migrated):
