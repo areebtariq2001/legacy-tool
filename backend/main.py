@@ -714,8 +714,17 @@ def extract_variables(code):
     names = set()
     try:
         tree = ast.parse(code)
-    except:
-        return names
+    except Exception:
+        for _m in re.finditer(r"^\s*(\w+)\s*=[^=]", code, re.MULTILINE):
+            names.add(_m.group(1))
+        for _m in re.finditer(r"\bdef\s+\w+\s*\(([^)]*)\)", code):
+            for _param in _m.group(1).split(","):
+                _p = _param.strip().split("=")[0].strip()
+                if _p and _p.isidentifier():
+                    names.add(_p)
+        for _m in re.finditer(r"\bdef\s+(\w+)\s*\(", code):
+            names.add(_m.group(1))
+        return names - _PY_BUILTINS
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
             if node.id not in _PY_BUILTINS:
