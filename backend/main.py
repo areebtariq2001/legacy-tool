@@ -1218,6 +1218,9 @@ def analyze_cobol(source):
         pass
     return {"issues": issues}
 
+def _cobol_hyphen_fix(s):
+    return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
+
 def migrate_cobol(source):
     changes = []
     out_lines = ["# Converted from COBOL - best-effort rule-based translation. Review carefully before use.", ""]
@@ -1298,7 +1301,7 @@ def migrate_cobol(source):
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m:
             var_name = compute_m.group(1).replace("-", "_")
-            expr = compute_m.group(2).replace("-", "_")
+            expr = _cobol_hyphen_fix(compute_m.group(2))
             out_lines.append(cur_indent() + var_name + " = " + expr)
             changes.append("COMPUTE -> assignment")
             if "/" in expr or "*" in expr:
@@ -1306,14 +1309,14 @@ def migrate_cobol(source):
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m:
-            src_val = add_m.group(1).replace("-", "_")
+            src_val = _cobol_hyphen_fix(add_m.group(1))
             dst_var = add_m.group(2).replace("-", "_")
             out_lines.append(cur_indent() + dst_var + " += " + src_val)
             changes.append("ADD -> +=")
             continue
         sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if sub_m:
-            src_val = sub_m.group(1).replace("-", "_")
+            src_val = _cobol_hyphen_fix(sub_m.group(1))
             dst_var = sub_m.group(2).replace("-", "_")
             out_lines.append(cur_indent() + dst_var + " -= " + src_val)
             changes.append("SUBTRACT -> -=")

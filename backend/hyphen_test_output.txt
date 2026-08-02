@@ -1,0 +1,11 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+
+def main():
+    RESULT = A - B
+    COUNTER += -5
+    TOTAL -= -5
+    return
+
+if __name__ == '__main__':
+    main()

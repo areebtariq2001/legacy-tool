@@ -1,0 +1,28 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+# Program: COMPLEX
+
+def main():
+    if WS_A > 1:
+        if WS_B > 2:
+            if WS_C > 3:
+                print("TRIPLE-NESTED")
+            print("DOUBLE-DONE")
+        print("SINGLE-DONE")
+    print("AFTER-FIRST-IF")
+    if WS_X == 1:
+        print("X1")
+    elif WS_X == 2:
+        print("X2")
+    else:
+        print("XOTHER")
+    if WS_Y > 5:
+        print("Y-CHECK")
+    if WS_Z == 10:
+        print("Z10")
+    else:
+        print("ZOTHER")
+    return
+
+if __name__ == '__main__':
+    main()
