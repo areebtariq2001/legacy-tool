@@ -1,6 +1,6 @@
 # Converted from COBOL - best-effort rule-based translation. Review carefully before use.
 
-# TODO: manual review - PROGRAM-ID. PAYROLL.
+# Program: PAYROLL
 # --- Variables ---
 WS_NAME = None
 WS_SALARY = 5000

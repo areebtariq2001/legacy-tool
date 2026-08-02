@@ -1240,6 +1240,11 @@ def migrate_cobol(source):
         if "IDENTIFICATION DIVISION" in upper:
             changes.append("IDENTIFICATION DIVISION removed")
             continue
+        prog_id_m = re.match(r"^PROGRAM-ID\.\s+([\w-]+)", line, re.IGNORECASE)
+        if prog_id_m:
+            out_lines.append("# Program: " + prog_id_m.group(1))
+            changes.append("PROGRAM-ID captured as a comment")
+            continue
         if "DATA DIVISION" in upper:
             changes.append("DATA DIVISION -> Python variable section")
             out_lines.append("# --- Variables ---")
