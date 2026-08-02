@@ -1229,10 +1229,9 @@ def migrate_cobol(source):
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
     eval_subject = None
     eval_first_when = False
-    import re as _seqre
     for raw_line in lines:
         line = raw_line.strip()
-        seq_match = _seqre.match(r"^(\d{6})\s+(.*)$", line)
+        seq_match = re.match(r"^(\d{6})\s+(.*)$", line)
         if seq_match:
             line = seq_match.group(2)
         if not line or line.startswith("*"):
@@ -1256,8 +1255,7 @@ def migrate_cobol(source):
             in_working_storage = False
             in_procedure = True
             continue
-        import re as _mre
-        var_m = _mre.match(r"^\d+\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, _mre.IGNORECASE)
+        var_m = re.match(r"^\d+\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             var_name = var_m.group(1).replace("-", "_")
             val = var_m.group(2)
@@ -1267,17 +1265,17 @@ def migrate_cobol(source):
                 out_lines.append(var_name + " = None")
             changes.append("Variable " + var_m.group(1) + " declared")
             continue
-        disp_m = _mre.match(r"^DISPLAY\s+(.+?)\.?$", line, _mre.IGNORECASE)
+        disp_m = re.match(r"^DISPLAY\s+(.+?)\.?$", line, re.IGNORECASE)
         if disp_m:
             _disp_val = disp_m.group(1)
             content = _disp_val if (_disp_val.strip().startswith(chr(34)) or _disp_val.strip().startswith(chr(39))) else _disp_val.replace("-", "_")
             out_lines.append(cur_indent() + "print(" + content + ")")
             changes.append("DISPLAY -> print()")
             continue
-        move_m = _mre.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if move_m:
             src_val = move_m.group(1).strip()
-            is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or _mre.match(r"^-?\d+(\.\d+)?$", src_val)
+            is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val)
             if not is_literal:
                 src_val_clean = src_val.replace("-", "_")
             else:
@@ -1292,7 +1290,7 @@ def migrate_cobol(source):
             out_lines.append(cur_indent() + "return")
             changes.append("STOP RUN -> return")
             continue
-        compute_m = _mre.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, _mre.IGNORECASE)
+        compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m:
             var_name = compute_m.group(1).replace("-", "_")
             expr = compute_m.group(2).replace("-", "_")
@@ -1301,25 +1299,25 @@ def migrate_cobol(source):
             if "/" in expr or "*" in expr:
                 changes.append("REVIEW NEEDED: COMPUTE " + var_name + " = " + expr + " - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
-        add_m = _mre.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m:
             src_val = add_m.group(1).replace("-", "_")
             dst_var = add_m.group(2).replace("-", "_")
             out_lines.append(cur_indent() + dst_var + " += " + src_val)
             changes.append("ADD -> +=")
             continue
-        sub_m = _mre.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, _mre.IGNORECASE)
+        sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if sub_m:
             src_val = sub_m.group(1).replace("-", "_")
             dst_var = sub_m.group(2).replace("-", "_")
             out_lines.append(cur_indent() + dst_var + " -= " + src_val)
             changes.append("SUBTRACT -> -=")
             continue
-        perform_m = _mre.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, _mre.IGNORECASE)
+        perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
         if perform_m:
             para_name = perform_m.group(1).replace("-", "_").lower()
             cond_raw = perform_m.group(2)
-            test_after_m = _mre.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, _mre.IGNORECASE)
+            test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, re.IGNORECASE)
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
             cond = cond_raw.replace("-", "_").replace(" = ", " == ")
@@ -1349,7 +1347,7 @@ def migrate_cobol(source):
             continue
         if upper.startswith("WHEN ") and eval_subject is not None:
             when_val = line[5:].rstrip(".").strip()
-            _thru_m = _mre.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, _mre.IGNORECASE)
+            _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
             if _thru_m:
                 when_cond = _thru_m.group(1).strip() + " <= " + eval_subject + " <= " + _thru_m.group(2).strip()
                 changes.append("REVIEW NEEDED: WHEN " + when_val + " (THRU/range) converted to a range-check (" + when_cond + ") - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
