@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%236366f1%22/><text x=%2250%22 y=%2268%22 font-size=%2255%22 font-family=%22Arial,sans-serif%22 font-weight=%22700%22 fill=%22white%22 text-anchor=%22middle%22>S</text></svg>">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StarSage — Enterprise Legacy Migration</title>
@@ -276,7 +277,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="scanRepo()">Scan</button>
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="viewCommitHistory()" title="Shows recent commit activity and change frequency using the GitHub Commits API">History</button>
               </div>
-              <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 Python files.</div>
+              <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 files (Python, Java, PHP, COBOL).</div>
               <div id="repoScanResult" style="display:none;margin-top:8px;font-family:monospace;font-size:10px;color:#94a3b8;white-space:pre-wrap;background:#07090f;border-radius:6px;padding:10px;max-height:200px;overflow-y:auto"></div>
             </div>
           </div>
@@ -1116,11 +1117,14 @@ function renderResults(R, original, fname, totalMs) {
 
   // Migration Impact panel - derived from real analysis data
   const fixHours = (critCount * 2 + warnCount * 1) || 0.5;
-  const fixCost = Math.round(fixHours * 15);
+  const fixCostMid = fixHours * 15;
+  const fixCostLow = Math.round(fixCostMid * 0.8);
+  const fixCostHigh = Math.round(fixCostMid * 1.3);
+  const fixCost = '$' + fixCostLow + '–$' + fixCostHigh;
   const riskLevel = critCount >= 1 ? 'High' : warnCount >= 1 ? 'Medium' : 'Low';
   const riskColor = riskLevel === 'High' ? 'b-red' : riskLevel === 'Medium' ? 'b-amber' : 'b-green';
   document.getElementById('impact-time').textContent = fixHours.toFixed(1) + ' hrs';
-  document.getElementById('impact-cost').textContent = '$' + fixCost;
+  document.getElementById('impact-cost').textContent = fixCost;
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
