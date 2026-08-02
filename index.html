@@ -2002,7 +2002,6 @@ function buildIssues(R) {
   }
   if (R.analyze) {
     const t = getText(R.analyze).toLowerCase();
-    if (lang === 'python' && (t.includes('print ') || t.includes('print('))) issues.push({ sev: 'warning', title: 'Python 2 print statements detected', desc: 'Use print() function instead of print statement for Python 3 compatibility.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (t.includes('legacy') || t.includes('deprecated')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (Array.isArray(R.analyze.issues)) {
       R.analyze.issues.forEach(iss => {
