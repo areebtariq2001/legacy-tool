@@ -1,0 +1,14 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+
+def main():
+    while not (WS_COUNT > 10):
+        loop_para()
+    while not (COUNT == 0):
+        check_para()
+    while not (WS_NAME == ""):
+        name_para()
+    return
+
+if __name__ == '__main__':
+    main()

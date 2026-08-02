@@ -1328,7 +1328,16 @@ def migrate_cobol(source):
             test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, re.IGNORECASE)
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
-            cond = cond_raw.replace("-", "_").replace(" = ", " == ")
+            cond = _cobol_hyphen_fix(cond_raw)
+            cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bGREATER\s+THAN\b", ">", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bLESS\s+THAN\b", "<", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
+            cond = cond.replace(" = ", " == ")
             if test_after_m:
                 out_lines.append(cur_indent() + "while True:")
                 out_lines.append(cur_indent() + "    " + para_name + "()")
