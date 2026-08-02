@@ -1,0 +1,40 @@
+1886:     }
+1887: 
+1888: def check_parity(original, migrated):
+1889:     def count_defs(code):
+1890:         funcs = 0
+1891:         classes = 0
+1892:         try:
+1893:             tree = ast.parse(code)
+1894:             for node in ast.walk(tree):
+1895:                 if isinstance(node, ast.FunctionDef):
+1896:                     funcs += 1
+1897:                 elif isinstance(node, ast.ClassDef):
+1898:                     classes += 1
+1899:         except:
+1900:             pass
+1901:         return funcs, classes
+1902:     o_funcs, o_classes = count_defs(original)
+1903:     m_funcs, m_classes = count_defs(migrated)
+1904:     o_lines = len([l for l in original.split("\n") if l.strip()])
+1905:     m_lines = len([l for l in migrated.split("\n") if l.strip()])
+1906:     issues = []
+1907:     if o_funcs != m_funcs:
+1908:         issues.append("Function count changed: %d -> %d" % (o_funcs, m_funcs))
+1909:     if o_classes != m_classes:
+1910:         issues.append("Class count changed: %d -> %d" % (o_classes, m_classes))
+1911:     parity_ok = len(issues) == 0
+1912:     if parity_ok:
+1913:         verdict = "Structural parity preserved - same functions and classes"
+1914:     else:
+1915:         verdict = "Structure changed - review recommended"
+1916:     return {
+1917:         "parity_ok": parity_ok,
+1918:         "parity_verdict": verdict,
+1919:         "original_functions": o_funcs,
+1920:         "migrated_functions": m_funcs,
+1921:         "original_classes": o_classes,
+1922:         "migrated_classes": m_classes,
+1923:         "original_lines": o_lines,
+1924:         "migrated_lines": m_lines,
+1925:         "parity_issues": issues,

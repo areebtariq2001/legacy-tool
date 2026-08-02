@@ -1896,8 +1896,9 @@ def check_parity(original, migrated):
                     funcs += 1
                 elif isinstance(node, ast.ClassDef):
                     classes += 1
-        except:
-            pass
+        except Exception:
+            funcs = len(re.findall(r"^\s*def\s+\w+", code, re.MULTILINE))
+            classes = len(re.findall(r"^\s*class\s+\w+", code, re.MULTILINE))
         return funcs, classes
     o_funcs, o_classes = count_defs(original)
     m_funcs, m_classes = count_defs(migrated)
