@@ -3461,7 +3461,13 @@ def detect_code_smells(source, filename):
                     if func_lines > 50:
                         smells.append({"type": "Long Function", "location": "Function " + node.name + " (line " + str(node.lineno) + ")", "detail": "Function is " + str(func_lines) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
         except Exception:
-            pass
+            _def_positions = [(m.start(), m.group(1)) for m in re.finditer(r"^def\s+(\w+)", source, re.MULTILINE)]
+            for idx, (pos, fname) in enumerate(_def_positions):
+                start_line = source[:pos].count(chr(10)) + 1
+                end_pos = _def_positions[idx + 1][0] if idx + 1 < len(_def_positions) else len(source)
+                func_lines_est = source[pos:end_pos].count(chr(10))
+                if func_lines_est > 50:
+                    smells.append({"type": "Long Function", "location": "Function " + fname + " (line " + str(start_line) + ", approximate - could not fully parse)", "detail": "Function is approximately " + str(func_lines_est) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
     try:
         indent_stack = []
         for i, line in enumerate(lines):

@@ -1,0 +1,90 @@
+=== LINE 275 ===
+272: 
+273: def _ast_complexity_python(source):
+274:     try:
+275:         tree = ast.parse(source)
+276:     except Exception:
+277:         return None
+278:     func_scores = []
+279:     for node in ast.walk(tree):
+
+=== LINE 491 ===
+488: # ---------- DEEP VERIFICATION (PYTHON) ----------
+489: def deep_verify_python(code):
+490:     try:
+491:         ast.parse(code)
+492:     except SyntaxError as e:
+493:         return {"verified": False, "verify_message": f"Compilation failed: syntax error on line {e.lineno}. Code is not execution-ready."}
+494:     try:
+495:         compile(code, "<migrated>", "exec")
+
+=== LINE 2113 ===
+2110:     import re as _re
+2111:     layers = []
+2112:     try:
+2113:         tree = ast.parse(source)
+2114:         funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+2115:         classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+2116:         imports = []
+2117:         for n in ast.walk(tree):
+
+=== LINE 2317 ===
+2314:         reasons.append("Moderate file size (" + str(len(lines)) + " lines)")
+2315:     # 3. Parse check
+2316:     try:
+2317:         tree = ast.parse(source)
+2318:         funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+2319:         if funcs > 20:
+2320:             risk += 15
+2321:             reasons.append("High number of functions (" + str(funcs) + ") - complex to migrate and test")
+
+=== LINE 2422 ===
+2419:     lines = [l for l in source.split(chr(10)) if l.strip()]
+2420:     loc = len(lines)
+2421:     try:
+2422:         tree = ast.parse(source)
+2423:         funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+2424:         classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+2425:         branches = len([n for n in ast.walk(tree) if isinstance(n, (ast.If, ast.For, ast.While))])
+2426:         parseable = True
+
+=== LINE 2658 ===
+2655: def analyze_impact(source, filename):
+2656:     import re as _re3
+2657:     try:
+2658:         tree = ast.parse(source)
+2659:         funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+2660:     except Exception:
+2661:         if filename.lower().endswith(".php"):
+2662:             funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
+
+=== LINE 2697 ===
+2694:     import re as _re2
+2695:     lines = [l for l in source.split(chr(10)) if l.strip()]
+2696:     try:
+2697:         tree = ast.parse(source)
+2698:         funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+2699:         classes = len([n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)])
+2700:         parseable = True
+2701:     except Exception:
+
+=== LINE 2748 ===
+2745:     score = 100
+2746:     findings = []
+2747:     try:
+2748:         tree = ast.parse(source)
+2749:         funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+2750:         classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+2751:         # 1. Functions present (modular = easier for AI/APIs to call)
+2752:         if len(funcs) == 0:
+
+=== LINE 3457 ===
+3454:     smells = []
+3455:     if filename.lower().endswith(".py"):
+3456:         try:
+3457:             tree = ast.parse(source)
+3458:             for node in ast.walk(tree):
+3459:                 if isinstance(node, ast.FunctionDef):
+3460:                     func_lines = (node.end_lineno - node.lineno) if hasattr(node, "end_lineno") else 0
+3461:                     if func_lines > 50:
+
