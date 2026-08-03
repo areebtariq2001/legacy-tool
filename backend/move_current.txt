@@ -1,0 +1,10 @@
+68:         move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
+69:         if move_m:
+70:             src_val = move_m.group(1).strip()
+71:             is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val)
+72:             if not is_literal:
+73:                 src_val_clean = src_val.replace("-", "_")
+74:             else:
+75:                 src_val_clean = src_val
+76:             dst_var = move_m.group(2).replace("-", "_")
+77:             out_lines.append(cur_indent() + dst_var + " = " + src_val_clean)

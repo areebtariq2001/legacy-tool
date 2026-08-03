@@ -1289,7 +1289,7 @@ def migrate_cobol(source):
             out_lines.append(cur_indent() + "print(" + disp_content + ")")
             changes.append("DISPLAY -> print()")
             continue
-        move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
+        move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w\s-]+)\.?$", line, re.IGNORECASE)
         if move_m:
             src_val = move_m.group(1).strip()
             is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val)
@@ -1297,9 +1297,10 @@ def migrate_cobol(source):
                 src_val_clean = src_val.replace("-", "_")
             else:
                 src_val_clean = src_val
-            dst_var = move_m.group(2).replace("-", "_")
-            out_lines.append(cur_indent() + dst_var + " = " + src_val_clean)
-            changes.append("MOVE -> assignment")
+            dst_vars = [d.replace("-", "_") for d in move_m.group(2).strip().split()]
+            for dst_var in dst_vars:
+                out_lines.append(cur_indent() + dst_var + " = " + src_val_clean)
+            changes.append("MOVE -> assignment" + (" (" + str(len(dst_vars)) + " destinations)" if len(dst_vars) > 1 else ""))
             if not is_literal:
                 changes.append("REVIEW NEEDED: MOVE " + move_m.group(1).strip() + " TO " + move_m.group(2) + " - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
