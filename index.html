@@ -2193,6 +2193,26 @@ function renderArchDiagram() {
     svgBoxes + '</svg>';
   window.lastArchServices = services.slice();
   if (exportRow) exportRow.style.display = 'flex';
+  showArchGlobalSummary();
+}
+function showArchGlobalSummary() {
+  const detailDiv = document.getElementById('archServiceDetail') || (() => {
+    const d = document.createElement('div');
+    d.id = 'archServiceDetail';
+    d.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border:1px solid #3b82f6';
+    document.getElementById('archDiagram').appendChild(d);
+    return d;
+  })();
+  const info = window.lastArchServiceInfo || [];
+  const strongCount = info.filter(s => s.conf !== null && s.conf >= 70).length;
+  const moderateCount = info.filter(s => s.conf !== null && s.conf >= 50 && s.conf < 70).length;
+  const weakCount = info.filter(s => s.conf !== null && s.conf < 50).length;
+  detailDiv.style.borderColor = '#3b82f6';
+  detailDiv.innerHTML = '<div style="font-size:12px;font-weight:700;color:#60a5fa">Global System Summary</div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:6px">Total Services Detected: <span style="color:#a78bfa;font-weight:600">' + info.length + '</span></div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Target Architecture: <span style="color:#a78bfa;font-weight:600">Microservices (from Monolith)</span></div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Confidence Breakdown: 🟢 ' + strongCount + ' strong &nbsp; 🟡 ' + moderateCount + ' moderate &nbsp; 🔴 ' + weakCount + ' weak</div>' +
+    '<div style="font-size:9px;color:#64748b;margin-top:6px">Click any service box above for detailed breakdown.</div>';
 }
 function showArchServiceDetail(idx) {
   const info = window.lastArchServiceInfo[idx];
