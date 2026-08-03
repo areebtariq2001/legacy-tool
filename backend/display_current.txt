@@ -1,0 +1,8 @@
+54:         disp_m = re.match(r"^DISPLAY\s+(.+?)\.?$", line, re.IGNORECASE)
+55:         if disp_m:
+56:             _disp_val = disp_m.group(1)
+57:             content = _disp_val if (_disp_val.strip().startswith(chr(34)) or _disp_val.strip().startswith(chr(39))) else _disp_val.replace("-", "_")
+58:             out_lines.append(cur_indent() + "print(" + content + ")")
+59:             changes.append("DISPLAY -> print()")
+60:             continue
+61:         move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
