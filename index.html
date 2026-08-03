@@ -502,6 +502,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px" onclick="previewArchitecture()" id="archBtn">Generate Architecture Diagram</button>
               <div id="archLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Analyzing structure...</div>
               <div id="archDiagram" style="display:none;margin-top:10px"></div>
+              <div id="archExportRow" style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap" class="scan-row">
+                <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="downloadArchSvg()">⬇ Download SVG</button>
+                <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="copyArchMermaid()">📋 Copy as Mermaid</button>
+              </div>
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card">
@@ -2144,8 +2148,9 @@ Always confirm findings with a qualified reviewer before making migration decisi
 }
 function renderArchDiagram() {
   const dia = document.getElementById('archDiagram');
+  const exportRow = document.getElementById('archExportRow');
   const services = lastUniqueServices;
-  if (!services || services.length === 0) { dia.style.display = 'none'; return; }
+  if (!services || services.length === 0) { dia.style.display = 'none'; if (exportRow) exportRow.style.display = 'none'; return; }
   dia.style.display = 'block';
   const boxH = 32, gap = 10, startY = 50;
   let svgBoxes = '';
@@ -2161,6 +2166,37 @@ function renderArchDiagram() {
     '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   dia.innerHTML = svg;
+  window.lastArchSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" style="background:#07090f">' +
+    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#0f1525" stroke="#3b82f6" stroke-width="1.5"/>' +
+    '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
+    svgBoxes + '</svg>';
+  window.lastArchServices = services.slice();
+  if (exportRow) exportRow.style.display = 'flex';
+}
+function downloadArchSvg() {
+  if (!window.lastArchSvg) { alert('Generate the diagram first.'); return; }
+  const blob = new Blob([window.lastArchSvg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'starsage_architecture.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function copyArchMermaid() {
+  if (!window.lastArchServices || window.lastArchServices.length === 0) { alert('Generate the diagram first.'); return; }
+  let mermaid = 'graph LR\n  Legacy[Legacy Monolith]\n';
+  window.lastArchServices.forEach((s, i) => {
+    const id = 'Svc' + i;
+    mermaid += '  Legacy --> ' + id + '[' + s.replace(/[\[\]]/g, '') + ']\n';
+  });
+  navigator.clipboard.writeText(mermaid).then(() => {
+    alert('Mermaid diagram code copied to clipboard! Paste it into any Mermaid-compatible tool (GitHub, Notion, mermaid.live, etc.)');
+  }).catch(() => {
+    alert('Could not copy automatically. Mermaid code:\n\n' + mermaid);
+  });
 }
 async function runGenericScan(endpoint, label, btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
