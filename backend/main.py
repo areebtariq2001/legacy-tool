@@ -1268,7 +1268,9 @@ def migrate_cobol(source):
             var_name = var_m.group(1).replace("-", "_")
             val = var_m.group(2)
             if val:
-                out_lines.append(var_name + " = " + val.rstrip("."))
+                val_clean = val.rstrip(".").strip()
+                val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
+                out_lines.append(var_name + " = " + val_map.get(val_clean.upper(), val_clean))
             else:
                 out_lines.append(var_name + " = None")
             changes.append("Variable " + var_m.group(1) + " declared")

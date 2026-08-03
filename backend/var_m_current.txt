@@ -1,0 +1,10 @@
+42:         var_m = re.match(r"^\d+\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+43:         if var_m and in_working_storage:
+44:             var_name = var_m.group(1).replace("-", "_")
+45:             val = var_m.group(2)
+46:             if val:
+47:                 out_lines.append(var_name + " = " + val.rstrip("."))
+48:             else:
+49:                 out_lines.append(var_name + " = None")
+50:             changes.append("Variable " + var_m.group(1) + " declared")
+51:             continue

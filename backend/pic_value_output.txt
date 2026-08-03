@@ -1,0 +1,11 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+# --- Variables ---
+WS_NAME = ""
+WS_AGE = 0
+
+def main():
+    return
+
+if __name__ == '__main__':
+    main()
