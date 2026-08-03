@@ -1453,7 +1453,7 @@ def migrate_cobol(source):
         out_lines.append(cur_indent() + "# TODO: manual review - " + line)
     if in_procedure:
         out_lines.append("")
-        out_lines.append("if __name__ == " + chr(39) + "__main__" + chr(39) + ":")
+        out_lines.append("if __name__ == '__main__':")
         out_lines.append("    main()")
     migrated = chr(10).join(out_lines)
     check = validate_cobol(migrated)
