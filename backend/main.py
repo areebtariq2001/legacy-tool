@@ -1476,6 +1476,9 @@ def migrate_cobol(source):
 
 # ---------- AI ----------
 def ai_suggest(source, language):
+    language = re.sub(r"[\r\n]", " ", str(language))[:50].strip()
+    if not language:
+        language = "code"
     _src_truncated = source[:8000]
     if len(source) > 8000:
         _src_truncated += "\n\n[... truncated - showing first 8000 chars of " + str(len(source)) + " total ...]"
@@ -1486,6 +1489,9 @@ def ai_suggest(source, language):
     return {"suggestions": result}
 
 def ai_explain(source, language):
+    language = re.sub(r"[\r\n]", " ", str(language))[:50].strip()
+    if not language:
+        language = "code"
     _src_truncated = source[:8000]
     if len(source) > 8000:
         _src_truncated += "\n\n[... truncated - showing first 8000 chars of " + str(len(source)) + " total ...]"
