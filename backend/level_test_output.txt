@@ -1,0 +1,12 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+# --- Variables ---
+# Group: WS_RECORD
+WS_RECORD_WS_NAME = None
+WS_RECORD_WS_AGE = 0
+
+def main():
+    return
+
+if __name__ == '__main__':
+    main()
