@@ -2194,6 +2194,35 @@ function renderArchDiagram() {
   window.lastArchServices = services.slice();
   if (exportRow) exportRow.style.display = 'flex';
   showArchGlobalSummary();
+  renderArchSuggestions(serviceInfo);
+}
+function renderArchSuggestions(serviceInfo) {
+  const suggestions = [];
+  if (serviceInfo.length >= 4) {
+    suggestions.push('Consider introducing an API Gateway to unify entry points across ' + serviceInfo.length + ' detected services.');
+  }
+  const weakCount = serviceInfo.filter(s => s.conf !== null && s.conf < 50).length;
+  if (weakCount > 0) {
+    suggestions.push('Manually review ' + weakCount + ' service boundary(ies) with weak rule-confidence (<50%) before splitting - the detected mapping may be imprecise.');
+  }
+  const moduleOnly = serviceInfo.filter(s => s.conf === null).length;
+  if (moduleOnly > 0) {
+    suggestions.push(moduleOnly + ' service(s) were detected via banking-module pattern matching only (no specific business rule matched) - verify these boundaries manually.');
+  }
+  if (serviceInfo.length >= 3) {
+    suggestions.push('With ' + serviceInfo.length + ' services identified, evaluate whether some genuinely need to communicate directly vs. through a shared event/message layer to reduce tight coupling.');
+  }
+  const existing = document.getElementById('archSuggestions');
+  if (existing) existing.remove();
+  if (suggestions.length === 0) return;
+  const div = document.createElement('div');
+  div.id = 'archSuggestions';
+  div.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border-left:3px solid #a78bfa';
+  let html = '<div style="font-size:11px;font-weight:700;color:#a78bfa">Architecture Suggestions</div>';
+  suggestions.forEach(s => { html += '<div style="font-size:10px;color:#e2e8f0;margin-top:4px">✓ ' + s + '</div>'; });
+  html += '<div style="font-size:9px;color:#64748b;margin-top:6px">Derived directly from this file&#39;s detected services and confidence levels - not generic best-practice filler.</div>';
+  div.innerHTML = html;
+  document.getElementById('archDiagram').appendChild(div);
 }
 function showArchGlobalSummary() {
   const detailDiv = document.getElementById('archServiceDetail') || (() => {
