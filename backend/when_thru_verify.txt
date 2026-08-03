@@ -1,0 +1,12 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+
+def main():
+    if 90 <= WS_SCORE <= 100:
+        WS_GRADE = "A"
+    elif 80 <= WS_SCORE <= 89:
+        WS_GRADE = "B"
+    return
+
+if __name__ == '__main__':
+    main()

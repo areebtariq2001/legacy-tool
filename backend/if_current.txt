@@ -1,0 +1,14 @@
+198:         if upper.startswith("IF "):
+199:             cond = line[3:].rstrip(".")
+200:             cond = cond.replace(" = ", " == ")
+201:             _words = cond.split(" ")
+202:             _fixed_words = []
+203:             for _w in _words:
+204:                 if _w and _w[0] not in (chr(34), chr(39)) and "-" in _w and any(_c.isalnum() for _c in _w):
+205:                     _fixed_words.append(_w.replace("-", "_"))
+206:                 else:
+207:                     _fixed_words.append(_w)
+208:             cond = " ".join(_fixed_words)
+209:             out_lines.append(cur_indent() + "if " + cond + ":")
+210:             if_depth += 1
+211:             changes.append("IF -> if (= converted to ==)")
