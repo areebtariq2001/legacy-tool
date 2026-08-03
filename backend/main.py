@@ -1385,6 +1385,7 @@ def migrate_cobol(source):
             out_lines.append(cur_indent() + "else:")
             if_depth += 1
             eval_first_when = False
+            eval_subject = None
             changes.append("WHEN OTHER -> else")
             continue
         if upper.startswith("WHEN ") and eval_subject is not None:
