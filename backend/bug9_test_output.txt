@@ -1,0 +1,15 @@
+# Converted from COBOL - best-effort rule-based translation. Review carefully before use.
+
+
+def main():
+    if WS_X == 1:
+        if WS_Y > 5:
+            print("BIG")
+        else:
+            print("SMALL")
+    else:
+        print("OTHER")
+    return
+
+if __name__ == '__main__':
+    main()

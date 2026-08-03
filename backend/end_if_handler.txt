@@ -1,0 +1,5 @@
+196:         if upper.startswith("END-IF"):
+197:             if_depth = max(0, if_depth - 1)
+198:             changes.append("END-IF removed (Python uses indentation)")
+199:             continue
+200:         if upper.startswith("IF "):

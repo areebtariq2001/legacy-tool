@@ -1421,6 +1421,8 @@ def migrate_cobol(source):
             changes.append("ELSE -> else")
             continue
         if upper.startswith("END-IF"):
+            if if_depth == 0:
+                changes.append("REVIEW NEEDED: unexpected END-IF with no matching IF - the source COBOL may have mismatched IF/END-IF blocks. Indentation from this point onward may be incorrect - review the migrated output carefully.")
             if_depth = max(0, if_depth - 1)
             changes.append("END-IF removed (Python uses indentation)")
             continue
