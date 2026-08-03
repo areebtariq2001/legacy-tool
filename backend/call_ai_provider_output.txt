@@ -1,0 +1,8 @@
+def call_ai_provider(prompt, max_tokens=500):
+    provider = os.environ.get("AI_PROVIDER", "groq").lower()
+    if provider == "ollama":
+        result = call_ollama(prompt)
+        if "AI_ERROR" not in result and "not reachable" not in result.lower() and result.strip():
+            return result
+        return call_groq(prompt, max_tokens)
+    return call_groq(prompt, max_tokens)
