@@ -1674,6 +1674,7 @@ function mergeServicesIntoMicroservices(services) {
   extraServicesFromModules = services.filter(Boolean);
 }
 function renderMicroserviceSummary(rules) {
+  window.lastBusinessRules = rules;
   const mCard = document.getElementById('microserviceCard');
   const mList = document.getElementById('microserviceList');
   const uniqueServices = [...new Set([...rules.map(r => r.service), ...extraServicesFromModules])];
@@ -2152,13 +2153,21 @@ function renderArchDiagram() {
   const services = lastUniqueServices;
   if (!services || services.length === 0) { dia.style.display = 'none'; if (exportRow) exportRow.style.display = 'none'; return; }
   dia.style.display = 'block';
+  const rules = window.lastBusinessRules || [];
+  const serviceInfo = services.map(s => {
+    const matched = rules.filter(r => r.service === s);
+    const conf = matched.length ? Math.max(...matched.map(r => r.conf || 0)) : null;
+    const color = conf === null ? '#8b5cf6' : conf >= 70 ? '#22c55e' : conf >= 50 ? '#f59e0b' : '#ef4444';
+    const dot = conf === null ? '' : conf >= 70 ? '🟢 ' : conf >= 50 ? '🟡 ' : '🔴 ';
+    return { name: s, matched, conf, color, dot };
+  });
   const boxH = 32, gap = 10, startY = 50;
   let svgBoxes = '';
-  services.forEach((s, i) => {
+  serviceInfo.forEach((info, i) => {
     const y = startY + i * (boxH + gap);
     svgBoxes += '<line x1="110" y1="20" x2="260" y2="' + (y + boxH/2) + '" stroke="#243350" stroke-width="1.5"/>';
-    svgBoxes += '<rect x="260" y="' + y + '" width="220" height="' + boxH + '" rx="6" fill="#0f1525" stroke="#8b5cf6" stroke-width="1.5"/>';
-    svgBoxes += '<text x="370" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="#f1f5f9" font-size="10" font-family="monospace">' + s + '</text>';
+    svgBoxes += '<rect data-svc-idx="' + i + '" class="arch-svc-box" x="260" y="' + y + '" width="220" height="' + boxH + '" rx="6" fill="#0f1525" stroke="' + info.color + '" stroke-width="1.5" style="cursor:pointer"/>';
+    svgBoxes += '<text data-svc-idx="' + i + '" class="arch-svc-box" x="370" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="#f1f5f9" font-size="10" font-family="monospace" style="cursor:pointer;pointer-events:none">' + info.name + '</text>';
   });
   const totalH = startY + services.length * (boxH + gap) + 10;
   const svg = '<svg width="100%" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" xmlns="http://www.w3.org/2000/svg">' +
@@ -2166,12 +2175,42 @@ function renderArchDiagram() {
     '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   dia.innerHTML = svg;
+  dia.querySelectorAll('.arch-svc-box').forEach(el => {
+    el.addEventListener('click', () => showArchServiceDetail(parseInt(el.getAttribute('data-svc-idx'))));
+  });
+  window.lastArchServiceInfo = serviceInfo;
+  const legendDiv = document.createElement('div');
+  legendDiv.style.cssText = 'font-size:9px;color:#64748b;margin-top:6px';
+  legendDiv.innerHTML = '🟢 Strong match (≥70%) &nbsp; 🟡 Moderate match (50-69%) &nbsp; 🔴 Weak match (&lt;50%) &nbsp; 🟣 Module-detected (no rule confidence) — click a service box for details';
+  dia.appendChild(legendDiv);
   window.lastArchSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" style="background:#07090f">' +
     '<rect x="5" y="5" width="200" height="30" rx="6" fill="#0f1525" stroke="#3b82f6" stroke-width="1.5"/>' +
     '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   window.lastArchServices = services.slice();
   if (exportRow) exportRow.style.display = 'flex';
+}
+function showArchServiceDetail(idx) {
+  const info = window.lastArchServiceInfo[idx];
+  if (!info) return;
+  const detailDiv = document.getElementById('archServiceDetail') || (() => {
+    const d = document.createElement('div');
+    d.id = 'archServiceDetail';
+    d.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border:1px solid ' + info.color;
+    document.getElementById('archDiagram').appendChild(d);
+    return d;
+  })();
+  detailDiv.style.borderColor = info.color;
+  let html = '<div style="font-size:12px;font-weight:700;color:' + info.color + '">' + info.dot + info.name + '</div>';
+  if (info.matched.length) {
+    html += '<div style="font-size:10px;color:#64748b;margin-top:6px">Source Business Rule(s):</div>';
+    info.matched.forEach(r => {
+      html += '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">✓ ' + (r.label || 'Rule') + (r.fn ? ' — <span style="font-family:monospace;color:#8b5cf6">' + r.fn + '()</span>' : '') + (r.conf ? ' <span style="color:#64748b">(' + r.conf + '% match)</span>' : '') + '</div>';
+    });
+  } else {
+    html += '<div style="font-size:10px;color:#64748b;margin-top:6px">Detected via banking-module pattern matching (no specific business-rule line match).</div>';
+  }
+  detailDiv.innerHTML = html;
 }
 function downloadArchSvg() {
   if (!window.lastArchSvg) { alert('Generate the diagram first.'); return; }
