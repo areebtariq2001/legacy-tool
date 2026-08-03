@@ -697,6 +697,9 @@ def validate_php(code):
     return {"valid": True, "validation_message": "Basic structural check passed (brace/paren balance). This is not a full PHP parser - please review carefully."}
 
 def validate_cobol(code):
+    # Note: despite the name (kept for naming-consistency with validate_java/validate_php),
+    # this validates the MIGRATED PYTHON OUTPUT, not the original COBOL source.
+    # COBOL syntax validation would require a dedicated COBOL parser, which is not used here.
     try:
         ast.parse(code)
         return {"valid": True, "validation_message": "Migrated Python output parses successfully as valid Python syntax. Note: this validates the Python output, not the original COBOL - please review the business logic conversion carefully."}
@@ -1228,6 +1231,7 @@ def migrate_cobol(source):
     in_working_storage = False
     in_procedure = False
     current_group_01 = None
+    _skipped_types = {}
     if_depth = 0
     def cur_indent():
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
@@ -1452,6 +1456,13 @@ def migrate_cobol(source):
             changes.append("IF -> if (COBOL operators converted)")
             continue
         out_lines.append(cur_indent() + "# TODO: manual review - " + line)
+        _stmt_type_m = re.match(r"^(\w[\w-]*)", line)
+        if _stmt_type_m:
+            _skipped_types.setdefault(_stmt_type_m.group(1).upper(), 0)
+            _skipped_types[_stmt_type_m.group(1).upper()] += 1
+    if _skipped_types:
+        _skip_summary = ", ".join(str(v) + " " + k for k, v in _skipped_types.items())
+        changes.append("REVIEW NEEDED: " + str(sum(_skipped_types.values())) + " statement(s) could not be auto-converted and are marked '# TODO' - manual conversion required: " + _skip_summary)
     if in_procedure:
         out_lines.append("")
         out_lines.append("if __name__ == '__main__':")
