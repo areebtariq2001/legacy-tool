@@ -1,0 +1,6 @@
+123:         return call_groq(prompt, max_tokens)
+124:     return call_groq(prompt, max_tokens)
+1008:     ai_doc = call_groq(prompt, max_tokens=1200)
+1963:     ai_response = call_groq(prompt, max_tokens=500)
+2824:                 rules_text = call_groq(prompt, max_tokens=1500)
+2826:             rules_text = call_groq(prompt, max_tokens=1500)

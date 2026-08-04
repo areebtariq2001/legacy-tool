@@ -1,0 +1,26 @@
+=== AROUND LINE 1008 ===
+1005:         "Do not use markdown symbols. Just the headers and plain text.\n\n"
+1006:         f"Code:\n{source}"
+1007:     )
+1008:     ai_doc = call_groq(prompt, max_tokens=1200)
+1009:     return {
+1010:         "filename": filename,
+
+=== AROUND LINE 1963 ===
+1953: def generate_test_scenarios(source, filename):
+1960:         "TEST: <function> | INPUT: <input> | EXPECTED: <expected output>\n\n"
+1961:         "Code:\n" + source
+1962:     )
+1963:     ai_response = call_groq(prompt, max_tokens=500)
+1964:     scenarios = []
+1965:     for line in ai_response.split("\n"):
+
+=== AROUND LINE 2824 ===
+2817: def extract_business_rules(source, language):
+2821:         if provider == "ollama":
+2822:             rules_text = call_ollama(prompt)
+2823:             if "AI_ERROR" in rules_text or "not reachable" in rules_text.lower():
+2824:                 rules_text = call_groq(prompt, max_tokens=1500)
+2825:         else:
+2826:             rules_text = call_groq(prompt, max_tokens=1500)
+
