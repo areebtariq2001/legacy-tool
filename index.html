@@ -1731,7 +1731,8 @@ function computeLineDiff(oldLines, newLines) {
 }
 function renderCobolSpec(code) {
   const el = document.getElementById('diffNew');
-  const rules = detectBusinessRules(code);
+  detectBusinessRules(code);
+  const rules = window.lastBusinessRules || [];
   const lines = code.split('\n');
   if (!rules || rules.length === 0) {
     el.innerHTML = '<div style="padding:12px;font-size:11px;color:#64748b">No specific business rules were detected via pattern-matching in this file. This does not necessarily mean the file has no business logic - it means no known pattern matched. Review the Original Source panel directly.</div>';
@@ -1755,8 +1756,10 @@ function renderCobolSpec(code) {
     html += '<div style="color:#a78bfa;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
     html += '<div style="color:#94a3b8;margin-top:4px">Paragraph: <span style="color:#e2e8f0">' + escapeHtml(r.fn || '(not identified)') + '</span></div>';
     html += '<div style="color:#94a3b8">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
+    html += '<div style="color:#94a3b8">Logic (matched line): <span style="color:#e2e8f0;font-family:monospace">' + escapeHtml(r.snippet || '') + '</span></div>';
     html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) : '(none matching WS- pattern found)') + '</span></div>';
     html += '<div style="color:#94a3b8">Suggested Service: <span style="color:#60a5fa">' + escapeHtml(r.service || '(none)') + '</span></div>';
+    html += '<div style="color:#64748b;font-size:9px;margin-top:2px">Match confidence: ' + (r.conf || '?') + '%</div>';
     html += '</div>';
   });
   html += '<div style="font-size:9px;color:#64748b;margin-top:6px">Derived from pattern-based business-rule detection and nearby variable references in the source - a starting map, not a verified data-flow analysis. Review against the Original Source panel above.</div>';
