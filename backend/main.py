@@ -1545,7 +1545,7 @@ def safe_read_file(content_bytes, filename):
 # ---------- ENDPOINTS ----------
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0"}
+    return {"status": "ok", "version": "1.0", "ai_provider": os.environ.get("AI_PROVIDER", "groq")}
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -1677,12 +1677,27 @@ async def generate_docs_endpoint(file: UploadFile = File(...)):
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
-    source = (await file.read()).decode("utf-8", errors='ignore')
-    result = migrate_code(source)
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return Response(content=error.encode('utf-8'), media_type='text/plain', status_code=400)
+    lang = detect_language(file.filename)
+    if lang == "java":
+        result = migrate_java(source)
+    elif lang == "php":
+        result = migrate_php(source)
+    elif lang == "cobol":
+        result = migrate_cobol(source)
+    else:
+        result = migrate_code(source)
     migrated = result.get("migrated_code", "")
     filename = file.filename
-    if filename.endswith('.py'):
-        filename = filename.replace('.py', '_migrated.py')
+    ext_map = {'.py': '_migrated.py', '.java': '_migrated.java', '.php': '_migrated.php', '.cbl': '_migrated.py', '.cob': '_migrated.py'}
+    for ext, new_ext in ext_map.items():
+        if filename.lower().endswith(ext):
+            filename = filename[:-len(ext)] + new_ext
+            break
+    write_audit_log("download", file.filename, "language=" + lang)
     return Response(
         content=migrated.encode('utf-8'),
         media_type='application/octet-stream',
@@ -1698,6 +1713,7 @@ async def analyze_php_endpoint(file: UploadFile = File(...)):
     result = analyze_php(source)
     result["filename"] = file.filename
     track_usage("analyze-php", file.filename)
+    write_audit_log("analyze-php", file.filename, "issues=" + str(len(result.get("issues", []))))
     return result
 
 @app.post("/migrate-php")
