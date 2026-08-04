@@ -1,0 +1,13 @@
+def safe_read_file(content_bytes, filename):
+    if len(content_bytes) > MAX_FILE_SIZE:
+        return None, f"File too large ({len(content_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes."
+    if len(content_bytes) == 0:
+        return None, "File is empty."
+    try:
+        source = content_bytes.decode("utf-8", errors="ignore")
+    except Exception as e:
+        return None, f"Could not read file (encoding issue): {str(e)}"
+    printable = sum(1 for c in source[:1000] if c.isprintable() or c in "\n\r\t ")
+    if len(source) > 0 and printable / min(len(source), 1000) < 0.7:
+        return None, "File does not appear to be text/code (may be binary)."
+    return source, None

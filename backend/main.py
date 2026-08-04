@@ -1537,8 +1537,9 @@ def safe_read_file(content_bytes, filename):
         source = content_bytes.decode("utf-8", errors="ignore")
     except Exception as e:
         return None, f"Could not read file (encoding issue): {str(e)}"
-    printable = sum(1 for c in source[:1000] if c.isprintable() or c in "\n\r\t ")
-    if len(source) > 0 and printable / min(len(source), 1000) < 0.7:
+    sample = source[:2000]
+    printable = sum(1 for c in sample if c.isprintable() or c in "\n\r\t \x0c")
+    if len(sample) > 0 and printable / len(sample) < 0.5:
         return None, "File does not appear to be text/code (may be binary)."
     return source, None
 
@@ -1606,6 +1607,8 @@ class QARequest(BaseModel):
 
 @app.post("/qa-check")
 async def qa_check(req: QARequest):
+    if len(req.original) > 50000 or len(req.migrated) > 50000:
+        return {"qa_verdict": "ERROR", "qa_full_response": "Input too large for QA check (max 50,000 characters per field)."}
     try:
         result = ai_qa_compare(req.original, req.migrated)
         write_audit_log("qa-check", "code-pair", f"verdict={result['qa_verdict']}")
