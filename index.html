@@ -578,7 +578,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                   <div class="diff-body" id="diffOld"></div>
                 </div>
                 <div class="diff-pane">
-                  <div class="diff-head new">Migrated Output</div>
+                  <div class="diff-head new" id="migratedHeadLabel">Migrated Output</div>
                   <div class="diff-body" id="diffNew"></div>
                 </div>
               </div>
@@ -1002,7 +1002,7 @@ async function runAnalysis() {
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
     const reviewNeededCount = allChanges.filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
-    const migLabel = lang === 'cobol' ? 'Migration Ready (COBOL → Python)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
+    const migLabel = lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
     const ccNote = document.getElementById('changeCountNote');
     if (ccNote) {
       ccNote.style.display = 'block';
@@ -1081,8 +1081,14 @@ function renderResults(R, original, fname, totalMs) {
       }
     });
   }
+  const migLabel = document.getElementById('migratedHeadLabel');
+  if (migLabel) migLabel.textContent = (lang === 'cobol') ? 'Business Logic Specification' : 'Migrated Output';
   renderDiffHighlighted('diffOld', original, migrated, false, reviewLineNums);
-  renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums);
+  if (lang === 'cobol') {
+    renderCobolSpec(original);
+  } else {
+    renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums);
+  }
   const issues = buildIssues(R);
   const critCount = issues.filter(i => i.sev === 'critical').length;
   const warnCount = issues.filter(i => i.sev === 'warning').length;
@@ -1723,6 +1729,40 @@ function computeLineDiff(oldLines, newLines) {
   while (j > 0) { newTags[j - 1] = 'added'; j--; }
   return { oldTags, newTags };
 }
+function renderCobolSpec(code) {
+  const el = document.getElementById('diffNew');
+  const rules = detectBusinessRules(code);
+  const lines = code.split('\n');
+  if (!rules || rules.length === 0) {
+    el.innerHTML = '<div style="padding:12px;font-size:11px;color:#64748b">No specific business rules were detected via pattern-matching in this file. This does not necessarily mean the file has no business logic - it means no known pattern matched. Review the Original Source panel directly.</div>';
+    return;
+  }
+  let html = '<div style="padding:10px;font-family:monospace;font-size:11px;line-height:1.7">';
+  rules.forEach(r => {
+    const lineIdx = (r.line || 1) - 1;
+    let searchStart = lineIdx, searchEnd = lineIdx;
+    for (let i = lineIdx; i >= Math.max(0, lineIdx - 30); i--) {
+      if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i]) && i !== lineIdx) { searchStart = i; break; }
+      searchStart = Math.max(0, lineIdx - 30);
+    }
+    for (let i = lineIdx + 1; i < Math.min(lines.length, lineIdx + 30); i++) {
+      if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i])) { searchEnd = i; break; }
+      searchEnd = Math.min(lines.length - 1, lineIdx + 30);
+    }
+    const paraBody = lines.slice(searchStart, searchEnd + 1).join('\n');
+    const varsFound = Array.from(new Set((paraBody.match(/\bWS-[\w-]+\b/g) || [])));
+    html += '<div style="margin-bottom:16px;padding:10px;background:#0f1525;border-left:3px solid #8b5cf6;border-radius:4px">';
+    html += '<div style="color:#a78bfa;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
+    html += '<div style="color:#94a3b8;margin-top:4px">Paragraph: <span style="color:#e2e8f0">' + escapeHtml(r.fn || '(not identified)') + '</span></div>';
+    html += '<div style="color:#94a3b8">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
+    html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) : '(none matching WS- pattern found)') + '</span></div>';
+    html += '<div style="color:#94a3b8">Suggested Service: <span style="color:#60a5fa">' + escapeHtml(r.service || '(none)') + '</span></div>';
+    html += '</div>';
+  });
+  html += '<div style="font-size:9px;color:#64748b;margin-top:6px">Derived from pattern-based business-rule detection and nearby variable references in the source - a starting map, not a verified data-flow analysis. Review against the Original Source panel above.</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
 function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums) {
   const el = document.getElementById(elId);
   const oldLines = isNew ? otherCode.split('\n') : thisCode.split('\n');
@@ -1949,7 +1989,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
   const text = document.getElementById('execSummaryText');
   card.style.display = 'block';
   const svcCount = (lastUniqueServices || []).length;
-  const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Python (converted)' }[lang] || 'Modernized';
+  const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Modernization Spec' }[lang] || 'Modernized';
   const sourceLabel = { python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[lang] || lang;
   const suitable = critCount === 0;
   const migType = svcCount >= 3 ? 'Incremental (phased by service)' : svcCount >= 1 ? 'Incremental' : 'Direct';
