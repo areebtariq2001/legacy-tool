@@ -1082,7 +1082,9 @@ def analyze_php(source):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
         pass
-    return {"issues": issues}
+    _php_funcs = list(dict.fromkeys(re.findall(r"function\s+(\w+)\s*\(", source)))
+    _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", source)))
+    return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": str(len(_php_classes)) + " class(es), " + str(len(_php_funcs)) + " function(s) found"}
 
 def migrate_php(source):
     changes = []
@@ -1231,6 +1233,8 @@ def analyze_cobol(source):
     for pattern, msg in cobol_checks:
         if re.search(pattern, source, re.IGNORECASE):
             issues.append(msg)
+    _cobol_paras = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+    _cobol_paras = list(dict.fromkeys(_cobol_paras))
     if re.search(r"(?i)(password|passwd|pwd|pass|api-key|apikey|secret)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
@@ -1239,7 +1243,7 @@ def analyze_cobol(source):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
         pass
-    return {"issues": issues}
+    return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras) > 20, "cobol_summary": str(len(_cobol_paras)) + " paragraph(s) found (COBOL has no classes/OOP)"}
 
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
