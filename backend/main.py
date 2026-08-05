@@ -1846,12 +1846,23 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
     write_audit_log("generate-tests", file.filename, "ok")
     return result
 
+def _check_admin_auth(request: Request):
+    required_key = os.environ.get("ADMIN_API_KEY", "")
+    if not required_key:
+        return True
+    provided_key = request.headers.get("x-admin-key", "")
+    return provided_key == required_key
+
 @app.get("/stats")
-def get_stats():
+def get_stats(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - valid x-admin-key header required"})
     return load_stats()
 
 @app.get("/audit-log")
-def get_audit_log():
+def get_audit_log(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - valid x-admin-key header required"})
     with _stats_lock:
         all_entries = list(_in_memory_audit_log)
         recent = all_entries[:50]
