@@ -1876,13 +1876,13 @@ def get_audit_log_json():
                 entry["file"] = line.split("file=")[1].split(" |")[0].strip()
             if "result=" in line:
                 entry["result"] = line.split("result=")[1].strip()
-        except:
-            pass
+        except Exception as e:
+            entry["parse_error"] = str(e)
         entries.append(entry)
     return {"audit_ready": True, "total_entries": len(entries), "entries": entries[:100]}
 
 SENSITIVE_PATTERNS = [
-    (r"\b(?:\d[ -]*?){13,16}\b", "Possible card number", "High"),
+    (r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b", "Possible credit card number (Visa/Mastercard/Amex/Discover pattern)", "High"),
     (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"), (r"(?i)[\w-]*(password|passwd|pwd)[\w-]*\s+PIC\s+X.*VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded password (COBOL VALUE clause)", "High"), (r"(?i)[\w-]*(username|user_name|db.?user)[\w-]*\s+PIC\s+X.*VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username (COBOL VALUE clause)", "Medium"),
     (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
     (r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b", "Hardcoded IP address", "Medium"),
