@@ -1747,6 +1747,7 @@ async def analyze_java_endpoint(file: UploadFile = File(...)):
     result = analyze_java(source)
     result["filename"] = file.filename
     track_usage("analyze-java", file.filename)
+    write_audit_log("analyze-java", file.filename, "issues=" + str(len(result.get("issues", []))))
     return result
 
 @app.post("/migrate-java")
@@ -1770,6 +1771,7 @@ async def analyze_cobol_endpoint(file: UploadFile = File(...)):
     result = analyze_cobol(source)
     result["filename"] = file.filename
     track_usage("analyze-cobol", file.filename)
+    write_audit_log("analyze-cobol", file.filename, "issues=" + str(len(result.get("issues", []))))
     return result
 
 @app.post("/migrate-cobol")
