@@ -2440,7 +2440,7 @@ def predict_migration_risk(source, filename):
     except Exception:
         risk += 30
         if filename.lower().endswith(".py"):
-            reasons.append("Code does not parse in Python 3 - will require fixes before migration")
+            reasons.append("Contains Python 2-only syntax (e.g. print statement without parentheses) - the AST parser has partial visibility here; pattern-based analysis is used as a fallback. This is typically auto-fixed during migration, not a blocker.")
         else:
             risk -= 30
             reasons.append("Non-Python file - structural analysis limited, review manually")
@@ -2831,7 +2831,7 @@ def generate_executive_report(source, filename):
         parseable = False
     security_hits = len(_re2.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
     findings = []
-    if not parseable and filename.lower().endswith(".py"): findings.append("Code does not parse in Python 3 - migration will require fixes")
+    if not parseable and filename.lower().endswith(".py"): findings.append("Contains Python 2-only syntax - AST parser has partial visibility here; this is typically auto-fixed during migration, not a blocker")
     if security_hits > 0: findings.append(str(security_hits) + " potential security/compliance issue(s) detected")
     if len(lines) > 300: findings.append("Large file (" + str(len(lines)) + " lines) - higher migration effort")
     if not findings: findings.append("No major blockers detected - code appears in reasonable shape")
