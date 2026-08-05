@@ -15,6 +15,19 @@ try:
 except:
     JAVALANG_AVAILABLE = False
 
+_rate_limit_store = {}
+import time as _rl_time
+
+def _check_rate_limit(ip, max_requests=60, window_seconds=60):
+    now = _rl_time.time()
+    entry = _rate_limit_store.get(ip, [])
+    entry = [t for t in entry if now - t < window_seconds]
+    if len(entry) >= max_requests:
+        return False
+    entry.append(now)
+    _rate_limit_store[ip] = entry
+    return True
+
 app = FastAPI()
 
 ALLOWED_ORIGINS = [
@@ -42,6 +55,13 @@ async def cors_handler(request: Request, call_next):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Max-Age": "86400",
             }
+        )
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(client_ip):
+        return JSONResponse(
+            content={"error": "Rate limit exceeded. Please slow down and try again shortly."},
+            status_code=429,
+            headers={"Access-Control-Allow-Origin": allow_origin}
         )
     response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = allow_origin
