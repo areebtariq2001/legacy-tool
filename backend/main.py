@@ -1574,7 +1574,7 @@ async def analyze(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = analyze_code(source)
         result["filename"] = file.filename
         track_usage("analyze", file.filename)
@@ -1589,7 +1589,7 @@ async def migrate(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = migrate_code(source)
         result["filename"] = file.filename
         track_usage("migrate", file.filename)
@@ -1604,7 +1604,7 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = ai_advanced_migrate(source, detect_language(file.filename))
         if detect_language(file.filename) == "python" and result.get("migrated_code"):
             try:
@@ -1649,7 +1649,7 @@ async def call_graph_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = analyze_call_graph(source)
         result["filename"] = file.filename
         track_usage("call-graph", file.filename)
@@ -1664,7 +1664,7 @@ async def risk_assessment_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = assess_dependency_risk(source, file.filename)
         result["filename"] = file.filename
         track_usage("risk-assessment", file.filename)
@@ -1679,7 +1679,7 @@ async def tech_debt_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = calculate_tech_debt(source, file.filename)
         comp = calculate_complexity(source)
         result["complexity_score"] = comp["complexity_score"]
@@ -1697,7 +1697,7 @@ async def generate_docs_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_documentation(source, file.filename)
         track_usage("generate-docs", file.filename)
         write_audit_log("generate-docs", file.filename, "doc generated")
@@ -1739,7 +1739,7 @@ async def analyze_php_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = analyze_php(source)
     result["filename"] = file.filename
     track_usage("analyze-php", file.filename)
@@ -1751,7 +1751,7 @@ async def migrate_php_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = migrate_php(source)
     result["filename"] = file.filename
     track_usage("migrate-php", file.filename)
@@ -1763,7 +1763,7 @@ async def analyze_java_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = analyze_java(source)
     result["filename"] = file.filename
     track_usage("analyze-java", file.filename)
@@ -1775,7 +1775,7 @@ async def migrate_java_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = migrate_java(source)
     result["filename"] = file.filename
     track_usage("migrate-java", file.filename)
@@ -1787,7 +1787,7 @@ async def analyze_cobol_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = analyze_cobol(source)
     result["filename"] = file.filename
     track_usage("analyze-cobol", file.filename)
@@ -1799,7 +1799,7 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
     content_bytes = await file.read()
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
-        return {"filename": file.filename, "error": error}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     result = migrate_cobol(source)
     result["filename"] = file.filename
     track_usage("migrate-cobol", file.filename)
@@ -1925,7 +1925,7 @@ async def scan_sensitive_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = scan_sensitive_data(source)
         result["filename"] = file.filename
         track_usage("scan-sensitive", file.filename)
@@ -1974,7 +1974,7 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_banking_patterns(source)
         result["filename"] = file.filename
         track_usage("banking-patterns", file.filename)
@@ -2131,7 +2131,7 @@ async def scan_crypto_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = scan_crypto(source)
         result["filename"] = file.filename
         track_usage("scan-crypto", file.filename)
@@ -2179,7 +2179,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = extract_aml_kyc(source)
         result["filename"] = file.filename
         track_usage("extract-aml-kyc", file.filename)
@@ -2946,7 +2946,7 @@ async def ai_native_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = check_ai_native_readiness(source, file.filename)
         result["filename"] = file.filename
         track_usage("ai-native-readiness", file.filename)
@@ -2961,7 +2961,7 @@ async def predict_risk_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = predict_migration_risk(source, file.filename)
         result["filename"] = file.filename
         track_usage("predict-risk", file.filename)
@@ -2976,7 +2976,7 @@ async def cicd_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_cicd_recommendations(source, file.filename)
         result["filename"] = file.filename
         track_usage("cicd-recommendations", file.filename)
@@ -2991,7 +2991,7 @@ async def db_schema_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = analyze_db_schema(source, file.filename)
         result["filename"] = file.filename
         track_usage("analyze-db-schema", file.filename)
@@ -3006,7 +3006,7 @@ async def api_deps_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = map_api_dependencies(source, file.filename)
         result["filename"] = file.filename
         track_usage("map-api-dependencies", file.filename)
@@ -3021,7 +3021,7 @@ async def architecture_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_architecture(source, file.filename)
         result["filename"] = file.filename
         track_usage("generate-architecture", file.filename)
@@ -3049,7 +3049,7 @@ async def exec_report_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_executive_report(source, file.filename)
         result["filename"] = file.filename
         track_usage("executive-report", file.filename)
@@ -3063,7 +3063,7 @@ async def impact_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = analyze_impact(source, file.filename)
         result["filename"] = file.filename
         track_usage("analyze-impact", file.filename)
@@ -3077,7 +3077,7 @@ async def txn_flow_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = map_transaction_flow(source, file.filename)
         result["filename"] = file.filename
         track_usage("map-transaction-flow", file.filename)
@@ -3091,7 +3091,7 @@ async def rollback_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_rollback_plan(source, file.filename)
         result["filename"] = file.filename
         track_usage("rollback-plan", file.filename)
@@ -3105,7 +3105,7 @@ async def rules_engine_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = discover_business_rules_engine(source, file.filename)
         result["filename"] = file.filename
         track_usage("discover-rules", file.filename)
@@ -3119,7 +3119,7 @@ async def sqli_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = scan_sql_injection(source, file.filename)
         result["filename"] = file.filename
         track_usage("scan-sqli", file.filename)
@@ -3133,7 +3133,7 @@ async def pii_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_pii(source, file.filename)
         result["filename"] = file.filename
         track_usage("detect-pii", file.filename)
@@ -3147,7 +3147,7 @@ async def cost_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = estimate_migration_cost(source, file.filename)
         result["filename"] = file.filename
         track_usage("estimate-cost", file.filename)
@@ -3161,7 +3161,7 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_tech_stack(source, file.filename)
         result["filename"] = file.filename
         track_usage("detect-tech-stack", file.filename)
@@ -3175,7 +3175,7 @@ async def key_audit_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = audit_key_management(source, file.filename)
         result["filename"] = file.filename
         track_usage("audit-keys", file.filename)
@@ -3189,7 +3189,7 @@ async def fraud_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_fraud_gaps(source, file.filename)
         result["filename"] = file.filename
         track_usage("detect-fraud-gaps", file.filename)
@@ -3203,7 +3203,7 @@ async def regional_compliance_endpoint(file: UploadFile = File(...), region: str
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = map_regional_compliance(source, file.filename, region)
         result["filename"] = file.filename
         track_usage("regional-compliance", file.filename)
@@ -3217,7 +3217,7 @@ async def vendor_lockin_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = analyze_vendor_lockin(source, file.filename)
         result["filename"] = file.filename
         track_usage("vendor-lockin", file.filename)
@@ -3231,7 +3231,7 @@ async def zero_trust_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = score_zero_trust(source, file.filename)
         result["filename"] = file.filename
         track_usage("zero-trust-score", file.filename)
@@ -3251,7 +3251,7 @@ async def regulatory_framework_endpoint(file: UploadFile = File(...), framework:
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = check_regulatory_framework(source, file.filename, framework)
         result["filename"] = file.filename
         track_usage("regulatory-framework", file.filename)
@@ -3265,7 +3265,7 @@ async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What d
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = answer_code_question(source, question, file.filename)
         result["filename"] = file.filename
         track_usage("ask-code-question", file.filename)
@@ -3315,7 +3315,7 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         migration_result = ai_advanced_migrate(source, detect_language(file.filename))
         migrated_code = migration_result.get("migrated_code", source)
         sandbox_result = run_sandboxed_migration_test(migrated_code, file.filename)
@@ -3500,7 +3500,7 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = calculate_code_quality(source, file.filename)
         result["filename"] = file.filename
         track_usage("code-quality", file.filename)
@@ -3635,7 +3635,7 @@ async def code_smells_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_code_smells(source, file.filename)
         result["filename"] = file.filename
         track_usage("code-smells", file.filename)
@@ -3661,7 +3661,7 @@ async def refactor_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = suggest_refactoring(source, file.filename, detect_language(file.filename))
         result["filename"] = file.filename
         track_usage("refactor-suggest", file.filename)
@@ -3686,7 +3686,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = check_platform_compatibility(source, file.filename)
         result["filename"] = file.filename
         track_usage("platform-compatibility", file.filename)
@@ -3722,7 +3722,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = calculate_dependency_portability(source, file.filename)
         result["filename"] = file.filename
         track_usage("dependency-portability", file.filename)
@@ -3758,7 +3758,7 @@ async def config_migration_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = suggest_config_migration(source, file.filename)
         result["filename"] = file.filename
         track_usage("config-migration", file.filename)
@@ -3809,7 +3809,7 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_rearchitecture_readiness(source, file.filename)
         result["filename"] = file.filename
         track_usage("rearchitecture-readiness", file.filename)
@@ -3847,7 +3847,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = detect_service_boundaries(source, file.filename)
         result["filename"] = file.filename
         track_usage("service-boundaries", file.filename)
@@ -3882,7 +3882,7 @@ async def recommend_strategy_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = recommend_migration_strategy(source, file.filename)
         result["filename"] = file.filename
         track_usage("recommend-strategy", file.filename)
@@ -3925,7 +3925,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = calculate_migration_roi(source, file.filename)
         result["filename"] = file.filename
         track_usage("migration-roi", file.filename)
@@ -4052,7 +4052,7 @@ async def strangler_fig_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_strangler_fig_wrapper(source, file.filename)
         result["filename"] = file.filename
         track_usage("strangler-fig", file.filename)
@@ -4123,7 +4123,7 @@ async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "p
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = calculate_tech_debt_cost(source, file.filename, region, custom_rate)
         result["filename"] = file.filename
         track_usage("tech-debt-cost", file.filename)
@@ -4166,7 +4166,7 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_code_dna(source, file.filename)
         result["filename"] = file.filename
         track_usage("code-dna", file.filename)
@@ -4285,7 +4285,7 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_dependency_graph(source, file.filename)
         result["filename"] = file.filename
         track_usage("dependency-graph", file.filename)
@@ -4299,7 +4299,7 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {"filename": file.filename, "error": error}
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = generate_living_documentation(source, file.filename)
         result["filename"] = file.filename
         track_usage("living-docs", file.filename)
