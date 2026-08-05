@@ -97,7 +97,7 @@ def write_audit_log(action, filename, result_summary):
             except Exception:
                 pass
         with _stats_lock:
-            _in_memory_audit_log.insert(0, f"[{timestamp}] action={action} | file={filename} | result={result_summary}")
+            _in_memory_audit_log.insert(0, {"timestamp": timestamp, "action": action, "file": filename, "result": result_summary})
             del _in_memory_audit_log[50:]
     except Exception:
         pass
@@ -1872,30 +1872,21 @@ def get_audit_log(request: Request):
     with _stats_lock:
         all_entries = list(_in_memory_audit_log)
         recent = all_entries[:50]
-    return {"total_entries": len(all_entries), "recent": recent}
+    recent_display = ["[" + e.get("timestamp","") + "] action=" + e.get("action","") + " | file=" + e.get("file","") + " | result=" + e.get("result","") if isinstance(e, dict) else str(e) for e in recent]
+    return {"total_entries": len(all_entries), "recent": recent_display}
 
 @app.get("/audit-log-json")
-def get_audit_log_json():
-    entries = []
+def get_audit_log_json(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - valid x-admin-key header required"})
     with _stats_lock:
-        raw_lines = list(_in_memory_audit_log)
-    for line in raw_lines:
-        line = line.strip()
-        if not line:
-            continue
-        entry = {"raw": line}
-        try:
-            if line.startswith("["):
-                entry["timestamp"] = line.split("]")[0][1:]
-            if "action=" in line:
-                entry["action"] = line.split("action=")[1].split(" |")[0].strip()
-            if "file=" in line:
-                entry["file"] = line.split("file=")[1].split(" |")[0].strip()
-            if "result=" in line:
-                entry["result"] = line.split("result=")[1].strip()
-        except Exception as e:
-            entry["parse_error"] = str(e)
-        entries.append(entry)
+        raw_entries = list(_in_memory_audit_log)
+    entries = []
+    for e in raw_entries:
+        if isinstance(e, dict):
+            entries.append(dict(e))
+        else:
+            entries.append({"raw": str(e)})
     return {"audit_ready": True, "total_entries": len(entries), "entries": entries[:100]}
 
 SENSITIVE_PATTERNS = [
