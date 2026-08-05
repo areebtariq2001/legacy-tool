@@ -1666,7 +1666,7 @@ async def tech_debt_endpoint(file: UploadFile = File(...)):
         result["complexity_level"] = comp["complexity_level"]
         result["filename"] = file.filename
         track_usage("tech-debt", file.filename)
-        write_audit_log("tech-debt", file.filename, "score=" + str(result.get("debt_score", 0)) + " hours=" + str(result.get("estimated_hours", 0)))
+        write_audit_log("tech-debt", file.filename, f"score={result.get('debt_score', 0)} hours={result.get('estimated_hours', 0)}")
         return result
     except Exception as e:
         return {"filename": file.filename, "error": f"Tech-debt analysis failed safely: {str(e)}"}
