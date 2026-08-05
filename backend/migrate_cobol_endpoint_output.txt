@@ -1,0 +1,12 @@
+1775:     return result
+1776: 
+1777: @app.post("/migrate-java")
+1778: async def migrate_java_endpoint(file: UploadFile = File(...)):
+1779:     content_bytes = await file.read()
+1780:     source, error = safe_read_file(content_bytes, file.filename)
+1781:     if error:
+1782:         return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+1783:     result = migrate_java(source)
+1784:     result["filename"] = file.filename
+1785:     track_usage("migrate-java", file.filename)
+1786:     write_audit_log("migrate-java", file.filename, f"changes={len(result.get('changes', []))}")

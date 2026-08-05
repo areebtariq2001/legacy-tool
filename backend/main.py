@@ -1804,8 +1804,14 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+    try:
+        pre_analysis = analyze_cobol(source)
+        pre_issues = pre_analysis.get("issues", [])
+    except Exception:
+        pre_issues = []
     result = migrate_cobol(source)
     result["filename"] = file.filename
+    result["pre_migration_issues"] = pre_issues
     track_usage("migrate-cobol", file.filename)
     write_audit_log("migrate-cobol", file.filename, f"changes={len(result.get('changes', []))}")
     return result
