@@ -1589,10 +1589,17 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         if detect_language(file.filename) == "python" and result.get("migrated_code"):
             try:
                 result.update(check_parity(source, result.get("migrated_code", "")))
+            except Exception as e:
+                result["parity_ok"] = None
+                result["parity_error"] = "Parity check failed: " + str(e)
+            try:
                 result.update(generate_test_scenarios(source, file.filename))
+            except Exception as e:
+                result["test_scenarios_error"] = "Test scenario generation failed: " + str(e)
+            try:
                 result.update(generate_dockerfile(file.filename, detect_language(file.filename)))
-            except Exception:
-                pass
+            except Exception as e:
+                result["dockerfile_error"] = "Dockerfile generation failed: " + str(e)
         result["filename"] = file.filename
         track_usage("ai-migrate", file.filename)
         summary = f"confidence={result.get('confidence_score','N/A')} level={result.get('confidence_level','N/A')}"
