@@ -1948,7 +1948,7 @@ def scan_sensitive_data(source):
                 continue
             _m = pattern.findall(ln)
             if _m:
-                count += len(_m)
+                count += 1
                 line_nums.append(str(i+1))
         if count > 0:
             findings.append({
@@ -2025,7 +2025,7 @@ def detect_banking_patterns(source):
                 continue
             _m = pattern.findall(ln)
             if _m:
-                count += len(_m)
+                count += 1
                 line_nums.append(str(i+1))
         if count > 0:
             findings.append({
@@ -2176,7 +2176,7 @@ def scan_crypto(source):
                 continue
             _m = pattern.findall(ln)
             if _m:
-                count += len(_m)
+                count += 1
                 line_nums.append(str(i+1))
         if count > 0:
             is_pqc = "PQC Path" in recommendation
@@ -2258,7 +2258,7 @@ def extract_aml_kyc(source):
                 continue
             _m = pattern.findall(ln)
             if _m:
-                count += len(_m)
+                count += 1
                 line_nums.append(str(i+1))
         if count > 0:
             findings.append({
