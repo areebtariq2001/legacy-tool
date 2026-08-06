@@ -1491,10 +1491,30 @@ function detectBusinessRules(code) {
       }
     }
     if (matchIdx !== -1) {
-      const i = matchIdx;
-      const lineLower = codeLines[i].toLowerCase();
-      const hit = r.patterns.find(p => lineLower.includes(p));
-      const fn = findEnclosingFunction(codeLines, i);
+      let i = matchIdx;
+      let lineLower = codeLines[i].toLowerCase();
+      let hit = r.patterns.find(p => lineLower.includes(p));
+      let fn = findEnclosingFunction(codeLines, i);
+      const performMatch = codeLines[i].trim().match(/^PERFORM\s+([\w-]+)\s*\.?\s*$/i);
+      if (performMatch) {
+        const targetPara = performMatch[1];
+        let paraStart = -1;
+        for (let j = 0; j < codeLines.length; j++) {
+          if (new RegExp('^\\s*' + targetPara.replace(/[-]/g, '\\-') + '\\.\\s*$', 'i').test(codeLines[j])) { paraStart = j; break; }
+        }
+        if (paraStart !== -1) {
+          for (let j = paraStart + 1; j < codeLines.length; j++) {
+            const t = codeLines[j].trim();
+            if (!t) continue;
+            if (isCommentLine(t)) continue;
+            if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(codeLines[j])) break;
+            i = j;
+            lineLower = codeLines[i].toLowerCase();
+            fn = targetPara;
+            break;
+          }
+        }
+      }
       const matchLen = hit.length;
       const conf = Math.min(98, r.baseConf + Math.min(6, matchLen - 4));
       found.push({ label: r.label, line: i + 1, snippet: codeLines[i].trim().substring(0, 60), fn, conf, service: r.service, matchedKeyword: hit });
@@ -1777,7 +1797,7 @@ function renderCobolSpec(code) {
     const varsFound = Array.from(new Set((paraBody.match(/\bWS-[\w-]+\b/g) || [])));
     html += '<div style="margin-bottom:16px;padding:10px;background:#0f1525;border-left:3px solid #8b5cf6;border-radius:4px">';
     html += '<div style="color:#a78bfa;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
-    html += '<div style="color:#94a3b8;margin-top:4px">Paragraph: <span style="color:#e2e8f0">' + escapeHtml(r.fn || '(not identified)') + '</span></div>';
+    html += '<div style="color:#94a3b8;margin-top:4px">Paragraph: <span style="color:#e2e8f0">' + escapeHtml(r.fn || 'WORKING-STORAGE (declaration)') + '</span></div>';
     html += '<div style="color:#94a3b8">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
     html += '<div style="color:#94a3b8">Logic (matched line): <span style="color:#e2e8f0;font-family:monospace">' + escapeHtml(r.snippet || '') + '</span></div>';
     html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) : '(none matching WS- pattern found)') + '</span></div>';
