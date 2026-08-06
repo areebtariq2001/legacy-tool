@@ -1922,6 +1922,8 @@ def scan_sensitive_data(source):
         count = 0
         line_nums = []
         for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
             _m = pattern.findall(ln)
             if _m:
                 count += len(_m)
