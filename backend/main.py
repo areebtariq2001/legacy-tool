@@ -1911,6 +1911,7 @@ SENSITIVE_PATTERNS = [
     (r"(?i)(execute|cursor\.execute)\s*\(\s*f[\x22\x27]", "SQL injection risk (f-string in query)", "High"),
     (r"(?i)(execute|cursor\.execute)\s*\([^)]*\.format\s*\(", "SQL injection risk (.format() in query)", "High"),
     (r"(?i)\+\s*(request|input|params|argv)", "Possible SQL/command injection (concatenated user input)", "High"),
+    (r"(?i)\b(os\.system|subprocess\.(call|run|Popen))\s*\([^)]*\+", "Possible command injection (shell command built with + concatenation)", "High"),
     (r"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^;]*[\x27\x22]\s*\+", "Possible SQL injection (query string concatenation)", "High"),
     (r"(?i)\b(eval|exec)\s*\(", "Dangerous eval/exec call", "High"),
     (r"(?i)\bshell\s*=\s*True", "Insecure subprocess shell=True", "Medium"),
@@ -2699,7 +2700,7 @@ def scan_sql_injection(source, filename):
     import re as _sq
     lines = source.split(chr(10))
     issues = []
-    checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk")]
+    checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk"), ("SELECT", "%", "SQL SELECT built with % string formatting - injection risk"), ("INSERT", "%", "SQL INSERT built with % string formatting - injection risk"), ("UPDATE", "%", "SQL UPDATE built with % string formatting - injection risk"), ("DELETE", "%", "SQL DELETE built with % string formatting - injection risk"), ("WHERE", "%", "SQL WHERE clause built with % string formatting - injection risk"), ("SELECT", ".format", "SQL SELECT built with .format() - injection risk"), ("WHERE", ".format", "SQL WHERE clause built with .format() - injection risk")]
     if filename.lower().endswith(".php"):
         checks += [("SELECT", " . ", "SQL SELECT built with . (PHP) concatenation - injection risk"), ("INSERT", " . ", "SQL INSERT built with . (PHP) concatenation - injection risk"), ("UPDATE", " . ", "SQL UPDATE built with . (PHP) concatenation - injection risk"), ("DELETE", " . ", "SQL DELETE built with . (PHP) concatenation - injection risk"), ("WHERE", " . ", "SQL WHERE clause built with . (PHP) concatenation - injection risk")]
     cobol_exec_sql = _sq.search(r"(?is)EXEC\s+SQL.*?WHERE.*?=\s*['\"][^'\"]+['\"].*?END-EXEC", source)
