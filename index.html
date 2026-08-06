@@ -1486,6 +1486,15 @@ function detectBusinessRules(code) {
       for (let i = 0; i < codeLines.length; i++) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
+        if (/^(def|function|public\s|private\s|protected\s)\s*[\w<>\[\]]*\s*\w+\s*\(/.test(trimmed)) continue;
+        const lineLower = codeLines[i].toLowerCase();
+        if (r.patterns.find(p => lineLower.includes(p)) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
+      }
+    }
+    if (matchIdx === -1) {
+      for (let i = 0; i < codeLines.length; i++) {
+        const trimmed = codeLines[i].trim();
+        if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         const lineLower = codeLines[i].toLowerCase();
         if (r.patterns.find(p => lineLower.includes(p))) { matchIdx = i; break; }
       }
