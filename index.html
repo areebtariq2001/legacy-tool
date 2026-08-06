@@ -1741,14 +1741,20 @@ function renderCobolSpec(code) {
   let html = '<div style="padding:10px;font-family:monospace;font-size:11px;line-height:1.7">';
   rules.forEach(r => {
     const lineIdx = (r.line || 1) - 1;
+    const isDataDeclLine = /^\s*\d{1,2}\s+[\w-]+\s+PIC\s/i.test(lines[lineIdx] || '');
     let searchStart = lineIdx, searchEnd = lineIdx;
-    for (let i = lineIdx; i >= Math.max(0, lineIdx - 30); i--) {
-      if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i]) && i !== lineIdx) { searchStart = i; break; }
-      searchStart = Math.max(0, lineIdx - 30);
-    }
-    for (let i = lineIdx + 1; i < Math.min(lines.length, lineIdx + 30); i++) {
-      if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i])) { searchEnd = i; break; }
-      searchEnd = Math.min(lines.length - 1, lineIdx + 30);
+    if (isDataDeclLine) {
+      searchStart = lineIdx;
+      searchEnd = lineIdx;
+    } else {
+      for (let i = lineIdx; i >= Math.max(0, lineIdx - 30); i--) {
+        if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i]) && i !== lineIdx) { searchStart = i; break; }
+        searchStart = Math.max(0, lineIdx - 30);
+      }
+      for (let i = lineIdx + 1; i < Math.min(lines.length, lineIdx + 30); i++) {
+        if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(lines[i])) { searchEnd = i; break; }
+        searchEnd = Math.min(lines.length - 1, lineIdx + 30);
+      }
     }
     const paraBody = lines.slice(searchStart, searchEnd + 1).join('\n');
     const varsFound = Array.from(new Set((paraBody.match(/\bWS-[\w-]+\b/g) || [])));
