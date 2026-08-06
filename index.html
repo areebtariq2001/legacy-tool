@@ -1487,6 +1487,8 @@ function detectBusinessRules(code) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         if (/^(def|function|public\s|private\s|protected\s)\s*[\w<>\[\]]*\s*\w+\s*\(/.test(trimmed)) continue;
+        const isModuleLevelAssignment = /^[A-Za-z_][\w]*\s*(?:[:=]|:\s*[\w\[\]"'.]+\s*=)/.test(codeLines[i]) && !/^\s/.test(codeLines[i]);
+        if (isModuleLevelAssignment) continue;
         const lineLower = codeLines[i].toLowerCase();
         if (r.patterns.find(p => lineLower.includes(p)) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
       }
@@ -2125,7 +2127,7 @@ function buildIssues(R) {
       R.analyze.issues.forEach(iss => {
         const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
         const lower = issText.toLowerCase();
-        const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk');
+        const isSecurity = lower.includes('sql injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key');
         const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
         if (alreadyCoveredElsewhere) return;
         issues.push({
