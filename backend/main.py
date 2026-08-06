@@ -2140,12 +2140,22 @@ CRYPTO_PATTERNS = [
     (r"(?i)\bDiffie[-\s]?Hellman\b", "Diffie-Hellman - quantum-vulnerable key exchange", "Medium", "PQC Path: plan post-quantum key exchange (e.g. Kyber)."),
 ]
 
+CRYPTO_PATTERNS_COMPILED = [(re.compile(p), label, sev, rec) for p, label, sev, rec in CRYPTO_PATTERNS]
+
 def scan_crypto(source):
     findings = []
     pqc_needed = False
-    for pattern, label, severity, recommendation in CRYPTO_PATTERNS:
-        matches = re.findall(pattern, source)
-        count = len(matches)
+    source_lines = source.split(chr(10))
+    for pattern, label, severity, recommendation in CRYPTO_PATTERNS_COMPILED:
+        count = 0
+        line_nums = []
+        for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
+            _m = pattern.findall(ln)
+            if _m:
+                count += len(_m)
+                line_nums.append(str(i+1))
         if count > 0:
             is_pqc = "PQC Path" in recommendation
             if is_pqc:
@@ -2154,6 +2164,8 @@ def scan_crypto(source):
                 "issue": label,
                 "severity": severity,
                 "occurrences": count,
+                "lines": ", ".join(line_nums[:10]),
+                "lines_truncated": len(line_nums) > 10,
                 "recommendation": recommendation,
                 "pqc": is_pqc
             })
@@ -2211,16 +2223,28 @@ AML_KYC_PATTERNS = [
     (r"(?i)\b(risk[_\s]?score|risk[_\s]?rating|risk[_\s]?category)\b", "Customer risk scoring", "KYC", "Risk-scoring rules affect compliance decisions - review carefully."),
 ]
 
+AML_KYC_PATTERNS_COMPILED = [(re.compile(p), label, cat, note) for p, label, cat, note in AML_KYC_PATTERNS]
+
 def extract_aml_kyc(source):
     findings = []
-    for pattern, label, category, note in AML_KYC_PATTERNS:
-        matches = re.findall(pattern, source)
-        count = len(matches)
+    source_lines = source.split(chr(10))
+    for pattern, label, category, note in AML_KYC_PATTERNS_COMPILED:
+        count = 0
+        line_nums = []
+        for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
+            _m = pattern.findall(ln)
+            if _m:
+                count += len(_m)
+                line_nums.append(str(i+1))
         if count > 0:
             findings.append({
                 "pattern": label,
                 "category": category,
                 "occurrences": count,
+                "lines": ", ".join(line_nums[:10]),
+                "lines_truncated": len(line_nums) > 10,
                 "note": note
             })
     if findings:

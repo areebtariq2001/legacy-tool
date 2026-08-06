@@ -1,0 +1,90 @@
+363:     for pattern, label, mins in active_rules:
+364:         matches = pattern.findall(source)
+365:         count = len(matches)
+366:         if count > 0:
+367:             items.append({
+---
+475:     for pattern, category, level, desc, rec in active_rules:
+476:         in_imports = pattern in imported
+477:         in_source = re.search(r'\b' + re.escape(pattern) + r'\b' if pattern[-1].isalnum() else re.escape(pattern), source) is not None
+478:         if (in_imports or in_source) and pattern not in seen:
+479:             seen.add(pattern)
+---
+637:     for pattern, msg in py_issue_checks:
+638:         if pattern in source:
+639:             issues.append(msg)
+640:     if re.search(r'\bprint\s+[^(]', source):
+641:         issues.append("print statement found - use print()")
+---
+671:     for pattern, repl, label in rules:
+672:         _new_migrated = re.sub(pattern, repl, migrated)
+673:         if _new_migrated != migrated:
+674:             migrated = _new_migrated
+675:             changes.append(label)
+---
+1076:     for pattern, msg in php_checks:
+1077:         if re.search(pattern, source):
+1078:             issues.append(msg)
+1079:     try:
+1080:         _sqli_result = scan_sql_injection(source, "file.php")
+---
+1101:     for pattern, repl, label in rules:
+1102:         _new_migrated = re.sub(pattern, repl, migrated)
+1103:         if _new_migrated != migrated:
+1104:             migrated = _new_migrated
+1105:             changes.append(label)
+---
+1122:     for pattern, msg in review_rules:
+1123:         if re.search(pattern, migrated):
+1124:             changes.append("REVIEW NEEDED: " + msg)
+1125:     if re.search(r'var\s+\$(\w+)', migrated):
+1126:         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
+---
+1153:     for pattern, msg in java_checks:
+1154:         if re.search(pattern, source):
+1155:             issues.append(msg)
+1156:     if re.search(r"(?i)(password|passwd|pwd|pass|api_key|apikey|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+1157:         issues.append("Hardcoded password/credential found - move to environment variable")
+---
+1187:     for pattern, repl, label in rules:
+1188:         _new_migrated = re.sub(pattern, repl, migrated)
+1189:         if _new_migrated != migrated:
+1190:             migrated = _new_migrated
+1191:             changes.append(label)
+---
+1203:     for pattern, msg in review_rules:
+1204:         if re.search(pattern, migrated):
+1205:             changes.append("REVIEW NEEDED: " + msg)
+1206:     return {"migrated_code": migrated, "changes": changes}
+1207: 
+---
+1233:     for pattern, msg in cobol_checks:
+1234:         if re.search(pattern, source, re.IGNORECASE):
+1235:             issues.append(msg)
+1236:     _cobol_paras = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+1237:     _cobol_paras = list(dict.fromkeys(_cobol_paras))
+---
+1921:     for pattern, label, severity in SENSITIVE_PATTERNS_COMPILED:
+1922:         count = 0
+1923:         line_nums = []
+1924:         for i, ln in enumerate(source_lines):
+1925:             if ln.strip().startswith(("#", "//")):
+---
+1998:     for pattern, label, note in BANKING_PATTERNS_COMPILED:
+1999:         count = 0
+2000:         line_nums = []
+2001:         for i, ln in enumerate(source_lines):
+2002:             if ln.strip().startswith(("#", "//")):
+---
+2146:     for pattern, label, severity, recommendation in CRYPTO_PATTERNS:
+2147:         matches = re.findall(pattern, source)
+2148:         count = len(matches)
+2149:         if count > 0:
+2150:             is_pqc = "PQC Path" in recommendation
+---
+2216:     for pattern, label, category, note in AML_KYC_PATTERNS:
+2217:         matches = re.findall(pattern, source)
+2218:         count = len(matches)
+2219:         if count > 0:
+2220:             findings.append({
+---
