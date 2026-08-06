@@ -1,0 +1,22 @@
+def detect_banking_patterns(source):
+    findings = []
+    for pattern, label, note in BANKING_PATTERNS:
+        matches = re.findall(pattern, source)
+        count = len(matches)
+        if count > 0:
+            findings.append({
+                "pattern": label,
+                "occurrences": count,
+                "note": note
+            })
+    if findings:
+        verdict = "Banking business logic detected - extra care required during migration"
+    else:
+        verdict = "No common banking patterns detected"
+    return {
+        "findings": findings,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "is_banking": len(findings) > 0,
+        "disclaimer": "This is a keyword-based detector to highlight likely financial logic. It is a planning aid, not a semantic analysis. Always have a domain expert review critical banking calculations."
+    }

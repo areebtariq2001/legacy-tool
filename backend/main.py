@@ -1986,19 +1986,34 @@ BANKING_PATTERNS = [
     (r"(?i)\b(loan|disburse|repayment|loan.?default)\b", "Loan processing", "Re-test loan calculation and repayment schedules."),
 ]
 
+BANKING_PATTERNS_COMPILED = [(re.compile(p), label, note) for p, label, note in BANKING_PATTERNS]
+
 def detect_banking_patterns(source):
     findings = []
-    for pattern, label, note in BANKING_PATTERNS:
-        matches = re.findall(pattern, source)
-        count = len(matches)
+    source_lines = source.split(chr(10))
+    for pattern, label, note in BANKING_PATTERNS_COMPILED:
+        count = 0
+        line_nums = []
+        for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
+            _m = pattern.findall(ln)
+            if _m:
+                count += len(_m)
+                line_nums.append(str(i+1))
         if count > 0:
             findings.append({
                 "pattern": label,
                 "occurrences": count,
-                "note": note
+                "note": note,
+                "lines": ", ".join(line_nums[:10]),
+                "lines_truncated": len(line_nums) > 10
             })
-    if findings:
-        verdict = "Banking business logic detected - extra care required during migration"
+    high_impact = [f for f in findings if "HIGH IMPACT" in f["pattern"]]
+    if high_impact:
+        verdict = "CRITICAL: " + str(len(high_impact)) + " high-impact banking pattern(s) found - extra care required during migration"
+    elif findings:
+        verdict = "Banking logic detected: " + str(len(findings)) + " pattern(s) found - review carefully"
     else:
         verdict = "No common banking patterns detected"
     return {
@@ -2006,6 +2021,8 @@ def detect_banking_patterns(source):
         "total_findings": len(findings),
         "verdict": verdict,
         "is_banking": len(findings) > 0,
+        "is_high_risk": len(high_impact) > 0,
+        "high_risk_count": len(high_impact),
         "disclaimer": "This is a keyword-based detector to highlight likely financial logic. It is a planning aid, not a semantic analysis. Always have a domain expert review critical banking calculations."
     }
 
