@@ -1,0 +1,8 @@
+'(?i)\\b(interest|rate\\s*of\\s*interest|roi|compound|simple\\s*interest)\\b' | Interest calculation
+'(?i)\\b(balance|min[_\\s]?balance|available[_\\s]?balance|overdraft)\\b' | Account balance logic
+'(?i)\\b(debit|credit)\\b' | CORE debit/credit logic - HIGH IMPACT
+'(?i)\\b(transaction|txn|transfer|deposit|withdraw)\\b' | Transaction handling
+'(?i)\\b(account[_\\s]?number|acc[_\\s]?no|iban|routing|swift)\\b' | Account identifiers
+'(?i)\\b(financial[_\\s]?year|fiscal|maturity|tenure|emi|installment)\\b' | Financial date/term logic
+'(?i)\\b(currency|exchange[_\\s]?rate|forex|decimal|round)\\b' | Currency/precision logic
+'(?i)\\b(loan|disburse|repayment|loan.?default)\\b' | Loan processing

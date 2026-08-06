@@ -1970,7 +1970,7 @@ async def scan_sensitive_endpoint(file: UploadFile = File(...)):
         result = scan_sensitive_data(source)
         result["filename"] = file.filename
         track_usage("scan-sensitive", file.filename)
-        write_audit_log("scan-sensitive", file.filename, "findings=" + str(result.get("total_findings", 0)))
+        write_audit_log("scan-sensitive", file.filename, f"findings={result.get('total_findings', 0)}")
         return result
     except Exception as e:
         return {"filename": file.filename, "error": f"Scan failed safely: {str(e)}"}
@@ -1982,7 +1982,11 @@ BANKING_PATTERNS = [
     (r"(?i)\b(transaction|txn|transfer|deposit|withdraw)\b", "Transaction handling", "Ensure transaction integrity and logging are preserved."),
     (r"(?i)\b(account[_\s]?number|acc[_\s]?no|iban|routing|swift)\b", "Account identifiers", "Check formatting and validation of account identifiers."),
     (r"(?i)\b(financial[_\s]?year|fiscal|maturity|tenure|emi|installment)\b", "Financial date/term logic", "Validate date and tenure calculations across versions."),
-    (r"(?i)\b(currency|exchange[_\s]?rate|forex|decimal|round)\b", "Currency/precision logic", "Currency rounding must match exactly; test edge cases."),
+    (r"(?i)\b(currency|exchange[_\s]?rate|forex|round\(.*,\s*2\))\b", "Currency/precision logic", "Currency rounding must match exactly; test edge cases."),
+    (r"(?i)\b(AML|KYC|FATF|sanctions[_\s]?list|watchlist)\b", "AML/KYC compliance logic", "Verify compliance logic preserved."),
+    (r"(?i)\b(SBP|Basel[_\s]?(I{1,3}|1|2|3)|PCI.?DSS|GDPR|IFRS)\b", "Regulatory compliance reference", "Ensure regulatory rules unchanged."),
+    (r"(?i)\b(audit[_\s]?trail|audit[_\s]?log)\b", "Audit trail logic", "Verify audit logging preserved exactly."),
+    (r"(?i)\b(encryption|decrypt|cipher|key[_\s]?store)\b", "Encryption logic", "Verify cryptographic operations unchanged."),
     (r"(?i)\b(loan|disburse|repayment|loan.?default)\b", "Loan processing", "Re-test loan calculation and repayment schedules."),
 ]
 
