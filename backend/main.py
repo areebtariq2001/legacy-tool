@@ -675,9 +675,17 @@ def migrate_code(source):
             changes.append(label)
     new_lines = []
     for line in migrated.split('\n'):
-        m = re.match(r'^(\s*)print\s+(?!\()(.+?)\s*$', line)
+        m = re.match(r'^(\s*)print\s+(?!\()(.+)$', line)
         if m:
-            new_lines.append(f'{m.group(1)}print({m.group(2)})')
+            indent = m.group(1)
+            rest = m.group(2)
+            _cm = re.search(r'^((?:[^\x27\x22#]|\x27[^\x27]*\x27|\x22[^\x22]*\x22)*?)\s*(#.*)$', rest)
+            if _cm and _cm.group(1).strip():
+                code_part = _cm.group(1).rstrip()
+                comment_part = _cm.group(2)
+                new_lines.append(f'{indent}print({code_part})  {comment_part}')
+            else:
+                new_lines.append(f'{indent}print({rest.rstrip()})')
             if "print statement -> print()" not in changes:
                 changes.append("print statement -> print()")
         else:
