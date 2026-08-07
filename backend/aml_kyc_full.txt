@@ -1,0 +1,33 @@
+def extract_aml_kyc(source):
+    findings = []
+    source_lines = source.split(chr(10))
+    for pattern, label, category, note in AML_KYC_PATTERNS_COMPILED:
+        count = 0
+        line_nums = []
+        for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
+            _m = pattern.findall(ln)
+            if _m:
+                count += 1
+                line_nums.append(str(i+1))
+        if count > 0:
+            findings.append({
+                "pattern": label,
+                "category": category,
+                "occurrences": count,
+                "lines": ", ".join(line_nums[:10]),
+                "lines_truncated": len(line_nums) > 10,
+                "note": note
+            })
+    if findings:
+        verdict = "AML/KYC compliance logic detected - review with compliance team"
+    else:
+        verdict = "No obvious AML/KYC patterns detected"
+    return {
+        "findings": findings,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "has_compliance_logic": len(findings) > 0,
+        "disclaimer": "Keyword-based detector for AML/KYC-related logic. This is a discovery aid to help locate compliance-critical code. A compliance officer must verify all findings - this does not certify regulatory compliance."
+    }

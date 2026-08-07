@@ -2310,9 +2310,14 @@ AML_KYC_PATTERNS = [
     (r"(?i)\b(suspicious|fraud|blacklist|watchlist|sanction)\b", "Suspicious activity / watchlist check", "AML", "Verify with AML compliance team - suspicious-activity logic must match current regulations."),
     (r"(?i)\b(kyc|know[_\s]?your[_\s]?customer|verify[_\s]?identity|customer[_\s]?verification)\b", "Customer identity verification (KYC)", "KYC", "Confirm KYC verification rules with compliance before migrating."),
     (r"(?i)\b(transaction[_\s]?limit|threshold|reporting[_\s]?limit|ctr|cash[_\s]?transaction)\b", "Transaction threshold / reporting", "AML", "Reporting thresholds are regulated - verify limits with compliance team."),
-    (r"(?i)\b(pep|politically[_\s]?exposed|due[_\s]?diligence|edd|cdd)\b", "Due diligence / PEP screening", "KYC", "Enhanced due-diligence logic must be reviewed by compliance."),
-    (r"(?i)\b(aml|anti[_\s]?money|launder|str|sar)\b", "Anti-money-laundering logic", "AML", "Core AML logic - must be verified with compliance and audit teams."),
+    (r"(?i)\b(politically[_\s]?exposed|due[_\s]?diligence|\bedd\b|\bcdd\b|pep[_\s]?screening|pep[_\s]?check|pep[_\s]?flag)\b", "Due diligence / PEP screening", "KYC", "Enhanced due-diligence logic must be reviewed by compliance."),
+    (r"(?i)\b(aml|anti[_\s]?money|launder|suspicious[_\s]?activity[_\s]?report|str_filing|\bsar_report)\b", "Anti-money-laundering logic", "AML", "Core AML logic - must be verified with compliance and audit teams."),
     (r"(?i)\b(risk[_\s]?score|risk[_\s]?rating|risk[_\s]?category)\b", "Customer risk scoring", "KYC", "Risk-scoring rules affect compliance decisions - review carefully."),
+    (r"(?i)\b(FATF|OFAC|FinCEN|\bFIU\b)\b", "Regulatory body reference", "AML", "Verify regulatory-body logic is preserved exactly."),
+    (r"(?i)\b(beneficial[_\s]?owner|\bUBO\b)\b", "Beneficial ownership check", "KYC", "Verify beneficial-ownership verification logic preserved."),
+    (r"(?i)\b(name[_\s]?screening|fuzzy[_\s]?match)\b", "Name screening logic", "AML", "Verify name-screening/matching logic preserved."),
+    (r"(?i)\b(customer[_\s]?onboarding|onboarding[_\s]?process)\b", "Customer onboarding", "KYC", "Verify onboarding compliance checks preserved."),
+    (r"(?i)\b(dormant[_\s]?account|inactive[_\s]?account)\b", "Dormant account logic", "AML", "Dormant-account rules often have compliance implications."),
 ]
 
 AML_KYC_PATTERNS_COMPILED = [(re.compile(p), label, cat, note) for p, label, cat, note in AML_KYC_PATTERNS]
@@ -2339,15 +2344,24 @@ def extract_aml_kyc(source):
                 "lines_truncated": len(line_nums) > 10,
                 "note": note
             })
-    if findings:
-        verdict = "AML/KYC compliance logic detected - review with compliance team"
+    aml_count = sum(1 for f in findings if f["category"] == "AML")
+    kyc_count = sum(1 for f in findings if f["category"] == "KYC")
+    if aml_count > 0 and kyc_count > 0:
+        verdict = "CRITICAL: Both AML (" + str(aml_count) + ") and KYC (" + str(kyc_count) + ") logic detected - full compliance review required"
+    elif aml_count > 0:
+        verdict = "WARNING: AML logic detected (" + str(aml_count) + " pattern(s)) - compliance review required"
+    elif kyc_count > 0:
+        verdict = "WARNING: KYC logic detected (" + str(kyc_count) + " pattern(s)) - compliance review required"
     else:
         verdict = "No obvious AML/KYC patterns detected"
     return {
         "findings": findings,
         "total_findings": len(findings),
+        "aml_findings": aml_count,
+        "kyc_findings": kyc_count,
         "verdict": verdict,
-        "has_compliance_logic": len(findings) > 0,
+        "has_compliance_keywords": len(findings) > 0,
+        "compliance_review_required": len(findings) > 0,
         "disclaimer": "Keyword-based detector for AML/KYC-related logic. This is a discovery aid to help locate compliance-critical code. A compliance officer must verify all findings - this does not certify regulatory compliance."
     }
 
@@ -2361,7 +2375,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
         result = extract_aml_kyc(source)
         result["filename"] = file.filename
         track_usage("extract-aml-kyc", file.filename)
-        write_audit_log("extract-aml-kyc", file.filename, "findings=" + str(result.get("total_findings", 0)))
+        write_audit_log("extract-aml-kyc", file.filename, f"findings={result.get('total_findings', 0)}")
         return result
     except Exception as e:
         return {"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"}
