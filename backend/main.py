@@ -2400,21 +2400,28 @@ async def scan_repo_endpoint(req: RepoRequest):
         if r.status_code != 200:
             return {"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."}
         tree = r.json().get("tree", [])
-        py_files = [f for f in tree if f.get("path", "").endswith(".py") and f.get("type") == "blob"]
+        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob")
+        py_files = [f for f in tree if f.get("path", "").lower().endswith(_lang_exts) and f.get("type") == "blob"]
         if not py_files:
-            return {"error": "No Python (.py) files found in this repo.", "repo": owner + "/" + repo}
+            return {"error": "No supported files (.py, .java, .php, .cbl) found in this repo.", "repo": owner + "/" + repo}
         py_files = py_files[:25]  # limit for free server
         file_reports = []
         skipped_files = []
         total_issues = 0
+        import time as _time_mod
+        _scan_start_time = _time_mod.time()
+        _time_budget_seconds = 90
         for f in py_files:
+            if _time_mod.time() - _scan_start_time > _time_budget_seconds:
+                skipped_files.append({"file": f.get("path", ""), "reason": "Skipped - scan time budget exceeded"})
+                continue
             path = f.get("path", "")
             if ".." in path or path.startswith("/"):
                 skipped_files.append({"file": path, "reason": "Invalid path"})
                 continue
             raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + path
             try:
-                fr = requests.get(raw_url, timeout=15)
+                fr = requests.get(raw_url, timeout=10)
                 if fr.status_code != 200:
                     skipped_files.append({"file": path, "reason": "Could not fetch (status " + str(fr.status_code) + ")"})
                     continue
@@ -2422,12 +2429,30 @@ async def scan_repo_endpoint(req: RepoRequest):
                 if len(source) > 200000:
                     skipped_files.append({"file": path, "reason": "File too large (over 200KB)"})
                     continue
-                risk = assess_dependency_risk(source)
-                issues = risk.get("total_issues", 0)
+                _plower = path.lower()
+                if _plower.endswith(".py"):
+                    risk = assess_dependency_risk(source)
+                    issues = risk.get("total_issues", 0)
+                    risk_level = risk.get("overall_risk", "Unknown")
+                elif _plower.endswith(".java"):
+                    _r = analyze_java(source)
+                    issues = len(_r.get("issues", []))
+                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
+                elif _plower.endswith(".php"):
+                    _r = analyze_php(source)
+                    issues = len(_r.get("issues", []))
+                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
+                elif _plower.endswith((".cbl", ".cob")):
+                    _r = analyze_cobol(source)
+                    issues = len(_r.get("issues", []))
+                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
+                else:
+                    skipped_files.append({"file": path, "reason": "Unsupported file type"})
+                    continue
                 total_issues += issues
                 file_reports.append({
                     "file": path,
-                    "risk_level": risk.get("overall_risk", "Unknown"),
+                    "risk_level": risk_level,
                     "issues": issues
                 })
             except Exception:
