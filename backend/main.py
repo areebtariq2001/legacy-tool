@@ -1115,6 +1115,13 @@ def analyze_php(source):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
         pass
+    try:
+        _sens_result = scan_sensitive_data(source)
+        for _sens_finding in _sens_result.get("findings", []):
+            if _sens_finding["severity"] in ("High", "Critical"):
+                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
+    except Exception:
+        pass
     _php_funcs = list(dict.fromkeys(re.findall(r"function\s+(\w+)\s*\(", source)))
     _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", source)))
     return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": str(len(_php_classes)) + " class(es), " + str(len(_php_funcs)) + " function(s) found"}
@@ -1192,6 +1199,13 @@ def analyze_java(source):
         _sqli_result = scan_sql_injection(source, "file.java")
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+    except Exception:
+        pass
+    try:
+        _sens_result = scan_sensitive_data(source)
+        for _sens_finding in _sens_result.get("findings", []):
+            if _sens_finding["severity"] in ("High", "Critical"):
+                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
         pass
     classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
@@ -1274,6 +1288,13 @@ def analyze_cobol(source):
         _sqli_result = scan_sql_injection(source, "file.cbl")
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+    except Exception:
+        pass
+    try:
+        _sens_result = scan_sensitive_data(source)
+        for _sens_finding in _sens_result.get("findings", []):
+            if _sens_finding["severity"] in ("High", "Critical"):
+                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
         pass
     return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras) > 20, "cobol_summary": str(len(_cobol_paras)) + " paragraph(s) found (COBOL has no classes/OOP)"}
@@ -1937,6 +1958,7 @@ SENSITIVE_PATTERNS = [
     (r"(?i)(execute|cursor\.execute)\s*\([^)]*\.format\s*\(", "SQL injection risk (.format() in query)", "High"),
     (r"(?i)\+\s*(request|input|params|argv)", "Possible SQL/command injection (concatenated user input)", "High"),
     (r"(?i)\b(os\.system|subprocess\.(call|run|Popen))\s*\([^)]*\+", "Possible command injection (shell command built with + concatenation)", "High"),
+    (r"(?i)\b(system|exec|passthru|shell_exec|popen|proc_open)\s*\([^)]*\.\s*\$", "Possible command injection (PHP shell command built with . concatenation)", "High"),
     (r"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^;]*[\x27\x22]\s*\+", "Possible SQL injection (query string concatenation)", "High"),
     (r"(?i)\b(eval|exec)\s*\(", "Dangerous eval/exec call", "High"),
     (r"(?i)\bshell\s*=\s*True", "Insecure subprocess shell=True", "Medium"),
