@@ -25,3 +25,9 @@ create_root_gitignore.py
 *_dump.txt
 *.pyc
 __pycache__/
+
+node_modules/
+ersdellDesktoplegacy-migration-toolbackendmain.py
+app_code.txt
+arch_fix_diff.txt
+indexcheck.txt
