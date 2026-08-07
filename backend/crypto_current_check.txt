@@ -1,0 +1,59 @@
+Uses CRYPTO_PATTERNS_COMPILED: True
+Has lines field: True
+
+def scan_crypto(source):
+    findings = []
+    pqc_needed = False
+    source_lines = source.split(chr(10))
+    for pattern, label, severity, recommendation in CRYPTO_PATTERNS_COMPILED:
+        count = 0
+        line_nums = []
+        for i, ln in enumerate(source_lines):
+            if ln.strip().startswith(("#", "//")):
+                continue
+            _m = pattern.findall(ln)
+            if _m:
+                count += 1
+                line_nums.append(str(i+1))
+        if count > 0:
+            is_pqc = "PQC Path" in recommendation
+            if is_pqc:
+                pqc_needed = True
+            findings.append({
+                "issue": label,
+                "severity": severity,
+                "occurrences": count,
+                "lines": ", ".join(line_nums[:10]),
+                "lines_truncated": len(line_nums) > 10,
+                "recommendation": recommendation,
+                "pqc": is_pqc
+            })
+    if findings:
+        verdict = "Weak or quantum-vulnerable cryptography detected"
+    else:
+        verdict = "No obvious weak cryptography detected"
+    q_score = 100
+    for f in findings:
+        if f.get("pqc"):
+            q_score -= 20
+        elif f.get("severity") == "High":
+            q_score -= 15
+        else:
+            q_score -= 10
+    if q_score < 0:
+        q_score = 0
+    if q_score >= 90:
+        q_level = "Quantum-Safe"
+    elif q_score >= 60:
+        q_level = "Needs Attention"
+    else:
+        q_level = "Critical - Not Quantum-Ready"
+    return {
+        "findings": findings,
+        "quantum_score": q_score,
+        "quantum_level": q_level,
+        "total_findings": len(findings),
+        "verdict": verdict,
+        "pqc_suggested": pqc_needed,
+        "disclaimer": "Pattern-based cryptography scan. Flags known-weak algorithms and quantum-vulnerable public-key crypto. A cryptography expert should confirm before making changes."
+    }

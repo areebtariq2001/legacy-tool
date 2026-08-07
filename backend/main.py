@@ -977,8 +977,13 @@ def analyze_call_graph(source):
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             inner_calls = []
+            nested_defs = [s for s in ast.walk(node) if isinstance(s, ast.FunctionDef) and s is not node]
+            nested_call_ids = set()
+            for nd in nested_defs:
+                for s2 in ast.walk(nd):
+                    nested_call_ids.add(id(s2))
             for sub in ast.walk(node):
-                if isinstance(sub, ast.Call):
+                if isinstance(sub, ast.Call) and id(sub) not in nested_call_ids:
                     fname = None
                     if isinstance(sub.func, ast.Name):
                         fname = sub.func.id
