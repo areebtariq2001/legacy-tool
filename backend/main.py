@@ -2387,8 +2387,9 @@ class RepoRequest(BaseModel):
 async def scan_repo_endpoint(req: RepoRequest):
     try:
         url = req.repo_url.strip().rstrip("/")
-        # Expect format: https://github.com/owner/repo
-        parts = url.replace("https://github.com/", "").replace("http://github.com/", "").split("/")
+        if not re.match(r"^https://github\.com/[\w\-\.]+/[\w\-\.]+$", url):
+            return {"error": "Please provide a valid HTTPS GitHub repo URL like https://github.com/owner/repo"}
+        parts = url.replace("https://github.com/", "").split("/")
         if len(parts) < 2:
             return {"error": "Please provide a valid GitHub repo URL like https://github.com/owner/repo"}
         owner, repo = parts[0], parts[1]
@@ -2404,16 +2405,22 @@ async def scan_repo_endpoint(req: RepoRequest):
             return {"error": "No Python (.py) files found in this repo.", "repo": owner + "/" + repo}
         py_files = py_files[:25]  # limit for free server
         file_reports = []
+        skipped_files = []
         total_issues = 0
         for f in py_files:
-            path = f.get("path")
+            path = f.get("path", "")
+            if ".." in path or path.startswith("/"):
+                skipped_files.append({"file": path, "reason": "Invalid path"})
+                continue
             raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + path
             try:
                 fr = requests.get(raw_url, timeout=15)
                 if fr.status_code != 200:
+                    skipped_files.append({"file": path, "reason": "Could not fetch (status " + str(fr.status_code) + ")"})
                     continue
                 source = fr.text
                 if len(source) > 200000:
+                    skipped_files.append({"file": path, "reason": "File too large (over 200KB)"})
                     continue
                 risk = assess_dependency_risk(source)
                 issues = risk.get("total_issues", 0)
@@ -2424,17 +2431,23 @@ async def scan_repo_endpoint(req: RepoRequest):
                     "issues": issues
                 })
             except Exception:
+                skipped_files.append({"file": path, "reason": "Network error while fetching"})
                 continue
         track_usage("scan-repo", owner + "/" + repo)
         write_audit_log("scan-repo", owner + "/" + repo, "files=" + str(len(file_reports)))
-        return {
+        result = {
             "repo": owner + "/" + repo,
             "files_scanned": len(file_reports),
             "total_files_found": len(py_files),
+            "skipped_files_count": len(skipped_files),
+            "skipped_files": skipped_files,
             "total_issues": total_issues,
             "file_reports": file_reports,
-            "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. For full/large repos, a paid server and deeper analysis are planned."
+            "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
         }
+        if not gh_token:
+            result["warning"] = "No GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
+        return result
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
