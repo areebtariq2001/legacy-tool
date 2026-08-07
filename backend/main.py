@@ -2193,6 +2193,10 @@ CRYPTO_PATTERNS = [
     (r"(?i)\b(import\s+rsa|RSA\.(generate|import_key|construct)|from\s+Crypto\.PublicKey\s+import\s+RSA|RSA_generate_key|RSA\.new)", "RSA - quantum-vulnerable public-key crypto (actual usage)", "Medium", "PQC Path: plan migration to post-quantum algorithms (e.g. CRYSTALS-Kyber/Dilithium) as standards mature."),
     (r"(?i)\b(ECDSA|ECDH|elliptic)\b", "ECC - quantum-vulnerable public-key crypto", "Medium", "PQC Path: elliptic-curve crypto is broken by quantum computers; plan post-quantum migration."),
     (r"(?i)\bDiffie[-\s]?Hellman\b", "Diffie-Hellman - quantum-vulnerable key exchange", "Medium", "PQC Path: plan post-quantum key exchange (e.g. Kyber)."),
+    (r"(?i)\b(Blowfish|CAST5|IDEA)\b", "Weak cipher (Blowfish/CAST5/IDEA)", "High", "Use AES-256"),
+    (r"(?i)\bPKCS1v15\b", "PKCS1v15 padding - vulnerable to padding-oracle attacks", "Medium", "Use OAEP padding"),
+    (r"(?i)\bSSLv[23]\b|TLSv1\.[01]\b", "Deprecated SSL/TLS version", "High", "Use TLS 1.3"),
+    (r"(?i)\brandom\.random\(\)", "Insecure random - not cryptographically secure", "Medium", "Use the secrets module for security-sensitive randomness"),
 ]
 
 CRYPTO_PATTERNS_COMPILED = [(re.compile(p), label, sev, rec) for p, label, sev, rec in CRYPTO_PATTERNS]
@@ -2224,18 +2228,22 @@ def scan_crypto(source):
                 "recommendation": recommendation,
                 "pqc": is_pqc
             })
-    if findings:
-        verdict = "Weak or quantum-vulnerable cryptography detected"
+    _high_count = sum(1 for f in findings if f["severity"] == "High")
+    if _high_count > 0:
+        verdict = "CRITICAL: " + str(_high_count) + " broken algorithm(s) found - immediate replacement required"
+    elif findings:
+        verdict = "WARNING: Quantum-vulnerable crypto detected - plan PQC migration"
     else:
         verdict = "No obvious weak cryptography detected"
-    q_score = 100
+    q_score = 100.0
     for f in findings:
         if f.get("pqc"):
-            q_score -= 20
+            q_score *= 0.85
         elif f.get("severity") == "High":
-            q_score -= 15
+            q_score *= 0.88
         else:
-            q_score -= 10
+            q_score *= 0.92
+    q_score = round(q_score)
     if q_score < 0:
         q_score = 0
     if q_score >= 90:
