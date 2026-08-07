@@ -1,6 +1,0 @@
-12:     for pattern, repl, label in rules:
-13:         if re.search(pattern, migrated):
-14:             migrated = re.sub(pattern, repl, migrated)
-15:             changes.append(label)
-16:     review_rules = [
-17:         (r'\bmysql_connect\b', "mysql_connect() found - migrating to mysqli requires restructuring to pass a connection object as the first argument to every mysqli_* call (mysqli_query($conn, $sql), not just renaming functions)."),

@@ -1,8 +1,0 @@
-19:         if "IDENTIFICATION DIVISION" in upper:
-20:             changes.append("IDENTIFICATION DIVISION removed")
-21:             continue
-22:         if "DATA DIVISION" in upper:
-20:             changes.append("IDENTIFICATION DIVISION removed")
-21:             continue
-22:         if "DATA DIVISION" in upper:
-23:             changes.append("DATA DIVISION -> Python variable section")

@@ -1,0 +1,8 @@
+*.txt
+fix_*.py
+get_*.py
+check_*.py
+test_*.py
+add_*.py
+view_*.py
+debug_*.py

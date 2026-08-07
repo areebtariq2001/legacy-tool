@@ -1,2 +1,0 @@
-Calls scan_sensitive_data: False
-Calls scan_sql_injection: True

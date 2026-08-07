@@ -1,6 +1,0 @@
-'(?i)\\b(suspicious|fraud|blacklist|watchlist|sanction)\\b' | Suspicious activity / watchlist check | AML
-'(?i)\\b(kyc|know[_\\s]?your[_\\s]?customer|verify[_\\s]?identity|customer[_\\s]?verification)\\b' | Customer identity verification (KYC) | KYC
-'(?i)\\b(transaction[_\\s]?limit|threshold|reporting[_\\s]?limit|ctr|cash[_\\s]?transaction)\\b' | Transaction threshold / reporting | AML
-'(?i)\\b(pep|politically[_\\s]?exposed|due[_\\s]?diligence|edd|cdd)\\b' | Due diligence / PEP screening | KYC
-'(?i)\\b(aml|anti[_\\s]?money|launder|str|sar)\\b' | Anti-money-laundering logic | AML
-'(?i)\\b(risk[_\\s]?score|risk[_\\s]?rating|risk[_\\s]?category)\\b' | Customer risk scoring | KYC

@@ -1,6 +1,0 @@
-48: STATS_FILE = "stats.json"
-50: def load_stats():
-52:         with open(STATS_FILE, "r") as f:
-57: def save_stats(stats):
-59:         with open(STATS_FILE, "w") as f:
-73: def track_usage(action, filename):

@@ -1,8 +1,0 @@
-'(?i)\\b(DES|3DES|TripleDES)\\b' | DES/3DES - broken symmetric cipher | High
-'(?i)\\b(RC4|ARC4)\\b' | RC4 - broken stream cipher | High
-'(?i)\\b(MD5)\\b' | MD5 - broken hash | High
-'(?i)\\b(SHA1|SHA-1)\\b' | SHA-1 - deprecated hash | High
-'(?i)\\bMODE_ECB\\b' | ECB mode - insecure | High
-'(?i)\\bRSA\\b' | RSA - quantum-vulnerable public-key crypto | Medium
-'(?i)\\b(ECDSA|ECDH|elliptic)\\b' | ECC - quantum-vulnerable public-key crypto | Medium
-'(?i)\\bDiffie[-\\s]?Hellman\\b' | Diffie-Hellman - quantum-vulnerable key exchange | Medium

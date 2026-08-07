@@ -1,9 +1,0 @@
-ardcoded password/credential found - move to environment variable")
-    try:
-        _sqli_result = scan_sql_injection(source, "file.java")
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
-    except Exception:
-        pass
-    classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
-    methods = re.findall(r"(?:public|private|protected)\s+(?:stat

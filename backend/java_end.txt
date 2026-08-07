@@ -1,9 +1,0 @@
-source)
-    methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
-    imports = re.findall(r"import\s+([\w\.\*]+);", source)
-    methods = [m for m in methods if m not in classes]
-    wildcard_imports = [i for i in imports if i.endswith(".*")]
-    if wildcard_imports:
-        issues.append("Wildcard import(s) found: " + ", ".join(wildcard_imports) + " - use specific imports instead")
-    all_methods = list(dict.fromkeys(methods))
-    return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": f"{len(classes)} class(es), {len(methods)} method(s), {len(imports)} import(s), {len(issues)} legacy pattern(s) found"}

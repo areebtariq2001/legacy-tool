@@ -1,2 +1,0 @@
-_seqre total count in whole file: 2
-_mre total count in whole file: 20

@@ -1,6 +1,0 @@
-60: _in_memory_audit_log = []
-70: def write_audit_log(action, filename, result_summary):
-74:             _in_memory_audit_log.insert(0, f"[{timestamp}] action={action} | file={filename} | result={result_summary}")
-79: def track_usage(action, filename):
-1528:         recent = list(_in_memory_audit_log[:50])
-1535:         raw_lines = list(_in_memory_audit_log)

@@ -1,6 +1,0 @@
-2:     out_lines = ["# Converted from COBOL - best-effort rule-based translation. Review carefully before use.", ""]
-3:     lines = source.split(chr(10))
-4:     in_working_storage = False
-5:     in_procedure = False
-6:     if_depth = 0
-7:     def cur_indent():

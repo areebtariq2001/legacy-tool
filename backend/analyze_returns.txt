@@ -1,9 +1,0 @@
-=== analyze_java RETURN ===
-return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": f"{len(classes)} class(es), {len(methods)} method(s), {len(imports)}
-
-=== analyze_php RETURN ===
-return {"issues": issues}
-
-
-=== analyze_cobol RETURN ===
-return {"issues": issues}

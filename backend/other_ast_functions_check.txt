@@ -1,5 +1,0 @@
-migrate_code: has_ast.parse=False
-extract_variables: has_ast.parse=True
-check_variable_integrity: has_ast.parse=False
-calculate_complexity: has_ast.parse=False
-deep_verify_python: has_ast.parse=True

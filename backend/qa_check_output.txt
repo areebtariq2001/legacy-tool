@@ -1,8 +1,0 @@
-1607: @app.post("/qa-check")
-1608: async def qa_check(req: QARequest):
-1609:     try:
-1610:         result = ai_qa_compare(req.original, req.migrated)
-1611:         write_audit_log("qa-check", "code-pair", f"verdict={result['qa_verdict']}")
-1612:         return result
-1613:     except Exception as e:
-1614:         return {"qa_verdict": "ERROR", "qa_full_response": f"QA check failed safely: {str(e)}"}

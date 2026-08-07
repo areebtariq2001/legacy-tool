@@ -1,2 +1,0 @@
-1077:         changes.append("var -> public")
-1122:     return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": str(len(classes)) + " class(es), " + str(len(methods)) + " method(s), " + str(len(imports)) + " import(s), " + str(len(issues)) + " legacy pattern(s) found"}

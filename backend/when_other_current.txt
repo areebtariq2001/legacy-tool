@@ -1,9 +1,0 @@
-158:         if upper.startswith("WHEN OTHER"):
-159:             if not eval_first_when:
-160:                 if_depth = max(0, if_depth - 1)
-161:             out_lines.append(cur_indent() + "else:")
-162:             if_depth += 1
-163:             eval_first_when = False
-164:             changes.append("WHEN OTHER -> else")
-165:             continue
-166:         if upper.startswith("WHEN ") and eval_subject is not None:

@@ -1,7 +1,0 @@
-=== analyze_java ===
-Has scan_sql_injection: False
-Has password-regex: False
-
-=== analyze_cobol ===
-Has scan_sql_injection: False
-Has password-regex: False

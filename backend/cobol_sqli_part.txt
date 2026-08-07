@@ -1,8 +1,0 @@
-edential found in COBOL VALUE clause - move to environment/config")
-    try:
-        _sqli_result = scan_sql_injection(source, "file.cbl")
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
-    except Exception:
-        pass
-    return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras)

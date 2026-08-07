@@ -1,5 +1,0 @@
-DEF FOUND AT LINE: 535
-535: def calculate_confidence_java(source, migrated, valid, vars_ok):
-DEF FOUND AT LINE: 727
-727: def calculate_confidence(source, migrated, valid, vars_ok, verified):
-CALL AT LINE 809:         conf = calculate_confidence(source, cleaned, output["valid"], output["vars_ok"], output["verified"])
