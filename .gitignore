@@ -23,6 +23,7 @@ create_root_gitignore.py
 *_check.txt
 *_full.txt
 *_dump.txt
+!requirements.txt
 *.pyc
 __pycache__/
 
