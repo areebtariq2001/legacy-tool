@@ -652,6 +652,9 @@ def analyze_code(source):
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
+            _sens_issue_lower = _sens_finding["issue"].lower()
+            if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
+                continue
             if _sens_finding["severity"] in ("High", "Critical"):
                 issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
@@ -1118,6 +1121,9 @@ def analyze_php(source):
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
+            _sens_issue_lower = _sens_finding["issue"].lower()
+            if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
+                continue
             if _sens_finding["severity"] in ("High", "Critical"):
                 issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
@@ -1204,6 +1210,9 @@ def analyze_java(source):
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
+            _sens_issue_lower = _sens_finding["issue"].lower()
+            if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
+                continue
             if _sens_finding["severity"] in ("High", "Critical"):
                 issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
@@ -1293,6 +1302,9 @@ def analyze_cobol(source):
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
+            _sens_issue_lower = _sens_finding["issue"].lower()
+            if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
+                continue
             if _sens_finding["severity"] in ("High", "Critical"):
                 issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
