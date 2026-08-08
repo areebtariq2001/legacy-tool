@@ -2629,21 +2629,25 @@ def analyze_db_schema(source, filename):
     }
 
 def generate_cicd_recommendations(source, filename):
-    import re as _re
+    _re = re
     recs = []
     lang = detect_language(filename)
     # Base recommendations for any migration
     recs.append({"stage": "Build", "recommendation": "Set up an automated build step that compiles/validates the migrated code on every commit.", "priority": "High"})
     recs.append({"stage": "Test", "recommendation": "Add an automated test stage - run unit tests before any deployment. Migration without tests is high risk.", "priority": "High"})
     # Detect tests present
-    has_tests = bool(_re.search(r"(?i)(def test_|import unittest|import pytest|assert )", source))
+    has_tests = bool(_re.search(r"(?i)(def test_|import unittest|import pytest|@pytest|class Test\w+|@Test\s+public|it\s*\([\x22\x27]|describe\s*\([\x22\x27]|assert\s+\w+)", source))
     if not has_tests:
         recs.append({"stage": "Test", "recommendation": "No tests detected in this code. Generate baseline tests before migrating so you can verify behavior is preserved.", "priority": "High"})
     # Security scanning
     recs.append({"stage": "Security", "recommendation": "Add a security scan stage (StarBuild Data Scan / dependency check) to catch vulnerabilities before release.", "priority": "Medium"})
     # Detect dependencies -> dependency pinning
-    if _re.search(r"(?m)^\s*(?:import|from)\s+\w+", source):
-        recs.append({"stage": "Dependencies", "recommendation": "Pin dependency versions (requirements.txt / lockfile) so the migrated build is reproducible.", "priority": "Medium"})
+    if lang == "python" and _re.search(r"(?m)^\s*(?:import|from)\s+\w+", source):
+        recs.append({"stage": "Dependencies", "recommendation": "Pin dependency versions in requirements.txt or a lockfile so the migrated build is reproducible.", "priority": "Medium"})
+    elif lang == "java":
+        recs.append({"stage": "Dependencies", "recommendation": "Use Maven/Gradle dependency locking (e.g. versions-maven-plugin) for reproducible builds.", "priority": "Medium"})
+    elif lang == "php":
+        recs.append({"stage": "Dependencies", "recommendation": "Commit composer.lock for reproducible dependency versions.", "priority": "Medium"})
     # Containerization
     recs.append({"stage": "Package", "recommendation": "Containerize with Docker (StarBuild can generate a starter Dockerfile) for consistent deployment across environments.", "priority": "Medium"})
     # Rollback
@@ -2653,16 +2657,20 @@ def generate_cicd_recommendations(source, filename):
         recs.append({"stage": "Build", "recommendation": "Target Python 3.11+ in CI and run 'python -m py_compile' to catch syntax issues early.", "priority": "Medium"})
     elif lang == "java":
         recs.append({"stage": "Build", "recommendation": "Use Maven/Gradle in CI targeting Java 21 LTS; fail the build on deprecated-API warnings.", "priority": "Medium"})
+    elif lang == "php":
+        recs.append({"stage": "Build", "recommendation": "Use PHP 8.2+ in CI; run 'php -l' for a syntax check on every file.", "priority": "Medium"})
+    elif lang == "cobol":
+        recs.append({"stage": "Build", "recommendation": "Compile with GnuCOBOL in CI and verify output matches legacy behavior via parallel-run comparison.", "priority": "High"})
     return {
         "cicd_recommendations": recs,
-        "cicd_summary": str(len(recs)) + " CI/CD recommendations for a safe migration pipeline",
+        "cicd_summary": f"{len(recs)} CI/CD recommendations for a safe migration pipeline",
         "cicd_disclaimer": "General CI/CD guidance for migrating this code safely. Adapt to your team's existing pipeline (GitHub Actions, GitLab CI, Jenkins, etc.)."
     }
 
 def predict_migration_risk(source, filename):
     risk = 0
     reasons = []
-    import re as _re
+    _re = re
     try:
         _generic_hits = len(_re.findall(r"(?i)(eval|exec|md5|sha1|verify=False|shell=True)", source))
         if _generic_hits >= 2:
@@ -2730,6 +2738,8 @@ def predict_migration_risk(source, filename):
     if has_security_flag and level == "Low Risk":
         level = "Medium Risk"
         advice = "Security issue detected - review flagged areas before migration, regardless of overall score."
+    if not reasons:
+        reasons.append("No significant risk patterns detected in this file")
     return {
         "migration_risk": risk,
         "risk_level": level,
