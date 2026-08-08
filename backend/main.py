@@ -2759,11 +2759,11 @@ def predict_migration_risk(source, filename):
     }
 
 def detect_fraud_gaps(source, filename):
-    import re as _fr
+    _fr = re
     src_l = source.lower()
     gaps = []
     strengths = []
-    if _fr.search(r"(otp|one.?time.?pass|verification.?code)", src_l):
+    if _fr.search(r"(otp|totp|hotp|one.?time.?pass|verification.?code|sms.?code|pin.?verif|token.?verif)", src_l):
         strengths.append("OTP / verification code logic present")
     else:
         gaps.append({"gap": "No OTP / one-time-password verification found", "risk": "High", "why": "Transactions without OTP are vulnerable to unauthorized access"})
@@ -2771,20 +2771,23 @@ def detect_fraud_gaps(source, filename):
         strengths.append("Velocity / rate-limiting logic present")
     else:
         gaps.append({"gap": "No velocity / rate-limiting check found", "risk": "High", "why": "Without velocity checks, rapid fraudulent transactions can go undetected"})
-    if _fr.search(r"(limit|max.?amount|daily.?limit|threshold)", src_l):
+    if _fr.search(r"(transaction.?limit|daily.?limit|max.?amount|spending.?limit|withdrawal.?limit|amount.?threshold)", src_l):
         strengths.append("Transaction limit logic present")
     else:
         gaps.append({"gap": "No transaction amount limit found", "risk": "Medium", "why": "Missing limits allow unusually large transactions without review"})
-    if _fr.search(r"(2fa|two.?factor|mfa|multi.?factor)", src_l):
+    if _fr.search(r"(2fa|two.?factor|mfa|multi.?factor|authenticator|biometric|hardware.?token|yubikey|\bfido\b)", src_l):
         strengths.append("Multi-factor authentication reference present")
     else:
         gaps.append({"gap": "No multi-factor authentication (2FA/MFA) found", "risk": "Medium", "why": "Single-factor auth is weaker against account takeover"})
-    if _fr.search(r"(fraud|suspicious|anomaly|blacklist|flag)", src_l):
+    if _fr.search(r"(fraud|suspicious|anomaly|blacklist|fraud.?flag|flagged.?transaction|risk.?flag)", src_l):
         strengths.append("Fraud/suspicious-activity flagging present")
     else:
         gaps.append({"gap": "No fraud / suspicious-activity flagging found", "risk": "Medium", "why": "No mechanism to flag or block suspicious transactions"})
-    score = max(0, 100 - len(gaps) * 20)
-    return {"fraud_score": score, "fraud_gaps": gaps, "fraud_strengths": strengths, "fraud_summary": str(len(gaps)) + " fraud-control gap(s) found; " + str(len(strengths)) + " control(s) present - fraud-readiness " + str(score) + "/100", "fraud_disclaimer": "Heuristic check for common fraud-control patterns (OTP, velocity, limits, MFA, flagging). Absence of a keyword does not always mean the control is missing - verify with a security review. This is a planning aid, not a certification."}
+    _gap_weights = {"High": 25, "Medium": 15, "Low": 5}
+    _deduction = sum(_gap_weights.get(g["risk"], 10) for g in gaps)
+    score = max(0, 100 - _deduction)
+    gaps_sorted = sorted(gaps, key=lambda g: {"High": 0, "Medium": 1, "Low": 2}.get(g["risk"], 3))
+    return {"fraud_score": score, "fraud_gaps": gaps_sorted, "fraud_strengths": strengths, "fraud_summary": f"{len(gaps)} fraud-control gap(s) found; {len(strengths)} control(s) present - fraud-readiness {score}/100", "fraud_disclaimer": "Heuristic check for common fraud-control patterns (OTP, velocity, limits, MFA, flagging). Absence of a keyword does not always mean the control is missing - verify with a security review. This is a planning aid, not a certification."}
 
 def audit_key_management(source, filename):
     import re as _km
