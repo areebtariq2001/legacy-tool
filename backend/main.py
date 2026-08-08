@@ -2567,8 +2567,11 @@ def map_api_dependencies(source, filename):
         "api_disclaimer": "Pattern-based detection of external API/service dependencies (HTTP libraries, URLs, endpoints). Helps map integration points before migration. Verify against config and environment files for full coverage."
     }
 
+DB_SCHEMA_SQL_KEYWORDS = {"SELECT", "WHERE", "SET", "VALUES", "LOGIC", "BALANCE", "TABLE", "INDEX", "VIEW", "DATABASE", "SCHEMA", "TRIGGER", "PROCEDURE", "FUNCTION", "COLUMN", "CONSTRAINT", "PRIMARY", "FOREIGN", "KEY", "NULL", "NOT", "AND", "OR", "IN", "ON", "AS", "BY", "ORDER", "GROUP", "HAVING", "LIMIT", "OFFSET", "INNER", "LEFT", "RIGHT", "OUTER", "CROSS", "NATURAL", "UNION", "ALL", "DISTINCT", "EXISTS", "BETWEEN", "LIKE", "CASE", "WHEN", "THEN", "ELSE", "END", "WITH", "TEMP", "TEMPORARY", "RESULT", "DATA", "ROW", "ROWS"}
+DB_SCHEMA_CONSTRAINT_KEYWORDS = {"PRIMARY", "FOREIGN", "KEY", "UNIQUE", "CHECK", "CONSTRAINT", "INDEX", "NOT", "NULL", "DEFAULT"}
+
 def analyze_db_schema(source, filename):
-    import re as _re
+    _re = re
     tables = []
     columns = []
     queries = []
@@ -2584,7 +2587,7 @@ def analyze_db_schema(source, filename):
     _code_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("//", "#", "*")))
     for m in _re.finditer(r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60\x22\x27\[]?(\w+)", _code_only):
         t = m.group(1)
-        if t.upper() not in ("SELECT", "WHERE", "SET", "VALUES", "LOGIC", "BALANCE") and t not in tables:
+        if t.upper() not in DB_SCHEMA_SQL_KEYWORDS and t not in tables:
             tables.append(t)
     # 4. DB connection hints
     conn_patterns = {"MySQL": r"(?i)(mysql|MySQLdb|pymysql)", "PostgreSQL": r"(?i)(psycopg2|postgres)", "SQLite": r"(?i)(sqlite3|sqlite)", "Oracle": r"(?i)(cx_Oracle|oracle)", "SQL Server": r"(?i)(pyodbc|mssql|sqlserver)", "MongoDB": r"(?i)(pymongo|mongodb)"}
@@ -2595,27 +2598,33 @@ def analyze_db_schema(source, filename):
     for m in _re.finditer(r"(?i)CREATE\s+TABLE[^(]*\(([^;]*?)\)", source, _re.DOTALL):
         body = m.group(1)
         for col in _re.findall(r"(?m)^\s*[\x60\x22\x27\[]?(\w+)[\x60\x22\x27\]]?\s+(?:INT|VARCHAR|CHAR|TEXT|DATE|DATETIME|TIMESTAMP|DECIMAL|NUMERIC|BOOLEAN|FLOAT|DOUBLE|BIGINT|SMALLINT|BLOB)", body):
-            columns.append(col)
-    for select_match in _re.finditer(r"(?i)select\s+(.*?)\s+from", source):
+            if col.upper() not in DB_SCHEMA_CONSTRAINT_KEYWORDS:
+                columns.append(col)
+    for select_match in _re.finditer(r"(?i)select\s+(.*?)\s+from", source, _re.DOTALL):
         cols_part = select_match.group(1)
-        if cols_part.strip() != "*":
+        if cols_part.strip() != "*" and len(cols_part) < 500:
             for c in cols_part.split(","):
                 c_clean = c.strip().split(".")[-1].split(" as ")[0].strip()
-                if c_clean and c_clean.replace("_","").isalnum() and not c_clean[0].isdigit():
+                if c_clean and c_clean.replace("_","").isalnum() and not c_clean[0].isdigit() and c_clean.upper() not in DB_SCHEMA_SQL_KEYWORDS:
                     columns.append(c_clean)
     where_matches = _re.findall(r"(?i)where\s+(\w+)\s*[=<>]", source)
-    columns.extend(where_matches)
+    for wm in where_matches:
+        if wm.upper() not in DB_SCHEMA_SQL_KEYWORDS and not wm.isdigit() and wm.upper() not in ("TRUE", "FALSE"):
+            columns.append(wm)
     tables = list(dict.fromkeys(tables))
-    columns = list(dict.fromkeys(columns))
+    _all_columns = list(dict.fromkeys(columns))
+    columns = _all_columns[:30]
     unique_queries = list(dict.fromkeys(queries))
     has_db = bool(tables or connections or queries)
     return {
         "has_database": has_db,
         "tables": tables,
-        "columns": columns[:30],
+        "columns": columns,
+        "total_columns": len(_all_columns),
+        "columns_truncated": len(_all_columns) > 30,
         "query_types": unique_queries,
         "databases": connections,
-        "db_summary": (str(len(tables)) + " tables, " + str(len(columns)) + " columns, " + str(len(unique_queries)) + " query types detected") if has_db else "No database schema or SQL detected in this file",
+        "db_summary": (str(len(tables)) + " tables, " + str(len(_all_columns)) + " columns, " + str(len(unique_queries)) + " query types detected") if has_db else "No database schema or SQL detected in this file",
         "db_disclaimer": "Pattern-based database schema detection (tables, columns, queries, DB drivers). Helps map data dependencies before migration. Verify against actual schema files for completeness."
     }
 
