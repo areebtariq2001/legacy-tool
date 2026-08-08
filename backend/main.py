@@ -2531,37 +2531,36 @@ def generate_architecture(source, filename):
     }
 
 def map_api_dependencies(source, filename):
-    import re as _re
     http_calls = []
     urls = []
     libraries = []
     endpoints = []
-    # 1. HTTP client libraries
-    lib_patterns = {"requests": r"(?i)\brequests\.(get|post|put|delete|patch)", "urllib": r"(?i)\burllib", "httpx": r"(?i)\bhttpx\.", "aiohttp": r"(?i)\baiohttp", "http.client": r"(?i)http\.client", "axios": r"(?i)\baxios", "fetch": r"(?i)\bfetch\s*\("}
+    lib_patterns = {"requests": r"(?i)\brequests\.(get|post|put|delete|patch)", "urllib": r"(?i)\burllib", "httpx": r"(?i)\bhttpx\.", "aiohttp": r"(?i)\baiohttp", "http.client": r"(?i)http\.client", "axios": r"(?i)\baxios", "fetch": r"(?i)\bawait\s+fetch\s*\(", "grpc": r"(?i)\bgrpc\b", "boto3": r"(?i)\bboto3\b", "azure sdk": r"(?i)\bazure\.(mgmt|storage|identity)\b", "google api client": r"(?i)\bgoogleapiclient\b", "websocket": r"(?i)\bwebsocket\b", "pika (rabbitmq)": r"(?i)\bpika\.", "kafka": r"(?i)\bkafka\b"}
     for lib, pat in lib_patterns.items():
-        if _re.search(pat, source):
+        if re.search(pat, source):
             libraries.append(lib)
-    # 2. HTTP method calls (requests.get etc)
-    for m in _re.finditer(r"(?i)\.(get|post|put|delete|patch)\s*\(", source):
+    for m in re.finditer(r"(?i)\b(?:requests|httpx|session|client|http)\.(get|post|put|delete|patch)\s*\(", source):
         http_calls.append(m.group(1).upper())
-    # 3. URLs / endpoints
-    for m in _re.finditer(r"[\x22\x27](https?://[^\x22\x27\s]+)[\x22\x27]", source):
+    for m in re.finditer(r"[\x22\x27](https?://[^\x22\x27\s]+)[\x22\x27]", source):
         urls.append(m.group(1))
-    # 4. API endpoint paths (like "/api/v1/users")
-    for m in _re.finditer(r"[\x22\x27](/(?:api|v\d|rest)[/\w\-{}]*)[\x22\x27]", source):
+    for m in re.finditer(r"[\x22\x27](/(?:api|v\d|rest)[/\w\-{}]*)[\x22\x27]", source):
         endpoints.append(m.group(1))
     http_calls = list(dict.fromkeys(http_calls))
-    urls = list(dict.fromkeys(urls))[:20]
-    endpoints = list(dict.fromkeys(endpoints))[:20]
+    _all_urls = list(dict.fromkeys(urls))
+    _all_endpoints = list(dict.fromkeys(endpoints))
+    urls = _all_urls[:20]
+    endpoints = _all_endpoints[:20]
     libraries = list(dict.fromkeys(libraries))
     has_api = bool(libraries or urls or endpoints)
-    total = len(urls) + len(endpoints)
+    total = len(_all_urls) + len(_all_endpoints)
     return {
         "has_api_deps": has_api,
         "http_libraries": libraries,
         "http_methods": http_calls,
         "external_urls": urls,
+        "external_urls_truncated": len(_all_urls) > 20,
         "api_endpoints": endpoints,
+        "api_endpoints_truncated": len(_all_endpoints) > 20,
         "api_summary": (str(len(libraries)) + " HTTP libraries, " + str(total) + " external URLs/endpoints detected") if has_api else "No external API dependencies detected in this file",
         "api_disclaimer": "Pattern-based detection of external API/service dependencies (HTTP libraries, URLs, endpoints). Helps map integration points before migration. Verify against config and environment files for full coverage."
     }
