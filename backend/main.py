@@ -2687,38 +2687,48 @@ def predict_migration_risk(source, filename):
     except Exception:
         pass
     # 1. Risky/deprecated libraries (high migration risk)
-    risky_libs = ["MySQLdb", "urllib2", "urllib3", "cStringIO", "cPickle", "itertools.izip", "raw_input", "print ", "exec ", "has_key", "xrange"]
+    risky_libs = ["MySQLdb", "urllib2", "cStringIO", "cPickle", "itertools.izip", "raw_input", "has_key", "xrange"]
     found_libs = [lib for lib in risky_libs if lib in source]
+    if _re.search(r"(?<![a-zA-Z_])print\s+[^(]", source):
+        found_libs.append("print statement (Py2 style)")
+    if _re.search(r"(?<![a-zA-Z_])exec\s+[^(]", source):
+        found_libs.append("exec statement (Py2 style)")
     if found_libs:
         risk += min(len(found_libs) * 10, 40)
-        reasons.append("Uses deprecated/legacy patterns: " + ", ".join(found_libs[:5]))
+        reasons.append(f"Uses deprecated/legacy patterns: {', '.join(found_libs[:5])}")
     # 2. Code size / complexity
     lines = [l for l in source.split(chr(10)) if l.strip()]
     if len(lines) > 300:
         risk += 20
-        reasons.append("Large file (" + str(len(lines)) + " lines) - more surface area for migration errors")
+        reasons.append(f"Large file ({len(lines)} lines) - more surface area for migration errors")
     elif len(lines) > 100:
         risk += 10
-        reasons.append("Moderate file size (" + str(len(lines)) + " lines)")
+        reasons.append(f"Moderate file size ({len(lines)} lines)")
     # 3. Parse check
-    try:
-        tree = ast.parse(source)
-        funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
-        if funcs > 20:
-            risk += 15
-            reasons.append("High number of functions (" + str(funcs) + ") - complex to migrate and test")
-    except Exception:
-        risk += 30
-        if filename.lower().endswith(".py"):
+    if filename.lower().endswith(".py"):
+        try:
+            tree = ast.parse(source)
+            funcs = len([n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)])
+            if funcs > 20:
+                risk += 15
+                reasons.append(f"High number of functions ({funcs}) - complex to migrate and test")
+        except Exception:
+            risk += 30
             reasons.append("Contains Python 2-only syntax (e.g. print statement without parentheses) - the AST parser has partial visibility here; pattern-based analysis is used as a fallback. This is typically auto-fixed during migration, not a blocker.")
-        else:
-            risk -= 30
-            reasons.append("Non-Python file - structural analysis limited, review manually")
+    else:
+        reasons.append("Non-Python file - structural analysis limited, review manually")
     # 4. External imports (dependency risk)
-    imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+    if filename.lower().endswith(".py"):
+        imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+    elif filename.lower().endswith(".java"):
+        imports = _re.findall(r"(?m)^\s*import\s+([\w\.]+);", source)
+    elif filename.lower().endswith(".php"):
+        imports = _re.findall(r"(?m)^\s*use\s+([\w\\]+);", source)
+    else:
+        imports = []
     if len(set(imports)) > 8:
         risk += 15
-        reasons.append("Many external dependencies (" + str(len(set(imports))) + ") - each is a migration risk point")
+        reasons.append(f"Many external dependencies ({len(set(imports))}) - each is a migration risk point")
     # 5. Dynamic/risky calls
     if _re.search(r"(?i)\b(eval|exec|globals|locals|__import__)\s*\(", source):
         risk += 15
