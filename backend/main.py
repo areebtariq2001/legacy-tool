@@ -2822,7 +2822,7 @@ def detect_tech_stack(source, filename):
     return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": f"{len(detected)} notable technolog(ies) detected" if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
 
 def estimate_migration_cost(source, filename):
-    import re as _re10
+    _re10 = re
     lines = [l for l in source.split(chr(10)) if l.strip()]
     loc = len(lines)
     try:
@@ -2837,23 +2837,26 @@ def estimate_migration_cost(source, filename):
             classes = 0
         elif filename.lower().endswith((".java",".php")):
             if filename.lower().endswith(".php"):
-                funcs = len(_re10.findall(r"function\s+\w+\s*\(", source))
+                funcs = len(_re10.findall(r"(?:public|protected|private|static|abstract|\s)+function\s+\w+\s*\(", source))
             else:
                 funcs = len(_re10.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source))
             classes = len(_re10.findall(r"\bclass\s+\w+", source))
         else:
             funcs = len(_re10.findall(r"def ", source)); classes = len(_re10.findall(r"class ", source))
-        branches = len(_re10.findall(r"(if |for |while )", source)); parseable = False
+        branches = len(_re10.findall(r"\b(if|for|while)\s*\(", source)); parseable = False
     complexity = branches + funcs * 2 + classes * 3
     base_hours = loc / 20.0
     complexity_hours = complexity * 0.5
-    risk_multiplier = 1.5 if not parseable else 1.0
-    security_hits = len(_re10.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False)", source))
+    if filename.lower().endswith(".py") and not parseable:
+        risk_multiplier = 1.5
+    else:
+        risk_multiplier = 1.0
+    security_hits = len(_re10.findall(r"(?i)\b(eval|exec)\s*\(|hashlib\.(md5|sha1)|\bpassword\s*=\s*[\"\x27]|verify\s*=\s*False", source))
     security_hours = security_hits * 2
     total_hours = round((base_hours + complexity_hours + security_hours) * risk_multiplier, 1)
     days = round(total_hours / 6.0, 1)
     effort = "Low" if total_hours < 8 else "Medium" if total_hours < 40 else "High"
-    return {"cost_hours": total_hours, "cost_days": days, "cost_effort": effort, "cost_breakdown": {"lines_of_code": loc, "functions": funcs, "classes": classes, "decision_points": branches, "security_items": security_hits, "python3_parseable": parseable}, "cost_summary": "Estimated ~" + str(total_hours) + " hours (~" + str(days) + " working days) to migrate this file - " + effort + " effort", "cost_disclaimer": "Rough estimate based on code size, complexity, and security items. Actual effort depends on team experience, testing needs, and business requirements. Use for planning only."}
+    return {"cost_hours": total_hours, "cost_days": days, "cost_effort": effort, "cost_breakdown": {"lines_of_code": loc, "functions": funcs, "classes": classes, "decision_points": branches, "security_items": security_hits, "python3_parseable": parseable}, "cost_summary": f"Estimated ~{total_hours} hours (~{days} working days) to migrate this file - {effort} effort", "cost_disclaimer": "Rough estimate based on code size, complexity, and security items. Actual effort depends on team experience, testing needs, and business requirements. Use for planning only."}
 
 def detect_pii(source, filename):
     import re as _re9
