@@ -2476,8 +2476,10 @@ async def scan_repo_endpoint(req: RepoRequest):
     except Exception as e:
         return {"error": "Repo scan failed safely: " + str(e)}
 
+ARCH_DB_KEYWORDS = {"sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc", "asyncpg", "motor", "redis"}
+
 def generate_architecture(source, filename):
-    import re as _re
+    _re = re
     layers = []
     try:
         tree = ast.parse(source)
@@ -2509,23 +2511,23 @@ def generate_architecture(source, filename):
             imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
     imports = list(dict.fromkeys(imports))
     # Classify imports into layers
-    db_libs = [i for i in imports if i.lower() in ("sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc") or "sql" in i.lower() or "jdbc" in i.lower()]
-    api_libs = [i for i in imports if i.lower() in ("requests", "urllib", "urllib2", "httpx", "aiohttp", "http")]
+    db_libs = [i for i in imports if i.lower() in ARCH_DB_KEYWORDS or "jdbc" in i.lower()]
+    api_libs = [i for i in imports if i.lower() in ("requests", "urllib", "urllib2", "httpx", "aiohttp", "http", "grpc", "boto3", "websocket", "pika", "kafka") or i.lower().startswith(("azure", "google"))]
     other_libs = [i for i in imports if i not in db_libs and i not in api_libs]
     # Build layered architecture
     if classes:
-        layers.append({"layer": "Classes / Modules", "items": classes[:15]})
+        layers.append({"layer": "Classes / Modules", "items": classes[:15], "total": len(classes), "truncated": len(classes) > 15})
     if funcs:
-        layers.append({"layer": "Functions (Business Logic)", "items": funcs[:20]})
+        layers.append({"layer": "Functions (Business Logic)", "items": funcs[:20], "total": len(funcs), "truncated": len(funcs) > 20})
     if db_libs:
         layers.append({"layer": "Data Layer (Databases)", "items": db_libs})
     if api_libs:
         layers.append({"layer": "External APIs / Services", "items": api_libs})
     if other_libs:
-        layers.append({"layer": "Dependencies (Libraries)", "items": other_libs[:15]})
+        layers.append({"layer": "Dependencies (Libraries)", "items": other_libs[:15], "total": len(other_libs), "truncated": len(other_libs) > 15})
     return {
         "architecture_layers": layers,
-        "arch_summary": str(len(funcs)) + " functions, " + str(len(classes)) + " classes, " + str(len(imports)) + " dependencies across " + str(len(layers)) + " layers",
+        "arch_summary": f"{len(funcs)} functions, {len(classes)} classes, {len(imports)} dependencies across {len(layers)} layers",
         "arch_stats": {"functions": len(funcs), "classes": len(classes), "db": len(db_libs), "apis": len(api_libs)},
         "arch_disclaimer": "High-level architecture view derived from code structure (classes, functions, data, and external layers). A starting map for understanding the system - not a full runtime architecture."
     }
