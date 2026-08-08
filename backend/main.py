@@ -2802,20 +2802,24 @@ def audit_key_management(source, filename):
     has_rotation = bool(_km.search(r"(?i)(rotate|rotation|key_expiry|expire|renew).{0,20}key", source))
     return {"km_clean": len(findings) == 0, "km_findings": findings, "km_rotation_found": has_rotation, "km_summary": f"{len(findings)} key management issue(s) found - secrets should never be hardcoded" if findings else "No hardcoded keys or secrets detected", "km_rotation_note": "Key rotation logic detected - good practice" if has_rotation else "No key rotation logic found - keys should be rotated periodically", "km_disclaimer": "Detects hardcoded encryption keys, secrets, and credentials. Hardcoded keys are a serious security risk - use a secrets manager (e.g. vault, environment variables) and rotate keys regularly. Actual secret values are redacted in this report."}
 
+TECH_STACK_CATEGORIES = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid","spring":"Spring"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis","sql":"JDBC/SQL"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp","net":"Java Networking"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL","security":"Java Security (MessageDigest/Crypto)"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose","junit":"JUnit"}, "Collections": {"util":"Java Collections/Util"}}
+
 def detect_tech_stack(source, filename):
-    import re as _re11
-    imports = _re11.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
+    imports = re.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
     imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
-    categories = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid","spring":"Spring"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis","sql":"JDBC/SQL"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp","net":"Java Networking"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL","security":"Java Security (MessageDigest/Crypto)"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose","junit":"JUnit"}, "Collections": {"util":"Java Collections/Util"}}
+    if filename.lower().endswith(".java"):
+        scan_targets = re.findall(r"(?:^|\n)\s*import\s+([\w\.\*]+);", source)
+    else:
+        scan_targets = imports
     detected = []
-    for cat, libs in categories.items():
-        for imp_full in (imports if not filename.lower().endswith(".java") else _re11.findall(r"(?:^|\n)\s*import\s+([\w\.\*]+);", source)):
+    for cat, libs in TECH_STACK_CATEGORIES.items():
+        for imp_full in scan_targets:
             imp_parts = imp_full.lower().split(".")
             match = next((p for p in imp_parts if p in libs), None)
             if match:
                 detected.append({"category": cat, "technology": libs[match], "import": imp_full})
     stdlib = [i for i in imports if i.lower() in ["os","sys","re","json","datetime","time","math","random","collections","itertools","logging"]]
-    return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": (str(len(detected)) + " notable technolog(ies) detected") if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
+    return {"tech_detected": detected, "all_imports": imports, "stdlib_used": stdlib, "tech_summary": f"{len(detected)} notable technolog(ies) detected" if detected else "Mostly standard-library code - no major external frameworks detected", "tech_disclaimer": "Detected from import statements. Shows the main frameworks and libraries this code depends on - useful for planning the target environment."}
 
 def estimate_migration_cost(source, filename):
     import re as _re10
