@@ -2690,7 +2690,7 @@ def generate_cicd_recommendations(source, filename):
     if not has_tests:
         recs.append({"stage": "Test", "recommendation": "No tests detected in this code. Generate baseline tests before migrating so you can verify behavior is preserved.", "priority": "High"})
     # Security scanning
-    recs.append({"stage": "Security", "recommendation": "Add a security scan stage (StarBuild Data Scan / dependency check) to catch vulnerabilities before release.", "priority": "Medium"})
+    recs.append({"stage": "Security", "recommendation": "Add a security scan stage (StarSage Data Scan / dependency check) to catch vulnerabilities before release.", "priority": "Medium"})
     # Detect dependencies -> dependency pinning
     if lang == "python" and _re.search(r"(?m)^\s*(?:import|from)\s+\w+", source):
         recs.append({"stage": "Dependencies", "recommendation": "Pin dependency versions in requirements.txt or a lockfile so the migrated build is reproducible.", "priority": "Medium"})
@@ -2699,7 +2699,7 @@ def generate_cicd_recommendations(source, filename):
     elif lang == "php":
         recs.append({"stage": "Dependencies", "recommendation": "Commit composer.lock for reproducible dependency versions.", "priority": "Medium"})
     # Containerization
-    recs.append({"stage": "Package", "recommendation": "Containerize with Docker (StarBuild can generate a starter Dockerfile) for consistent deployment across environments.", "priority": "Medium"})
+    recs.append({"stage": "Package", "recommendation": "Containerize with Docker (StarSage can generate a starter Dockerfile) for consistent deployment across environments.", "priority": "Medium"})
     # Rollback
     recs.append({"stage": "Deploy", "recommendation": "Configure a rollback strategy (blue-green or canary) so a failed migration can be reverted quickly.", "priority": "High"})
     # Language-specific
