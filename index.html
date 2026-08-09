@@ -2701,12 +2701,23 @@ async function scanRepo() {
     const r = await fetch(BACKEND + '/scan-repo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repo_url: u }) });
     const d = await r.json();
     if (d.error) { box.textContent = 'Error: ' + d.error; return; }
-    let out = (d.summary || d.message || ('Scanned ' + (d.files_scanned || d.total_files || '?') + ' files')) + '\n\n';
-    if (d.results && Array.isArray(d.results)) {
+    let out = (d.summary || d.message || ('Scanned ' + (d.files_scanned || d.total_files_found || '?') + ' files')) + '\n\n';
+    if (d.file_reports && Array.isArray(d.file_reports)) {
+      d.file_reports.forEach(f => { out += (f.file || '?') + ' - ' + (f.risk_level || 'analyzed') + (f.issues != null ? ' (' + f.issues + ' issue(s))' : '') + '\n'; });
+    } else if (d.results && Array.isArray(d.results)) {
       d.results.forEach(f => { out += (f.filename || f.file || '?') + ' - ' + (f.risk_level || f.summary || 'analyzed') + '\n'; });
     } else {
       out += JSON.stringify(d, null, 2);
     }
+    if (d.file_dependencies && d.file_dependencies.length > 0) {
+      out += '\n--- File Dependencies (same-repo local imports) ---\n';
+      d.file_dependencies.forEach(edge => { out += edge.from + '  ->  ' + edge.to + '\n'; });
+    }
+    if (d.skipped_files && d.skipped_files.length > 0) {
+      out += '\n--- Skipped Files ---\n';
+      d.skipped_files.forEach(s => { out += (s.file || '?') + ' - ' + (s.reason || 'skipped') + '\n'; });
+    }
+    if (d.warning) { out += '\n⚠ ' + d.warning + '\n'; }
     box.textContent = out;
   } catch (e) {
     box.textContent = 'Could not scan repo: ' + e.message;
