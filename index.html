@@ -582,6 +582,10 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                   <div class="diff-body" id="diffNew"></div>
                 </div>
               </div>
+              <div id="bizRuleSpecSection" style="display:none;margin-top:12px">
+                <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="toggleBizRuleSpec()">📋 <span id="bizRuleSpecToggleLabel">Show Business Rule Detail</span></button>
+                <div id="bizRuleSpecBody" style="display:none;margin-top:8px;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;max-height:400px;overflow-y:auto"></div>
+              </div>
               <div id="behaviorTestResult" style="display:none;margin-top:10px;padding:10px;background:#0f1525;border-radius:6px"></div>
             </div>
             <div class="approval" id="approvalBox">
@@ -1091,6 +1095,7 @@ function renderResults(R, original, fname, totalMs) {
     renderBusinessRuleSpec(original, lang);
   } else {
     renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums);
+    renderBusinessRuleSpec(original, lang);
   }
   const issues = buildIssues(R);
   const critCount = issues.filter(i => i.sev === 'critical').length;
@@ -1782,11 +1787,23 @@ function computeLineDiff(oldLines, newLines) {
   while (j > 0) { newTags[j - 1] = 'added'; j--; }
   return { oldTags, newTags };
 }
+function toggleBizRuleSpec() {
+  const body = document.getElementById('bizRuleSpecBody');
+  const label = document.getElementById('bizRuleSpecToggleLabel');
+  const showing = body.style.display !== 'none';
+  body.style.display = showing ? 'none' : 'block';
+  label.textContent = showing ? 'Show Business Rule Detail' : 'Hide Business Rule Detail';
+}
 function renderBusinessRuleSpec(code, lang) {
-  const el = document.getElementById('diffNew');
+  const el = document.getElementById(lang === 'cobol' ? 'diffNew' : 'bizRuleSpecBody');
+  const section = document.getElementById('bizRuleSpecSection');
   detectBusinessRules(code);
   const rules = window.lastBusinessRules || [];
   const lines = code.split('\n');
+  if (lang !== 'cobol') {
+    if (!rules || rules.length === 0) { if (section) section.style.display = 'none'; return; }
+    if (section) section.style.display = 'block';
+  }
   if (!rules || rules.length === 0) {
     el.innerHTML = '<div style="padding:12px;font-size:11px;color:#64748b">No specific business rules were detected via pattern-matching in this file. This does not necessarily mean the file has no business logic - it means no known pattern matched. Review the Original Source panel directly.</div>';
     return;
