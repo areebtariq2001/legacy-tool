@@ -2471,14 +2471,32 @@ async def scan_repo_endpoint(req: RepoRequest):
                     skipped_files.append({"file": path, "reason": "Unsupported file type"})
                     continue
                 total_issues += issues
+                _local_imports = []
+                if _plower.endswith(".py"):
+                    _local_imports = re.findall(r"(?m)^\s*(?:import|from)\s+([\w\.]+)", source)
+                    _local_imports = [i.split(".")[0] for i in _local_imports]
+                elif _plower.endswith(".java"):
+                    _local_imports = re.findall(r"(?m)^\s*import\s+[\w\.]*\.(\w+)\s*;", source)
                 file_reports.append({
                     "file": path,
                     "risk_level": risk_level,
-                    "issues": issues
+                    "issues": issues,
+                    "_local_imports": _local_imports
                 })
             except Exception:
                 skipped_files.append({"file": path, "reason": "Network error while fetching"})
                 continue
+        _all_basenames = {}
+        for _fr in file_reports:
+            _bname = _fr.get("file", "").split("/")[-1].rsplit(".", 1)[0]
+            _all_basenames[_bname] = _fr.get("file")
+        _dependency_edges = []
+        for _fr in file_reports:
+            for _imp in _fr.get("_local_imports", []):
+                if _imp in _all_basenames and _all_basenames[_imp] != _fr.get("file"):
+                    _dependency_edges.append({"from": _fr.get("file"), "to": _all_basenames[_imp]})
+        for _fr in file_reports:
+            _fr.pop("_local_imports", None)
         track_usage("scan-repo", owner + "/" + repo)
         write_audit_log("scan-repo", owner + "/" + repo, "files=" + str(len(file_reports)))
         result = {
@@ -2489,6 +2507,8 @@ async def scan_repo_endpoint(req: RepoRequest):
             "skipped_files": skipped_files,
             "total_issues": total_issues,
             "file_reports": file_reports,
+            "file_dependencies": _dependency_edges,
+            "file_dependencies_note": "Static, same-repo local-import relationships only (regex-based on import statements, no code execution). Does not resolve dynamic imports, aliasing, or cross-package structures.",
             "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
         }
         if not gh_token:
