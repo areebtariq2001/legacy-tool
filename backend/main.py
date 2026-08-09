@@ -2982,7 +2982,12 @@ def process_github_webhook(payload):
         if not branch:
             branch = "main"
         results = []
+        _webhook_scan_start = _rl_time.time()
+        _webhook_time_budget = 60
         for file_path in list(changed_files)[:10]:
+            if _rl_time.time() - _webhook_scan_start > _webhook_time_budget:
+                results.append({"file": file_path, "risk_level": "Skipped - time budget exceeded", "issues": 0})
+                continue
             try:
                 raw_url = "https://raw.githubusercontent.com/" + repo_name + "/" + branch + "/" + file_path
                 resp = requests.get(raw_url, timeout=10)
