@@ -722,7 +722,18 @@ def migrate_code(source):
     _div_lines = [str(_i + 1) for _i, _ln in enumerate(migrated.split(chr(10))) if re.search(r'[\w\)\]]\s*/\s*[\w\(]', _ln) and '//' not in _ln and not _ln.strip().startswith('#')]
     if _div_lines:
         changes.append("REVIEW NEEDED: Division (/) found on line(s) " + ", ".join(_div_lines) + " - Python 2 used floor division on integers, Python 3 uses true division. Verify this calculation still produces the intended result, especially for financial/numeric logic.")
-    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+    _validity = {"syntax_valid": True, "syntax_error": None, "broken_py3_imports": []}
+    try:
+        ast.parse(migrated)
+    except SyntaxError as _se:
+        _validity["syntax_valid"] = False
+        _validity["syntax_error"] = f"Line {_se.lineno}: {_se.msg}"
+    _py2_only_modules = {"md5": "hashlib", "sha": "hashlib", "commands": "subprocess", "urllib2": "urllib.request", "urlparse": "urllib.parse", "Queue": "queue", "ConfigParser": "configparser", "cStringIO": "io", "thread": "_thread", "Tkinter": "tkinter", "httplib": "http.client", "cookielib": "http.cookiejar"}
+    for _mod, _replacement in _py2_only_modules.items():
+        if re.search(r"(?m)^\s*import\s+" + re.escape(_mod) + r"\b", migrated) or re.search(r"(?m)^\s*from\s+" + re.escape(_mod) + r"\b", migrated):
+            _validity["broken_py3_imports"].append({"module": _mod, "suggested_replacement": _replacement})
+    _validity["migration_ready"] = _validity["syntax_valid"] and len(_validity["broken_py3_imports"]) == 0
+    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source), "migration_validity": _validity}
 
 # ---------- VALIDATOR (PYTHON) ----------
 def validate_php(code):
