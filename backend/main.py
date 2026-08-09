@@ -1137,6 +1137,13 @@ def analyze_php(source):
 def migrate_php(source):
     changes = []
     migrated = source
+    def _fix_php4_constructor(m):
+        return m.group(1) + "__construct" + m.group(3)
+    _ctor_pattern = re.compile(r'(class\s+(\w+)\s*\{[^}]*?function\s+)\2(\s*\()')
+    _ctor_match = _ctor_pattern.search(migrated)
+    if _ctor_match:
+        migrated = _ctor_pattern.sub(_fix_php4_constructor, migrated, count=1)
+        changes.append("PHP 4-style constructor (method name matched class name) -> __construct()")
     rules = [
         (r'\bmysql_close\b', 'mysqli_close', "mysql_close -> mysqli_close"),
         (r'\bmysql_error\b', 'mysqli_error', "mysql_error -> mysqli_error"),
