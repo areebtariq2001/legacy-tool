@@ -3088,15 +3088,16 @@ def map_regional_compliance(source, filename, region="Pakistan"):
     return _result
 
 def discover_business_rules_engine(source, filename):
-    import re as _re7
+    _re7 = re
     rules = []
     lines = source.split(chr(10))
-    compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(limit|maximum|max_amount|threshold|exceed)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|permission|role|access|approve)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk|block|freeze|flag)"}
+    compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(transaction.?limit|daily.?limit|max_amount|threshold.?exceed|spending.?limit)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|access.?control|role.?based|permission.?check|approv)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk.?score|risk.?flag|block.?transaction|freeze.?account|suspicious.?flag)"}
     for i, line in enumerate(lines):
         stripped = line.strip()
-        _seqm7 = _re7.match(r"^(\d{6})\s+(.*)$", stripped)
-        if _seqm7:
-            stripped = _seqm7.group(2)
+        if filename.lower().endswith((".cbl", ".cob", ".cobol")):
+            _seqm7 = _re7.match(r"^(\d{6})\s+(.*)$", stripped)
+            if _seqm7:
+                stripped = _seqm7.group(2)
         m = _re7.match(r"(if|elif)\s+(.+?):", stripped)
         m2 = _re7.match(r"(?:\}\s*)?(else\s+)?if\s*\((.+)\)\s*\{?", stripped) if not m else None
         m3 = _re7.match(r"(?i)IF\s+(.+?)\.?$", stripped) if (not m and not m2 and filename.lower().endswith((".cbl", ".cob"))) else None
@@ -3110,10 +3111,12 @@ def discover_business_rules_engine(source, filename):
         if condition is not None:
             if len(condition) < 3: continue
             if _re7.match(r"^[\w\.]+\.(next|hasNext|isEmpty|isPresent)\s*\(\s*\)$", condition): continue
+            if _re7.match(r"^(len\([\w\.]+\)\s*[><=!]+\s*0|[\w\.]+\s+is\s+not\s+None|[\w\.]+\s+is\s+None|not\s+[\w\.]+|[\w\.]+)$", condition.strip()): continue
             tags = [name for name, pat in compliance_keywords.items() if _re7.search(pat, condition)]
-            rules.append({"rule_id": "RULE-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
+            _fname_tag = _re7.sub(r"[^\w]", "", filename)[:8] if filename else "F"
+            rules.append({"rule_id": f"RULE-{_fname_tag}-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "condition_truncated": len(condition) > 150, "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
     tagged = len([r for r in rules if r["compliance_tags"]])
-    return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": (str(len(rules)) + " business rules discovered; " + str(tagged) + " linked to compliance standards") if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers EVERY decision point (if/elif condition) in the code and presents each as a separate business rule - this counts all decision logic, not just the small set of named categories (Interest, Balance, AML) shown in the Business Rules Found summary elsewhere on this page, so the counts will genuinely differ. Compliance tags are heuristic hints - verify with a compliance officer."}
+    return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": f"{len(rules)} business rules discovered; {tagged} linked to compliance standards" if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers EVERY decision point (if/elif condition) in the code and presents each as a separate business rule - this counts all decision logic, not just the small set of named categories (Interest, Balance, AML) shown in the Business Rules Found summary elsewhere on this page, so the counts will genuinely differ. Compliance tags are heuristic hints - verify with a compliance officer."}
 
 def generate_rollback_plan(source, filename):
     import re as _re6
