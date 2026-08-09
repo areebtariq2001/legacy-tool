@@ -2922,14 +2922,14 @@ def score_zero_trust(source, filename):
     level = "Strong" if score >= 80 else "Developing" if score >= 50 else "Weak"
     return {"zt_score": score, "zt_level": level, "zt_checks": [{"check": c, "passed": v} for c,v in checks], "zt_summary": f"Zero-Trust readiness: {score}/100 ({level}) - {passed} of {len(checks)} signals found", "zt_disclaimer": "Heuristic check for zero-trust security signals (auth, access control, encryption, validation, logging, rate limiting). Absence of a keyword does not always mean the control is missing - verify with a security architecture review."}
 
+VENDOR_LOCKIN_PATTERNS = {"Oracle": re.compile(r"(?i)(cx_oracle|oracledb|oracle\.jdbc)"), "IBM DB2": re.compile(r"(?i)(ibm_db|db2\.jcc|db2connect)"), "SAP": re.compile(r"(?i)(pyrfc|sap\.rfc|hdbcli)"), "Microsoft SQL Server": re.compile(r"(?i)(pymssql|sqlserver|mssql)"), "AWS-specific": re.compile(r"(?i)(boto3|aws_lambda|dynamodb)"), "Azure-specific": re.compile(r"(?i)(azure\.storage|azure\.identity|azureml)"), "Salesforce": re.compile(r"(?i)(simple_salesforce|salesforce_api)"), "Mainframe/COBOL": re.compile(r"(?i)(\bjcl\b|\bvsam\b|\bcics\b)")}
+
 def analyze_vendor_lockin(source, filename):
-    _vl = re
-    vendors = {"Oracle": r"(?i)(cx_oracle|oracledb|oracle\.jdbc)", "IBM DB2": r"(?i)(ibm_db|db2\.jcc|db2connect)", "SAP": r"(?i)(pyrfc|sap\.rfc|hdbcli)", "Microsoft SQL Server": r"(?i)(pymssql|sqlserver|mssql)", "AWS-specific": r"(?i)(boto3|aws_lambda|dynamodb)", "Azure-specific": r"(?i)(azure\.storage|azure\.identity|azureml)", "Salesforce": r"(?i)(simple_salesforce|salesforce_api)", "Mainframe/COBOL": r"(?i)(\bjcl\b|\bvsam\b|\bcics\b)"}
     code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
     code_only = chr(10).join(code_only_lines)
     findings = []
-    for vendor, pat in vendors.items():
-        matches = len(_vl.findall(pat, code_only))
+    for vendor, pat in VENDOR_LOCKIN_PATTERNS.items():
+        matches = len(pat.findall(code_only))
         if matches > 0:
             findings.append({"vendor": vendor, "occurrences": matches, "risk": "High" if matches >= 3 else "Medium"})
     return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": f"{len(findings)} vendor dependency type(s) found - migration may require vendor-specific rework" if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
