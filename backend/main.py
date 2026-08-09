@@ -2421,7 +2421,7 @@ async def scan_repo_endpoint(req: RepoRequest):
         if r.status_code != 200:
             return {"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."}
         tree = r.json().get("tree", [])
-        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob")
+        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
         py_files = [f for f in tree if f.get("path", "").lower().endswith(_lang_exts) and f.get("type") == "blob"]
         if not py_files:
             return {"error": "No supported files (.py, .java, .php, .cbl) found in this repo.", "repo": owner + "/" + repo}
@@ -2463,7 +2463,7 @@ async def scan_repo_endpoint(req: RepoRequest):
                     _r = analyze_php(source)
                     issues = len(_r.get("issues", []))
                     risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                elif _plower.endswith((".cbl", ".cob")):
+                elif _plower.endswith((".cbl", ".cob", ".cpy")):
                     _r = analyze_cobol(source)
                     issues = len(_r.get("issues", []))
                     risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
@@ -2480,7 +2480,7 @@ async def scan_repo_endpoint(req: RepoRequest):
                 elif _plower.endswith(".php"):
                     _php_includes = re.findall(r"(?i)(?:require|include)(?:_once)?\s*\(?\s*[\"\x27]([^\"\x27]+)[\"\x27]", source)
                     _local_imports = [i.split("/")[-1].rsplit(".", 1)[0] for i in _php_includes]
-                elif _plower.endswith((".cbl", ".cob")):
+                elif _plower.endswith((".cbl", ".cob", ".cpy")):
                     _local_imports = re.findall(r"(?i)\bCOPY\s+([\w-]+)", source)
                 file_reports.append({
                     "file": path,
@@ -2998,7 +2998,7 @@ def process_github_webhook(payload):
             return {"error": "Invalid or missing repository name in webhook payload"}
         commits = payload.get("commits", [])
         changed_files = set()
-        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob")
+        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
         for commit in commits:
             for f in commit.get("added", []) + commit.get("modified", []):
                 if ".." in f or f.startswith("/"):
