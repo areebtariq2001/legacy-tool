@@ -2433,6 +2433,7 @@ async def scan_repo_endpoint(req: RepoRequest):
         file_reports = []
         skipped_files = []
         total_issues = 0
+        _repo_rule_categories = []
         import time as _time_mod
         _scan_start_time = _time_mod.time()
         _time_budget_seconds = 90
@@ -2475,6 +2476,11 @@ async def scan_repo_endpoint(req: RepoRequest):
                     skipped_files.append({"file": path, "reason": "Unsupported file type"})
                     continue
                 total_issues += issues
+                try:
+                    _rules_result = discover_business_rules_engine(source, path)
+                    _repo_rule_categories.extend([r.get("category", "General Business Logic") for r in _rules_result.get("discovered_rules", [])])
+                except Exception:
+                    pass
                 _local_imports = []
                 if _plower.endswith(".py"):
                     _local_imports = re.findall(r"(?m)^\s*(?:import|from)\s+([\w\.]+)", source)
@@ -2518,6 +2524,8 @@ async def scan_repo_endpoint(req: RepoRequest):
             "file_reports": file_reports,
             "file_dependencies": _dependency_edges,
             "file_dependencies_note": "Static, same-repo local-import relationships only (regex-based on import statements, no code execution). Does not resolve dynamic imports, aliasing, or cross-package structures.",
+            "repo_business_domains": {k: _repo_rule_categories.count(k) for k in set(_repo_rule_categories)} if _repo_rule_categories else {},
+            "repo_business_domains_note": "Aggregate count of business-rule categories detected across all scanned files in this repo (pattern-based, same detection used for single-file analysis).",
             "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
         }
         if not gh_token:
