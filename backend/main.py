@@ -3041,7 +3041,7 @@ def discover_business_rules_engine(source, filename):
             tags = [name for name, pat in compliance_keywords.items() if _re7.search(pat, condition)]
             rules.append({"rule_id": "RULE-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
     tagged = len([r for r in rules if r["compliance_tags"]])
-    return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": (str(len(rules)) + " business rules discovered; " + str(tagged) + " linked to compliance standards") if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers decision logic (if/elif conditions) and presents it as decoupled business rules for review by non-technical users. Compliance tags are heuristic hints - verify with a compliance officer."}
+    return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": (str(len(rules)) + " business rules discovered; " + str(tagged) + " linked to compliance standards") if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers EVERY decision point (if/elif condition) in the code and presents each as a separate business rule - this counts all decision logic, not just the small set of named categories (Interest, Balance, AML) shown in the Business Rules Found summary elsewhere on this page, so the counts will genuinely differ. Compliance tags are heuristic hints - verify with a compliance officer."}
 
 def generate_rollback_plan(source, filename):
     import re as _re6
