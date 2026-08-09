@@ -1070,6 +1070,9 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confFill').style.background = cColor;
   document.getElementById('confPct').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('confPct').style.color = cColor;
+  if (confPct != null) {
+    document.getElementById('confPct').title = 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 40%';
+  }
   document.getElementById('sv-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
   const reviewLineNums = new Set();
@@ -1467,6 +1470,7 @@ function detectBusinessRules(code) {
     { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], baseConf: 90, service: 'Authentication Service' },
     { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], baseConf: 62, service: 'Transaction Service' },
     { label: 'Loan EMI Calculation', patterns: ['loan_emi', 'loan emi', 'monthly_rate', 'tenure', 'loan_amount'], baseConf: 85, service: 'Loan Service' },
+    { label: 'Fraud Risk Scoring', patterns: ['fraudscore', 'fraud_score', 'fraud score', 'velocity', 'risk_score'], baseConf: 81, service: 'Fraud Detection Service' },
   ];
   const found = [];
   let procDivStart = -1;
