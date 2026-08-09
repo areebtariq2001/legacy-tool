@@ -2908,31 +2908,31 @@ def scan_sql_injection(source, filename):
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
 
 def score_zero_trust(source, filename):
-    import re as _zt
-    src_l = source.lower()
+    _zt = re
     checks = []
     c1 = bool(_zt.search(r"(?i)(authenticate|verify_token|check_auth|require_login)", source)); checks.append(("Authentication on requests", c1))
     c2 = bool(_zt.search(r"(?i)(authoriz|permission|role_required|has_permission|access_control)", source)); checks.append(("Authorization / access control", c2))
     c3 = bool(_zt.search(r"(?i)\b(tls|ssl|https)\b|import\s+(ssl|cryptography|pyopenssl)", source)); checks.append(("Encryption in transit", c3))
-    c4 = bool(_zt.search(r"(?i)\b(validate|sanitiz|escape)\w*", source)); checks.append(("Input validation", c4))
+    c4 = bool(_zt.search(r"(?i)\b(validate|sanitiz|escape)\w*\s*\(", source)); checks.append(("Input validation", c4))
     c5 = bool(_zt.search(r"(?i)\b(logger|logging\.|audit_log|track_usage|write_audit)\w*\s*[\.\(]", source)); checks.append(("Logging / audit trail", c5))
     c6 = bool(_zt.search(r"(?i)(rate_limit|throttle|max_attempts)", source)); checks.append(("Rate limiting", c6))
-    c7 = not bool(_zt.search(r"(?i)(trust.{0,10}=.{0,10}true|verify\s*=\s*false|skip.{0,10}auth)", source)); checks.append(("No blanket trust / auth bypass found", c7))
+    c7 = not bool(_zt.search(r"(?i)(trust.{0,10}=.{0,10}true|verify\s*=\s*false|ssl_verify\s*=\s*false|auth_required\s*=\s*false|bypass_auth|disable_auth|skip.{0,10}auth)", source)); checks.append(("No blanket trust / auth bypass found", c7))
     passed = sum(1 for _,v in checks if v)
     score = round((passed/len(checks))*100)
     level = "Strong" if score >= 80 else "Developing" if score >= 50 else "Weak"
-    return {"zt_score": score, "zt_level": level, "zt_checks": [{"check": c, "passed": v} for c,v in checks], "zt_summary": "Zero-Trust readiness: " + str(score) + "/100 (" + level + ") - " + str(passed) + " of " + str(len(checks)) + " signals found", "zt_disclaimer": "Heuristic check for zero-trust security signals (auth, access control, encryption, validation, logging, rate limiting). Absence of a keyword does not always mean the control is missing - verify with a security architecture review."}
+    return {"zt_score": score, "zt_level": level, "zt_checks": [{"check": c, "passed": v} for c,v in checks], "zt_summary": f"Zero-Trust readiness: {score}/100 ({level}) - {passed} of {len(checks)} signals found", "zt_disclaimer": "Heuristic check for zero-trust security signals (auth, access control, encryption, validation, logging, rate limiting). Absence of a keyword does not always mean the control is missing - verify with a security architecture review."}
 
 def analyze_vendor_lockin(source, filename):
-    import re as _vl
-    src_l = source.lower()
-    vendors = {"Oracle": r"(?i)(cx_oracle|oracledb|oracle\.jdbc)", "IBM DB2": r"(?i)(ibm_db|db2\.jcc|db2connect)", "SAP": r"(?i)(pyrfc|sap\.rfc|hdbcli)", "Microsoft SQL Server": r"(?i)(pyodbc|pymssql|sqlserver)", "AWS-specific": r"(?i)(boto3|aws_lambda|dynamodb)", "Azure-specific": r"(?i)(azure\.storage|azure\.identity|azureml)", "Salesforce": r"(?i)(simple_salesforce|salesforce_api)", "Mainframe/COBOL": r"(?i)(cobol|jcl|vsam|cics)"}
+    _vl = re
+    vendors = {"Oracle": r"(?i)(cx_oracle|oracledb|oracle\.jdbc)", "IBM DB2": r"(?i)(ibm_db|db2\.jcc|db2connect)", "SAP": r"(?i)(pyrfc|sap\.rfc|hdbcli)", "Microsoft SQL Server": r"(?i)(pymssql|sqlserver|mssql)", "AWS-specific": r"(?i)(boto3|aws_lambda|dynamodb)", "Azure-specific": r"(?i)(azure\.storage|azure\.identity|azureml)", "Salesforce": r"(?i)(simple_salesforce|salesforce_api)", "Mainframe/COBOL": r"(?i)(\bjcl\b|\bvsam\b|\bcics\b)"}
+    code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
+    code_only = chr(10).join(code_only_lines)
     findings = []
     for vendor, pat in vendors.items():
-        matches = len(_vl.findall(pat, source))
+        matches = len(_vl.findall(pat, code_only))
         if matches > 0:
             findings.append({"vendor": vendor, "occurrences": matches, "risk": "High" if matches >= 3 else "Medium"})
-    return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": (str(len(findings)) + " vendor dependency type(s) found - migration may require vendor-specific rework") if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
+    return {"lockin_detected": len(findings) > 0, "lockin_findings": findings, "lockin_summary": f"{len(findings)} vendor dependency type(s) found - migration may require vendor-specific rework" if findings else "No strong proprietary vendor dependencies detected - code appears portable", "lockin_disclaimer": "Detects references to proprietary vendor libraries/SDKs. High usage of a single vendor increases migration cost and reduces flexibility to switch providers later. Pattern-based - verify with an architecture review."}
 
 def answer_code_question(source, question, filename):
     numbered_source = chr(10).join(str(i + 1) + ": " + ln for i, ln in enumerate(source.split(chr(10))))
