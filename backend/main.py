@@ -2480,6 +2480,8 @@ async def scan_repo_endpoint(req: RepoRequest):
                 elif _plower.endswith(".php"):
                     _php_includes = re.findall(r"(?i)(?:require|include)(?:_once)?\s*\(?\s*[\"\x27]([^\"\x27]+)[\"\x27]", source)
                     _local_imports = [i.split("/")[-1].rsplit(".", 1)[0] for i in _php_includes]
+                elif _plower.endswith((".cbl", ".cob")):
+                    _local_imports = re.findall(r"(?i)\bCOPY\s+([\w-]+)", source)
                 file_reports.append({
                     "file": path,
                     "risk_level": risk_level,
