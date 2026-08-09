@@ -1893,7 +1893,7 @@ function renderKnowledgeGraph() {
     { label: 'Functions Referenced', items: functions, color: '#22d3ee' },
     { label: 'Database Tables', items: tables, color: '#22c55e' },
     { label: 'Copybooks', items: copybooks, color: '#a78bfa' },
-    { label: 'Suggested Services', items: services, color: '#f59e0b' },
+    { label: 'Candidate Service Boundaries', items: services, color: '#f59e0b' },
   ];
   const nonEmpty = groups.filter(g => g.items.length > 0);
   if (nonEmpty.length <= 1) { card.style.display = 'none'; return; }
@@ -2091,6 +2091,11 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
         <div>Estimated Timeline: <strong style="color:#f1f5f9">${timelineLabel}</strong></div>
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
         <div>Overall Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #1e2d45">
+          <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(R.rules && R.rules.confidence != null) ? R.rules.confidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
+          <span title="How confidently the syntax/API migration was performed">Transformation: ${confPct != null ? confPct + '%' : 'N/A'}</span> ·
+          <span style="color:#94a3b8" title="Does the migrated code behave identically to the original? This requires running both versions and comparing outputs - not yet available, as it would require executing uploaded code on the server.">Behavioral: Not Tested</span>
+        </div>
         ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#f1f5f9">' + topRuleService + '</strong></div>' : ''}
       </div>
     </div>
