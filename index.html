@@ -1024,7 +1024,7 @@ async function runAnalysis() {
           return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#94a3b8') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
         }).join('');
     }
-    pipeDone('migrate', migLabel + ' · Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
+    pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
   if (checks.has('security')) {
     pipeRun('security', 'Scanning for vulnerabilities, secrets, weak crypto…');
@@ -2068,7 +2068,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
         <div>Migration Type: <strong style="color:#f1f5f9">${migType}</strong></div>
         <div>Estimated Timeline: <strong style="color:#f1f5f9">${timelineLabel}</strong></div>
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
-        <div>Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+        <div>Overall Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
         ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#f1f5f9">' + topRuleService + '</strong></div>' : ''}
       </div>
     </div>
