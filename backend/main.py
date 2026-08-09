@@ -3074,6 +3074,7 @@ def check_regulatory_framework(source, filename, framework="SBP"):
 def map_regional_compliance(source, filename, region="Pakistan"):
     base = discover_business_rules_engine(source, filename)
     region_map = {"Pakistan": {"AML/KYC": "SBP AML/CFT Regulations", "Transaction Limit": "SBP Digital Banking Limits", "Balance/Funds": "SBP Prudential Regulations", "Authorization": "SBP Consumer Protection", "Interest/Fee": "SBP Banking Fee Guidelines", "Fraud/Risk": "SBP Fraud Risk Management Framework"}, "Global": {"AML/KYC": "FATF AML/CFT Standards", "Transaction Limit": "Basel Transaction Monitoring", "Balance/Funds": "IFRS 9 Financial Reporting", "Authorization": "ISO 27001 Access Control", "Interest/Fee": "General Banking Fee Disclosure", "Fraud/Risk": "Basel Operational Risk Framework"}}
+    _used_fallback = region not in region_map
     mapping = region_map.get(region, region_map["Pakistan"])
     regional_rules = []
     for r in base.get("discovered_rules", []):
@@ -3081,7 +3082,10 @@ def map_regional_compliance(source, filename, region="Pakistan"):
         r2["region"] = region
         r2["regional_standard"] = [mapping.get(t, region + " General Compliance") for t in r.get("compliance_tags", [])]
         regional_rules.append(r2)
-    return {"region": region, "regional_rules": regional_rules, "regional_summary": str(len(regional_rules)) + " rules mapped to " + region + " regulatory standards", "regional_disclaimer": "Maps discovered rules to regional regulatory frameworks as a starting reference. Not legal advice - confirm exact standards with a compliance officer for your jurisdiction."}
+    _result = {"region": region, "regional_rules": regional_rules, "regional_summary": f"{len(regional_rules)} rules mapped to {region} regulatory standards", "regional_disclaimer": "Maps discovered rules to regional regulatory frameworks as a starting reference. Not legal advice - confirm exact standards with a compliance officer for your jurisdiction."}
+    if _used_fallback:
+        _result["regional_warning"] = f"'{region}' is not a recognized region (valid: {', '.join(region_map.keys())}) - defaulted to Pakistan."
+    return _result
 
 def discover_business_rules_engine(source, filename):
     import re as _re7
