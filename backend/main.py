@@ -2884,7 +2884,7 @@ def detect_pii(source, filename):
     return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": f"{len(findings)} potential PII/sensitive data exposure(s) found across {len(types_found)} type(s)" if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded. Actual sensitive values are redacted in this report."}
 
 def scan_sql_injection(source, filename):
-    import re as _sq
+    _sq = re
     lines = source.split(chr(10))
     issues = []
     checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk"), ("SELECT", "%", "SQL SELECT built with % string formatting - injection risk"), ("INSERT", "%", "SQL INSERT built with % string formatting - injection risk"), ("UPDATE", "%", "SQL UPDATE built with % string formatting - injection risk"), ("DELETE", "%", "SQL DELETE built with % string formatting - injection risk"), ("WHERE", "%", "SQL WHERE clause built with % string formatting - injection risk"), ("SELECT", ".format", "SQL SELECT built with .format() - injection risk"), ("WHERE", ".format", "SQL WHERE clause built with .format() - injection risk")]
@@ -2893,26 +2893,19 @@ def scan_sql_injection(source, filename):
     cobol_exec_sql = _sq.search(r"(?is)EXEC\s+SQL.*?WHERE.*?=\s*['\"][^'\"]+['\"].*?END-EXEC", source)
     if cobol_exec_sql:
         issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
+    fstring_pattern = _sq.compile(r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{")
     for i, line in enumerate(lines):
         up = line.upper()
+        _matched_this_line = False
         for kw, danger, msg in checks:
             if kw.upper() in up and danger in line:
-                issues.append({"line": i+1, "code": line.strip()[:120], "issue": msg, "severity": "High"})
-                break
-    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
-
-def _old_scan_sql_injection_unused(source, filename):
-    import re as _re8
-    lines = source.split(chr(10))
-    issues = []
-    patterns = [(r"(?i)(execute|executemany)\s*\(.*[+%]", "String concatenation/formatting in SQL query - use parameterized queries instead"), (r"(?i)(SELECT|INSERT|UPDATE|DELETE).*[+].*(request|input|user|param|arg|var)", "SQL string built with concatenation - injection risk"), (r"(?i)(query|sql)\s*=\s*.*%\s*[a-zA-Z]", "SQL built with string formatting - injection risk"), (r"(?i)\.format\s*\(.*(SELECT|INSERT|UPDATE|DELETE|WHERE)", "SQL built with .format() - injection risk"), (r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{", "SQL built with f-string variables - injection risk")]
-    for i, line in enumerate(lines):
-        for pat, msg in patterns:
-            if _re8.search(pat, line):
-                issues.append({"line": i+1, "code": line.strip()[:120], "issue": msg, "severity": "High"})
-                break
-    safe = bool(_re8.search(r"(?i)(execute\s*\([^)]*,\s*[\(\[])|%s|\?)", source)) and len(issues) == 0
-    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": (str(len(issues)) + " potential SQL injection risk(s) found - review these lines") if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns (string concatenation/formatting in queries). Pattern-based - always confirm with a security review and use parameterized queries."}
+                _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
+                issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High"})
+                _matched_this_line = True
+        if not _matched_this_line and fstring_pattern.search(line):
+            _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
+            issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High"})
+    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
 
 def score_zero_trust(source, filename):
     import re as _zt
