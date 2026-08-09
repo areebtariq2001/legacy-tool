@@ -236,7 +236,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
     </div>
     <div class="tb-right">
       <span class="badge b-green">72 Backend Capabilities</span>
-      <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree before being shown to you.">AST-Verified</span>
+      <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree where the code is AST-parsable; files with legacy syntax that can't be parsed fall back to pattern-based analysis (clearly labeled in results).">AST-Verified*</span>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
   </header>
@@ -439,7 +439,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="txnFlowList"></div>
             </div>
             <div class="card" id="microserviceCard" style="display:none">
-              <div class="card-head">Recommended Microservices <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Microservice Advisor - derived from detected business rules</span></div>
+              <div class="card-head">Candidate Services <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Microservice Advisor - derived from detected business rules. A starting point for discussion, not a validated architecture - real extraction requires coupling, data-ownership, and transaction-boundary analysis.</span></div>
               <div id="microserviceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
             <div class="card">
@@ -666,7 +666,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-files">0</span>
               </div>
             </div>
-            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate based on detected issue count and estimated engineering hours × hourly rate. Not a guaranteed figure.</div>
+            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate based on detected issue count and estimated engineering hours, assuming a $15/hr blended rate (±30%). Not a guaranteed figure - adjust for your team's actual rates.</div>
           </div>
         </div>
       </div>
@@ -1466,6 +1466,7 @@ function detectBusinessRules(code) {
     { label: 'Balance Verification', patterns: ['balance', 'insufficient funds', 'insufficient_funds'], baseConf: 60, service: 'Account Service' },
     { label: 'Password/Credential Handling', patterns: ['password', 'passwd', 'credential'], baseConf: 90, service: 'Authentication Service' },
     { label: 'Transaction Approval Logic', patterns: ['approved', 'declined', 'blocked'], baseConf: 62, service: 'Transaction Service' },
+    { label: 'Loan EMI Calculation', patterns: ['loan_emi', 'loan emi', 'monthly_rate', 'tenure', 'loan_amount'], baseConf: 85, service: 'Loan Service' },
   ];
   const found = [];
   let procDivStart = -1;
@@ -1727,7 +1728,7 @@ function detectRegulatoryCompliance(code, R) {
   if (lower.includes('kyc')) items.push({ label: 'KYC', ok: true });
   if (lower.includes('pci') || lower.includes('card_number') || lower.includes('cardnumber')) items.push({ label: 'PCI-DSS Relevant Data', ok: !secText.includes('weak') });
   if (lower.includes('gdpr') || lower.includes('personal_data') || lower.includes('pii')) items.push({ label: 'GDPR', ok: true });
-  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logs', ok: true });
+  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logging Pattern Detected', ok: true });
   if (secText.includes('weak') || secText.includes('md5') || secText.includes('sha1')) {
     items.push({ label: 'Encryption', ok: false, note: 'Weak algorithm detected' });
   } else if (lower.includes('encrypt') || lower.includes('hash')) {
@@ -2051,6 +2052,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
   const suitable = critCount === 0;
   const migType = svcCount >= 3 ? 'Incremental (phased by service)' : svcCount >= 1 ? 'Incremental' : 'Direct';
   const timelineWeeks = Math.max(1, Math.ceil(fixHours / 20));
+  const timelineLabel = fixHours < 20 ? Math.max(1, Math.ceil(fixHours / 6)) + ' working day' + (Math.ceil(fixHours / 6) === 1 ? '' : 's') + ' (approx.)' : timelineWeeks + ' week' + (timelineWeeks === 1 ? '' : 's') + ' (approx.)';
   const topRuleEl = document.querySelector('#rulesList > div');
   const topRuleServiceMatch = topRuleEl ? topRuleEl.textContent.match(/Suggested Service:\s*([^\n]+)/) : null;
   const topRuleService = topRuleServiceMatch ? topRuleServiceMatch[1].trim() : null;
@@ -2060,7 +2062,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
       <div style="font-size:13px;font-weight:700;color:${suitable ? '#22c55e' : '#ef4444'};margin-bottom:8px">${suitable ? '✅ Suitable for modernization' : '⛔ Not suitable until critical issues resolved'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:11px">
         <div>Migration Type: <strong style="color:#f1f5f9">${migType}</strong></div>
-        <div>Estimated Timeline: <strong style="color:#f1f5f9">${timelineWeeks} week${timelineWeeks === 1 ? '' : 's'} (approx.)</strong></div>
+        <div>Estimated Timeline: <strong style="color:#f1f5f9">${timelineLabel}</strong></div>
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
         <div>Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
         ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#f1f5f9">' + topRuleService + '</strong></div>' : ''}
