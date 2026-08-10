@@ -686,9 +686,9 @@ def migrate_code(source):
         (r'\s<>\s', ' != ', "<> -> !="),
         (r'\bStringIO\.StringIO\b', 'io.StringIO', "StringIO -> io.StringIO"),
         (r'\bimport\s+md5\b', 'import hashlib', "import md5 -> import hashlib (md5 module removed in Python 3)"),
-        (r'\bmd5\.new\(', 'hashlib.md5(', "md5.new() -> hashlib.md5()"),
+        (r'\bmd5\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.md5((\1).encode() if isinstance((\1), str) else (\1))', "md5.new(x) -> hashlib.md5() requires bytes, not str - wrapped with .encode() for the common string case"),
         (r'\bimport\s+sha\b', 'import hashlib', "import sha -> import hashlib (sha module removed in Python 3)"),
-        (r'\bsha\.new\(', 'hashlib.sha1(', "sha.new() -> hashlib.sha1()"),
+        (r'\bsha\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.sha1((\1).encode() if isinstance((\1), str) else (\1))', "sha.new(x) -> hashlib.sha1() requires bytes, not str - wrapped with .encode() for the common string case"),
     ]
     for pattern, repl, label in rules:
         _new_migrated = re.sub(pattern, repl, migrated)
