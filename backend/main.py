@@ -3171,32 +3171,30 @@ def map_transaction_flow(source, filename):
     return {"has_transactions": has_txn, "transaction_flows": flows, "flow_validations": validations, "flow_summary": f"{len(flows)} transaction operation types detected" if has_txn else "No banking transaction operations detected in this file", "flow_disclaimer": "Pattern-based detection of banking/financial transaction operations and their validation steps. Helps map money-movement logic before migration. Verify against full system flow."}
 
 def analyze_impact(source, filename):
-    import re as _re3
-    try:
-        tree = ast.parse(source)
-        funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
-    except Exception:
-        if filename.lower().endswith(".php"):
-            funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
-        elif filename.lower().endswith((".cbl",".cob")):
-            funcs = _re3.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
-        elif filename.lower().endswith(".java"):
-            funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
-        else:
+    _re3 = re
+    if filename.lower().endswith(".php"):
+        funcs = _re3.findall(r"function\s+(\w+)\s*\(", source)
+    elif filename.lower().endswith((".cbl",".cob")):
+        funcs = _re3.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+    elif filename.lower().endswith(".java"):
+        funcs = _re3.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+    else:
+        try:
+            tree = ast.parse(source)
+            funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        except Exception:
             funcs = _re3.findall(r"def\s+(\w+)\s*\(", source)
     funcs = list(dict.fromkeys(funcs))
+    if not funcs:
+        return {"impact_map": [], "impact_summary": "No functions found to analyze in this file.", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
     impact_map = []
     for fn in funcs:
-        callers = []
-        for other in funcs:
-            if other == fn: continue
-            pattern = r"def\s+" + _re3.escape(other) + r"\s*\([^)]*\):"
         callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _get_func_body(source, o))]
         risk = "High" if len(callers) >= 3 else "Medium" if len(callers) >= 1 else "Low"
         impact_map.append({"function": fn, "affected_by_change": callers, "dependents_count": len(callers), "change_risk": risk})
     impact_map.sort(key=lambda x: -x["dependents_count"])
     high = [m for m in impact_map if m["change_risk"] == "High"]
-    return {"impact_map": impact_map, "impact_summary": str(len(funcs)) + " functions analyzed; " + str(len(high)) + " high-impact (changing them affects many others)", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
+    return {"impact_map": impact_map, "impact_summary": f"{len(funcs)} functions analyzed; {len(high)} high-impact (changing them affects many others)", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
 
 def _get_func_body(source, fname):
     import re as _re4
