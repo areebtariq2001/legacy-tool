@@ -1029,6 +1029,16 @@ async function runAnalysis() {
         }).join('');
     }
     pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
+    const _validity = R.migrate.migration_validity;
+    const _approvalTextEl = document.querySelector('#approvalBox .approval-text');
+    if (_validity && _validity.migration_ready === false && _approvalTextEl) {
+      const _issueLines = [];
+      if (!_validity.syntax_valid) _issueLines.push('Syntax error: ' + escapeHtml(_validity.syntax_error || ''));
+      (_validity.broken_py3_imports || []).forEach(b => _issueLines.push(`'${escapeHtml(b.module)}' module does not exist in Python 3 (use ${escapeHtml(b.suggested_replacement)} instead)`));
+      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#fca5a5;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>';
+    } else if (_approvalTextEl) {
+      _approvalTextEl.innerHTML = '<strong>Human Review Required</strong><br>Review the analysis and diff above, then approve or reject this migration.';
+    }
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
   if (checks.has('security')) {
     pipeRun('security', 'Scanning for vulnerabilities, secrets, weak crypto…');
@@ -2257,6 +2267,14 @@ function downloadAuditLog() {
   URL.revokeObjectURL(url);
 }
 function doApprove() {
+  const validity = (R.migrate && R.migrate.migration_validity) || null;
+  if (validity && validity.migration_ready === false) {
+    const issues = [];
+    if (!validity.syntax_valid) issues.push('Syntax error: ' + validity.syntax_error);
+    (validity.broken_py3_imports || []).forEach(b => issues.push(`'${b.module}' module does not exist in Python 3 (suggested: ${b.suggested_replacement})`));
+    const proceed = confirm('⚠ Migration Validation Failed:\n\n' + issues.join('\n') + '\n\nThis migrated code will NOT run as-is. Approve anyway? (Not recommended - resolve the issues first)');
+    if (!proceed) return;
+  }
   sessionApproved++;
   document.getElementById('dash-approved').textContent = sessionApproved;
   logAuditEntry('APPROVED');
