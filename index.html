@@ -1983,7 +1983,19 @@ function updateRepositorySummary() {
   const rulesCount = document.querySelectorAll('#rulesList > div').length;
   const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
   const serviceSpans = lastUniqueServices || [];
-  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot };
+  let localImports = [];
+  const _snap = window.lastFileSnapshot || '';
+  const _lname = fname.toLowerCase();
+  if (_lname.endsWith('.py')) {
+    localImports = (_snap.match(/(?:^|\n)\s*(?:import|from)\s+([\w\.]+)/g) || []).map(m => m.replace(/^\s*(?:import|from)\s+/, '').split('.')[0]);
+  } else if (_lname.endsWith('.java')) {
+    localImports = (_snap.match(/(?:^|\n)\s*import\s+[\w\.]*\.(\w+)\s*;/g) || []).map(m => { const mm = m.match(/\.(\w+)\s*;/); return mm ? mm[1] : null; }).filter(Boolean);
+  } else if (_lname.endsWith('.php')) {
+    localImports = (_snap.match(/(?:require|include)(?:_once)?\s*\(?\s*["']([^"']+)["']/gi) || []).map(m => { const mm = m.match(/["']([^"']+)["']/); return mm ? mm[1].split('/').pop().replace(/\.\w+$/, '') : null; }).filter(Boolean);
+  } else if (_lname.endsWith('.cbl') || _lname.endsWith('.cob')) {
+    localImports = (_snap.match(/COPY\s+([\w-]+)/gi) || []).map(m => m.replace(/COPY\s+/i, ''));
+  }
+  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot, localImports };
   sessionFileResults = sessionFileResults.filter(e => e.fname !== fname);
   sessionFileResults.push(entry);
   renderRepositorySummary();
@@ -2049,6 +2061,10 @@ function renderCrossFileGraph() {
       const sharedServices = a.services.filter(s => b.services.includes(s));
       if (sharedTables.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedTables.join(', '), type: 'table' });
       if (sharedServices.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedServices.join(', '), type: 'service' });
+      const aBase = a.fname.split('/').pop().replace(/\.\w+$/, '');
+      const bBase = b.fname.split('/').pop().replace(/\.\w+$/, '');
+      if ((a.localImports || []).includes(bBase)) edges.push({ from: a.fname, to: b.fname, via: 'code import', type: 'import' });
+      if ((b.localImports || []).includes(aBase)) edges.push({ from: b.fname, to: a.fname, via: 'code import', type: 'import' });
     }
   }
   const card = document.getElementById('crossFileCard');
@@ -2059,7 +2075,7 @@ function renderCrossFileGraph() {
   el.innerHTML = edges.map(e => `
     <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#0f1525;border-radius:6px;margin-bottom:4px">
       <span style="color:#60a5fa;font-family:monospace">${escapeHtml(e.from)}</span>
-      <span style="color:#64748b">↔ shares ${escapeHtml(e.type)} (${escapeHtml(e.via)}) ↔</span>
+      <span style="color:#64748b">${e.type === 'import' ? '→ imports code from →' : '↔ shares ' + escapeHtml(e.type) + ' (' + escapeHtml(e.via) + ') ↔'}</span>
       <span style="color:#a78bfa;font-family:monospace">${escapeHtml(e.to)}</span>
     </div>
   `).join('');
