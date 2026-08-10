@@ -996,7 +996,7 @@ def analyze_call_graph(source):
     def _collect_direct_calls(fn_node):
         collected = []
         def _visit(n, is_root):
-            if not is_root and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            if not is_root and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 return
             if isinstance(n, ast.Call):
                 fname = None
