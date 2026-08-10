@@ -3189,22 +3189,35 @@ def analyze_impact(source, filename):
         return {"impact_map": [], "impact_summary": "No functions found to analyze in this file.", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
     impact_map = []
     for fn in funcs:
-        callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _get_func_body(source, o))]
+        callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _get_func_body(source, o, filename))]
         risk = "High" if len(callers) >= 3 else "Medium" if len(callers) >= 1 else "Low"
         impact_map.append({"function": fn, "affected_by_change": callers, "dependents_count": len(callers), "change_risk": risk})
     impact_map.sort(key=lambda x: -x["dependents_count"])
     high = [m for m in impact_map if m["change_risk"] == "High"]
     return {"impact_map": impact_map, "impact_summary": f"{len(funcs)} functions analyzed; {len(high)} high-impact (changing them affects many others)", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
 
-def _get_func_body(source, fname):
-    import re as _re4
-    m = _re4.search(r"def\s+" + _re4.escape(fname) + r"\s*\([^)]*\):", source)
+def _get_func_body(source, fname, filename=""):
+    _re4 = re
+    _flower = filename.lower()
+    if _flower.endswith(".php"):
+        _pat = r"function\s+" + _re4.escape(fname) + r"\s*\([^)]*\)"
+        _next_pat = r"\nfunction\s+\w+\s*\("
+    elif _flower.endswith((".cbl", ".cob")):
+        _pat = r"(?mi)^(?:\d{6}\s+)?" + _re4.escape(fname) + r"\.\s*$"
+        _next_pat = r"(?mi)\n(?:\d{6}\s+)?[\w-]+\.\s*$"
+    elif _flower.endswith(".java"):
+        _pat = r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+" + _re4.escape(fname) + r"\s*\([^)]*\)"
+        _next_pat = r"\n\s*(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("
+    else:
+        _pat = r"def\s+" + _re4.escape(fname) + r"\s*\([^)]*\):"
+        _next_pat = r"\ndef\s+\w+\s*\("
+    m = _re4.search(_pat, source)
     if not m: return ""
     rest = source[m.end():]
-    next_def = _re4.search(r"\ndef\s+\w+\s*\(", rest)
+    next_def = _re4.search(_next_pat, rest)
     if next_def:
         return rest[:next_def.start()]
-    return rest[:800]
+    return rest[:2000]
 
 def generate_executive_report(source, filename):
     import re as _re2
