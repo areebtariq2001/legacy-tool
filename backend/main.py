@@ -3168,7 +3168,7 @@ def map_transaction_flow(source, filename):
     if _re5.search(r"(?i)(verify|validate|authenticate|authorize)", source): validations.append("Verification/authorization")
     if _re5.search(r"(?i)(limit|maximum|max_amount|threshold)", source): validations.append("Limit/threshold check")
     has_txn = len(flows) > 0
-    return {"has_transactions": has_txn, "transaction_flows": flows, "flow_validations": validations, "flow_summary": (str(len(flows)) + " transaction operation types detected") if has_txn else "No banking transaction operations detected in this file", "flow_disclaimer": "Pattern-based detection of banking/financial transaction operations and their validation steps. Helps map money-movement logic before migration. Verify against full system flow."}
+    return {"has_transactions": has_txn, "transaction_flows": flows, "flow_validations": validations, "flow_summary": f"{len(flows)} transaction operation types detected" if has_txn else "No banking transaction operations detected in this file", "flow_disclaimer": "Pattern-based detection of banking/financial transaction operations and their validation steps. Helps map money-movement logic before migration. Verify against full system flow."}
 
 def analyze_impact(source, filename):
     import re as _re3
