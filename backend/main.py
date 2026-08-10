@@ -3138,25 +3138,27 @@ def discover_business_rules_engine(source, filename):
     return {"has_rules": len(rules) > 0, "discovered_rules": rules, "rules_summary": f"{len(rules)} business rules discovered; {tagged} linked to compliance standards" if rules else "No decision-based business rules (if/elif conditions) found in this file", "rules_disclaimer": "Automatically discovers EVERY decision point (if/elif condition) in the code and presents each as a separate business rule - this counts all decision logic, not just the small set of named categories (Interest, Balance, AML) shown in the Business Rules Found summary elsewhere on this page, so the counts will genuinely differ. Compliance tags are heuristic hints - verify with a compliance officer."}
 
 def generate_rollback_plan(source, filename):
-    import re as _re6
+    _re6 = re
     steps = []
     steps.append({"step": 1, "action": "Backup the original file and full codebase (git commit or copy) before starting migration.", "type": "Preparation"})
     steps.append({"step": 2, "action": "Tag the current working version in version control (e.g. git tag pre-migration) so you can return to it instantly.", "type": "Preparation"})
-    has_db = bool(_re6.search(r"(?i)(sqlite|mysql|postgres|CREATE TABLE|INSERT INTO|UPDATE )", source))
+    has_db = bool(_re6.search(r"(?i)(sqlite3|pymysql|psycopg2|CREATE\s+TABLE|INSERT\s+INTO|\bUPDATE\s+\w+\s+SET\b)", source))
     if has_db:
         steps.append({"step": len(steps)+1, "action": "Back up the database (schema + data) before migration - this code performs database operations that could affect stored data.", "type": "Data Safety"})
-    has_txn = bool(_re6.search(r"(?i)(payment|transfer|deposit|withdraw|balance)", source))
+    has_txn = bool(_re6.search(r"(?i)(process_payment|transfer_funds|make_deposit|withdraw_funds|account_balance)", source))
     if has_txn:
         steps.append({"step": len(steps)+1, "action": "Run migration in a test/staging environment first with sample transactions - this handles financial operations where errors are costly.", "type": "Testing"})
     steps.append({"step": len(steps)+1, "action": "Keep both old and new versions deployable side by side (blue-green) so you can switch back within minutes if issues appear.", "type": "Deployment"})
     steps.append({"step": len(steps)+1, "action": "Define a clear rollback trigger (e.g. error rate, failed tests, wrong output) and who approves the rollback decision.", "type": "Monitoring"})
     steps.append({"step": len(steps)+1, "action": "If migration fails: revert to the tagged pre-migration version, restore the database backup, and verify the system matches pre-migration behavior.", "type": "Recovery"})
-    return {"rollback_steps": steps, "rollback_summary": str(len(steps)) + "-step rollback plan generated" + (" (includes data + transaction safeguards)" if has_db or has_txn else ""), "rollback_disclaimer": "A general rollback plan based on this code. Adapt to your infrastructure and always test rollback procedures before a real migration."}
+    _suffix = " (includes data + transaction safeguards)" if has_db or has_txn else ""
+    return {"rollback_steps": steps, "rollback_summary": f"{len(steps)}-step rollback plan generated{_suffix}", "rollback_disclaimer": "A general rollback plan based on this code. Adapt to your infrastructure and always test rollback procedures before a real migration."}
 
 def map_transaction_flow(source, filename):
-    import re as _re5
+    _re5 = re
     flows = []
-    txn_patterns = {"Deposit": r"(?i)\b(deposit|add_funds|add_money)\b", "Withdrawal": r"(?i)\b(withdraw|withdrawal)\b", "Transfer": r"(?i)\b(transfer|send_money|remit)\b", "Payment": r"(?i)\b(payment|pay|charge|bill)\b", "Balance Check": r"(?i)\b(balance|get_balance|check_balance)\b", "Interest": r"(?i)\b(interest|apr)\b", "Loan": r"(?i)\b(loan|emi|installment)\b", "Account": r"(?i)\b(account|acct|customer_id|acc_no)\b"}
+    TXN_FLOW_PATTERNS_COMPILED = {"Deposit": re.compile(r"(?i)\b(deposit|add_funds|add_money)\b"), "Withdrawal": re.compile(r"(?i)\b(withdraw|withdrawal)\b"), "Transfer": re.compile(r"(?i)\b(transfer|send_money|remit)\b"), "Payment": re.compile(r"(?i)\b(payment|make_payment|process_payment)\b"), "Balance Check": re.compile(r"(?i)\b(balance|get_balance|check_balance)\b"), "Interest": re.compile(r"(?i)\b(interest|apr|apy|compound.?interest|simple.?interest|accrual)\b"), "Loan": re.compile(r"(?i)\b(loan|emi|installment)\b"), "Account": re.compile(r"(?i)\b(account_number|acct_no|customer_id|acc_no)\b")}
+    txn_patterns = TXN_FLOW_PATTERNS_COMPILED
     for name, pat in txn_patterns.items():
         matches = _re5.findall(pat, source)
         if matches:
