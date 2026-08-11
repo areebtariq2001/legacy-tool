@@ -2283,6 +2283,8 @@ def scan_crypto(source):
             if _m:
                 count += 1
                 line_nums.append(str(i+1))
+                if count == 1:
+                    _sample_line = ln.strip()[:120]
         if count > 0:
             is_pqc = "PQC Path" in recommendation
             if is_pqc:
@@ -2294,11 +2296,12 @@ def scan_crypto(source):
                 "lines": ", ".join(line_nums[:10]),
                 "lines_truncated": len(line_nums) > 10,
                 "recommendation": recommendation,
-                "pqc": is_pqc
+                "pqc": is_pqc,
+                "evidence": f"First occurrence at line {line_nums[0]}: {_sample_line}"
             })
     _high_count = sum(1 for f in findings if f["severity"] == "High")
     if _high_count > 0:
-        verdict = "CRITICAL: " + str(_high_count) + " broken algorithm(s) found - immediate replacement required"
+        verdict = f"CRITICAL: {_high_count} broken algorithm(s) found - immediate replacement required"
     elif findings:
         verdict = "WARNING: Quantum-vulnerable crypto detected - plan PQC migration"
     else:
