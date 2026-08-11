@@ -2020,6 +2020,8 @@ def scan_sensitive_data(source):
             if _m:
                 count += 1
                 line_nums.append(str(i+1))
+                if count == 1:
+                    _sample_line = ln.strip()[:120]
         if count > 0:
             findings.append({
                 "issue": label,
@@ -2027,17 +2029,18 @@ def scan_sensitive_data(source):
                 "occurrences": count,
                 "lines": ", ".join(line_nums[:10]),
                 "lines_truncated": len(line_nums) > 10,
-                "total_lines_affected": len(line_nums)
+                "total_lines_affected": len(line_nums),
+                "evidence": f"First occurrence at line {line_nums[0]}: {_sample_line}"
             })
     high = sum(1 for f in findings if f["severity"] == "High")
     medium = sum(1 for f in findings if f["severity"] == "Medium")
     low = sum(1 for f in findings if f["severity"] == "Low")
     if high > 3:
-        verdict = "CRITICAL: " + str(high) + " high-severity issues found - do not migrate without review"
+        verdict = f"CRITICAL: {high} high-severity issues found - do not migrate without review"
     elif high > 0:
-        verdict = "WARNING: " + str(high) + " high-severity issue(s) found - review before migration"
+        verdict = f"WARNING: {high} high-severity issue(s) found - review before migration"
     elif medium > 0:
-        verdict = "CAUTION: " + str(medium) + " medium-severity issue(s) - please review"
+        verdict = f"CAUTION: {medium} medium-severity issue(s) - please review"
     elif low > 0:
         verdict = "Possible sensitive data - please review"
     else:
