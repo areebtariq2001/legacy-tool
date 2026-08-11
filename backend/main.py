@@ -2951,18 +2951,28 @@ def scan_sql_injection(source, filename):
     if cobol_exec_sql:
         issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
     fstring_pattern = _sq.compile(r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{")
+    def _extract_tainted_var(line):
+        m = _sq.search(r"[+%]\s*([a-zA-Z_][\w\.\[\]\'\"]*)", line)
+        if m:
+            return m.group(1).strip()
+        m2 = _sq.search(r"\{\s*([a-zA-Z_][\w\.\[\]]*)\s*\}", line)
+        if m2:
+            return m2.group(1).strip()
+        return None
     for i, line in enumerate(lines):
         up = line.upper()
         _matched_this_line = False
         for kw, danger, msg in checks:
             if kw.upper() in up and danger in line:
                 _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
-                issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High"})
+                _tainted = _extract_tainted_var(line)
+                issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
                 _matched_this_line = True
         if not _matched_this_line and fstring_pattern.search(line):
             _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
-            issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High"})
-    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries."}
+            _tainted = _extract_tainted_var(line)
+            issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
+    return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries. 'likely_source_variable' is a best-effort guess from the matched line, not a verified data-flow trace across the file."}
 
 def score_zero_trust(source, filename):
     _zt = re
