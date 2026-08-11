@@ -3308,13 +3308,16 @@ def check_ai_native_readiness(source, filename=""):
             score -= 30
             findings.append({"issue": "Code could not be parsed - syntax issues block AI integration", "impact": "High"})
         else:
-            score -= 10
-            findings.append({"issue": "Non-Python file - AI-native structural analysis limited, review manually", "impact": "Low"})
+            findings.append({"issue": "Non-Python file - AI-native structural analysis limited to pattern-based checks below, review manually", "impact": "Low"})
     # 3. Hardcoded values / config (blocks flexible AI integration)
     _re = re
-    if _re.search(r"(?i)(localhost|127\.0\.0\.1|password\s*=\s*[\x22\x27]|[\w-]*password[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27])", source):
+    _is_test_file = bool(_re.search(r"(?i)(test|spec)", filename))
+    if _re.search(r"(?i)(password\s*=\s*[\x22\x27]|[\w-]*password[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27])", source):
         score -= 15
         findings.append({"issue": "Hardcoded config/credentials - blocks flexible deployment in AI environments", "impact": "Medium"})
+    elif not _is_test_file and _re.search(r"(?i)(localhost|127\.0\.0\.1)", source):
+        score -= 10
+        findings.append({"issue": "Hardcoded localhost/IP address - blocks flexible deployment in AI environments", "impact": "Low"})
     # 4. print statements instead of logging (not observable for AI pipelines) - Python only
     if filename.lower().endswith(".py") and _re.search(r"(?m)^\s*print\s*\(", source):
         score -= 10
