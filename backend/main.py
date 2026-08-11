@@ -3365,10 +3365,10 @@ async def ai_native_endpoint(file: UploadFile = File(...)):
         result = check_ai_native_readiness(source, file.filename)
         result["filename"] = file.filename
         track_usage("ai-native-readiness", file.filename)
-        write_audit_log("ai-native-readiness", file.filename, "score=" + str(result.get("ai_native_score", 0)))
+        write_audit_log("ai-native-readiness", file.filename, f"score={result.get('ai_native_score', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "AI-native check failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"AI-native check failed safely: {e}"}
 
 @app.post("/predict-risk")
 async def predict_risk_endpoint(file: UploadFile = File(...)):
@@ -3380,10 +3380,10 @@ async def predict_risk_endpoint(file: UploadFile = File(...)):
         result = predict_migration_risk(source, file.filename)
         result["filename"] = file.filename
         track_usage("predict-risk", file.filename)
-        write_audit_log("predict-risk", file.filename, "risk=" + str(result.get("migration_risk", 0)))
+        write_audit_log("predict-risk", file.filename, f"risk={result.get('migration_risk', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Risk prediction failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Risk prediction failed safely: {e}"}
 
 @app.post("/cicd-recommendations")
 async def cicd_endpoint(file: UploadFile = File(...)):
@@ -3395,10 +3395,10 @@ async def cicd_endpoint(file: UploadFile = File(...)):
         result = generate_cicd_recommendations(source, file.filename)
         result["filename"] = file.filename
         track_usage("cicd-recommendations", file.filename)
-        write_audit_log("cicd-recommendations", file.filename, "recs=" + str(len(result.get("cicd_recommendations", []))))
+        write_audit_log("cicd-recommendations", file.filename, f"recs={len(result.get('cicd_recommendations', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "CI/CD recommendations failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"CI/CD recommendations failed safely: {e}"}
 
 @app.post("/analyze-db-schema")
 async def db_schema_endpoint(file: UploadFile = File(...)):
@@ -3410,10 +3410,10 @@ async def db_schema_endpoint(file: UploadFile = File(...)):
         result = analyze_db_schema(source, file.filename)
         result["filename"] = file.filename
         track_usage("analyze-db-schema", file.filename)
-        write_audit_log("analyze-db-schema", file.filename, "tables=" + str(len(result.get("tables", []))))
+        write_audit_log("analyze-db-schema", file.filename, f"tables={len(result.get('tables', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "DB schema analysis failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"DB schema analysis failed safely: {e}"}
 
 @app.post("/map-api-dependencies")
 async def api_deps_endpoint(file: UploadFile = File(...)):
@@ -3425,10 +3425,10 @@ async def api_deps_endpoint(file: UploadFile = File(...)):
         result = map_api_dependencies(source, file.filename)
         result["filename"] = file.filename
         track_usage("map-api-dependencies", file.filename)
-        write_audit_log("map-api-dependencies", file.filename, "libs=" + str(len(result.get("http_libraries", []))))
+        write_audit_log("map-api-dependencies", file.filename, f"libs={len(result.get('http_libraries', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "API dependency mapping failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"API dependency mapping failed safely: {e}"}
 
 @app.post("/generate-architecture")
 async def architecture_endpoint(file: UploadFile = File(...)):
@@ -3440,10 +3440,10 @@ async def architecture_endpoint(file: UploadFile = File(...)):
         result = generate_architecture(source, file.filename)
         result["filename"] = file.filename
         track_usage("generate-architecture", file.filename)
-        write_audit_log("generate-architecture", file.filename, "layers=" + str(len(result.get("architecture_layers", []))))
+        write_audit_log("generate-architecture", file.filename, f"layers={len(result.get('architecture_layers', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Architecture generation failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Architecture generation failed safely: {e}"}
 
 @app.post('/extract-business-rules')
 async def business_rules_endpoint(file: UploadFile = File(...)):
