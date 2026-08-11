@@ -3446,7 +3446,7 @@ async def architecture_endpoint(file: UploadFile = File(...)):
         write_audit_log("generate-architecture", file.filename, f"layers={len(result.get('architecture_layers', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Architecture generation failed safely: {e}"}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Architecture generation failed safely: {e}"})
 
 @app.post('/extract-business-rules')
 async def business_rules_endpoint(file: UploadFile = File(...)):
@@ -3454,7 +3454,7 @@ async def business_rules_endpoint(file: UploadFile = File(...)):
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return {'filename': file.filename, 'error': error}
+            return JSONResponse(status_code=400, content={'filename': file.filename, 'error': error})
         result = extract_business_rules(source, detect_language(file.filename))
         result['filename'] = file.filename
         return result
