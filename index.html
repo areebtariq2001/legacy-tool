@@ -2773,6 +2773,13 @@ async function scanRepo() {
     const d = await r.json();
     if (d.error) { box.innerHTML = ''; box.textContent = 'Error: ' + d.error; return; }
     let out = (d.summary || d.message || ('Scanned ' + (d.files_scanned || d.total_files_found || '?') + ' files')) + '\n\n';
+    if (d.repo_business_domains && Object.keys(d.repo_business_domains).length > 0) {
+      const _domainCount = Object.keys(d.repo_business_domains).length;
+      const _ruleCount = Object.values(d.repo_business_domains).reduce((a, b) => a + b, 0);
+      out += `--- Repo-Wide Business Intelligence ---\n${_domainCount} business domain(s) detected across ${_ruleCount} total rule(s):\n`;
+      Object.entries(d.repo_business_domains).sort((a, b) => b[1] - a[1]).forEach(([domain, count]) => { out += `  ${domain}: ${count}\n`; });
+      out += '\n';
+    }
     if (d.file_reports && Array.isArray(d.file_reports)) {
       d.file_reports.forEach(f => { out += (f.file || '?') + ' - ' + (f.risk_level || 'analyzed') + (f.issues != null ? ' (' + f.issues + ' issue(s))' : '') + '\n'; });
     } else if (d.results && Array.isArray(d.results)) {
