@@ -3311,12 +3311,12 @@ def check_ai_native_readiness(source, filename=""):
             score -= 10
             findings.append({"issue": "Non-Python file - AI-native structural analysis limited, review manually", "impact": "Low"})
     # 3. Hardcoded values / config (blocks flexible AI integration)
-    import re as _re
-    if _re.search(r"(?i)(localhost|127\.0\.0\.1|hardcoded|password\s*=\s*[\x22\x27]|[\w-]*password[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27])", source):
+    _re = re
+    if _re.search(r"(?i)(localhost|127\.0\.0\.1|password\s*=\s*[\x22\x27]|[\w-]*password[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27])", source):
         score -= 15
         findings.append({"issue": "Hardcoded config/credentials - blocks flexible deployment in AI environments", "impact": "Medium"})
-    # 4. print statements instead of logging (not observable for AI pipelines)
-    if _re.search(r"(?m)^\s*print\s*\(", source):
+    # 4. print statements instead of logging (not observable for AI pipelines) - Python only
+    if filename.lower().endswith(".py") and _re.search(r"(?m)^\s*print\s*\(", source):
         score -= 10
         findings.append({"issue": "Uses print() instead of logging - AI pipelines need structured logs", "impact": "Low"})
     # 5. eval/exec (unsafe, blocks sandboxed AI use)
@@ -3339,6 +3339,7 @@ def check_ai_native_readiness(source, filename=""):
         "ai_native_score": score,
         "ai_native_level": level,
         "ai_native_findings": findings,
+        "ai_native_summary": f"AI-Native readiness: {score}/100 ({level}) - {len(findings)} issue(s) found",
         "ai_native_disclaimer": "Heuristic check of how ready this code is to integrate with modern AI/analytics systems (modularity, config, logging, safety, types). A guide for modernization planning, not a guarantee."
     }
 
