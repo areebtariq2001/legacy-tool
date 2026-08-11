@@ -1050,13 +1050,18 @@ async function runAnalysis() {
     pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
     const _validity = R.migrate.migration_validity;
     const _approvalTextEl = document.querySelector('#approvalBox .approval-text');
+    const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
+    let _cryptoWarningHtml = '';
+    if (_weakCryptoChange) {
+      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#1a1006;border:1px solid #7c4a03;border-radius:6px;font-size:11px"><strong style="color:#fbbf24">⚠ Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#94a3b8">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong> replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code> or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
+    }
     if (_validity && _validity.migration_ready === false && _approvalTextEl) {
       const _issueLines = [];
       if (!_validity.syntax_valid) _issueLines.push('Syntax error: ' + escapeHtml(_validity.syntax_error || ''));
       (_validity.broken_py3_imports || []).forEach(b => _issueLines.push(`'${escapeHtml(b.module)}' module does not exist in Python 3 (use ${escapeHtml(b.suggested_replacement)} instead)`));
-      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#fca5a5;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>';
+      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#fca5a5;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>' + _cryptoWarningHtml;
     } else if (_approvalTextEl) {
-      _approvalTextEl.innerHTML = '<strong>Human Review Required</strong><br>Review the analysis and diff above, then approve or reject this migration.';
+      _approvalTextEl.innerHTML = '<strong>Human Review Required</strong><br>Review the analysis and diff above, then approve or reject this migration.' + _cryptoWarningHtml;
     }
   } catch (e) { pipeErr('migrate', e.message); R.migrate = null; }
   if (checks.has('security')) {
