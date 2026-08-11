@@ -3343,14 +3343,16 @@ def check_ai_native_readiness(source, filename=""):
     }
 
 def funcs_has_no_hints(source):
-    import re as _re2
-    defs = _re2.findall(r"def\s+\w+\s*\(([^)]*)\)", source)
+    _re2 = re
+    defs = _re2.findall(r"def\s+\w+\s*\(([\s\S]*?)\)\s*(?:->|:)", source)
+    defs = [d for d in defs if d.strip()]
     if not defs:
         return False
+    _hint_pattern = _re2.compile(r"\b\w+\s*:\s*[\w\[\]\.\'\"]+")
     for d in defs:
-        if ":" in d:
-            return False
-    return True
+        if not _hint_pattern.search(d):
+            return True
+    return False
 
 @app.post("/ai-native-readiness")
 async def ai_native_endpoint(file: UploadFile = File(...)):
