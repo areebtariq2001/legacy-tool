@@ -3577,7 +3577,7 @@ async def cost_endpoint(file: UploadFile = File(...)):
         track_usage("estimate-cost", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Cost estimation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Cost estimation failed safely: {e}"})
 
 @app.post("/detect-tech-stack")
 async def tech_stack_endpoint(file: UploadFile = File(...)):
@@ -3589,9 +3589,10 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
         result = detect_tech_stack(source, file.filename)
         result["filename"] = file.filename
         track_usage("detect-tech-stack", file.filename)
+        write_audit_log("detect-tech-stack", file.filename, f"stacks={len(result.get('tech_stack', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Tech stack detection failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Tech stack detection failed safely: {e}"})
 
 @app.post("/audit-keys")
 async def key_audit_endpoint(file: UploadFile = File(...)):
@@ -3603,9 +3604,10 @@ async def key_audit_endpoint(file: UploadFile = File(...)):
         result = audit_key_management(source, file.filename)
         result["filename"] = file.filename
         track_usage("audit-keys", file.filename)
+        write_audit_log("audit-keys", file.filename, "key audit completed")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Key audit failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Key audit failed safely: {e}"})
 
 @app.post("/detect-fraud-gaps")
 async def fraud_endpoint(file: UploadFile = File(...)):
@@ -3617,13 +3619,17 @@ async def fraud_endpoint(file: UploadFile = File(...)):
         result = detect_fraud_gaps(source, file.filename)
         result["filename"] = file.filename
         track_usage("detect-fraud-gaps", file.filename)
+        write_audit_log("detect-fraud-gaps", file.filename, f"score={result.get('fraud_score', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Fraud gap detection failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Fraud gap detection failed safely: {e}"})
 
 @app.post("/regional-compliance")
 async def regional_compliance_endpoint(file: UploadFile = File(...), region: str = "Pakistan"):
     try:
+        _allowed_regions = {"Pakistan", "Global"}
+        if region not in _allowed_regions:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Invalid region. Allowed: " + ", ".join(_allowed_regions)})
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
@@ -3631,6 +3637,7 @@ async def regional_compliance_endpoint(file: UploadFile = File(...), region: str
         result = map_regional_compliance(source, file.filename, region)
         result["filename"] = file.filename
         track_usage("regional-compliance", file.filename)
+        write_audit_log("regional-compliance", file.filename, "region=" + region)
         return result
     except Exception as e:
         return {"filename": file.filename, "error": "Regional compliance mapping failed safely: " + str(e)}
@@ -3645,9 +3652,10 @@ async def vendor_lockin_endpoint(file: UploadFile = File(...)):
         result = analyze_vendor_lockin(source, file.filename)
         result["filename"] = file.filename
         track_usage("vendor-lockin", file.filename)
+        write_audit_log("vendor-lockin", file.filename, "findings=" + str(len(result.get("lockin_findings", []))))
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Vendor lock-in analysis failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Vendor lock-in analysis failed safely: {e}"})
 
 @app.post("/zero-trust-score")
 async def zero_trust_endpoint(file: UploadFile = File(...)):
@@ -3659,9 +3667,10 @@ async def zero_trust_endpoint(file: UploadFile = File(...)):
         result = score_zero_trust(source, file.filename)
         result["filename"] = file.filename
         track_usage("zero-trust-score", file.filename)
+        write_audit_log("zero-trust-score", file.filename, "score=" + str(result.get("zt_score", 0)))
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Zero-trust scoring failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Zero-trust scoring failed safely: {e}"})
 
 @app.post("/local-ai-status")
 async def local_ai_status_endpoint():
