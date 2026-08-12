@@ -2021,7 +2021,7 @@ def scan_sensitive_data(source):
                 count += 1
                 line_nums.append(str(i+1))
                 if count == 1:
-                    _sample_line = ln.strip()[:120]
+                    _sample_line = re.sub(r'([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])', r'\1***REDACTED***\2', ln.strip()[:150])
         if count > 0:
             findings.append({
                 "issue": label,
@@ -2284,7 +2284,7 @@ def scan_crypto(source):
                 count += 1
                 line_nums.append(str(i+1))
                 if count == 1:
-                    _sample_line = ln.strip()[:120]
+                    _sample_line = re.sub(r'([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])', r'\1***REDACTED***\2', ln.strip()[:150])
         if count > 0:
             is_pqc = "PQC Path" in recommendation
             if is_pqc:
