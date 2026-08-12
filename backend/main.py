@@ -2942,7 +2942,7 @@ def detect_pii(source, filename):
         for pat, label in pii_patterns:
             if _re9.search(pat, line):
                 _redacted = _re9.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:150])
-                findings.append({"line": i+1, "type": label, "code": _redacted})
+                findings.append({"line": i+1, "type": label, "code": _redacted, "evidence": "Line " + str(i+1) + " (" + label + "): " + _redacted})
     types_found = list(dict.fromkeys([f["type"] for f in findings]))
     return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": f"{len(findings)} potential PII/sensitive data exposure(s) found across {len(types_found)} type(s)" if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded. Actual sensitive values are redacted in this report."}
 
@@ -3269,7 +3269,11 @@ def generate_executive_report(source, filename):
     health = 100 - (0 if parseable else 30) - min(security_hits*10, 40) - (10 if len(lines) > 300 else 0)
     if health < 0: health = 0
     status = "Good" if health >= 75 else "Needs Attention" if health >= 45 else "High Priority"
-    return {"exec_health": health, "exec_status": status, "exec_stats": {"lines": len(lines), "functions": funcs, "classes": classes, "security_issues": security_hits}, "exec_findings": findings, "exec_recommendation": ("This module is in reasonable shape for migration with standard review." if health >= 75 else "Review the flagged items and plan testing before migrating this module." if health >= 45 else "This module needs careful attention and full test coverage before migration."), "exec_disclaimer": "Executive summary generated from automated code analysis. Intended for planning and management review - a technical deep-dive is recommended before migration decisions."}
+    _compliance_checks = [("AML/KYC reference", r"(?i)(aml|kyc|know.?your.?customer|anti.?money.?launder)"), ("Audit logging", r"(?i)(audit.?log|audit.?trail|write_audit)"), ("Access control", r"(?i)(access.?control|role.?based|permission.?check|authoriz)"), ("Data protection reference", r"(?i)(encrypt|gdpr|data.?protection|pii)")]
+    _compliance_present = [name for name, pat in _compliance_checks if _re2.search(pat, source)]
+    _compliance_pct = round((len(_compliance_present) / len(_compliance_checks)) * 100)
+    _compliance_readiness = {"compliance_readiness_pct": _compliance_pct, "compliance_signals_present": _compliance_present, "compliance_signals_total": len(_compliance_checks), "compliance_note": "Pattern-based signal count, not a compliance certification - a formal review is required."}
+    return {"exec_health": health, "exec_status": status, "exec_stats": {"lines": len(lines), "functions": funcs, "classes": classes, "security_issues": security_hits}, "exec_findings": findings, "exec_compliance_readiness": _compliance_readiness, "exec_recommendation": ("This module is in reasonable shape for migration with standard review." if health >= 75 else "Review the flagged items and plan testing before migrating this module." if health >= 45 else "This module needs careful attention and full test coverage before migration."), "exec_disclaimer": "Executive summary generated from automated code analysis. Intended for planning and management review - a technical deep-dive is recommended before migration decisions."}
 
 def extract_business_rules(source, language):
     if not source or not source.strip():
