@@ -3448,18 +3448,20 @@ async def architecture_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Architecture generation failed safely: {e}"})
 
-@app.post('/extract-business-rules')
+@app.post("/extract-business-rules")
 async def business_rules_endpoint(file: UploadFile = File(...)):
     try:
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
-            return JSONResponse(status_code=400, content={'filename': file.filename, 'error': error})
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         result = extract_business_rules(source, detect_language(file.filename))
-        result['filename'] = file.filename
+        result["filename"] = file.filename
+        track_usage("extract-business-rules", file.filename)
+        write_audit_log("extract-business-rules", file.filename, "rules extracted via AI")
         return result
     except Exception as e:
-        return {'filename': file.filename, 'error': 'Business rule extraction failed safely: ' + str(e)}
+        return {"filename": file.filename, "error": f"Business rule extraction failed safely: {e}"}
 
 @app.post("/executive-report")
 async def exec_report_endpoint(file: UploadFile = File(...)):
@@ -3471,9 +3473,10 @@ async def exec_report_endpoint(file: UploadFile = File(...)):
         result = generate_executive_report(source, file.filename)
         result["filename"] = file.filename
         track_usage("executive-report", file.filename)
+        write_audit_log("executive-report", file.filename, f"health={result.get('exec_health', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Executive report failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Executive report failed safely: {e}"}
 
 @app.post("/analyze-impact")
 async def impact_endpoint(file: UploadFile = File(...)):
@@ -3485,9 +3488,10 @@ async def impact_endpoint(file: UploadFile = File(...)):
         result = analyze_impact(source, file.filename)
         result["filename"] = file.filename
         track_usage("analyze-impact", file.filename)
+        write_audit_log("analyze-impact", file.filename, f"functions={len(result.get('impact_map', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Impact analysis failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Impact analysis failed safely: {e}"}
 
 @app.post("/map-transaction-flow")
 async def txn_flow_endpoint(file: UploadFile = File(...)):
@@ -3499,9 +3503,10 @@ async def txn_flow_endpoint(file: UploadFile = File(...)):
         result = map_transaction_flow(source, file.filename)
         result["filename"] = file.filename
         track_usage("map-transaction-flow", file.filename)
+        write_audit_log("map-transaction-flow", file.filename, f"flows={len(result.get('transaction_flows', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Transaction flow mapping failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Transaction flow mapping failed safely: {e}"}
 
 @app.post("/rollback-plan")
 async def rollback_endpoint(file: UploadFile = File(...)):
@@ -3513,9 +3518,10 @@ async def rollback_endpoint(file: UploadFile = File(...)):
         result = generate_rollback_plan(source, file.filename)
         result["filename"] = file.filename
         track_usage("rollback-plan", file.filename)
+        write_audit_log("rollback-plan", file.filename, f"steps={len(result.get('rollback_steps', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Rollback plan failed safely: " + str(e)}
+        return {"filename": file.filename, "error": f"Rollback plan failed safely: {e}"}
 
 @app.post("/discover-rules")
 async def rules_engine_endpoint(file: UploadFile = File(...)):
