@@ -1945,9 +1945,9 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
 def _check_admin_auth(request: Request):
     required_key = os.environ.get("ADMIN_API_KEY", "")
     if not required_key:
-        return True
+        return False
     provided_key = request.headers.get("x-admin-key", "")
-    return provided_key == required_key
+    return hmac.compare_digest(provided_key, required_key)
 
 @app.get("/stats")
 def get_stats(request: Request):
@@ -3715,11 +3715,12 @@ async def github_webhook_endpoint(request: Request):
     try:
         raw_body = await request.body()
         webhook_secret = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
-        if webhook_secret:
-            signature = request.headers.get("x-hub-signature-256", "")
-            expected = "sha256=" + hmac.new(webhook_secret.encode(), raw_body, hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(expected, signature):
-                return JSONResponse(status_code=401, content={"error": "Invalid webhook signature"})
+        if not webhook_secret:
+            return JSONResponse(status_code=401, content={"error": "Webhook not configured - GITHUB_WEBHOOK_SECRET is not set on the server"})
+        signature = request.headers.get("x-hub-signature-256", "")
+        expected = "sha256=" + hmac.new(webhook_secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return JSONResponse(status_code=401, content={"error": "Invalid webhook signature"})
         try:
             payload = json.loads(raw_body)
         except Exception:
