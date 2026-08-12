@@ -3689,14 +3689,19 @@ async def zero_trust_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Zero-trust scoring failed safely: {e}"})
 
 @app.post("/local-ai-status")
-async def local_ai_status_endpoint():
+async def local_ai_status_endpoint(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     result = call_ollama("Say OK if you are working.")
-    is_working = "not reachable" not in result and "error" not in result.lower()
+    is_working = "not reachable" not in result and not result.lower().startswith("error")
     return {"local_ai_available": is_working, "response_preview": result[:200], "note": "Local AI runs on the same machine as the backend. In this cloud demo, the backend and your Ollama are on different machines, so this will show unavailable - it works fully in an on-premise deployment where both run together."}
 
 @app.post("/regulatory-framework")
 async def regulatory_framework_endpoint(file: UploadFile = File(...), framework: str = "SBP"):
     try:
+        _allowed_fw = {"SBP", "Basel III", "PCI-DSS", "GDPR"}
+        if framework not in _allowed_fw:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Invalid framework"})
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
@@ -3711,6 +3716,9 @@ async def regulatory_framework_endpoint(file: UploadFile = File(...), framework:
 @app.post("/ask-code-question")
 async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What does this code do?"):
     try:
+        if len(question) > 500:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Question too long"})
+        question = question.strip()
         content = await file.read()
         source, error = safe_read_file(content, file.filename)
         if error:
