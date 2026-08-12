@@ -1134,7 +1134,7 @@ def analyze_php(source):
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
-        pass
+        issues.append("SQL injection sub-check could not complete - review manually for string-built queries")
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
