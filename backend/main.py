@@ -30,7 +30,7 @@ def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     _rate_limit_store[ip] = entry
     return True
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 ALLOWED_ORIGINS = [
     "https://areebtariq2001.github.io",
@@ -3820,7 +3820,9 @@ def _get_db_connection():
         return None
 
 @app.get("/db-debug")
-async def db_debug_endpoint():
+async def db_debug_endpoint(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - valid x-admin-key header required"})
     conn = _get_db_connection()
     return {"connected": conn is not None, "last_error": _LAST_DB_ERROR}
 

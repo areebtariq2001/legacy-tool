@@ -9,6 +9,7 @@ debug_*.py
 view_*.py
 add_*.py
 extract_*.py
+zzz_*
 test_bug*.py
 test_php_cmdi.py
 test_sqli_cmdi.py
@@ -28,7 +29,11 @@ create_root_gitignore.py
 __pycache__/
 
 node_modules/
-ersdellDesktoplegacy-migration-toolbackendmain.py
+
+# Runtime-generated state (should not be version controlled)
+backend/stats.json
+backend/approval_log.json
+
 app_code.txt
 arch_fix_diff.txt
 indexcheck.txt
