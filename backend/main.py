@@ -25,10 +25,22 @@ def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     entry = _rate_limit_store.get(ip, [])
     entry = [t for t in entry if now - t < window_seconds]
     if len(entry) >= max_requests:
+        _rate_limit_store[ip] = entry
         return False
     entry.append(now)
     _rate_limit_store[ip] = entry
+    if len(_rate_limit_store) > 5000:
+        _cutoff = now - window_seconds
+        for _k in list(_rate_limit_store.keys()):
+            if not _rate_limit_store[_k] or max(_rate_limit_store[_k]) < _cutoff:
+                del _rate_limit_store[_k]
     return True
+
+def _get_client_ip(request):
+    _xff = request.headers.get("x-forwarded-for", "")
+    if _xff:
+        return _xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -58,7 +70,7 @@ async def cors_handler(request: Request, call_next):
                 "Access-Control-Max-Age": "86400",
             }
         )
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     if not _check_rate_limit(client_ip):
         return JSONResponse(
             content={"error": "Rate limit exceeded. Please slow down and try again shortly."},
