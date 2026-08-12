@@ -3731,32 +3731,7 @@ async def github_webhook_endpoint(request: Request):
         return {"error": "Webhook endpoint failed safely: " + str(e)}
 
 def run_sandboxed_migration_test(migrated_code, filename):
-    if not filename.lower().endswith(".py"):
-        return {"sandbox_status": "Not Supported", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandbox execution testing currently only supports Python files. This file was not run - do not interpret this as a pass or fail."}
-    import subprocess as _sp
-    import tempfile as _tf
-    import os as _os
-    try:
-        with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
-            tmp.write(migrated_code)
-            tmp_path = tmp.name
-        try:
-            result = _sp.run(["python3", tmp_path], timeout=8, capture_output=True, text=True)
-            status = "Ran successfully" if result.returncode == 0 else "Ran with errors"
-            output = (result.stdout or "")[:1000]
-            err = (result.stderr or "")[:1000]
-        except _sp.TimeoutExpired:
-            status = "Timeout - execution took longer than 8 seconds"
-            output = ""
-            err = "Execution exceeded time limit"
-        finally:
-            try:
-                _os.remove(tmp_path)
-            except Exception:
-                pass
-        return {"sandbox_status": status, "sandbox_output": output, "sandbox_error": err, "sandbox_disclaimer": "This is a lightweight, resource-limited test run on the server, not a fully isolated Docker sandbox. Network and filesystem isolation are not yet in place. Use only with trusted, already-migrated code. A fully isolated sandbox is on the roadmap."}
-    except Exception as e:
-        return {"sandbox_status": "Sandbox test failed safely", "sandbox_error": str(e), "sandbox_output": "", "sandbox_disclaimer": "Lightweight sandbox test - full isolation planned for a future release."}
+    return {"sandbox_status": "Disabled", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandboxed execution has been disabled: it previously ran uploaded code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. This feature will return once a properly isolated execution environment (e.g. a locked-down container with no network access, non-root user, and resource limits) is in place."}
 
 @app.post("/sandbox-test")
 async def sandbox_test_endpoint(file: UploadFile = File(...)):
@@ -4403,19 +4378,7 @@ def _run_single_sandbox(code, timeout_s=8):
     except Exception as e:
         return {"returncode": None, "stdout": "", "stderr": str(e), "timed_out": False}
 def generate_behavior_snapshot(original_code, migrated_code, filename):
-    if not filename.lower().endswith(".py"):
-        return {"snapshot_status": "Not Supported", "match": None, "snapshot_disclaimer": "Characterization testing currently only supports Python files. This comparison was not run."}
-    original_result = _run_single_sandbox(original_code)
-    migrated_result = _run_single_sandbox(migrated_code)
-    outputs_match = (original_result["stdout"] == migrated_result["stdout"])
-    both_ran_ok = (original_result["returncode"] == 0 and migrated_result["returncode"] == 0)
-    if not both_ran_ok:
-        verdict = "Could not compare - one or both versions failed to run"
-    elif outputs_match:
-        verdict = "Behavior matches - same output produced"
-    else:
-        verdict = "Behavior differs - outputs are NOT identical, review required"
-    return {"snapshot_status": "Compared", "match": outputs_match if both_ran_ok else None, "verdict": verdict, "original_run": {"ran_ok": original_result["returncode"] == 0, "output": original_result["stdout"], "error": original_result["stderr"]}, "migrated_run": {"ran_ok": migrated_result["returncode"] == 0, "output": migrated_result["stdout"], "error": migrated_result["stderr"]}, "snapshot_disclaimer": "Runs both versions with no input arguments in a lightweight, resource-limited sandbox (not fully isolated Docker) and compares their printed output. Functions requiring input or side effects (files, network, DB) are not captured. A starting signal, not a full behavioral guarantee."}
+    return {"snapshot_status": "Disabled", "match": None, "verdict": "Behavioral comparison is disabled", "snapshot_disclaimer": "This feature has been disabled: it previously executed both the original and migrated code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. It will return once a properly isolated execution environment is in place."}
 
 @app.post("/behavior-snapshot")
 async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migrated_file: UploadFile = File(...)):
