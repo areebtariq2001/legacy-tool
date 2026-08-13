@@ -1836,6 +1836,16 @@ async def download(file: UploadFile = File(...)):
     else:
         result = migrate_code(source)
     migrated = result.get("migrated_code", "")
+    _validity = result.get("migration_validity")
+    if _validity and _validity.get("migration_ready") is False:
+        _warn_lines = ["# WARNING: This migrated code did NOT pass validation and may not run as-is."]
+        if not _validity.get("syntax_valid", True):
+            _warn_lines.append("# Syntax error: " + str(_validity.get("syntax_error", "")))
+        for _b in _validity.get("broken_py3_imports", []) or []:
+            _warn_lines.append("# '" + str(_b.get("module","")) + "' does not exist in Python 3 - use " + str(_b.get("suggested_replacement","")) + " instead")
+        _warn_lines.append("# Review and fix the issues above before using this file.")
+        _warn_lines.append("")
+        migrated = chr(10).join(_warn_lines) + chr(10) + migrated
     filename = file.filename
     ext_map = {'.py': '_migrated.py', '.java': '_migrated.java', '.php': '_migrated.php', '.cbl': '_migrated.py', '.cob': '_migrated.py'}
     for ext, new_ext in ext_map.items():
