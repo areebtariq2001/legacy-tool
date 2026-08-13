@@ -1214,7 +1214,7 @@ function renderResults(R, original, fname, totalMs) {
   detectCopybooks(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
-  renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5);
+  renderExecSummary(critCount, warnCount, confPct, (critCount * 2 + warnCount * 1) || 0.5, R);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function generateSuggestions(issues, critCount, warnCount) {
@@ -2018,7 +2018,7 @@ function updateRepositorySummary() {
   const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
   const serviceSpans = lastUniqueServices || [];
   let localImports = [];
-  const _snap = window.lastFileSnapshot || '';
+  const _snap = (window.lastFileSnapshot && window.lastFileSnapshot.original) || '';
   const _lname = fname.toLowerCase();
   if (_lname.endsWith('.py')) {
     localImports = (_snap.match(/(?:^|\n)\s*(?:import|from)\s+([\w\.]+)/g) || []).map(m => m.replace(/^\s*(?:import|from)\s+/, '').split('.')[0]);
@@ -2114,7 +2114,7 @@ function renderCrossFileGraph() {
     </div>
   `).join('');
 }
-function renderExecSummary(critCount, warnCount, confPct, fixHours) {
+function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
   const rulesCount = document.querySelectorAll('#rulesList > div').length;
   const mediumRiskCount = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
   const recommendation = critCount >= 1 ? 'Not Safe — Critical Review Required' : mediumRiskCount >= 3 ? 'Migration Possible — Human Review Recommended' : 'Migration Safe';
@@ -2142,7 +2142,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours) {
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
         <div>Overall Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
         <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #1e2d45">
-          <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(R.rules && R.rules.confidence != null) ? R.rules.confidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
+          <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(R && R.rules && R.rules.confidence != null) ? R.rules.confidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
           <span title="How confidently the syntax/API migration was performed">Transformation: ${confPct != null ? confPct + '%' : 'N/A'}</span> ·
           <span style="color:#94a3b8" title="Does the migrated code behave identically to the original? This requires running both versions and comparing outputs - not yet available, as it would require executing uploaded code on the server.">Behavioral: Not Tested</span>
         </div>
