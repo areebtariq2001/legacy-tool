@@ -3709,9 +3709,10 @@ async def regulatory_framework_endpoint(file: UploadFile = File(...), framework:
         result = check_regulatory_framework(source, file.filename, framework)
         result["filename"] = file.filename
         track_usage("regulatory-framework", file.filename)
+        write_audit_log("regulatory-framework", file.filename, "framework=" + framework)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)})
 
 @app.post("/ask-code-question")
 async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What does this code do?"):
