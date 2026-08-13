@@ -3793,7 +3793,7 @@ def save_living_documentation(filename, doc_content, doc_hash):
             conn.commit()
             cur.close()
             conn.close()
-            return {"saved": True, "is_new_version": True, "version": new_version, "created_at": timestamp, "previous_content": row and None}
+            return {"saved": True, "is_new_version": True, "version": new_version, "created_at": timestamp, "previous_content": (row[1] if row else None)}
         except Exception as e:
             return {"saved": False, "error": str(e)}
     return {"saved": False, "error": "Database not available"}
