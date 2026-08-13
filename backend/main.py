@@ -3808,7 +3808,8 @@ def get_living_documentation_history(filename):
             cur.close()
             conn.close()
             return [{"version": r[0], "doc_content": r[1], "created_at": r[2]} for r in rows]
-        except Exception:
+        except Exception as e:
+            print("get_living_documentation_history failed: " + str(e))
             return []
     return []
 
