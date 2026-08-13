@@ -3727,9 +3727,10 @@ async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What d
         result = answer_code_question(source, question, file.filename)
         result["filename"] = file.filename
         track_usage("ask-code-question", file.filename)
+        write_audit_log("ask-code-question", file.filename, "question asked")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)})
 
 @app.post("/github-webhook")
 async def github_webhook_endpoint(request: Request):
