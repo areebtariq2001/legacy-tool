@@ -3775,27 +3775,29 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
 
 _LAST_DB_ERROR = ""
 def save_living_documentation(filename, doc_content, doc_hash):
-    import datetime as _dt
+    if len(doc_content) > 100000:
+        doc_content = doc_content[:100000] + "\n[... truncated ...]"
     conn = _get_db_connection()
     if conn:
+        cur = None
         try:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TEXT)")
             cur.execute("SELECT version, doc_hash FROM docs_registry WHERE filename = %s ORDER BY version DESC LIMIT 1", (filename,))
             row = cur.fetchone()
             if row and row[1] == doc_hash:
-                cur.close()
-                conn.close()
                 return {"saved": True, "is_new_version": False, "version": row[0], "message": "Documentation unchanged since last version - no new version created."}
             new_version = (row[0] + 1) if row else 1
-            timestamp = _dt.datetime.now().isoformat()
+            timestamp = datetime.now().isoformat()
             cur.execute("INSERT INTO docs_registry (filename, doc_content, doc_hash, version, created_at) VALUES (%s, %s, %s, %s, %s)", (filename, doc_content, doc_hash, new_version, timestamp))
             conn.commit()
-            cur.close()
-            conn.close()
             return {"saved": True, "is_new_version": True, "version": new_version, "created_at": timestamp, "previous_content": (row[1] if row else None)}
         except Exception as e:
             return {"saved": False, "error": str(e)}
+        finally:
+            if cur:
+                cur.close()
+            conn.close()
     return {"saved": False, "error": "Database not available"}
 
 def get_living_documentation_history(filename):
