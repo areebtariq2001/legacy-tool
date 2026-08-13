@@ -3746,9 +3746,10 @@ async def github_webhook_endpoint(request: Request):
         except Exception:
             return JSONResponse(status_code=400, content={"error": "Invalid JSON payload"})
         result = process_github_webhook(payload)
+        track_usage("github-webhook", "webhook")
         return result
     except Exception as e:
-        return {"error": "Webhook endpoint failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": "Webhook endpoint failed safely: " + str(e)})
 
 def run_sandboxed_migration_test(migrated_code, filename):
     return {"sandbox_status": "Disabled", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandboxed execution has been disabled: it previously ran uploaded code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. This feature will return once a properly isolated execution environment (e.g. a locked-down container with no network access, non-root user, and resource limits) is in place."}
