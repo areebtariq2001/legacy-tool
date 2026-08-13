@@ -726,8 +726,17 @@ def migrate_code(source):
             new_lines.append(line)
     migrated = '\n'.join(new_lines)
     if re.search(r'(\w+)\.has_key\(([^)]+)\)', migrated):
-        migrated = re.sub(r'(\w+)\.has_key\(([^)]+)\)', r'\2 in \1', migrated)
-        changes.append("has_key() -> in operator")
+        def _safe_haskey_sub(m):
+            var, arg = m.group(1), m.group(2)
+            if '(' in arg or ')' in arg:
+                return m.group(0)
+            return arg + ' in ' + var
+        _before_haskey = migrated
+        migrated = re.sub(r'(\w+)\.has_key\(([^)]+)\)', _safe_haskey_sub, migrated)
+        if migrated != _before_haskey:
+            changes.append("has_key() -> in operator")
+        if re.search(r'(\w+)\.has_key\([^)]*[()][^)]*\)', _before_haskey):
+            changes.append("has_key() with nested parentheses detected - NOT auto-converted (could produce incorrect logic), please convert manually: replace x.has_key(EXPR) with EXPR in x")
     if re.search(r'except\s+(\w+)\s*,\s*(\w+)', migrated):
         migrated = re.sub(r'except\s+(\w+)\s*,\s*(\w+)', r'except \1 as \2', migrated)
         changes.append("except X, e -> except X as e")
