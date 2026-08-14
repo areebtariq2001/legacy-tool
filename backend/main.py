@@ -39,7 +39,9 @@ def _check_rate_limit(ip, max_requests=60, window_seconds=60):
 def _get_client_ip(request):
     _xff = request.headers.get("x-forwarded-for", "")
     if _xff:
-        return _xff.split(",")[0].strip()
+        _parts = [p.strip() for p in _xff.split(",") if p.strip()]
+        if _parts:
+            return _parts[-1]
     return request.client.host if request.client else "unknown"
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
