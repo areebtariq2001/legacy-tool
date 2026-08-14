@@ -1094,6 +1094,7 @@ async function runAnalysis() {
     const fd1 = new FormData(); fd1.append('file', files[0]);
     const r = await fetch(BACKEND + aep, { method: 'POST', body: fd1 });
     R.analyze = await r.json();
+    if (!r.ok) throw new Error(R.analyze?.error || ('Server error ' + r.status));
     pipeDone('analyze', 'Structure analyzed', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t1)/1000).toFixed(1)+'s');
   } catch (e) { pipeErr('analyze', e.message); R.analyze = null; }
   pipeRun('migrate', 'Running ' + (mode === 'ai' ? 'AI' : 'rule-based') + ' migration…');
@@ -1104,6 +1105,7 @@ async function runAnalysis() {
     const fd2 = new FormData(); fd2.append('file', files[0]);
     const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
+    if (!r.ok) throw new Error(R.migrate?.error || ('Server error ' + r.status));
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
     const confStr = conf != null ? Math.round(conf) + '%' : 'N/A';
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
@@ -1168,6 +1170,7 @@ async function runAnalysis() {
       const fd3 = new FormData(); fd3.append('file', files[0]);
       const r = await fetch(BACKEND + '/scan-sensitive', { method: 'POST', body: fd3 });
       R.security = await r.json();
+      if (!r.ok) throw new Error(R.security?.error || ('Server error ' + r.status));
       pipeDone('security', 'Security scan complete', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t3)/1000).toFixed(1)+'s');
     } catch (e) { pipeErr('security', e.message); R.security = null; }
   } else {
@@ -1180,6 +1183,7 @@ async function runAnalysis() {
       const fd4 = new FormData(); fd4.append('file', files[0]);
       const r = await fetch(BACKEND + '/tech-debt', { method: 'POST', body: fd4 });
       R.debt = await r.json();
+      if (!r.ok) throw new Error(R.debt?.error || ('Server error ' + r.status));
       try {
         const fd4b = new FormData(); fd4b.append('file', files[0]);
         const rc = await fetch(BACKEND + '/tech-debt-cost', { method: 'POST', body: fd4b });
@@ -2692,6 +2696,7 @@ async function runGenericScan(endpoint, label, btnEl) {
     const fd = new FormData(); fd.append('file', files[0]);
     const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     result.innerHTML = formatGenericResult(d, label);
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
@@ -2780,6 +2785,7 @@ async function runCryptoScan() {
     const fd = new FormData(); fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/scan-crypto', { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
   } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Crypto scan failed: ' + e.message; }
@@ -2793,6 +2799,7 @@ async function runBankingScan() {
     const fd = new FormData(); fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/banking-patterns', { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
   } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Banking scan failed: ' + e.message; }
@@ -2806,6 +2813,7 @@ async function runExecReport() {
     const fd = new FormData(); fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/executive-report', { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
   } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Executive report failed: ' + e.message; }
@@ -2822,6 +2830,7 @@ async function previewArchitecture() {
     fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/generate-architecture', { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none';
     result.style.display = 'block';
     if (d.architecture_layers) {
@@ -2848,6 +2857,7 @@ async function runExplain() {
     fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/explain', { method: 'POST', body: fd });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     box.textContent = (typeof d === 'string' ? d : (d.explanation ?? d.result ?? d.output ?? 'No explanation received.'));
   } catch (e) {
     box.textContent = 'Could not generate explanation: ' + e.message;
@@ -2913,6 +2923,7 @@ async function runAsk() {
     const fd5 = new FormData(); fd5.append('file', files[0]); fd5.append('question', q);
     const r = await fetch(BACKEND + '/ask-code-question', { method: 'POST', body: fd5 });
     const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     document.getElementById('askLoad').classList.remove('show');
     document.getElementById('askBody').textContent = typeof d === 'string' ? d : (d.answer ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
     document.getElementById('askResult').classList.add('show');
