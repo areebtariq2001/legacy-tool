@@ -4070,7 +4070,7 @@ async def save_approval_endpoint(request: Request, filename: str = "unknown", de
         result["approved_by"] = _user_email
         return result
     except Exception as e:
-        return {"error": "Approval save failed safely: " + str(e)}
+        return {"error": f"Approval save failed safely: {e}"}
 
 @app.get("/approval-history")
 async def approval_history_endpoint(request: Request):
@@ -4081,7 +4081,7 @@ async def approval_history_endpoint(request: Request):
         history = get_approval_history()
         return {"approval_history": history, "total_decisions": len(history)}
     except Exception as e:
-        return {"error": "Could not load approval history: " + str(e)}
+        return {"error": f"Could not load approval history: {e}"}
 
 def calculate_code_quality(source, filename):
     source = source[:300000]
