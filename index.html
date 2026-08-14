@@ -2290,7 +2290,7 @@ function downloadAuditLog() {
   a.click();
   URL.revokeObjectURL(url);
 }
-function doApprove() {
+async function doApprove() {
   const validity = (R.migrate && R.migrate.migration_validity) || null;
   if (validity && validity.migration_ready === false) {
     const issues = [];
@@ -2302,10 +2302,18 @@ function doApprove() {
   sessionApproved++;
   document.getElementById('dash-approved').textContent = sessionApproved;
   logAuditEntry('APPROVED');
+  const fname = files.length ? files[0].name : 'unknown';
+  try {
+    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST' });
+  } catch (e) { /* best-effort - local audit log above already recorded this */ }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
-function doReject() {
+async function doReject() {
   logAuditEntry('REJECTED');
+  const fname = files.length ? files[0].name : 'unknown';
+  try {
+    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST' });
+  } catch (e) { /* best-effort */ }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
