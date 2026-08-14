@@ -4149,13 +4149,13 @@ def get_migration_dashboard():
         return {"total_reviewed": 0, "dashboard_summary": "No approval decisions logged yet.", "by_decision": {}, "recent_activity": []}
     approved = len([h for h in history if h.get("decision") == "Approved"])
     rejected = len([h for h in history if h.get("decision") == "Rejected"])
-    needs_mod = len([h for h in history if h.get("decision") == "Needs Modification"])
+    needs_mod = len([h for h in history if "modif" in (h.get("decision") or "").lower()])
     approval_rate = round((approved / total) * 100, 1) if total > 0 else 0
     action_types = {}
     for h in history:
         at = h.get("action_type", "unknown")
         action_types[at] = action_types.get(at, 0) + 1
-    recent = sorted(history, key=lambda h: h.get("timestamp", ""), reverse=True)[:10]
+    recent = sorted(history, key=lambda h: h.get("timestamp") or "", reverse=True)[:10]
     daily_counts = {}
     for h in history:
         day = (h.get("timestamp", "") or "")[:10]
@@ -4163,15 +4163,18 @@ def get_migration_dashboard():
             daily_counts[day] = daily_counts.get(day, 0) + 1
     trend = sorted(daily_counts.items())[-14:]
     avg_per_day = round(total / max(1, len(daily_counts)), 1)
-    return {"total_reviewed": total, "approved": approved, "rejected": rejected, "needs_modification": needs_mod, "approval_rate_percent": approval_rate, "by_action_type": action_types, "recent_activity": recent, "activity_trend": [{"date": d, "count": c} for d, c in trend], "avg_reviews_per_day": avg_per_day, "dashboard_summary": str(total) + " total decisions logged - " + str(approval_rate) + "% approval rate", "dashboard_disclaimer": "Aggregated from human reviewer decisions logged in a persistent database. Refresh to see the latest activity."}
+    return {"total_reviewed": total, "approved": approved, "rejected": rejected, "needs_modification": needs_mod, "approval_rate_percent": approval_rate, "by_action_type": action_types, "recent_activity": recent, "activity_trend": [{"date": d, "count": c} for d, c in trend], "avg_reviews_per_day": avg_per_day, "dashboard_summary": f"{total} total decisions logged - {approval_rate}% approval rate", "dashboard_disclaimer": "Aggregated from human reviewer decisions logged in a persistent database. Refresh to see the latest activity."}
 
 @app.get("/migration-dashboard")
-async def migration_dashboard_endpoint():
+async def migration_dashboard_endpoint(request: Request):
+    _user_email = _check_user_auth(request)
+    if not _user_email:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to view the dashboard"})
     try:
         result = get_migration_dashboard()
         return result
     except Exception as e:
-        return {"error": "Dashboard load failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": f"Dashboard load failed safely: {e}"})
 
 def generate_migration_roadmap(repo_result):
     if repo_result.get("error"):
