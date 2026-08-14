@@ -4040,8 +4040,10 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type):
         except (FileNotFoundError, json.JSONDecodeError):
             logs = []
         logs.append(entry)
-        with open(log_file, "w") as f:
+        _tmp_file = log_file + ".tmp"
+        with open(_tmp_file, "w") as f:
             json.dump(logs, f, indent=2)
+        os.replace(_tmp_file, log_file)
         entry["log_saved"] = True
     except Exception as e:
         entry["log_saved"] = False
