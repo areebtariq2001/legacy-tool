@@ -1121,7 +1121,7 @@ async function runAnalysis() {
     const checklist = document.getElementById('changesChecklist');
     if (checklist && allChanges.length > 0) {
       checklist.style.display = 'block';
-      checklist.innerHTML = '<div style="font-size:10px;color:#64748b;font-weight:600;margin-bottom:6px">Compatibility Changes</div>' +
+      let checklistHtml = '<div style="font-size:10px;color:#64748b;font-weight:600;margin-bottom:6px">Compatibility Changes</div>' +
         allChanges.map(c => {
           const isReview = typeof c === 'string' && c.startsWith('REVIEW NEEDED');
           let text = isReview ? c.replace('REVIEW NEEDED: ', '') : c;
@@ -1131,6 +1131,18 @@ async function runAnalysis() {
           }
           return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#94a3b8') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
         }).join('');
+      const _secRaw = R.security;
+      const _secTextForCategorize = _secRaw ? (typeof _secRaw === 'string' ? _secRaw : (_secRaw.result ?? _secRaw.output ?? JSON.stringify(_secRaw))).toLowerCase() : '';
+      const _notFixedItems = [];
+      if (_secTextForCategorize.includes('sql injection')) _notFixedItems.push('SQL Injection — string-built query left unchanged, requires parameterized-query fix');
+      if (_secTextForCategorize.includes('command injection')) _notFixedItems.push('Command Injection — shell command concatenation left unchanged, requires validated subprocess call');
+      if (_secTextForCategorize.includes('hardcoded') && _secTextForCategorize.includes('password')) _notFixedItems.push('Hardcoded Credentials — left in place, requires manual move to a secrets manager or environment variable');
+      if (_secTextForCategorize.includes('weak cryptography') || _secTextForCategorize.includes('md5') || _secTextForCategorize.includes('sha1')) _notFixedItems.push('Weak Cryptography (MD5/SHA1) — syntax made Python-3-compatible, but the weak algorithm itself was not replaced');
+      if (_notFixedItems.length > 0) {
+        checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
+          _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0">🔴 ' + t + '</div>').join('');
+      }
+      checklist.innerHTML = checklistHtml;
     }
     pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
     const _validity = R.migrate.migration_validity;
@@ -1209,11 +1221,20 @@ function renderResults(R, original, fname, totalMs) {
   }
   const migLabel = document.getElementById('migratedHeadLabel');
   if (migLabel) migLabel.textContent = (lang === 'cobol') ? 'Business Logic Specification' : 'Migrated Output';
-  renderDiffHighlighted('diffOld', original, migrated, false, reviewLineNums);
+  const secretLineNums = new Set();
+  if (R.security && Array.isArray(R.security.findings)) {
+    R.security.findings.forEach(f => {
+      const issueText = (f.issue || '').toLowerCase();
+      if (issueText.includes('password') || issueText.includes('api key') || issueText.includes('api/secret') || issueText.includes('credential') || issueText.includes('secret')) {
+        (f.lines || '').split(',').forEach(n => { const num = parseInt(n.trim()); if (!isNaN(num)) secretLineNums.add(num); });
+      }
+    });
+  }
+  renderDiffHighlighted('diffOld', original, migrated, false, reviewLineNums, secretLineNums);
   if (lang === 'cobol') {
     renderBusinessRuleSpec(original, lang);
   } else {
-    renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums);
+    renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums, secretLineNums);
     renderBusinessRuleSpec(original, lang);
   }
   const issues = buildIssues(R);
@@ -1966,7 +1987,7 @@ function renderBusinessRuleSpec(code, lang) {
   html += '</div>';
   el.innerHTML = html;
 }
-function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums) {
+function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums, secretLineNums) {
   const el = document.getElementById(elId);
   const oldLines = isNew ? otherCode.split('\n') : thisCode.split('\n');
   const newLines = isNew ? thisCode.split('\n') : otherCode.split('\n');
@@ -1980,7 +2001,9 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums)
     tags = isNew ? diffResult.newTags : diffResult.oldTags;
   }
   el.innerHTML = thisLines.map((line, idx) => {
-    const esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const isSecretLine = secretLineNums && secretLineNums.has(idx + 1);
+    const displayLine = isSecretLine ? line.replace(/([=:]\s*["'])[^"']+(["'])/, '$1***REDACTED***$2') : line;
+    const esc = displayLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const needsReview = reviewLineNums && reviewLineNums.has(idx + 1);
     const tag = tags[idx];
     const lineNum = '<span style="display:inline-block;width:32px;text-align:right;padding-right:8px;color:#4a5568;user-select:none;flex-shrink:0">' + (idx + 1) + '</span>';
