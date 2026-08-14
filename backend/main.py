@@ -25,6 +25,7 @@ except Exception:
 
 _rate_limit_store = {}
 import time as _rl_time
+time = _rl_time
 
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     now = _rl_time.time()
@@ -2020,7 +2021,7 @@ def register_user(email, password):
         _create_users_table_if_needed(cur)
         cur.execute("SELECT id FROM users WHERE email = %s", (email,))
         if cur.fetchone():
-            return {"success": False, "error": "An account with this email already exists"}
+            return {"success": False, "error": "Registration could not be completed with the provided details. If you already have an account, try logging in instead."}
         pwd_hash = _hash_password(password)
         cur.execute("INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s)", (email, pwd_hash, datetime.now().isoformat()))
         conn.commit()
@@ -2032,7 +2033,13 @@ def register_user(email, password):
             cur.close()
         conn.close()
 
+_failed_login_attempts = {}
+
 def login_user(email, password):
+    _now = time.time()
+    _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
+    if len(_attempts) >= 5:
+        return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
     conn = _get_db_connection()
     if not conn:
         return {"success": False, "error": "Database not available - cannot log in right now"}
@@ -2043,7 +2050,10 @@ def login_user(email, password):
         cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if not row or not _verify_password(password, row[1]):
+            _attempts.append(_now)
+            _failed_login_attempts[email] = _attempts
             return {"success": False, "error": "Invalid email or password"}
+        _failed_login_attempts.pop(email, None)
         user_id = row[0]
         token = secrets.token_urlsafe(32)
         now = datetime.now()
