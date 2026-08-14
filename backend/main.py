@@ -1834,6 +1834,8 @@ async def download(file: UploadFile = File(...)):
     if error:
         return Response(content=error.encode('utf-8'), media_type='text/plain', status_code=400)
     lang = detect_language(file.filename)
+    if lang == "unknown":
+        return Response(content=b"Unsupported file type. Supported extensions: .py, .java, .php/.php3/.php5/.phtml, .cbl/.cob/.cobol", media_type='text/plain', status_code=400)
     if lang == "java":
         result = migrate_java(source)
     elif lang == "php":
@@ -1854,7 +1856,7 @@ async def download(file: UploadFile = File(...)):
         _warn_lines.append("")
         migrated = chr(10).join(_warn_lines) + chr(10) + migrated
     filename = file.filename
-    ext_map = {'.py': '_migrated.py', '.java': '_migrated.java', '.php': '_migrated.php', '.cbl': '_migrated.py', '.cob': '_migrated.py'}
+    ext_map = {'.py': '_migrated.py', '.java': '_migrated.java', '.php': '_migrated.php', '.php3': '_migrated.php', '.php5': '_migrated.php', '.phtml': '_migrated.php', '.cbl': '_migrated.py', '.cob': '_migrated.py', '.cobol': '_migrated.py'}
     for ext, new_ext in ext_map.items():
         if filename.lower().endswith(ext):
             filename = filename[:-len(ext)] + new_ext
