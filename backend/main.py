@@ -4159,8 +4159,8 @@ def get_migration_dashboard():
     recent = sorted(history, key=lambda h: h.get("timestamp") or "", reverse=True)[:10]
     daily_counts = {}
     for h in history:
-        day = (h.get("timestamp", "") or "")[:10]
-        if day:
+        day = (h.get("timestamp") or "")[:10]
+        if len(day) == 10 and day[4] == "-" and day[7] == "-":
             daily_counts[day] = daily_counts.get(day, 0) + 1
     trend = sorted(daily_counts.items())[-14:]
     avg_per_day = round(total / max(1, len(daily_counts)), 1)
