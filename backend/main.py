@@ -4027,20 +4027,22 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type):
 def get_approval_history():
     conn = _get_db_connection()
     if conn:
+        cur = None
         try:
             cur = conn.cursor()
             cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp FROM approval_log ORDER BY id DESC")
             rows = cur.fetchall()
-            cur.close()
-            conn.close()
             return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4]} for r in rows]
-        except Exception:
-            pass
-    import json as _json
+        except Exception as e:
+            print("get_approval_history DB read failed: " + str(e))
+        finally:
+            if cur:
+                cur.close()
+            conn.close()
     try:
         with open("approval_log.json", "r") as f:
-            return _json.load(f)
-    except (FileNotFoundError, _json.JSONDecodeError):
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 
@@ -4082,11 +4084,16 @@ async def approval_history_endpoint(request: Request):
         return {"error": "Could not load approval history: " + str(e)}
 
 def calculate_code_quality(source, filename):
+    source = source[:300000]
+    _ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    _comment_prefixes = ("//", "#", "*", "/*") if _ext in ("java", "php", "cbl", "cob", "cobol") else ("#",)
     lines = [ln for ln in source.split(chr(10)) if ln.strip()]
     loc = len(lines)
     comp = calculate_complexity(source)
-    long_lines = len([ln for ln in lines if len(ln) > 100])
-    comment_lines = len([ln for ln in lines if ln.strip().startswith("#")])
+    def _is_comment(ln):
+        return ln.strip().startswith(_comment_prefixes)
+    long_lines = len([ln for ln in lines if len(ln) > 100 and not _is_comment(ln)])
+    comment_lines = len([ln for ln in lines if _is_comment(ln)])
     comment_ratio = round((comment_lines / loc) * 100, 1) if loc > 0 else 0
     readability = 100
     if long_lines > 0:
@@ -4097,6 +4104,7 @@ def calculate_code_quality(source, filename):
         readability -= min(15, (comp["complexity_score"] - 10) * 1.5)
     if comment_ratio < 5 and loc > 30:
         readability -= 10
+    readability = int(round(readability))
     if readability < 0:
         readability = 0
     if comp["complexity_level"] in ["High complexity", "Very high complexity"] and readability >= 85:
