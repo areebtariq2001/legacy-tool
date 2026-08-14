@@ -4060,11 +4060,19 @@ async def auth_login_endpoint(email: str = "", password: str = ""):
         return JSONResponse(status_code=401, content=result)
     return result
 
+class ApprovalRequest(BaseModel):
+    filename: str = "unknown"
+    decision: str = "Approved"
+    reviewer_notes: str = ""
+    action_type: str = "migration"
+
 @app.post("/save-approval")
-async def save_approval_endpoint(request: Request, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
+async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
     _user_email = _check_user_auth(request)
     if not _user_email:
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to approve or reject migrations"})
+    if req is not None:
+        filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
     try:
         result = save_approval_decision(filename, decision, reviewer_notes, action_type)
         result["approved_by"] = _user_email
