@@ -4054,16 +4054,20 @@ def get_approval_history():
         return []
 
 
+class AuthRequest(BaseModel):
+    email: str = ""
+    password: str = ""
+
 @app.post("/auth/register")
-async def auth_register_endpoint(email: str = "", password: str = ""):
-    result = register_user(email, password)
+async def auth_register_endpoint(req: AuthRequest):
+    result = register_user(req.email, req.password)
     if not result.get("success"):
         return JSONResponse(status_code=400, content=result)
     return result
 
 @app.post("/auth/login")
-async def auth_login_endpoint(email: str = "", password: str = ""):
-    result = login_user(email, password)
+async def auth_login_endpoint(req: AuthRequest):
+    result = login_user(req.email, req.password)
     if not result.get("success"):
         return JSONResponse(status_code=401, content=result)
     return result
