@@ -1860,10 +1860,11 @@ async def download(file: UploadFile = File(...)):
             filename = filename[:-len(ext)] + new_ext
             break
     write_audit_log("download", file.filename, "language=" + lang)
+    _safe_filename = re.sub(r'[\r\n"\\;]', '_', filename)
     return Response(
         content=migrated.encode('utf-8'),
         media_type='application/octet-stream',
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{_safe_filename}"'}
     )
 
 @app.post("/analyze-php")
