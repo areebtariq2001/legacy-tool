@@ -4138,9 +4138,10 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
         result = calculate_code_quality(source, file.filename)
         result["filename"] = file.filename
         track_usage("code-quality", file.filename)
+        write_audit_log("code-quality", file.filename, f"score={result.get('quality_score', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Code quality check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code quality check failed safely: {e}"})
 
 def get_migration_dashboard():
     history = get_approval_history()
@@ -4177,6 +4178,8 @@ async def migration_dashboard_endpoint(request: Request):
         return JSONResponse(status_code=400, content={"error": f"Dashboard load failed safely: {e}"})
 
 def generate_migration_roadmap(repo_result):
+    if not isinstance(repo_result, dict):
+        return {"error": "Invalid repository scan result provided"}
     if repo_result.get("error"):
         return {"error": repo_result["error"]}
     reports = repo_result.get("file_reports", [])
@@ -4184,14 +4187,14 @@ def generate_migration_roadmap(repo_result):
     sorted_files = sorted(reports, key=lambda r: risk_order.get(r.get("risk_level", "Unknown"), 1))
     phases = {"Phase 1 - Quick Wins (Low Risk)": [], "Phase 2 - Standard Migration (Medium Risk)": [], "Phase 3 - Careful Review Needed (High Risk)": []}
     for f in sorted_files:
-        lvl = f.get("risk_level", "Unknown").lower()
+        lvl = (f.get("risk_level") or "Unknown").lower()
         if "high" in lvl:
             phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
-        elif "low" in lvl or "no known" in lvl:
+        elif lvl in ("low", "unknown", "no known issues", "none detected") or "low" in lvl:
             phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])
         else:
             phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
-    return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": "Migration roadmap generated for " + str(len(reports)) + " files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
+    return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": f"Migration roadmap generated for {len(reports)} files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
 
 @app.post("/migration-roadmap")
 async def migration_roadmap_endpoint(req: RepoRequest):
