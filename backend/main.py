@@ -4107,11 +4107,11 @@ def calculate_code_quality(source, filename):
     if long_lines > 0:
         readability -= min(30, long_lines * 3)
     if comp["complexity_score"] > 20:
-        readability -= min(30, (comp["complexity_score"] - 20) * 3 + 15)
+        readability -= min(30, (comp["complexity_score"] - 20) * 3 + 15)  # heavy penalty above 20: flat -15 plus -3 per point over, capped at -30
     elif comp["complexity_score"] > 10:
-        readability -= min(15, (comp["complexity_score"] - 10) * 1.5)
+        readability -= min(15, (comp["complexity_score"] - 10) * 1.5)  # moderate penalty 10-20: -1.5 per point over 10, capped at -15
     if comment_ratio < 5 and loc > 30:
-        readability -= 10
+        readability -= 10  # flat penalty for files over 30 lines with under 5 percent comments
     readability = int(round(readability))
     if readability < 0:
         readability = 0
