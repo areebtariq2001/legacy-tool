@@ -17,6 +17,11 @@ try:
 except Exception:
     JAVALANG_AVAILABLE = False
 
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None
+
 _rate_limit_store = {}
 import time as _rl_time
 
@@ -3845,10 +3850,9 @@ def get_living_documentation_history(filename):
     return []
 
 def generate_living_documentation(source, filename):
-    import hashlib as _hl
     doc = generate_documentation(source, filename)
     doc_text = doc.get("ai_documentation", "")
-    doc_hash = _hl.md5(doc_text.encode("utf-8", errors="ignore")).hexdigest()
+    doc_hash = hashlib.sha256(doc_text.encode("utf-8", errors="ignore")).hexdigest()
     save_result = save_living_documentation(filename, doc_text, doc_hash)
     history = get_living_documentation_history(filename)
     doc["living_doc_version"] = save_result.get("version", 1)
@@ -3858,19 +3862,19 @@ def generate_living_documentation(source, filename):
     if not save_result.get("saved"):
         doc["living_doc_summary"] = "Documentation generated, but versioned storage is not available right now (database unreachable) - this version was not saved."
     else:
-        doc["living_doc_summary"] = "Documentation version " + str(save_result.get("version", 1)) + " of " + str(len(history)) + " total - " + ("new version saved" if save_result.get("is_new_version") else "unchanged since last save")
+        _status = "new version saved" if save_result.get("is_new_version") else "unchanged since last save"
+        doc["living_doc_summary"] = f"Documentation version {save_result.get('version', 1)} of {len(history)} total - {_status}"
     doc["living_doc_disclaimer"] = "Documentation is versioned and stored persistently. A new version is only saved when the generated content actually changes, avoiding duplicate entries on repeated runs."
     return doc
 
 def _get_db_connection():
     global _LAST_DB_ERROR
-    import psycopg2 as _pg
     db_url = os.environ.get("DATABASE_URL", "")
     if not db_url:
         _LAST_DB_ERROR = "DATABASE_URL not set"
         return None
     try:
-        return _pg.connect(db_url)
+        return psycopg2.connect(db_url)
     except Exception as e:
         _LAST_DB_ERROR = str(e)
         return None
@@ -3880,37 +3884,46 @@ async def db_debug_endpoint(request: Request):
     if not _check_admin_auth(request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized - valid x-admin-key header required"})
     conn = _get_db_connection()
-    return {"connected": conn is not None, "last_error": _LAST_DB_ERROR}
+    _is_connected = conn is not None
+    if conn:
+        conn.close()
+    return {"connected": _is_connected, "last_error": _LAST_DB_ERROR}
 
 def save_approval_decision(filename, decision, reviewer_notes, action_type):
-    import json as _json
-    import datetime as _dt
-    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": _dt.datetime.now().isoformat()}
+    _allowed_decisions = {"approved", "rejected", "modified", "Approved", "Rejected", "Modified"}
+    if decision not in _allowed_decisions:
+        return {"log_saved": False, "error": "Invalid decision: " + str(decision), "filename": filename}
+    if reviewer_notes and len(reviewer_notes) > 5000:
+        reviewer_notes = reviewer_notes[:5000] + " [... truncated ...]"
+    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat()}
     conn = _get_db_connection()
     if conn:
+        cur = None
         try:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
             cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp) VALUES (%s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"]))
             conn.commit()
-            cur.close()
-            conn.close()
             entry["log_saved"] = True
             return entry
         except Exception as e:
             entry["log_saved"] = False
-            entry["log_error"] = "DB error: " + str(e)
+            entry["log_error"] = f"DB error: {e}"
             return entry
+        finally:
+            if cur:
+                cur.close()
+            conn.close()
     log_file = "approval_log.json"
     try:
         try:
             with open(log_file, "r") as f:
-                logs = _json.load(f)
-        except (FileNotFoundError, _json.JSONDecodeError):
+                logs = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
             logs = []
         logs.append(entry)
         with open(log_file, "w") as f:
-            _json.dump(logs, f, indent=2)
+            json.dump(logs, f, indent=2)
         entry["log_saved"] = True
     except Exception as e:
         entry["log_saved"] = False
