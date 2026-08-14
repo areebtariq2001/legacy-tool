@@ -2156,6 +2156,8 @@ def scan_sensitive_data(source):
         for i, ln in enumerate(source_lines):
             if ln.strip().startswith(("#", "//")):
                 continue
+            if len(ln) > 2000:
+                continue
             _m = pattern.findall(ln)
             if _m:
                 count += 1
@@ -2235,6 +2237,8 @@ def detect_banking_patterns(source):
         line_nums = []
         for i, ln in enumerate(source_lines):
             if ln.strip().startswith(("#", "//")):
+                continue
+            if len(ln) > 2000:
                 continue
             _m = pattern.findall(ln)
             if _m:
@@ -2419,6 +2423,8 @@ def scan_crypto(source):
         for i, ln in enumerate(source_lines):
             if ln.strip().startswith(("#", "//")):
                 continue
+            if len(ln) > 2000:
+                continue
             _m = pattern.findall(ln)
             if _m:
                 count += 1
@@ -2512,6 +2518,8 @@ def extract_aml_kyc(source):
         line_nums = []
         for i, ln in enumerate(source_lines):
             if ln.strip().startswith(("#", "//")):
+                continue
+            if len(ln) > 2000:
                 continue
             _m = pattern.findall(ln)
             if _m:
