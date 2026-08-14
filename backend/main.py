@@ -9,7 +9,8 @@ import requests
 import json
 import hmac
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
+import secrets
 
 try:
     import javalang
@@ -1987,6 +1988,99 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
     track_usage("generate-tests", file.filename)
     write_audit_log("generate-tests", file.filename, "ok")
     return result
+
+def _hash_password(password, salt=None):
+    if salt is None:
+        salt = secrets.token_hex(16)
+    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200000).hex()
+    return salt + "$" + pwd_hash
+
+def _verify_password(password, stored_hash):
+    try:
+        salt, _ = stored_hash.split("$", 1)
+    except Exception:
+        return False
+    return hmac.compare_digest(_hash_password(password, salt), stored_hash)
+
+def _create_users_table_if_needed(cur):
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, email TEXT, created_at TEXT, expires_at TEXT)")
+
+def register_user(email, password):
+    if not email or "@" not in email:
+        return {"success": False, "error": "Invalid email address"}
+    if not password or len(password) < 8:
+        return {"success": False, "error": "Password must be at least 8 characters"}
+    conn = _get_db_connection()
+    if not conn:
+        return {"success": False, "error": "Database not available - cannot register right now"}
+    cur = None
+    try:
+        cur = conn.cursor()
+        _create_users_table_if_needed(cur)
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+        if cur.fetchone():
+            return {"success": False, "error": "An account with this email already exists"}
+        pwd_hash = _hash_password(password)
+        cur.execute("INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s)", (email, pwd_hash, datetime.now().isoformat()))
+        conn.commit()
+        return {"success": True, "message": "Account created - you can now log in"}
+    except Exception as e:
+        return {"success": False, "error": f"Registration failed: {e}"}
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
+
+def login_user(email, password):
+    conn = _get_db_connection()
+    if not conn:
+        return {"success": False, "error": "Database not available - cannot log in right now"}
+    cur = None
+    try:
+        cur = conn.cursor()
+        _create_users_table_if_needed(cur)
+        cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
+        row = cur.fetchone()
+        if not row or not _verify_password(password, row[1]):
+            return {"success": False, "error": "Invalid email or password"}
+        user_id = row[0]
+        token = secrets.token_urlsafe(32)
+        now = datetime.now()
+        expires = now + timedelta(days=7)
+        cur.execute("INSERT INTO sessions (token, user_id, email, created_at, expires_at) VALUES (%s, %s, %s, %s, %s)", (token, user_id, email, now.isoformat(), expires.isoformat()))
+        conn.commit()
+        return {"success": True, "token": token, "email": email}
+    except Exception as e:
+        return {"success": False, "error": f"Login failed: {e}"}
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
+
+def _check_user_auth(request: Request):
+    token = request.headers.get("x-session-token", "")
+    if not token:
+        return None
+    conn = _get_db_connection()
+    if not conn:
+        return None
+    cur = None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT email, expires_at FROM sessions WHERE token = %s", (token,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        if datetime.fromisoformat(row[1]) < datetime.now():
+            return None
+        return row[0]
+    except Exception:
+        return None
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
 
 def _check_admin_auth(request: Request):
     required_key = os.environ.get("ADMIN_API_KEY", "")
