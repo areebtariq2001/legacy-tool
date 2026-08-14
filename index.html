@@ -237,9 +237,25 @@ textarea.ask-ta:focus{border-color:var(--blue)}
     <div class="tb-right">
       <span class="badge b-green">72 Backend Capabilities</span>
       <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree where the code is AST-parsable; files with legacy syntax that can't be parsed fall back to pattern-based analysis (clearly labeled in results).">AST-Verified*</span>
+      <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" id="authBtn" onclick="openAuthModal()">Login</button>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
   </header>
+  <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:var(--bg2,#1a1a1a);border-radius:10px;padding:20px;width:320px;max-width:90vw">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:700" id="authModalTitle">Log In</div>
+        <button onclick="closeAuthModal()" style="background:none;border:none;color:var(--t3,#888);cursor:pointer;font-size:16px">×</button>
+      </div>
+      <input type="email" id="authEmail" placeholder="Email" style="width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid var(--b1,#333);background:var(--bg1,#111);color:inherit;font-size:12px;box-sizing:border-box">
+      <input type="password" id="authPassword" placeholder="Password (min 8 chars)" style="width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid var(--b1,#333);background:var(--bg1,#111);color:inherit;font-size:12px;box-sizing:border-box">
+      <div id="authError" style="color:var(--red,#ef4444);font-size:11px;margin-bottom:8px;display:none"></div>
+      <button class="btn btn-success" style="width:100%;font-size:12px;padding:8px;margin-bottom:8px" id="authSubmitBtn" onclick="submitAuth()">Log In</button>
+      <div style="text-align:center;font-size:11px;color:var(--t3,#888)">
+        <span id="authToggleText">Don't have an account?</span> <a href="#" onclick="toggleAuthMode();return false" style="color:var(--blue,#3b82f6)" id="authToggleLink">Register</a>
+      </div>
+    </div>
+  </div>
   <div class="content">
     <div class="page active" id="page-modernize">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -793,6 +809,74 @@ textarea.ask-ta:focus{border-color:var(--blue)}
 </div>
 <script>
 const BACKEND = 'https://legacy-migration-tool-1.onrender.com';
+let authToken = localStorage.getItem('sessionToken') || null;
+let authEmail = localStorage.getItem('sessionEmail') || null;
+let authMode = 'login';
+function updateAuthUI() {
+  const btn = document.getElementById('authBtn');
+  if (authToken && authEmail) {
+    btn.textContent = authEmail.split('@')[0] + ' (Logout)';
+    btn.onclick = doLogout;
+  } else {
+    btn.textContent = 'Login';
+    btn.onclick = openAuthModal;
+  }
+}
+function openAuthModal() {
+  document.getElementById('authModal').style.display = 'flex';
+  document.getElementById('authError').style.display = 'none';
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+}
+function closeAuthModal() { document.getElementById('authModal').style.display = 'none'; }
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  const isLogin = authMode === 'login';
+  document.getElementById('authModalTitle').textContent = isLogin ? 'Log In' : 'Register';
+  document.getElementById('authSubmitBtn').textContent = isLogin ? 'Log In' : 'Register';
+  document.getElementById('authToggleText').textContent = isLogin ? "Don't have an account?" : 'Already have an account?';
+  document.getElementById('authToggleLink').textContent = isLogin ? 'Register' : 'Log In';
+  document.getElementById('authError').style.display = 'none';
+}
+async function submitAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.style.display = 'none';
+  try {
+    const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
+    const r = await fetch(BACKEND + endpoint + '?' + new URLSearchParams({ email, password }), { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok || !data.success) {
+      errEl.textContent = data.error || 'Something went wrong';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (authMode === 'login') {
+      authToken = data.token;
+      authEmail = data.email;
+      localStorage.setItem('sessionToken', authToken);
+      localStorage.setItem('sessionEmail', authEmail);
+      updateAuthUI();
+      closeAuthModal();
+    } else {
+      toggleAuthMode();
+      errEl.style.color = 'var(--green,#10b981)';
+      errEl.textContent = 'Account created - log in now';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error - please try again';
+    errEl.style.display = 'block';
+  }
+}
+function doLogout() {
+  authToken = null;
+  authEmail = null;
+  localStorage.removeItem('sessionToken');
+  localStorage.removeItem('sessionEmail');
+  updateAuthUI();
+}
 function isCommentLine(trimmedLine) {
   return trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*/');
 }
@@ -836,6 +920,7 @@ function initCharts() {
   });
 }
 initCharts();
+updateAuthUI();
 async function checkBackendHealth() {
   document.getElementById('liveLabel').textContent = 'Checking backend...';
   document.getElementById('liveSub').textContent = 'May take up to a minute on first load';
@@ -2305,7 +2390,7 @@ async function doApprove() {
   logAuditEntry('APPROVED');
   const fname = files.length ? files[0].name : 'unknown';
   try {
-    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST' });
+    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
   } catch (e) { /* best-effort - local audit log above already recorded this */ }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
@@ -2313,7 +2398,7 @@ async function doReject() {
   logAuditEntry('REJECTED');
   const fname = files.length ? files[0].name : 'unknown';
   try {
-    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST' });
+    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
   } catch (e) { /* best-effort */ }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
