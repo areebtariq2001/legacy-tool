@@ -4044,6 +4044,20 @@ def get_approval_history():
         return []
 
 
+@app.post("/auth/register")
+async def auth_register_endpoint(email: str = "", password: str = ""):
+    result = register_user(email, password)
+    if not result.get("success"):
+        return JSONResponse(status_code=400, content=result)
+    return result
+
+@app.post("/auth/login")
+async def auth_login_endpoint(email: str = "", password: str = ""):
+    result = login_user(email, password)
+    if not result.get("success"):
+        return JSONResponse(status_code=401, content=result)
+    return result
+
 @app.post("/save-approval")
 async def save_approval_endpoint(filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
     try:
