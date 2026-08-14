@@ -754,6 +754,8 @@ def migrate_code(source):
         if re.search(r"(?m)^\s*import\s+" + re.escape(_mod) + r"\b", migrated) or re.search(r"(?m)^\s*from\s+" + re.escape(_mod) + r"\b", migrated):
             _validity["broken_py3_imports"].append({"module": _mod, "suggested_replacement": _replacement})
     _validity["migration_ready"] = _validity["syntax_valid"] and len(_validity["broken_py3_imports"]) == 0
+    if not _validity["syntax_valid"] and changes:
+        changes = ["NOTE: The changes below were attempted, but the resulting code has a syntax error - it may not have applied correctly. Review the migrated code directly."] + changes
     return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source), "migration_validity": _validity}
 
 # ---------- VALIDATOR (PYTHON) ----------
