@@ -845,7 +845,7 @@ async function submitAuth() {
   errEl.style.display = 'none';
   try {
     const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
-    const r = await fetch(BACKEND + endpoint + '?' + new URLSearchParams({ email, password }), { method: 'POST' });
+    const r = await fetch(BACKEND + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     const data = await r.json();
     if (!r.ok || !data.success) {
       errEl.textContent = data.error || 'Something went wrong';
