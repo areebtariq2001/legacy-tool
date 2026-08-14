@@ -2408,21 +2408,40 @@ async function doApprove() {
     const proceed = confirm('⚠ Migration Validation Failed:\n\n' + issues.join('\n') + '\n\nThis migrated code will NOT run as-is. Approve anyway? (Not recommended - resolve the issues first)');
     if (!proceed) return;
   }
-  sessionApproved++;
-  document.getElementById('dash-approved').textContent = sessionApproved;
-  logAuditEntry('APPROVED');
   const fname = files.length ? files[0].name : 'unknown';
+  const box = document.getElementById('approvalBox');
   try {
-    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
-  } catch (e) { /* best-effort - local audit log above already recorded this */ }
-  document.getElementById('approvalBox').innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+    const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    if (!_r.ok) {
+      let _errMsg = 'Server rejected the request (' + _r.status + ')';
+      try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
+      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Approval was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      return;
+    }
+    sessionApproved++;
+    document.getElementById('dash-approved').textContent = sessionApproved;
+    logAuditEntry('APPROVED');
+    box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Approval was NOT saved: network error - ' + e.message + '</div>';
+  }
 }
 async function doReject() {
-  logAuditEntry('REJECTED');
   const fname = files.length ? files[0].name : 'unknown';
+  const box = document.getElementById('approvalBox');
   try {
-    await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
-  } catch (e) { /* best-effort */ }
+    const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    if (!_r.ok) {
+      let _errMsg = 'Server rejected the request (' + _r.status + ')';
+      try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
+      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Rejection was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      return;
+    }
+    logAuditEntry('REJECTED');
+    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Rejection was NOT saved: network error - ' + e.message + '</div>';
+  }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
