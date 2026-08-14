@@ -14,7 +14,7 @@ from datetime import datetime
 try:
     import javalang
     JAVALANG_AVAILABLE = True
-except:
+except Exception:
     JAVALANG_AVAILABLE = False
 
 _rate_limit_store = {}
@@ -478,7 +478,7 @@ def assess_dependency_risk(source, filename="file.py"):
                 elif isinstance(node, ast.ImportFrom):
                     if node.module:
                         imported.add(node.module.split(".")[0])
-        except:
+        except Exception:
             imported = set()
     elif fname_lower.endswith(".java"):
         active_rules = JAVA_RISK_RULES
@@ -1015,7 +1015,7 @@ def ai_qa_compare(original, migrated):
 def analyze_call_graph(source):
     try:
         tree = ast.parse(source)
-    except:
+    except Exception:
         return {"call_graph_error": "This feature only supports Python files. If this is a Python file, it may have Python 2 syntax - try migrating it to Python 3 first."}
     defined_functions = []
     for node in ast.walk(tree):
