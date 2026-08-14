@@ -2291,7 +2291,8 @@ function downloadAuditLog() {
   URL.revokeObjectURL(url);
 }
 async function doApprove() {
-  const validity = (R.migrate && R.migrate.migration_validity) || null;
+  const _snap = window.lastFileSnapshot || {};
+  const validity = (_snap.R && _snap.R.migrate && _snap.R.migrate.migration_validity) || null;
   if (validity && validity.migration_ready === false) {
     const issues = [];
     if (!validity.syntax_valid) issues.push('Syntax error: ' + validity.syntax_error);
