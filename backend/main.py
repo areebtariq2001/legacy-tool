@@ -3122,7 +3122,10 @@ def scan_sql_injection(source, filename):
         issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
     fstring_pattern = _sq.compile(r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{")
     def _extract_tainted_var(line):
-        m = _sq.search(r"[+%]\s*([a-zA-Z_][\w\.\[\]\'\"]*)", line)
+        m = _sq.search(r"['\"]\s*[%+]\s*([a-zA-Z_][\w\.\[\]]*)", line)
+        if m:
+            return m.group(1).strip()
+        m = _sq.search(r"[%+]\s*([a-zA-Z_][\w\.\[\]]*)", line)
         if m:
             return m.group(1).strip()
         m2 = _sq.search(r"\{\s*([a-zA-Z_][\w\.\[\]]*)\s*\}", line)
