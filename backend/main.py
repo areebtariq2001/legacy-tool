@@ -4219,9 +4219,12 @@ def generate_migration_roadmap(repo_result):
     return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": f"Migration roadmap generated for {len(reports)} files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
 
 @app.post("/migration-roadmap")
-async def migration_roadmap_endpoint(req: RepoRequest):
+async def migration_roadmap_endpoint(req: RepoRequest, request: Request):
+    _user_email = _check_user_auth(request)
+    if not _user_email:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to generate a migration roadmap"})
     try:
-        repo_result = await scan_repo_endpoint(req)
+        repo_result = await scan_repo_endpoint(req, request)
         result = generate_migration_roadmap(repo_result)
         return result
     except Exception as e:
