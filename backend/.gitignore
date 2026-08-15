@@ -6,3 +6,4 @@ test_*.py
 add_*.py
 view_*.py
 debug_*.py
+!test_starsage.py
