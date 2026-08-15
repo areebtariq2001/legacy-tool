@@ -1252,11 +1252,11 @@ function renderResults(R, original, fname, totalMs) {
     <div class="issue">
       <div class="issue-bar ${i.sev}"></div>
       <div class="issue-body">
-        <div class="issue-title">${i.title}</div>
-        <div class="issue-desc">${i.desc}</div>
+        <div class="issue-title">${escapeHtml(i.title)}</div>
+        <div class="issue-desc">${escapeHtml(i.desc)}</div>
         <div class="issue-meta">
           <span class="issue-tag ${i.tagClass}">${i.tag}</span>
-          ${i.file ? `<span class="issue-file">${i.file}</span>` : ''}
+          ${i.file ? `<span class="issue-file">${escapeHtml(i.file)}</span>` : ''}
         </div>
       </div>
     </div>
@@ -1425,7 +1425,7 @@ function detectInsurance(code) {
         <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
         <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,0.1);color:#a78bfa">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1468,7 +1468,7 @@ function detectPaymentSystems(code) {
         <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
         <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,0.1);color:#f59e0b">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1528,7 +1528,7 @@ function detectCompliance(code) {
         <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
         <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#f87171">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + m.fn + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1604,7 +1604,7 @@ function detectBankingModules(code) {
         <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${g.labels.join(' + ')}</span>
         <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${g.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${g.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + g.fn + '()</span> · ' : ''}Line ${g.line}${g.labels.length > 1 ? ' <span style="color:#f59e0b">(this function matches ' + g.labels.length + ' categories)</span>' : ''}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${g.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(g.fn) + '()</span> · ' : ''}Line ${g.line}${g.labels.length > 1 ? ' <span style="color:#f59e0b">(this function matches ' + g.labels.length + ' categories)</span>' : ''}</div>
     </div>
   `).join('');
 }
@@ -1698,8 +1698,8 @@ function detectBusinessRules(code) {
         <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
         <span title="Matched because the source contains the keyword: &quot;${r.matchedKeyword || ''}&quot;" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa;cursor:help">${r.conf}% match ⓘ</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + r.fn + '()</span> · ' : ''}Line ${r.line}</div>
-      <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${r.snippet}${r.snippet.length >= 60 ? '…' : ''}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(r.fn) + '()</span> · ' : ''}Line ${r.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${escapeHtml(r.snippet)}${r.snippet.length >= 60 ? '…' : ''}</div>
       <div style="font-size:9px;color:#a78bfa;margin-top:4px">→ Suggested Service: <span style="font-weight:600">${r.service}</span></div>
     </div>
   `).join('');
@@ -1715,7 +1715,7 @@ function renderTransactionFlow(rules) {
   list.innerHTML = sorted.map((r, i) => `
     <div style="padding:6px 10px;background:#0f1525;border-left:3px solid #06b6d4;border-radius:4px;margin-bottom:4px">
       <span style="font-size:11px;color:#f1f5f9;font-weight:600">${r.label}</span>
-      <span style="font-size:9px;color:#64748b;margin-left:6px">Line ${r.line}${r.fn ? ' · ' + r.fn + '()' : ''}</span>
+      <span style="font-size:9px;color:#64748b;margin-left:6px">Line ${r.line}${r.fn ? ' · ' + escapeHtml(r.fn) + '()' : ''}</span>
     </div>
     ${i < sorted.length - 1 ? '<div style="text-align:center;color:#334155;font-size:10px">↓</div>' : ''}
   `).join('');
@@ -2609,7 +2609,7 @@ function showArchServiceDetail(idx) {
   if (info.matched.length) {
     html += '<div style="font-size:10px;color:#64748b;margin-top:6px">Source Business Rule(s):</div>';
     info.matched.forEach(r => {
-      html += '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">✓ ' + (r.label || 'Rule') + (r.fn ? ' — <span style="font-family:monospace;color:#8b5cf6">' + r.fn + '()</span>' : '') + (r.conf ? ' <span style="color:#64748b">(' + r.conf + '% match)</span>' : '') + '</div>';
+      html += '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">✓ ' + escapeHtml(r.label || 'Rule') + (r.fn ? ' — <span style="font-family:monospace;color:#8b5cf6">' + escapeHtml(r.fn) + '()</span>' : '') + (r.conf ? ' <span style="color:#64748b">(' + r.conf + '% match)</span>' : '') + '</div>';
     });
   } else {
     html += '<div style="font-size:10px;color:#64748b;margin-top:6px">Detected via banking-module pattern matching (no specific business-rule line match).</div>';
