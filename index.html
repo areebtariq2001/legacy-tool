@@ -2705,6 +2705,23 @@ async function runGenericScan(endpoint, label, btnEl) {
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
   }
 }
+function renderValue(v) {
+  if (Array.isArray(v)) {
+    return v.length
+      ? '<div style="display:flex;flex-direction:column;gap:3px">' +
+        v.map(x => '<div style="font-size:11px;color:#e2e8f0">• ' +
+          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) => escapeHtml(a + ': ' + b)).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
+      : '<span style="color:#94a3b8">None</span>';
+  }
+  if (v && typeof v === 'object') {
+    return Object.entries(v).map(([a, b]) => {
+      const num = typeof b === 'number';
+      const color = num ? (b >= 70 ? '#22c55e' : b >= 40 ? '#f59e0b' : '#ef4444') : '#e2e8f0';
+      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(String(b)) + '</span></div>';
+    }).join('');
+  }
+  return '<span style="color:#e2e8f0">' + escapeHtml(String(v)) + '</span>';
+}
 function formatGenericResult(d, label) {
   if (typeof d === 'string') return '<div style="font-size:11px">' + d + '</div>';
   if (typeof d !== 'object' || d === null) return '<div style="font-size:11px">' + JSON.stringify(d) + '</div>';
@@ -2726,8 +2743,7 @@ function formatGenericResult(d, label) {
     let html = codeBlock + '<div style="display:flex;flex-direction:column;gap:6px">';
     relevantKeys.forEach(k => {
       const v = d[k];
-      const vStr = Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : (typeof v === 'object' ? JSON.stringify(v) : String(v));
-      html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> <span style="color:#e2e8f0">' + vStr + '</span></div>';
+      html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> ' + renderValue(v) + '</div>';
     });
     html += '</div>';
     return html;
@@ -2783,8 +2799,7 @@ function formatGenericResult(d, label) {
     html += '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
     _remainingKeys.forEach(k => {
       const v = d[k];
-      const vStr = (typeof v === 'object' && v !== null) ? Object.entries(v).map(([a, b]) => a + ': ' + b).join(' · ') : (Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : String(v));
-      html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> <span style="color:#e2e8f0">' + escapeHtml(vStr) + '</span></div>';
+      html += '<div style="margin-top:6px"><div style="font-size:10px;color:#64748b;font-weight:600">' + escapeHtml(k.replace(/_/g, ' ')) + '</div>' + renderValue(v) + '</div>';
     });
     html += '</div>';
   }
