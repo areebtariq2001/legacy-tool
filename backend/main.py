@@ -4342,16 +4342,16 @@ async def refactor_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return {"filename": file.filename, "error": "Refactoring suggestion failed safely: " + str(e)}
 
+_PLATFORM_CHECKS_COMPILED = [(re.compile(p), n, note, sev) for p, n, note, sev in [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file execution", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High"), (r"Runtime\.getRuntime\(\)\.exec\s*\(", "Runtime.exec() call", "OS-level shell command execution - may not work identically across cloud/container OS variants", "Medium"), (r"winsound", "Windows-only library", "Windows-specific audio library - has no cloud/Linux equivalent", "High"), (r"ProcessBuilder\s*\(\s*[\x22\x27](cmd|powershell)", "Windows shell invocation (ProcessBuilder)", "cmd/powershell call - unavailable on Linux-based platforms", "High")]]
 def check_platform_compatibility(source, filename):
-    import re as _pc
     findings = []
-    checks = [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file execution", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High"), (r"Runtime\.getRuntime\(\)\.exec\s*\(", "Runtime.exec() call", "OS-level shell command execution - may not work identically across cloud/container OS variants", "Medium"), (r"[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file reference", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"ProcessBuilder\s*\(\s*[\x22\x27](cmd|powershell)", "Windows shell invocation (ProcessBuilder)", "cmd/powershell call - unavailable on Linux-based platforms", "High")]
-    for pat, name, note, sev in checks:
-        for i, line in enumerate(source.split(chr(10))):
-            if re.search(pat, line):
+    lines = source.split(chr(10))
+    for pat, name, note, sev in _PLATFORM_CHECKS_COMPILED:
+        for i, line in enumerate(lines):
+            if pat.search(line):
                 findings.append({"issue": name, "line": i+1, "note": note, "severity": sev})
     high_count = len([f for f in findings if f["severity"] == "High"])
-    return {"platform_issues": findings, "total_issues": len(findings), "platform_summary": (str(len(findings)) + " platform-compatibility issue(s) found, " + str(high_count) + " high-severity") if findings else "No obvious platform-compatibility issues detected - code appears portable", "platform_disclaimer": "Detects common OS-specific patterns (Windows paths, shell calls, Windows-only libraries). Pattern-based - a full compatibility audit should also test on the target platform."}
+    return {"platform_issues": findings, "total_issues": len(findings), "platform_summary": f"{len(findings)} platform-compatibility issue(s) found, {high_count} high-severity" if findings else "No obvious platform-compatibility issues detected - code appears portable", "platform_disclaimer": "Detects common OS-specific patterns (Windows paths, shell calls, Windows-only libraries). Pattern-based - a full compatibility audit should also test on the target platform."}
 
 @app.post("/platform-compatibility")
 async def platform_compat_endpoint(file: UploadFile = File(...)):
@@ -4363,9 +4363,10 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
         result = check_platform_compatibility(source, file.filename)
         result["filename"] = file.filename
         track_usage("platform-compatibility", file.filename)
+        write_audit_log("platform-compatibility", file.filename, f"issues={result.get('total_issues', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Platform compatibility check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Platform compatibility check failed safely: {e}"})
 
 def calculate_dependency_portability(source, filename):
     if not filename.lower().endswith(".py"):
