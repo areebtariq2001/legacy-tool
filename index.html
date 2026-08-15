@@ -1790,7 +1790,8 @@ function detectCallGraph(code) {
       }
     });
   });
-  const uniqueEdges = [...new Map(edges.map(e => [e.from + '->' + e.to, e])).values()].slice(0, 15);
+  const allUniqueEdges = [...new Map(edges.map(e => [e.from + '->' + e.to, e])).values()];
+  const uniqueEdges = allUniqueEdges.slice(0, 15);
   const card = document.getElementById('callGraphCard');
   const list = document.getElementById('callGraphList');
   if (uniqueEdges.length === 0) { card.style.display = 'none'; return; }
@@ -1799,7 +1800,7 @@ function detectCallGraph(code) {
     <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-family:monospace;padding:5px 8px;background:#0f1525;border-radius:5px">
       <span style="color:#60a5fa">${e.from}()</span><span style="color:#64748b">→</span><span style="color:#a78bfa">${e.to}()</span>
     </div>
-  `).join('');
+  `).join('') + (allUniqueEdges.length > 15 ? '<div style="font-size:10px;color:#64748b;padding:4px">+' + (allUniqueEdges.length - 15) + ' more edges not shown</div>' : '');
 }
 function detectBankingDomains(code) {
   const lower = code.toLowerCase();
@@ -1976,13 +1977,18 @@ function renderBusinessRuleSpec(code, lang) {
     const varPattern = isCobol ? /\bWS-[\w-]+\b/g : /\b[a-z_][a-zA-Z0-9_]{2,}\b/g;
     const jsKeywords = new Set(['def','function','return','if','else','elif','for','while','import','from','class','public','private','protected','static','void','int','string','const','let','var','true','false','none','null','self','this']);
     let varsFound = Array.from(new Set((paraBody.match(varPattern) || [])));
-    if (!isCobol) varsFound = varsFound.filter(v => !jsKeywords.has(v.toLowerCase())).slice(0, 12);
+    let _varsTruncatedCount = 0;
+    if (!isCobol) {
+      const _filtered = varsFound.filter(v => !jsKeywords.has(v.toLowerCase()));
+      _varsTruncatedCount = Math.max(0, _filtered.length - 12);
+      varsFound = _filtered.slice(0, 12);
+    }
     html += '<div style="margin-bottom:16px;padding:10px;background:#0f1525;border-left:3px solid #8b5cf6;border-radius:4px">';
     html += '<div style="color:#a78bfa;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
     html += '<div style="color:#94a3b8;margin-top:4px">' + (isCobol ? 'Paragraph' : 'Function') + ': <span style="color:#e2e8f0">' + escapeHtml(r.fn || (isCobol ? 'WORKING-STORAGE (declaration)' : '(module level)')) + '</span></div>';
     html += '<div style="color:#94a3b8">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
     html += '<div style="color:#94a3b8">Logic (matched line): <span style="color:#e2e8f0;font-family:monospace">' + escapeHtml(r.snippet || '') + '</span></div>';
-    html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) : '(none found nearby)') + '</span></div>';
+    html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) + (_varsTruncatedCount > 0 ? ' <span style="color:#64748b">(+' + _varsTruncatedCount + ' more)</span>' : '') : '(none found nearby)') + '</span></div>';
     html += '<div style="color:#94a3b8">Suggested Service: <span style="color:#60a5fa">' + escapeHtml(r.service || '(none)') + '</span></div>';
     html += '<div style="color:#64748b;font-size:9px;margin-top:2px">Match confidence: ' + (r.conf || '?') + '%</div>';
     html += '</div>';
@@ -2771,7 +2777,7 @@ function formatGenericResult(d, label) {
       if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + f + '</div>';
       if (typeof f === 'object' && f !== null) {
         const fKeys = Object.keys(f);
-        const title = f.issue || f.title || f.name || fKeys[0] ? (f[fKeys[0]]) : 'Finding';
+        const title = f.issue || f.title || f.name || 'Finding';
         const rest = fKeys.filter(k => f[k] !== title);
         return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#0f1525;border-radius:5px;border-left:2px solid #f59e0b">' +
           '<div style="font-weight:600;margin-bottom:3px">⚠ ' + title + '</div>' +
