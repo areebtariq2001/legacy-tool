@@ -4281,18 +4281,19 @@ def detect_code_smells(source, filename):
                 level = indent // _indent_unit
                 if level >= 3:
                     smells.append({"type": "Deep Nesting", "location": f"Line {i+1}", "detail": f"Deeply nested block (level {level}) - consider extracting logic into separate functions.", "severity": "Medium"})
-    except Exception:
-        pass
+    except Exception as _e_nest:
+        smells.append({"type": "Analysis Incomplete", "location": "N/A", "detail": f"Deep-nesting check could not complete: {_e_nest}", "severity": "Low"})
+    _trivial_lines = {"}", "};", "pass", "return None", "return none", "break", "continue", "else:", "else {", "} else {", "end.", "end if.", "next", "}}", "});", "});", "return true;", "return false;", "return true", "return false"}
     line_counts = {}
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if len(stripped) > 15 and not stripped.startswith(("#", "//", "*")):
+        if len(stripped) > 15 and stripped.lower() not in _trivial_lines and not stripped.startswith(("#", "//", "*")):
             line_counts.setdefault(stripped, []).append(i+1)
     for text, occurrences in line_counts.items():
         if len(occurrences) >= 2:
-            smells.append({"type": "Duplicate Code", "location": "Lines " + ", ".join(str(o) for o in occurrences[:5]), "detail": "Same line repeated " + str(len(occurrences)) + " times - consider extracting into a shared function or constant.", "severity": "Low"})
+            smells.append({"type": "Duplicate Code", "location": f"Lines {', '.join(str(o) for o in occurrences[:5])}", "detail": f"Same line repeated {len(occurrences)} times - consider extracting into a shared function or constant.", "severity": "Low"})
     high_count = len([s for s in smells if s["severity"] == "High"])
-    return {"total_smells": len(smells), "code_smells": smells, "smell_summary": (str(len(smells)) + " code smell(s) detected") if smells else "No significant code smells detected", "smell_disclaimer": "Heuristic pattern-based detection of common code smells (long functions, deep nesting, duplicate lines). Not a substitute for a full code review."}
+    return {"total_smells": len(smells), "code_smells": smells, "high_severity_count": high_count, "smell_summary": f"{len(smells)} code smell(s) detected" if smells else "No significant code smells detected", "smell_disclaimer": "Heuristic pattern-based detection of common code smells (long functions, deep nesting, duplicate lines). Not a substitute for a full code review."}
 
 @app.post("/code-smells")
 async def code_smells_endpoint(file: UploadFile = File(...)):
@@ -4304,21 +4305,25 @@ async def code_smells_endpoint(file: UploadFile = File(...)):
         result = detect_code_smells(source, file.filename)
         result["filename"] = file.filename
         track_usage("code-smells", file.filename)
+        write_audit_log("code-smells", file.filename, f"smells={result.get('total_smells', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Code smell detection failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code smell detection failed safely: {e}"})
 
 def suggest_refactoring(source, filename, language):
     smells = detect_code_smells(source, filename)
     suggestions = []
+    _lang_hint = f" ({language})" if language else ""
     for sm in smells.get("code_smells", []):
         if sm["type"] == "Long Function":
-            suggestions.append({"issue": sm["location"], "suggestion": "Break this function into smaller, single-purpose functions. Look for logical sections (validation, processing, output) that can become their own functions.", "priority": "Medium"})
+            suggestions.append({"issue": sm["location"], "suggestion": f"Break this function into smaller, single-purpose functions{_lang_hint}. Look for logical sections (validation, processing, output) that can become their own functions.", "priority": "Medium"})
         elif sm["type"] == "Deep Nesting":
             suggestions.append({"issue": sm["location"], "suggestion": "Reduce nesting using early returns (guard clauses) - return early for invalid cases instead of nesting the valid-case logic deeper.", "priority": "Medium"})
         elif sm["type"] == "Duplicate Code":
             suggestions.append({"issue": sm["location"], "suggestion": "Extract this repeated code into a shared function or named constant to avoid duplication.", "priority": "Low"})
-    return {"total_suggestions": len(suggestions), "refactoring_suggestions": suggestions, "refactor_summary": (str(len(suggestions)) + " refactoring suggestion(s) based on detected code smells") if suggestions else "No specific refactoring suggestions - code structure looks reasonable", "refactor_disclaimer": "Suggestions are based on structural patterns (length, nesting, duplication) within the same language - no language conversion involved. Review each suggestion in context before applying."}
+        else:
+            suggestions.append({"issue": sm.get("location", "N/A"), "suggestion": f"Review: {sm.get('detail', sm.get('type', 'code smell detected'))}", "priority": "Low"})
+    return {"total_suggestions": len(suggestions), "refactoring_suggestions": suggestions, "refactor_summary": f"{len(suggestions)} refactoring suggestion(s) based on detected code smells" if suggestions else "No specific refactoring suggestions - code structure looks reasonable", "refactor_disclaimer": "Suggestions are based on structural patterns (length, nesting, duplication) within the same language - no language conversion involved. Review each suggestion in context before applying."}
 
 @app.post("/refactor-suggest")
 async def refactor_endpoint(file: UploadFile = File(...)):
