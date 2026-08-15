@@ -2769,6 +2769,25 @@ function formatGenericResult(d, label) {
   if (summaryKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:4px">Summary</div><div style="font-size:11.5px;color:#e2e8f0">' + d[summaryKey] + '</div>';
   }
+  if (d.dna_dimensions && typeof d.dna_dimensions === 'object') {
+    html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:8px">Dimension Breakdown</div><div style="margin-top:6px">';
+    Object.entries(d.dna_dimensions).forEach(([dim, score]) => {
+      const color = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+      html += '<div style="margin:6px 0"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#e2e8f0">' + escapeHtml(String(dim)) + '</span><span style="color:' + color + '">' + score + '</span></div><div style="height:6px;background:#1a2438;border-radius:3px;margin-top:2px"><div style="height:100%;width:' + Math.max(0, Math.min(100, score)) + '%;background:' + color + ';border-radius:3px"></div></div></div>';
+    });
+    html += '</div>';
+  }
+  const _shownKeys = new Set([detectedKey, findingsKey, summaryKey, riskKey, confKey, codeKey, 'filename', 'dna_dimensions'].filter(Boolean));
+  const _remainingKeys = keys.filter(k => !_shownKeys.has(k) && !k.endsWith('_disclaimer'));
+  if (_remainingKeys.length > 0) {
+    html += '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
+    _remainingKeys.forEach(k => {
+      const v = d[k];
+      const vStr = (typeof v === 'object' && v !== null) ? Object.entries(v).map(([a, b]) => a + ': ' + b).join(' · ') : (Array.isArray(v) ? (v.length ? v.join(', ') : 'None') : String(v));
+      html += '<div style="font-size:11px"><span style="color:#64748b">' + k.replace(/_/g, ' ') + ':</span> <span style="color:#e2e8f0">' + escapeHtml(vStr) + '</span></div>';
+    });
+    html += '</div>';
+  }
   if (codeKey) {
     const escCode2 = d[codeKey].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     html += '<div style="margin-top:6px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#07090f;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode2 + '</pre></div>';
