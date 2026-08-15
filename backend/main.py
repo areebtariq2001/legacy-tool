@@ -4225,7 +4225,7 @@ async def migration_roadmap_endpoint(req: RepoRequest):
         result = generate_migration_roadmap(repo_result)
         return result
     except Exception as e:
-        return {"error": "Roadmap generation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": f"Roadmap generation failed safely: {e}"})
 
 def compare_complexity(original_code, migrated_code):
     orig = calculate_complexity(original_code)
@@ -4237,15 +4237,14 @@ def compare_complexity(original_code, migrated_code):
     else:
         improvement_pct = 0
     if improvement_pct > 0:
-        verdict = "Improved by " + str(improvement_pct) + "% - migrated code is less complex"
+        verdict = f"Improved by {improvement_pct}% - migrated code is less complex"
     elif improvement_pct < 0:
-        verdict = "Complexity increased by " + str(abs(improvement_pct)) + "% - review recommended"
+        verdict = f"Complexity increased by {abs(improvement_pct)}% - review recommended"
     else:
         verdict = "No significant complexity change"
     return {"original_complexity_score": orig_score, "original_complexity_level": orig["complexity_level"], "migrated_complexity_score": mig_score, "migrated_complexity_level": mig["complexity_level"], "improvement_percent": improvement_pct, "complexity_verdict": verdict, "complexity_comparison_disclaimer": "Automated complexity comparison based on code structure (branching, nesting). A planning signal, not a full quality audit."}
 
 def detect_code_smells(source, filename):
-    import re as _sm
     lines = source.split(chr(10))
     smells = []
     if filename.lower().endswith(".py"):
@@ -4255,29 +4254,30 @@ def detect_code_smells(source, filename):
                 if isinstance(node, ast.FunctionDef):
                     func_lines = (node.end_lineno - node.lineno) if hasattr(node, "end_lineno") else 0
                     if func_lines > 50:
-                        smells.append({"type": "Long Function", "location": "Function " + node.name + " (line " + str(node.lineno) + ")", "detail": "Function is " + str(func_lines) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
+                        smells.append({"type": "Long Function", "location": f"Function {node.name} (line {node.lineno})", "detail": f"Function is {func_lines} lines long - consider splitting into smaller functions.", "severity": "Medium"})
         except Exception:
             _def_positions = [(m.start(), m.group(1)) for m in re.finditer(r"^def\s+(\w+)", source, re.MULTILINE)]
-            for idx, (pos, fname) in enumerate(_def_positions):
+            for idx, (pos, func_name) in enumerate(_def_positions):
                 start_line = source[:pos].count(chr(10)) + 1
                 end_pos = _def_positions[idx + 1][0] if idx + 1 < len(_def_positions) else len(source)
                 func_lines_est = source[pos:end_pos].count(chr(10))
                 if func_lines_est > 50:
-                    smells.append({"type": "Long Function", "location": "Function " + fname + " (line " + str(start_line) + ", approximate - could not fully parse)", "detail": "Function is approximately " + str(func_lines_est) + " lines long - consider splitting into smaller functions.", "severity": "Medium"})
+                    smells.append({"type": "Long Function", "location": f"Function {func_name} (line {start_line}, approximate - could not fully parse)", "detail": f"Function is approximately {func_lines_est} lines long - consider splitting into smaller functions.", "severity": "Medium"})
+    _is_cobol = filename.lower().endswith((".cbl", ".cob"))
+    _indent_unit = 6 if _is_cobol else 4
     try:
-        indent_stack = []
         for i, line in enumerate(lines):
             stripped = line.lstrip()
-            _seqm3 = _re.match(r"^(\d{6})\s+(.*)$", stripped) if filename.lower().endswith((".cbl", ".cob")) else None
+            _seqm3 = re.match(r"^(\d{6})\s+(.*)$", stripped) if _is_cobol else None
             if _seqm3:
                 stripped = _seqm3.group(2)
             if not stripped or stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
                 continue
             indent = len(line) - len(stripped)
             if stripped.lower().startswith(("if ", "for ", "while ", "elif ")):
-                level = indent // 4
+                level = indent // _indent_unit
                 if level >= 3:
-                    smells.append({"type": "Deep Nesting", "location": "Line " + str(i+1), "detail": "Deeply nested block (level " + str(level) + ") - consider extracting logic into separate functions.", "severity": "Medium"})
+                    smells.append({"type": "Deep Nesting", "location": f"Line {i+1}", "detail": f"Deeply nested block (level {level}) - consider extracting logic into separate functions.", "severity": "Medium"})
     except Exception:
         pass
     line_counts = {}
