@@ -4392,10 +4392,13 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Platform compatibility check failed safely: {e}"})
 
-def calculate_dependency_portability(source, filename):
+def calculate_dependency_portability(source, filename=""):
     if not filename.lower().endswith(".py"):
         return {"portability_score": None, "portability_level": "Not Analyzed", "dependency_issues": [], "portability_summary": "Dependency portability analysis currently only supports Python. This file was not analyzed - do not interpret this as fully portable.", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. Not yet available for this language."}
     deps_found = check_dependencies(source)
+    # NOTE: check_dependencies() covers Python 2->3 legacy-library renames via DEPENDENCY_RULES.
+    # Windows-only libraries below are checked separately (not in DEPENDENCY_RULES) because they
+    # are a different category of issue: platform incompatibility, not a legacy-vs-modern rename.
     if re.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
         deps_found.append("winreg/win32api (Windows-only library) -> use platform-neutral alternatives or conditional imports")
     if re.search(r"\bwinsound\b", source):
@@ -4406,9 +4409,9 @@ def calculate_dependency_portability(source, filename):
         deps_found.append("msvcrt (Windows C runtime) -> not available on Linux/cloud platforms")
     total_deps = len(deps_found)
     if total_deps == 0:
-        return {"portability_score": 100, "portability_level": "Fully portable", "dependency_issues": [], "portability_summary": "No deprecated or platform-specific dependencies detected - code appears portable", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
-    penalty = min(80, total_deps * 12)
-    score = max(20, 100 - penalty)
+        return {"portability_score": 100, "portability_level": "No known portability issues", "dependency_issues": [], "portability_summary": "No deprecated or platform-specific dependencies detected in this scan", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns only. Third-party package compatibility with the target platform is not checked - this is not a guarantee of full portability."}
+    penalty = min(95, total_deps * 12)
+    score = max(5, 100 - penalty)
     if score >= 80:
         level = "Highly portable"
     elif score >= 50:
