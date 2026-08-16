@@ -4396,11 +4396,14 @@ def calculate_dependency_portability(source, filename):
     if not filename.lower().endswith(".py"):
         return {"portability_score": None, "portability_level": "Not Analyzed", "dependency_issues": [], "portability_summary": "Dependency portability analysis currently only supports Python. This file was not analyzed - do not interpret this as fully portable.", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. Not yet available for this language."}
     deps_found = check_dependencies(source)
-    import re as _dp
-    if _dp.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
+    if re.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
         deps_found.append("winreg/win32api (Windows-only library) -> use platform-neutral alternatives or conditional imports")
-    if _dp.search(r"\bwinsound\b", source):
+    if re.search(r"\bwinsound\b", source):
         deps_found.append("winsound (Windows-only library) -> not available on Linux/cloud platforms")
+    if re.search(r"\bctypes\.windll\b", source):
+        deps_found.append("ctypes.windll (Windows DLL access) -> not available on Linux/cloud platforms")
+    if re.search(r"\bmsvcrt\b", source):
+        deps_found.append("msvcrt (Windows C runtime) -> not available on Linux/cloud platforms")
     total_deps = len(deps_found)
     if total_deps == 0:
         return {"portability_score": 100, "portability_level": "Fully portable", "dependency_issues": [], "portability_summary": "No deprecated or platform-specific dependencies detected - code appears portable", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
@@ -4412,7 +4415,7 @@ def calculate_dependency_portability(source, filename):
         level = "Moderately portable"
     else:
         level = "Limited portability"
-    return {"portability_score": score, "portability_level": level, "dependency_issues": deps_found, "portability_summary": str(total_deps) + " deprecated/platform-specific dependency issue(s) found", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
+    return {"portability_score": score, "portability_level": level, "dependency_issues": deps_found, "portability_summary": f"{total_deps} deprecated/platform-specific dependency issue(s) found", "portability_disclaimer": "Based on known Python 2-to-3 and legacy-library patterns. A full dependency audit should also check third-party package compatibility with the target platform."}
 
 @app.post("/dependency-portability")
 async def dependency_portability_endpoint(file: UploadFile = File(...)):
@@ -4424,9 +4427,10 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
         result = calculate_dependency_portability(source, file.filename)
         result["filename"] = file.filename
         track_usage("dependency-portability", file.filename)
+        write_audit_log("dependency-portability", file.filename, f"score={result.get('portability_score')}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Dependency portability check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Dependency portability check failed safely: {e}"})
 
 def suggest_config_migration(source, filename):
     import re as _cm
