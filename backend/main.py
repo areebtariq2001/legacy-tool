@@ -4242,8 +4242,10 @@ def generate_migration_roadmap(repo_result):
         lvl = (f.get("risk_level") or "Unknown").lower()
         if "high" in lvl:
             phases["Phase 3 - Careful Review Needed (High Risk)"].append(f["file"])
-        elif lvl in ("low", "unknown", "no known issues", "none detected") or "low" in lvl:
+        elif lvl in ("low", "no known issues", "none detected") or "low" in lvl:
             phases["Phase 1 - Quick Wins (Low Risk)"].append(f["file"])
+        elif lvl in ("", "unknown"):
+            phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
         else:
             phases["Phase 2 - Standard Migration (Medium Risk)"].append(f["file"])
     return {"repo": repo_result.get("repo", "unknown"), "total_files": len(reports), "phases": phases, "sorted_files": sorted_files, "roadmap_summary": f"Migration roadmap generated for {len(reports)} files across 3 phases - start with Phase 1 (low risk) for quick wins", "roadmap_disclaimer": "Prioritization based on automated risk scanning of each file. Actual migration order should also consider business dependencies and team availability."}
