@@ -360,8 +360,10 @@ def calculate_complexity(source):
         func_count = 0
         for fp in func_patterns:
             func_count += len(re.findall(fp, source))
-        func_count = max(1, func_count)
-        score = round(raw_score / func_count, 1) if func_count > 1 else raw_score
+        real_func_count = func_count
+        divisor = max(1, func_count)
+        score = round(raw_score / divisor, 1) if divisor > 1 else raw_score
+        func_count = real_func_count
         method = "keyword-heuristic"
         extra = {"method": "keyword-based heuristic (approximate - full parser not available for this language)"}
     if score <= 5:
@@ -2352,8 +2354,8 @@ def generate_dockerfile(filename, language):
     elif lang == "cobol":
         cobol_base = re.sub(r"\.(cbl|cob)$", "", safe_filename, flags=re.IGNORECASE)
         content = ("# Auto-generated Dockerfile for COBOL (GnuCOBOL)\n"
-            "FROM ubuntu:22.04\n"
-            "RUN apt-get update && apt-get install -y gnucobol4 && rm -rf /var/lib/apt/lists/*\n"
+            "FROM ubuntu:24.04\n"
+            "RUN apt-get update && apt-get install -y gnucobol && rm -rf /var/lib/apt/lists/*\n"
             "WORKDIR /app\n"
             "COPY . .\n"
             "RUN cobc -x -o " + cobol_base + " " + safe_filename + "\n"
