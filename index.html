@@ -1110,11 +1110,12 @@ async function runAnalysis() {
     R.migrate = await r.json();
     if (!r.ok) throw new Error(R.migrate?.error || ('Server error ' + r.status));
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
-    const confStr = conf != null ? Math.round(conf) + '%' : 'N/A';
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
     const reviewNeededCount = allChanges.filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
+    const _adjustedConf = conf != null ? Math.max(40, conf - (reviewNeededCount * 8)) : null;
+    const confStr = _adjustedConf != null ? Math.round(_adjustedConf) + '%' : 'N/A';
     const migLabel = lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
     const ccNote = document.getElementById('changeCountNote');
     if (ccNote) {
