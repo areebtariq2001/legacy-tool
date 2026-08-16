@@ -1360,6 +1360,7 @@ def analyze_cobol(source):
         (r'PERFORM\s+VARYING', "PERFORM VARYING found - convert to for loop"),
         (r'PERFORM\s+\w[\w-]*\s+THRU', "PERFORM THRU found - calls a range of paragraphs, convert to sequential function calls"),
         (r'PERFORM\s+\w[\w-]*(?!\s+(?:UNTIL|VARYING|THRU))', "PERFORM (paragraph call) found - convert to a function call"),
+        (r'\bALTER\s+\w[\w-]*\s+TO\b', "CRITICAL: ALTER statement found - extremely dangerous self-modifying control flow (changes the target of a GO TO at runtime), refactor immediately before migration"),
         (r'GOTO|GO\s+TO', "GO TO found - use structured programming"),
         (r'\bPIC\s+9', "PIC 9 numeric fields - convert to int/float"),
         (r'\bPIC\s+X', "PIC X string fields - convert to str"),
