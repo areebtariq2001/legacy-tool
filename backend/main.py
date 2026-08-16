@@ -4440,27 +4440,31 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Dependency portability check failed safely: {e}"})
 
+_CONFIG_MIGRATION_PATTERNS_COMPILED = [(re.compile(p), n, s) for p, n, s in [(r"(?i)\b\w*(password|passwd|pwd)\w*\s*=\s*[\"\x27][^\"\x27]{3,}[\"\x27]", "Hardcoded credential (password)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b\w*(_user|db_user|username)\w*\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded credential (username)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)\b(host|hostname|server)\b\s*=\s*[\"\x27][\w\.\-]+[\"\x27]", "Hardcoded host/server address", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup"), (r"(?i)\bport\b\s*=\s*\d{2,5}", "Hardcoded port number", "Move to environment variable (e.g. APP_PORT) for flexibility across environments"), (r"(?i)\bdebug\b\s*=\s*True", "Hardcoded debug=True", "Should be environment-controlled - never run debug=True in production"), (r"(?i)(log_level)\s*=\s*[\"\x27]\w+[\"\x27]", "Hardcoded log level", "Move to environment variable (e.g. LOG_LEVEL) for environment-specific logging"), (r"(?i)(max_connections|cache_ttl|timeout)\w*\s*=\s*\d+", "Hardcoded tuning parameter", "Move to environment variable for environment-specific tuning"), (r"[\"\x27][^\"\x27]*\.(ini|cfg|conf|env)[\"\x27]", "Hardcoded config file path", "Use a config-loading library (e.g. python-dotenv, configparser) with environment-aware paths")]]
 def suggest_config_migration(source, filename):
-    import re as _cm
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"config_issues": [], "total_issues": 0, "suggested_env_template": "", "config_summary": "File too large for config-migration analysis", "config_disclaimer": "Skipped - file exceeds size limit."}
     findings = []
-    hardcoded_patterns = [(r"(?i)\b\w*(password|passwd|pwd)\w*\s*=\s*[\"\x27][^\"\x27]{3,}[\"\x27]", "Hardcoded credential (password)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b\w*(_user|db_user|username)\w*\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded credential (username)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)(host|hostname|server)\s*=\s*[\"\x27][\w\.\-]+[\"\x27]", "Hardcoded host/server address", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup"), (r"(?i)(port)\s*=\s*\d{2,5}", "Hardcoded port number", "Move to environment variable (e.g. APP_PORT) for flexibility across environments"), (r"(?i)(debug)\s*=\s*True", "Hardcoded debug=True", "Should be environment-controlled - never run debug=True in production"), (r"(?i)(log_level)\s*=\s*[\"\x27]\w+[\"\x27]", "Hardcoded log level", "Move to environment variable (e.g. LOG_LEVEL) for environment-specific logging"), (r"(?i)(max_connections|cache_ttl|timeout)\w*\s*=\s*\d+", "Hardcoded tuning parameter", "Move to environment variable for environment-specific tuning"), (r"[\"\x27][^\"\x27]*\.(ini|cfg|conf|env)[\"\x27]", "Hardcoded config file path", "Use a config-loading library (e.g. python-dotenv, configparser) with environment-aware paths")]
+    hardcoded_patterns = list(_CONFIG_MIGRATION_PATTERNS_COMPILED)
     if filename.lower().endswith((".cbl", ".cob")):
-        hardcoded_patterns += [(r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (password, COBOL VALUE clause)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (username, COBOL VALUE clause)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)[\w-]*(host|hostname|server)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded host/server address (COBOL VALUE clause)", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup")]
+        hardcoded_patterns += [(re.compile(p), n, s) for p, n, s in [(r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (password, COBOL VALUE clause)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (username, COBOL VALUE clause)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)[\w-]*(host|hostname|server)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded host/server address (COBOL VALUE clause)", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup")]]
+    lines = source.split(chr(10))
     for pat, issue, suggestion in hardcoded_patterns:
-        for i, line in enumerate(source.split(chr(10))):
-            if _cm.search(pat, line):
-                findings.append({"issue": issue, "line": i+1, "suggestion": suggestion, "code": line.strip()[:100]})
+        for i, line in enumerate(lines):
+            if pat.search(line):
+                _redacted = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:100])
+                findings.append({"issue": issue, "line": i+1, "suggestion": suggestion, "code": _redacted})
     env_template_lines = []
     for f in findings:
         code_line = f.get("code", "")
-        actual_match = _cm.match(r"^\s*\$?(\w+)\s*=", code_line)
+        actual_match = re.match(r"^\s*\$?(\w+)\s*=", code_line)
         if actual_match:
             var_name = actual_match.group(1).upper()
         else:
             var_name = f["issue"].split("(")[0].split("=")[0].strip().upper().replace(" ", "_").replace("/", "_")
         env_template_lines.append(var_name + "=your_value_here")
     env_template = chr(10).join(dict.fromkeys(env_template_lines)) if env_template_lines else "# No obvious hardcoded config values detected"
-    return {"config_issues": findings, "total_issues": len(findings), "suggested_env_template": env_template, "config_summary": (str(len(findings)) + " hardcoded configuration value(s) found - consider externalizing to environment variables") if findings else "No obvious hardcoded configuration values detected", "config_disclaimer": "Detects common hardcoded configuration patterns (hosts, ports, debug flags, config paths). A starting point for externalizing config - review each suggestion in context."}
+    return {"config_issues": findings, "total_issues": len(findings), "suggested_env_template": env_template, "config_summary": f"{len(findings)} hardcoded configuration value(s) found - consider externalizing to environment variables" if findings else "No obvious hardcoded configuration values detected", "config_disclaimer": "Detects common hardcoded configuration patterns (hosts, ports, debug flags, config paths). A starting point for externalizing config - review each suggestion in context."}
 
 @app.post("/config-migration")
 async def config_migration_endpoint(file: UploadFile = File(...)):
