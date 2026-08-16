@@ -705,7 +705,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-files">0</span>
               </div>
             </div>
-            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Rough estimate based on detected issue count and estimated engineering hours, assuming a $15/hr blended rate (range: -20% to +30% of the midpoint). Not a guaranteed figure - adjust for your team's actual rates.</div>
+            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Quick estimate based on detected issue count, assuming a $50/hr blended rate. This is a rough planning signal - the "Est. Cost" advanced check gives a more detailed estimate based on actual code size and complexity.</div>
           </div>
         </div>
       </div>
@@ -798,7 +798,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">ROI & Technical Debt</div><div style="font-size:12px;color:var(--t3)">Quantify tech debt in dollars. Show leadership the real cost of legacy code.</div></div>
       <div class="g4">
         <div class="stat" style="--al:var(--red)"><div class="stat-val" style="color:var(--red)" id="roi-debt">$—</div><div class="stat-lbl">Total Debt</div><div class="stat-sub">Upload to calculate</div></div>
-        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="roi-hours">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At $15/hr dev rate</div></div>
+        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="roi-hours">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At $50/hr dev rate</div></div>
         <div class="stat" style="--al:var(--green)"><div class="stat-val" style="color:var(--green)" id="roi-breach">$—</div><div class="stat-lbl">Breach Risk Cost</div><div class="stat-sub">Security gap exposure</div></div>
         <div class="stat" style="--al:var(--purple)"><div class="stat-val" style="color:var(--purple)" id="roi-score">—</div><div class="stat-lbl">Debt Score</div><div class="stat-sub">1–100 scale</div></div>
       </div>
@@ -1271,7 +1271,7 @@ function renderResults(R, original, fname, totalMs) {
   const compScore = critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5));
   renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct);
   const roiFixHours = estimateFixHours(critCount, warnCount);
-  const roiTotalDebt = Math.round(roiFixHours * 15);
+  const roiTotalDebt = Math.round(roiFixHours * 50);
   const roiBreachCost = critCount >= 1 ? Math.round(roiTotalDebt * 8) : 0;
   const roiDebtEl = document.getElementById('roi-debt');
   if (roiDebtEl) {
@@ -1301,7 +1301,7 @@ function renderResults(R, original, fname, totalMs) {
 
   // Migration Impact panel - derived from real analysis data
   const fixHours = estimateFixHours(critCount, warnCount);
-  const fixCostMid = fixHours * 15;
+  const fixCostMid = fixHours * 50;
   const fixCostLow = Math.round(fixCostMid * 0.8);
   const fixCostHigh = Math.round(fixCostMid * 1.3);
   const fixCost = '$' + fixCostLow + '–$' + fixCostHigh;
