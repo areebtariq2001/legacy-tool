@@ -4946,14 +4946,16 @@ def cross_language_migrate(source, from_lang, to_lang):
 @app.post("/cross-language-migrate")
 async def cross_language_migrate_endpoint(payload: dict):
     try:
-        source = payload.get("source", "")
-        from_lang = payload.get("from_lang", "").lower()
-        to_lang = payload.get("to_lang", "").lower()
+        source = payload.get("source", "") or ""
+        if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+            return JSONResponse(status_code=400, content={"error": f"Source too large. Maximum is {MAX_FILE_SIZE} bytes."})
+        from_lang = (payload.get("from_lang", "") or "").lower()
+        to_lang = (payload.get("to_lang", "") or "").lower()
         result = cross_language_migrate(source, from_lang, to_lang)
         track_usage("cross-language-migrate", from_lang + "-to-" + to_lang)
         return result
     except Exception as e:
-        return {"error": "Cross-language migration failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": f"Cross-language migration failed safely: {e}"})
 
 def generate_dependency_graph(source, filename):
     if not filename.lower().endswith(".py"):
@@ -5056,14 +5058,14 @@ async def github_issues_endpoint(payload: dict):
 @app.post("/github-issue-fix")
 async def github_issue_fix_endpoint(payload: dict):
     try:
-        issue_title = payload.get("issue_title", "")
-        issue_body = payload.get("issue_body", "")
-        source = payload.get("source", "")
+        issue_title = payload.get("issue_title") or ""
+        issue_body = payload.get("issue_body") or ""
+        source = payload.get("source") or ""
         result = suggest_github_issue_fix(issue_title, issue_body, source)
         track_usage("github-issue-fix", issue_title)
         return result
     except Exception as e:
-        return {"error": "AI fix suggestion failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": f"AI fix suggestion failed safely: {e}"})
 
 @app.get('/')
 def root():
