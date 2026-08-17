@@ -4510,6 +4510,10 @@ def generate_rearchitecture_readiness(source, filename):
     if funcs > 0 and len(high_impact_funcs) > funcs * 0.3:
         score -= 20
     score = max(0, min(100, score))
+    # Raw score naturally lands in a 20-75 range given the point values above (50 base, +15/+10 max, -10/-20 max).
+    # Rescale that achievable range onto the full 0-100 scale so the score is more differentiated and meaningful,
+    # instead of every file clustering into the same narrow 20-75 band.
+    score = round(max(0, min(100, (score - 20) * (100.0 / 55.0))))
     verdict = "Recommended" if score >= 65 else "Possible with caution" if score >= 40 else "Not recommended yet"
     reasoning = list(reasons_pos)
     if db_count == 1:
