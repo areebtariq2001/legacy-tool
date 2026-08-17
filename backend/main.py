@@ -2080,6 +2080,10 @@ def login_user(email, password):
     try:
         cur = conn.cursor()
         _create_users_table_if_needed(cur)
+        try:
+            cur.execute("DELETE FROM sessions WHERE expires_at < %s", (datetime.now().isoformat(),))
+        except Exception:
+            pass
         cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if not row or not _verify_password(password, row[1]):
