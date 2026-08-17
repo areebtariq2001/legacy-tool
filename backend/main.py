@@ -4488,6 +4488,8 @@ async def config_migration_endpoint(file: UploadFile = File(...)):
 
 
 def generate_rearchitecture_readiness(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"readiness_score": None, "readiness_verdict": "Not Analyzed", "readiness_reasoning": [], "readiness_stats": {}, "readiness_summary": "File too large for re-architecture readiness analysis", "readiness_disclaimer": "Skipped - file exceeds size limit."}
     arch = generate_architecture(source, filename)
     impact = analyze_impact(source, filename)
     stats = arch.get("arch_stats", {})
