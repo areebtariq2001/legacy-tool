@@ -4481,9 +4481,10 @@ async def config_migration_endpoint(file: UploadFile = File(...)):
         result = suggest_config_migration(source, file.filename)
         result["filename"] = file.filename
         track_usage("config-migration", file.filename)
+        write_audit_log("config-migration", file.filename, f"issues={result.get('total_issues', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Config migration check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Config migration check failed safely: {e}"})
 
 
 def generate_rearchitecture_readiness(source, filename):
@@ -4496,31 +4497,30 @@ def generate_rearchitecture_readiness(source, filename):
     api_count = stats.get("apis", 0)
     high_impact_funcs = [m["function"] for m in impact.get("impact_map", []) if m.get("change_risk") == "High"]
     score = 50
+    reasons_pos = []
     if funcs >= 5 and classes == 0:
         score += 15
         reasons_pos = ["Multiple standalone functions - good candidates for splitting into services"]
-    else:
-        reasons_pos = []
     if db_count == 1:
         score += 10
     elif db_count > 1:
         score -= 10
-    if len(high_impact_funcs) > funcs * 0.3 if funcs > 0 else False:
+    if funcs > 0 and len(high_impact_funcs) > funcs * 0.3:
         score -= 20
     score = max(0, min(100, score))
     verdict = "Recommended" if score >= 65 else "Possible with caution" if score >= 40 else "Not recommended yet"
-    reasoning = []
+    reasoning = list(reasons_pos)
     if db_count == 1:
         reasoning.append("Single, isolated data dependency - clean boundary for a data-owning service")
     elif db_count > 1:
         reasoning.append("Multiple database dependencies - may need a shared data layer or careful data-ownership split")
     if high_impact_funcs:
-        reasoning.append("High-impact functions found (" + ", ".join(high_impact_funcs[:3]) + ") - these have many internal dependents and need careful extraction")
+        reasoning.append(f"High-impact functions found ({', '.join(high_impact_funcs[:3])}) - these have many internal dependents and need careful extraction")
     else:
         reasoning.append("No high-impact/tightly-coupled functions found - lower coupling supports splitting")
     if api_count > 0:
-        reasoning.append(str(api_count) + " external API dependency(ies) found - these can likely become independent service boundaries")
-    return {"readiness_score": score, "readiness_verdict": verdict, "readiness_reasoning": reasoning, "readiness_stats": {"functions": funcs, "classes": classes, "databases": db_count, "external_apis": api_count, "high_impact_functions": len(high_impact_funcs)}, "readiness_summary": "Re-architecture readiness: " + str(score) + "/100 (" + verdict + ")", "readiness_disclaimer": "Heuristic assessment combining architecture layers and function-dependency analysis within this file. A single-file view - a full microservices decision should also consider team structure, deployment complexity, and cross-file/cross-service dependencies."}
+        reasoning.append(f"{api_count} external API dependency(ies) found - these can likely become independent service boundaries")
+    return {"readiness_score": score, "readiness_verdict": verdict, "readiness_reasoning": reasoning, "readiness_stats": {"functions": funcs, "classes": classes, "databases": db_count, "external_apis": api_count, "high_impact_functions": len(high_impact_funcs)}, "readiness_summary": f"Re-architecture readiness: {score}/100 ({verdict})", "readiness_disclaimer": "Heuristic assessment combining architecture layers and function-dependency analysis within this file. A single-file view - a full microservices decision should also consider team structure, deployment complexity, and cross-file/cross-service dependencies."}
 
 @app.post("/rearchitecture-readiness")
 async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
@@ -4532,9 +4532,10 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
         result = generate_rearchitecture_readiness(source, file.filename)
         result["filename"] = file.filename
         track_usage("rearchitecture-readiness", file.filename)
+        write_audit_log("rearchitecture-readiness", file.filename, f"score={result.get('readiness_score')}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Re-architecture readiness check failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
 def detect_service_boundaries(source, filename):
     impact = analyze_impact(source, filename)
