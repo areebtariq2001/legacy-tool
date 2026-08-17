@@ -2321,7 +2321,8 @@ function buildIssues(R) {
         const msg = c.replace('REVIEW NEEDED: ', '');
         const dashIdx = msg.indexOf(' - ');
         const derivedTitle = dashIdx > 0 ? msg.substring(0, dashIdx).trim() : msg.substring(0, 70).trim();
-        issues.push({ sev: 'warning', title: derivedTitle, desc: msg, tag: 'Migration', tagClass: 'tag-amber', file: null });
+        const isRuntimeCritical = msg.toUpperCase().includes('CRITICAL:') || msg.toUpperCase().includes('CRITICAL ');
+        issues.push({ sev: isRuntimeCritical ? 'critical' : 'warning', title: derivedTitle, desc: msg, tag: isRuntimeCritical ? 'Critical' : 'Migration', tagClass: isRuntimeCritical ? 'tag-red' : 'tag-amber', file: null });
       }
     });
   }
@@ -2796,10 +2797,18 @@ function formatGenericResult(d, label) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:4px">Summary</div><div style="font-size:11.5px;color:#e2e8f0">' + d[summaryKey] + '</div>';
   }
   if (d.dna_dimensions && typeof d.dna_dimensions === 'object') {
-    html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:8px">Dimension Breakdown</div><div style="margin-top:6px">';
+    let _dnaHeader = '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:8px">Dimension Breakdown</div>';
+    if (d.dna_strongest_area || d.dna_weakest_area) {
+      _dnaHeader += '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">';
+      if (d.dna_strongest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(34,197,94,0.15);color:#22c55e;padding:3px 8px;border-radius:10px">💪 Strongest: ' + escapeHtml(String(d.dna_strongest_area)) + '</span>';
+      if (d.dna_weakest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(239,68,68,0.15);color:#ef4444;padding:3px 8px;border-radius:10px">⚠ Weakest: ' + escapeHtml(String(d.dna_weakest_area)) + '</span>';
+      _dnaHeader += '</div>';
+    }
+    html += _dnaHeader + '<div style="margin-top:6px">';
     Object.entries(d.dna_dimensions).forEach(([dim, score]) => {
       const color = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
-      html += '<div style="margin:6px 0"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#e2e8f0">' + escapeHtml(String(dim)) + '</span><span style="color:' + color + '">' + score + '</span></div><div style="height:6px;background:#1a2438;border-radius:3px;margin-top:2px"><div style="height:100%;width:' + Math.max(0, Math.min(100, score)) + '%;background:' + color + ';border-radius:3px"></div></div></div>';
+      const isExtreme = dim === d.dna_strongest_area || dim === d.dna_weakest_area;
+      html += '<div style="margin:6px 0' + (isExtreme ? ';background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px' : '') + '"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#e2e8f0">' + escapeHtml(String(dim)) + '</span><span style="color:' + color + '">' + score + '</span></div><div style="height:6px;background:#1a2438;border-radius:3px;margin-top:2px"><div style="height:100%;width:' + Math.max(0, Math.min(100, score)) + '%;background:' + color + ';border-radius:3px"></div></div></div>';
     });
     html += '</div>';
   }
