@@ -4649,14 +4649,19 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Service boundary detection failed safely: {e}"})
 
 def recommend_migration_strategy(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"recommended_strategy": None, "strategy_reasoning": "File too large for strategy analysis", "decision_inputs": {}, "recommendation_summary": "Not analyzed - file exceeds size limit", "recommendation_disclaimer": "Skipped - file exceeds size limit."}
     cost = estimate_migration_cost(source, filename)
-    debt = calculate_tech_debt(source)
+    debt = calculate_tech_debt(source, filename)
     comp = calculate_complexity(source)
     is_python = filename.lower().endswith(".py")
     risk = assess_dependency_risk(source, filename) if is_python else {"overall_risk": "Unknown"}
     debt_score = debt.get("debt_score", 0)
     complexity_score = comp.get("complexity_score", 0)
     cost_hours = cost.get("cost_hours", 0)
+    # Thresholds are a heuristic split into thirds of a 0-100ish complexity/debt scale:
+    # low (Rehost), moderate (Refactor), high (Rebuild). Not tied to a specific industry standard -
+    # a planning heuristic, not a certified maturity model.
     if complexity_score < 15 and debt_score < 30:
         strategy = "Rehost"
         reasoning = "Code is low-complexity and low-debt - a lift-and-shift migration (same logic, new platform) is likely sufficient. Lowest risk, fastest option."
@@ -4666,8 +4671,9 @@ def recommend_migration_strategy(source, filename):
     else:
         strategy = "Rebuild"
         reasoning = "Code is highly complex and/or carries significant technical debt - the underlying design may be too outdated to safely refactor. Consider a fresh rebuild guided by the discovered business rules."
-    lang_note = "" if is_python else " (Note: risk-assessment is Python-only currently, so this recommendation is based on complexity/debt/cost only, not security-risk data.)"
-    return {"recommended_strategy": strategy, "strategy_reasoning": reasoning + lang_note, "decision_inputs": {"complexity_score": complexity_score, "debt_score": debt_score, "estimated_hours": cost_hours, "risk_level": risk.get("overall_risk", "Unknown")}, "recommendation_summary": "Recommended approach: " + strategy, "recommendation_disclaimer": "Heuristic recommendation based on code complexity, technical debt, and estimated migration cost. A planning aid - final decisions should also weigh business priorities, team capacity, and timeline."}
+    if not is_python:
+        reasoning += " (Note: risk-assessment is Python-only currently, so this recommendation is based on complexity/debt/cost only, not security-risk data.)"
+    return {"recommended_strategy": strategy, "strategy_reasoning": reasoning, "decision_inputs": {"complexity_score": complexity_score, "debt_score": debt_score, "estimated_hours": cost_hours, "risk_level": risk.get("overall_risk", "Unknown")}, "recommendation_summary": f"Recommended approach: {strategy}", "recommendation_disclaimer": "Heuristic recommendation based on code complexity, technical debt, and estimated migration cost. A planning aid - final decisions should also weigh business priorities, team capacity, and timeline."}
 
 @app.post("/recommend-strategy")
 async def recommend_strategy_endpoint(file: UploadFile = File(...)):
@@ -4679,9 +4685,10 @@ async def recommend_strategy_endpoint(file: UploadFile = File(...)):
         result = recommend_migration_strategy(source, file.filename)
         result["filename"] = file.filename
         track_usage("recommend-strategy", file.filename)
+        write_audit_log("recommend-strategy", file.filename, f"strategy={result.get('recommended_strategy')}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Strategy recommendation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Strategy recommendation failed safely: {e}"})
 
 def calculate_migration_roi(source, filename):
     cost = estimate_migration_cost(source, filename)
