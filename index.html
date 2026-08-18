@@ -490,7 +490,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="capabilityList" style="display:flex;gap:20px;flex-wrap:wrap"></div>
             </div>
             <div class="card" id="callGraphCard" style="display:none">
-              <div class="card-head">Call Graph <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Within-file function/paragraph calls only - not cross-file</span></div>
+              <div class="card-head">Call Graph <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Within-file function/paragraph calls only - not cross-file. Pattern-based heuristic - edges may occasionally be imprecise, especially in files with unusual formatting.</span></div>
               <div id="callGraphList" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
             <div class="card" id="copybookCard" style="display:none">
@@ -1784,13 +1784,27 @@ function detectCallGraph(code) {
   codeLines.forEach(l => { fnPatterns.forEach(p => { const m = l.match(p); if (m && m[1] && m[1].length > 1) fnNames.add(m[1]); }); });
   const edges = [];
   let currentFn = null;
+  let currentFnIndent = -1;
   codeLines.forEach(l => {
-    const fn = findEnclosingFunction(codeLines, codeLines.indexOf(l));
-    fnPatterns.forEach(p => { const m = l.match(p); if (m && m[1]) currentFn = m[1]; });
+    const trimmed = l.trim();
+    if (trimmed === '' || trimmed.startsWith('#') || trimmed.startsWith('//')) return;
+    const lineIndent = l.length - l.trimStart().length;
+    let matchedNewFn = null;
+    fnPatterns.forEach(p => { const m = l.match(p); if (m && m[1]) matchedNewFn = m[1]; });
+    if (matchedNewFn) {
+      currentFn = matchedNewFn;
+      currentFnIndent = lineIndent;
+      return;
+    }
+    if (currentFn !== null && lineIndent <= currentFnIndent) {
+      currentFn = null;
+      currentFnIndent = -1;
+    }
+    if (currentFn === null) return;
     fnNames.forEach(name => {
       if (currentFn && name !== currentFn) {
         const rx = new RegExp('\\b' + name.replace(/-/g, '\\-') + '\\s*\\(|PERFORM\\s+' + name + '\\b', 'i');
-        if (rx.test(l) && !l.trim().match(/^(def|function|public|private|\d{6}\s+[\w-]+\.|[\w-]+\.)/)) {
+        if (rx.test(l)) {
           edges.push({ from: currentFn, to: name });
         }
       }
