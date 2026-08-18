@@ -2738,7 +2738,7 @@ function renderValue(v) {
     return v.length
       ? '<div style="display:flex;flex-direction:column;gap:3px">' +
         v.map(x => '<div style="font-size:11px;color:#e2e8f0">• ' +
-          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) => escapeHtml(a + ': ' + b)).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
+          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) => escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : String(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
       : '<span style="color:#94a3b8">None</span>';
   }
   if (v && typeof v === 'object') {
