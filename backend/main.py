@@ -4549,6 +4549,47 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
+def calculate_change_risk_radar(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"radar": [], "radar_summary": "File too large for change-risk-radar analysis", "radar_disclaimer": "Skipped - file exceeds size limit."}
+    impact = analyze_impact(source, filename)
+    impact_map = impact.get("impact_map", [])
+    security_findings = scan_sensitive_data(source).get("findings", [])
+    security_lines = set()
+    for f in security_findings:
+        for ln in str(f.get("lines", "")).split(","):
+            ln = ln.strip()
+            if ln.isdigit():
+                security_lines.add(int(ln))
+    db_pattern = re.compile(r"(?i)\b(query|execute|cursor|select|insert|update|delete|db\.)")
+    radar = []
+    for m in impact_map:
+        fn = m.get("function", "")
+        callers = m.get("affected_by_change", [])
+        body = _get_func_body(source, fn, filename)
+        touches_db = bool(db_pattern.search(body))
+        body_start_match = re.search(r"(?mi)^(?:\s*def\s+" + re.escape(fn) + r"|" + re.escape(fn) + r"\s*\()", source)
+        touches_security = False
+        if body_start_match:
+            start_line = source[:body_start_match.start()].count(chr(10)) + 1
+            body_line_count = body.count(chr(10))
+            touches_security = any(start_line <= ln <= start_line + body_line_count for ln in security_lines)
+        risk_factors = []
+        if callers:
+            risk_factors.append(f"{len(callers)} function(s) call this - changes ripple to: {', '.join(callers[:5])}")
+        if touches_db:
+            risk_factors.append("Touches database operations - schema/query changes could break persistence")
+        if touches_security:
+            risk_factors.append("Contains security-sensitive code (credentials/injection-risk pattern nearby)")
+        if not risk_factors:
+            risk_factors.append("No internal callers, no DB access, no security patterns detected - appears isolated")
+        risk_level = "Critical" if touches_security else "High" if (len(callers) >= 3 or touches_db) else "Medium" if callers else "Low"
+        radar.append({"function": fn, "risk_level": risk_level, "affected_callers": callers, "touches_database": touches_db, "touches_security_sensitive_code": touches_security, "risk_factors": risk_factors})
+    radar.sort(key=lambda x: {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}[x["risk_level"]])
+    crit_count = sum(1 for r in radar if r["risk_level"] == "Critical")
+    high_count = sum(1 for r in radar if r["risk_level"] == "High")
+    return {"radar": radar, "radar_summary": f"{len(radar)} function(s) analyzed - {crit_count} Critical, {high_count} High risk to modify", "radar_disclaimer": "Estimates the blast radius of changing each function, based on internal callers, database access, and nearby security-sensitive code within this file. Does not account for cross-file usage or runtime behavior."}
+
 def detect_legacy_ghosts(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"ghosts_found": 0, "ghosts": [], "ghost_summary": "File too large for legacy-ghost analysis", "ghost_disclaimer": "Skipped - file exceeds size limit."}
@@ -4617,6 +4658,21 @@ def detect_service_boundaries(source, filename):
     for fn in isolated:
         boundaries.append({"suggested_service": f"Independent: {fn}", "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
     return {"boundaries": boundaries, "boundary_summary": f"{len(coupled_groups)} coupled group(s) and {len(isolated)} independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
+
+@app.post("/change-risk-radar")
+async def change_risk_radar_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = calculate_change_risk_radar(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("change-risk-radar", file.filename)
+        write_audit_log("change-risk-radar", file.filename, f"analyzed={len(result.get('radar', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Change-risk-radar analysis failed safely: {e}"})
 
 @app.post("/legacy-ghosts")
 async def legacy_ghosts_endpoint(file: UploadFile = File(...)):
