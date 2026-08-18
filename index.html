@@ -235,7 +235,6 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <span class="tb-cur" id="topbar-title">Modernize Code</span>
     </div>
     <div class="tb-right">
-      <span class="badge b-green">72 Backend Capabilities</span>
       <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree where the code is AST-parsable; files with legacy syntax that can't be parsed fall back to pattern-based analysis (clearly labeled in results).">AST-Verified*</span>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" id="authBtn" onclick="openAuthModal()">Login</button>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
@@ -546,6 +545,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="AML/KYC" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/extract-aml-kyc','AML/KYC', this)">AML/KYC</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Banking Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/banking-patterns','Banking Scan', this)">Banking Scan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Regulation Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulation-impact','Regulation Impact', this)">Reg. Impact</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Fraud Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check', this)">Fraud Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
