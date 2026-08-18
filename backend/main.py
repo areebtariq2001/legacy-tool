@@ -3434,6 +3434,20 @@ def _get_func_body(source, fname, filename=""):
         _next_pat = r"\ndef\s+\w+\s*\("
     m = _re4.search(_pat, source)
     if not m: return ""
+    if _flower.endswith(".py") or (not _flower.endswith((".php", ".java", ".cbl", ".cob"))):
+        def_line_start = source.rfind(chr(10), 0, m.start()) + 1
+        def_indent = m.start() - def_line_start
+        body_lines = []
+        for line in source[m.end():].split(chr(10)):
+            stripped = line.strip()
+            if stripped == "" or stripped.startswith("#"):
+                body_lines.append(line)
+                continue
+            line_indent = len(line) - len(line.lstrip())
+            if line_indent <= def_indent:
+                break
+            body_lines.append(line)
+        return chr(10).join(body_lines)
     rest = source[m.end():]
     next_def = _re4.search(_next_pat, rest)
     if next_def:
