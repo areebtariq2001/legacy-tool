@@ -2341,7 +2341,7 @@ function buildIssues(R) {
           sev: (isSecurity || isRuntimeCritical) ? 'critical' : 'warning',
           title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
           desc: issText,
-          tag: isSecurity ? 'Security' : (isRuntimeCritical ? 'Critical' : 'Migration'),
+          tag: isSecurity ? 'Critical · Security' : (isRuntimeCritical ? 'Critical' : 'Migration'),
           tagClass: (isSecurity || isRuntimeCritical) ? 'tag-red' : 'tag-amber',
           file: null
         });
