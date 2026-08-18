@@ -2334,14 +2334,15 @@ function buildIssues(R) {
         const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
         const lower = issText.toLowerCase();
         const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk');
+        const isRuntimeCritical = issText.toUpperCase().includes('CRITICAL:') || issText.toUpperCase().includes('CRITICAL ');
         const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
         if (alreadyCoveredElsewhere) return;
         issues.push({
-          sev: isSecurity ? 'critical' : 'warning',
+          sev: (isSecurity || isRuntimeCritical) ? 'critical' : 'warning',
           title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
           desc: issText,
-          tag: isSecurity ? 'Security' : 'Migration',
-          tagClass: isSecurity ? 'tag-red' : 'tag-amber',
+          tag: isSecurity ? 'Security' : (isRuntimeCritical ? 'Critical' : 'Migration'),
+          tagClass: (isSecurity || isRuntimeCritical) ? 'tag-red' : 'tag-amber',
           file: null
         });
       });
