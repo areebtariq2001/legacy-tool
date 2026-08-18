@@ -4655,7 +4655,7 @@ def recommend_migration_strategy(source, filename):
     debt = calculate_tech_debt(source, filename)
     comp = calculate_complexity(source)
     is_python = filename.lower().endswith(".py")
-    risk = assess_dependency_risk(source, filename) if is_python else {"overall_risk": "Unknown"}
+    risk = assess_dependency_risk(source, filename)
     debt_score = debt.get("debt_score", 0)
     complexity_score = comp.get("complexity_score", 0)
     cost_hours = cost.get("cost_hours", 0)
