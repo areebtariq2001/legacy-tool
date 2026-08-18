@@ -4563,6 +4563,102 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
+def analyze_regulation_impact(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"affected_regulations": [], "regulation_summary": "File too large for regulation-impact analysis", "regulation_disclaimer": "Skipped - file exceeds size limit."}
+    lines = source.split(chr(10))
+    reg_patterns = [
+        ("AML (Anti-Money Laundering)", re.compile(r"(?i)\b(aml|anti.?money.?launder|suspicious.?transaction|sar\b)")),
+        ("KYC (Know Your Customer)", re.compile(r"(?i)\b(kyc|know.?your.?customer|customer.?verif|identity.?verif)")),
+        ("Transaction Monitoring", re.compile(r"(?i)\b(transaction.?limit|daily.?limit|velocity|transaction.?monitor)")),
+        ("Data Protection / Privacy (GDPR-style)", re.compile(r"(?i)\b(pii|personal.?data|gdpr|data.?protection|consent)")),
+        ("Audit & Recordkeeping", re.compile(r"(?i)\b(audit.?log|audit.?trail|record.?keep|compliance.?log)")),
+        ("Customer Protection / Fair Lending", re.compile(r"(?i)\b(fraud.?score|fraud.?detect|fair.?lend|customer.?protect)")),
+        ("Payment Card Security (PCI-DSS-style)", re.compile(r"(?i)\b(card.?number|cvv|pan\b|pci.?dss|card.?data)")),
+        ("Encryption / Data Security", re.compile(r"(?i)\b(encrypt|hashlib|md5|sha1|sha256|bcrypt|cipher)")),
+    ]
+    affected = []
+    for reg_name, pattern in reg_patterns:
+        matched_lines = []
+        for i, line in enumerate(lines):
+            if pattern.search(line):
+                matched_lines.append(i + 1)
+        if matched_lines:
+            _sample = lines[matched_lines[0] - 1].strip()[:100]
+            _redacted_sample = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", _sample)
+            affected.append({
+                "regulation": reg_name,
+                "affected_lines": matched_lines[:10],
+                "total_matches": len(matched_lines),
+                "evidence": f"First match at line {matched_lines[0]}: {_redacted_sample}",
+                "risk": "High" if reg_name.startswith(("AML", "KYC", "Payment Card")) else "Medium"
+            })
+    return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
+
+def analyze_regulation_impact(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"affected_regulations": [], "regulation_summary": "File too large for regulation-impact analysis", "regulation_disclaimer": "Skipped - file exceeds size limit."}
+    lines = source.split(chr(10))
+    reg_patterns = [
+        ("AML (Anti-Money Laundering)", re.compile(r"(?i)\b(aml|anti.?money.?launder|suspicious.?transaction|sar\b)")),
+        ("KYC (Know Your Customer)", re.compile(r"(?i)\b(kyc|know.?your.?customer|customer.?verif|identity.?verif)")),
+        ("Transaction Monitoring", re.compile(r"(?i)\b(transaction.?limit|daily.?limit|velocity|transaction.?monitor)")),
+        ("Data Protection / Privacy (GDPR-style)", re.compile(r"(?i)\b(pii|personal.?data|gdpr|data.?protection|consent)")),
+        ("Audit & Recordkeeping", re.compile(r"(?i)\b(audit.?log|audit.?trail|record.?keep|compliance.?log)")),
+        ("Customer Protection / Fair Lending", re.compile(r"(?i)\b(fraud.?score|fraud.?detect|fair.?lend|customer.?protect)")),
+        ("Payment Card Security (PCI-DSS-style)", re.compile(r"(?i)\b(card.?number|cvv|pan\b|pci.?dss|card.?data)")),
+        ("Encryption / Data Security", re.compile(r"(?i)\b(encrypt|hashlib|md5|sha1|sha256|bcrypt|cipher)")),
+    ]
+    affected = []
+    for reg_name, pattern in reg_patterns:
+        matched_lines = []
+        for i, line in enumerate(lines):
+            if pattern.search(line):
+                matched_lines.append(i + 1)
+        if matched_lines:
+            _sample = lines[matched_lines[0] - 1].strip()[:100]
+            _redacted_sample = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", _sample)
+            affected.append({
+                "regulation": reg_name,
+                "affected_lines": matched_lines[:10],
+                "total_matches": len(matched_lines),
+                "evidence": f"First match at line {matched_lines[0]}: {_redacted_sample}",
+                "risk": "High" if reg_name.startswith(("AML", "KYC", "Payment Card")) else "Medium"
+            })
+    return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
+
+def analyze_regulation_impact(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"affected_regulations": [], "regulation_summary": "File too large for regulation-impact analysis", "regulation_disclaimer": "Skipped - file exceeds size limit."}
+    lines = source.split(chr(10))
+    reg_patterns = [
+        ("AML (Anti-Money Laundering)", re.compile(r"(?i)\b(aml|anti.?money.?launder|suspicious.?transaction|sar\b)")),
+        ("KYC (Know Your Customer)", re.compile(r"(?i)\b(kyc|know.?your.?customer|customer.?verif|identity.?verif)")),
+        ("Transaction Monitoring", re.compile(r"(?i)\b(transaction.?limit|daily.?limit|velocity|transaction.?monitor)")),
+        ("Data Protection / Privacy (GDPR-style)", re.compile(r"(?i)\b(pii|personal.?data|gdpr|data.?protection|consent)")),
+        ("Audit & Recordkeeping", re.compile(r"(?i)\b(audit.?log|audit.?trail|record.?keep|compliance.?log)")),
+        ("Customer Protection / Fair Lending", re.compile(r"(?i)\b(fraud.?score|fraud.?detect|fair.?lend|customer.?protect)")),
+        ("Payment Card Security (PCI-DSS-style)", re.compile(r"(?i)\b(card.?number|cvv|pan\b|pci.?dss|card.?data)")),
+        ("Encryption / Data Security", re.compile(r"(?i)\b(encrypt|hashlib|md5|sha1|sha256|bcrypt|cipher)")),
+    ]
+    affected = []
+    for reg_name, pattern in reg_patterns:
+        matched_lines = []
+        for i, line in enumerate(lines):
+            if pattern.search(line):
+                matched_lines.append(i + 1)
+        if matched_lines:
+            _sample = lines[matched_lines[0] - 1].strip()[:100]
+            _redacted_sample = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", _sample)
+            affected.append({
+                "regulation": reg_name,
+                "affected_lines": matched_lines[:10],
+                "total_matches": len(matched_lines),
+                "evidence": f"First match at line {matched_lines[0]}: {_redacted_sample}",
+                "risk": "High" if reg_name.startswith(("AML", "KYC", "Payment Card")) else "Medium"
+            })
+    return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
+
 def calculate_change_risk_radar(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"radar": [], "radar_summary": "File too large for change-risk-radar analysis", "radar_disclaimer": "Skipped - file exceeds size limit."}
@@ -4672,6 +4768,21 @@ def detect_service_boundaries(source, filename):
     for fn in isolated:
         boundaries.append({"suggested_service": f"Independent: {fn}", "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
     return {"boundaries": boundaries, "boundary_summary": f"{len(coupled_groups)} coupled group(s) and {len(isolated)} independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
+
+@app.post("/regulation-impact")
+async def regulation_impact_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = analyze_regulation_impact(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("regulation-impact", file.filename)
+        write_audit_log("regulation-impact", file.filename, f"regulations={result.get('total_regulations_affected', 0)}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Regulation-impact analysis failed safely: {e}"})
 
 @app.post("/change-risk-radar")
 async def change_risk_radar_endpoint(file: UploadFile = File(...)):
