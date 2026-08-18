@@ -2041,6 +2041,7 @@ def _create_users_table_if_needed(cur):
     cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, email TEXT, created_at TEXT, expires_at TEXT)")
 
 def register_user(email, password):
+    email = (email or "").strip().lower()
     if not email or "@" not in email:
         return {"success": False, "error": "Invalid email address"}
     if not password or len(password) < 8:
@@ -2069,7 +2070,12 @@ def register_user(email, password):
 _failed_login_attempts = {}
 
 def login_user(email, password):
+    email = (email or "").strip().lower()
     _now = time.time()
+    if len(_failed_login_attempts) > 5000:
+        _stale = [e for e, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
+        for e in _stale:
+            _failed_login_attempts.pop(e, None)
     _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
     if len(_attempts) >= 5:
         return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
