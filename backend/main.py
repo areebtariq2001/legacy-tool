@@ -4549,6 +4549,33 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
+def detect_legacy_ghosts(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"ghosts_found": 0, "ghosts": [], "ghost_summary": "File too large for legacy-ghost analysis", "ghost_disclaimer": "Skipped - file exceeds size limit."}
+    impact = analyze_impact(source, filename)
+    impact_map = impact.get("impact_map", [])
+    ghosts = []
+    for m in impact_map:
+        fn = m.get("function", "")
+        if m.get("dependents_count", 0) == 0:
+            body = _get_func_body(source, fn, filename)
+            is_entrypoint_like = bool(re.search(r"(?i)\b(main|__main__|handler|endpoint|test_|setup|teardown)\b", fn))
+            ghosts.append({
+                "name": fn,
+                "type": "Unused Function (Dead Code Candidate)",
+                "reason": "No other function in this file calls it - it may be dead code, an unused utility, or an external entry point (e.g. called from another file, a router, or a test framework).",
+                "confidence": "Low" if is_entrypoint_like else "Medium",
+                "note": "Likely an entry point (main/handler/test) - probably NOT dead code, just uncalled from within this file." if is_entrypoint_like else "No internal callers found - review before removing."
+            })
+    duplicate_lines = {}
+    for i, line in enumerate(source.split(chr(10))):
+        stripped = line.strip()
+        if len(stripped) > 20 and not stripped.startswith(("#", "//", "*")):
+            duplicate_lines.setdefault(stripped, []).append(i + 1)
+    duplicate_rules = [{"name": f"Duplicate logic (lines {', '.join(str(x) for x in lines[:3])})", "type": "Duplicate Business Rule Candidate", "reason": f"Same line of code repeated {len(lines)} times - may indicate duplicated business logic that should be consolidated.", "confidence": "Low", "note": "Heuristic - verify this is genuinely duplicated logic, not coincidentally identical simple statements."} for stripped, lines in duplicate_lines.items() if len(lines) >= 3]
+    all_ghosts = ghosts + duplicate_rules
+    return {"ghosts_found": len(all_ghosts), "ghosts": all_ghosts, "ghost_summary": f"{len(all_ghosts)} legacy ghost(s) found - {len(ghosts)} unused function(s), {len(duplicate_rules)} duplicate-logic pattern(s)" if all_ghosts else "No obvious legacy ghosts detected in this file", "ghost_disclaimer": "Heuristic detection of unused functions (no internal callers) and duplicated code blocks within this single file. Cannot detect cross-file usage, orphan DB tables, or unused configs without a full-codebase scan - a starting point for cleanup, not a definitive dead-code report."}
+
 def detect_service_boundaries(source, filename):
     impact = analyze_impact(source, filename)
     impact_map = impact.get("impact_map", [])
@@ -4590,6 +4617,21 @@ def detect_service_boundaries(source, filename):
     for fn in isolated:
         boundaries.append({"suggested_service": f"Independent: {fn}", "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
     return {"boundaries": boundaries, "boundary_summary": f"{len(coupled_groups)} coupled group(s) and {len(isolated)} independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
+
+@app.post("/legacy-ghosts")
+async def legacy_ghosts_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = detect_legacy_ghosts(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("legacy-ghosts", file.filename)
+        write_audit_log("legacy-ghosts", file.filename, f"ghosts={result.get('ghosts_found', 0)}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Legacy ghost detection failed safely: {e}"})
 
 @app.post("/service-boundaries")
 async def service_boundaries_endpoint(file: UploadFile = File(...)):
