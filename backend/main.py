@@ -4548,24 +4548,42 @@ def detect_service_boundaries(source, filename):
     impact_map = impact.get("impact_map", [])
     if not impact_map:
         return {"boundaries": [], "boundary_summary": "No functions found to analyze for service boundaries.", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries."}
-    isolated = [m["function"] for m in impact_map if m["dependents_count"] == 0]
-    coupled_groups = []
-    seen = set()
+    edges = {}
     for m in impact_map:
-        fn = m["function"]
-        if fn in seen or m["dependents_count"] == 0:
+        fn_name = m["function"]
+        edges.setdefault(fn_name, set())
+        for caller_dependent in m.get("affected_by_change", []):
+            edges.setdefault(caller_dependent, set())
+            edges[caller_dependent].add(fn_name)
+            edges[fn_name].add(caller_dependent)
+    visited = set()
+    coupled_groups = []
+    isolated = []
+    for fn in edges:
+        if fn in visited:
             continue
-        group = [fn] + m.get("affected_by_change", [])
-        group = list(dict.fromkeys(group))
-        for g in group:
-            seen.add(g)
-        coupled_groups.append(group)
+        if not edges[fn]:
+            isolated.append(fn)
+            visited.add(fn)
+            continue
+        component = []
+        stack = [fn]
+        while stack:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.append(node)
+            for neighbor in edges.get(node, []):
+                if neighbor not in visited:
+                    stack.append(neighbor)
+        coupled_groups.append(component)
     boundaries = []
     for i, group in enumerate(coupled_groups):
-        boundaries.append({"suggested_service": "Service Group " + str(i+1), "functions": group, "reasoning": "These functions call each other directly - keep together as one cohesive unit/service."})
+        boundaries.append({"suggested_service": f"Service Group {i+1}", "functions": group, "reasoning": "These functions call each other directly - keep together as one cohesive unit/service."})
     for fn in isolated:
-        boundaries.append({"suggested_service": "Independent: " + fn, "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
-    return {"boundaries": boundaries, "boundary_summary": str(len(coupled_groups)) + " coupled group(s) and " + str(len(isolated)) + " independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
+        boundaries.append({"suggested_service": f"Independent: {fn}", "functions": [fn], "reasoning": "No internal dependencies found - safe candidate for its own independent service."})
+    return {"boundaries": boundaries, "boundary_summary": f"{len(coupled_groups)} coupled group(s) and {len(isolated)} independent function(s) identified", "boundary_disclaimer": "Suggests logical groupings of functions based on call relationships within this file - a starting point for identifying microservice boundaries. Cross-file dependencies and business context should also be considered."}
 
 @app.post("/service-boundaries")
 async def service_boundaries_endpoint(file: UploadFile = File(...)):
@@ -4577,9 +4595,10 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
         result = detect_service_boundaries(source, file.filename)
         result["filename"] = file.filename
         track_usage("service-boundaries", file.filename)
+        write_audit_log("service-boundaries", file.filename, f"groups={len(result.get('boundaries', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Service boundary detection failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Service boundary detection failed safely: {e}"})
 
 def recommend_migration_strategy(source, filename):
     cost = estimate_migration_cost(source, filename)
