@@ -4595,6 +4595,37 @@ def analyze_regulation_impact(source, filename):
             })
     return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
 
+def detect_hidden_business_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"hidden_rules": [], "hidden_rules_summary": "File too large for hidden-business-logic analysis", "hidden_rules_disclaimer": "Skipped - file exceeds size limit."}
+    lines = source.split(chr(10))
+    hidden_rules = []
+    if_pattern = re.compile(r"(?i)^\s*(?:if|elif|while)\s*\(?(.+?)\)?\s*:?\s*(?:\{)?\s*$")
+    and_split = re.compile(r"(?i)\s+and\s+|\s*&&\s*")
+    comparison_pattern = re.compile(r"(==|!=|>=|<=|>|<|\bin\b|\bnot\s+in\b)")
+    for i, line in enumerate(lines):
+        m = if_pattern.match(line)
+        if not m:
+            continue
+        condition = m.group(1).strip().rstrip(":").rstrip("{").strip()
+        parts = [p.strip() for p in and_split.split(condition) if p.strip()]
+        if len(parts) < 3:
+            continue
+        genuine_comparisons = [p for p in parts if comparison_pattern.search(p)]
+        if len(genuine_comparisons) < 3:
+            continue
+        _redacted_condition = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", condition[:200])
+        var_names = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b\s*(?:==|!=|>=|<=|>|<)", condition)
+        hidden_rules.append({
+            "line": i + 1,
+            "condition_summary": _redacted_condition,
+            "num_conditions": len(genuine_comparisons),
+            "variables_involved": list(dict.fromkeys(var_names))[:6],
+            "confidence": "Medium" if len(genuine_comparisons) >= 4 else "Low",
+            "note": f"This condition combines {len(genuine_comparisons)} checks - patterns like this often encode an implicit business policy (e.g. eligibility rule, risk threshold) even without an explicit business-term keyword nearby. Worth a human review to confirm and document the intended policy."
+        })
+    return {"hidden_rules": hidden_rules, "total_hidden_rules": len(hidden_rules), "hidden_rules_summary": f"{len(hidden_rules)} potential hidden/implicit business rule(s) found - multi-condition checks that may encode undocumented policy" if hidden_rules else "No obvious multi-condition implicit business logic detected in this file", "hidden_rules_disclaimer": "Heuristic detection of complex conditional logic (3+ chained comparisons) that commonly encodes business policy without an explicit keyword. Not a verified rule extraction - always confirm intent with the code owner or documentation before treating this as authoritative."}
+
 def calculate_change_risk_radar(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"radar": [], "radar_summary": "File too large for change-risk-radar analysis", "radar_disclaimer": "Skipped - file exceeds size limit."}
@@ -4719,6 +4750,21 @@ async def regulation_impact_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Regulation-impact analysis failed safely: {e}"})
+
+@app.post("/hidden-business-logic")
+async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = detect_hidden_business_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("hidden-business-logic", file.filename)
+        write_audit_log("hidden-business-logic", file.filename, f"rules={result.get('total_hidden_rules', 0)}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Hidden-business-logic analysis failed safely: {e}"})
 
 @app.post("/change-risk-radar")
 async def change_risk_radar_endpoint(file: UploadFile = File(...)):
