@@ -4626,6 +4626,45 @@ def detect_hidden_business_logic(source, filename):
         })
     return {"hidden_rules": hidden_rules, "total_hidden_rules": len(hidden_rules), "hidden_rules_summary": f"{len(hidden_rules)} potential hidden/implicit business rule(s) found - multi-condition checks that may encode undocumented policy" if hidden_rules else "No obvious multi-condition implicit business logic detected in this file", "hidden_rules_disclaimer": "Heuristic detection of complex conditional logic (3+ chained comparisons) that commonly encodes business policy without an explicit keyword. Not a verified rule extraction - always confirm intent with the code owner or documentation before treating this as authoritative."}
 
+def _get_func_body_with_line(source, fname, filename=""):
+    _re5 = re
+    _flower2 = filename.lower()
+    if _flower2.endswith(".php"):
+        _pat2 = r"function\s+" + _re5.escape(fname) + r"\s*\([^)]*\)"
+        _next_pat2 = r"\nfunction\s+\w+\s*\("
+    elif _flower2.endswith((".cbl", ".cob")):
+        _pat2 = r"(?mi)^(?:\d{6}\s+)?" + _re5.escape(fname) + r"\.\s*$"
+        _next_pat2 = r"(?mi)\n(?:\d{6}\s+)?[\w-]+\.\s*$"
+    elif _flower2.endswith(".java"):
+        _pat2 = r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+" + _re5.escape(fname) + r"\s*\([^)]*\)"
+        _next_pat2 = r"\n\s*(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("
+    else:
+        _pat2 = r"(?m)^\s*def\s+" + _re5.escape(fname) + r"\s*\([^)]*\):"
+        _next_pat2 = r"\ndef\s+\w+\s*\("
+    m2 = _re5.search(_pat2, source)
+    if not m2:
+        return "", -1
+    _def_line_start = source.rfind(chr(10), 0, m2.start()) + 1
+    _start_line_num = source[:m2.start()].count(chr(10)) + 1
+    if _flower2.endswith(".py") or (not _flower2.endswith((".php", ".java", ".cbl", ".cob"))):
+        _def_indent = m2.start() - _def_line_start
+        _body_lines = []
+        for line in source[m2.end():].split(chr(10)):
+            _stripped = line.strip()
+            if _stripped == "" or _stripped.startswith("#"):
+                _body_lines.append(line)
+                continue
+            _line_indent = len(line) - len(line.lstrip())
+            if _line_indent <= _def_indent:
+                break
+            _body_lines.append(line)
+        return chr(10).join(_body_lines), _start_line_num
+    _rest2 = source[m2.end():]
+    _next_def2 = _re5.search(_next_pat2, _rest2)
+    if _next_def2:
+        return _rest2[:_next_def2.start()], _start_line_num
+    return _rest2[:2000], _start_line_num
+
 def calculate_change_risk_radar(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"radar": [], "radar_summary": "File too large for change-risk-radar analysis", "radar_disclaimer": "Skipped - file exceeds size limit."}
@@ -4643,12 +4682,10 @@ def calculate_change_risk_radar(source, filename):
     for m in impact_map:
         fn = m.get("function", "")
         callers = m.get("affected_by_change", [])
-        body = _get_func_body(source, fn, filename)
+        body, start_line = _get_func_body_with_line(source, fn, filename)
         touches_db = bool(db_pattern.search(body))
-        body_start_match = re.search(r"(?mi)^(?:\s*def\s+" + re.escape(fn) + r"|" + re.escape(fn) + r"\s*\()", source)
         touches_security = False
-        if body_start_match:
-            start_line = source[:body_start_match.start()].count(chr(10)) + 1
+        if start_line != -1:
             body_line_count = body.count(chr(10))
             touches_security = any(start_line <= ln <= start_line + body_line_count for ln in security_lines)
         risk_factors = []
