@@ -4873,23 +4873,29 @@ async def recommend_strategy_endpoint(file: UploadFile = File(...)):
 
 def calculate_migration_roi(source, filename):
     cost = estimate_migration_cost(source, filename)
-    debt = calculate_tech_debt(source)
+    debt = calculate_tech_debt(source, filename)
     cost_hours = cost.get("cost_hours", 0)
     hourly_rate = 50
     migration_cost = round(cost_hours * hourly_rate, 2)
     debt_hours = debt.get("estimated_hours", 0)
+    # Maintenance-cost and 3yr-allocation multipliers below are planning heuristics
+    # (2x debt-hours/year for ongoing maintenance burden, 30% of annual cost recurring
+    # during the migration's transition period) - not derived from a specific benchmark.
     annual_maintenance_cost = round(debt_hours * hourly_rate * 2, 2)
     rebuild_cost = round(migration_cost * 2.5, 2)
     status_quo_3yr = round(annual_maintenance_cost * 3, 2)
     migration_3yr_total = round(migration_cost + (annual_maintenance_cost * 0.3 * 3), 2)
     savings_vs_status_quo = round(status_quo_3yr - migration_3yr_total, 2)
-    breakeven_months = round((migration_cost / (annual_maintenance_cost * 0.7 / 12)), 1) if annual_maintenance_cost > 0 else None
+    if annual_maintenance_cost > 10:
+        breakeven_months = round((migration_cost / (annual_maintenance_cost * 0.7 / 12)), 1)
+    else:
+        breakeven_months = None
     try:
         risk = assess_dependency_risk(source, filename)
         risk_level = risk.get("overall_risk", "Unknown")
     except Exception:
         risk_level = "Unknown"
-    security_hits = len(re.findall(r"(?i)(eval|exec|md5|sha1|password|verify=False|shell=True)", source))
+    security_hits = len(re.findall(r"(?i)\b(eval|exec)\s*\(|\b(md5|sha1)\b|\bpassword\s*=\s*[\"\x27]|verify\s*=\s*False|shell\s*=\s*True", source))
     breach_risk_cost_3yr = 0
     if risk_level == "High" or security_hits >= 3:
         breach_risk_cost_3yr = 15000
@@ -4897,8 +4903,8 @@ def calculate_migration_roi(source, filename):
         breach_risk_cost_3yr = 5000
     status_quo_3yr_with_risk = round(status_quo_3yr + breach_risk_cost_3yr, 2)
     savings_with_risk = round(status_quo_3yr_with_risk - migration_3yr_total, 2)
-    security_note = " Note: this file has security findings (SQL injection/weak crypto/hardcoded secrets) - status-quo cost includes an estimated breach/compliance risk cost of $" + str(breach_risk_cost_3yr) + " over 3 years." if breach_risk_cost_3yr > 0 else ""
-    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr_with_risk, "status_quo_maintenance_only_usd": status_quo_3yr, "estimated_breach_risk_cost_3yr_usd": breach_risk_cost_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_with_risk, "breakeven_months": breakeven_months, "roi_summary": "Migration (~$" + str(migration_cost) + ") vs 3-year status-quo cost (~$" + str(status_quo_3yr_with_risk) + ", including security-risk exposure) - estimated savings: $" + str(savings_with_risk) + "." + security_note, "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr), generic multipliers, and a simplified security-risk-cost estimate. Replace with your actual team cost, maintenance history, and risk-assessment figures for an accurate result. A planning aid, not a financial guarantee."}
+    security_note = f" Note: this file has security findings (SQL injection/weak crypto/hardcoded secrets) - status-quo cost includes an estimated breach/compliance risk cost of ${breach_risk_cost_3yr} over 3 years." if breach_risk_cost_3yr > 0 else ""
+    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr_with_risk, "status_quo_maintenance_only_usd": status_quo_3yr, "estimated_breach_risk_cost_3yr_usd": breach_risk_cost_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_with_risk, "breakeven_months": breakeven_months, "roi_summary": f"Migration (~${migration_cost}) vs 3-year status-quo cost (~${status_quo_3yr_with_risk}, including security-risk exposure) - estimated savings: ${savings_with_risk}.{security_note}", "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr - adjust for your actual team cost), generic multipliers, and a simplified security-risk-cost estimate. Replace with your actual team cost, maintenance history, and risk-assessment figures for an accurate result. A planning aid, not a financial guarantee."}
 
 @app.post("/migration-roi")
 async def migration_roi_endpoint(file: UploadFile = File(...)):
@@ -4910,30 +4916,11 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
         result = calculate_migration_roi(source, file.filename)
         result["filename"] = file.filename
         track_usage("migration-roi", file.filename)
+        write_audit_log("migration-roi", file.filename, f"savings={result.get('estimated_savings_3yr_usd')}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "ROI calculation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"ROI calculation failed safely: {e}"})
 
-def _run_single_sandbox(code, timeout_s=8):
-    import subprocess as _sp2
-    import tempfile as _tf2
-    import os as _os2
-    try:
-        with _tf2.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
-            tmp.write(code)
-            tmp_path = tmp.name
-        try:
-            result = _sp2.run(["python3", tmp_path], timeout=timeout_s, capture_output=True, text=True)
-            return {"returncode": result.returncode, "stdout": (result.stdout or "")[:1000], "stderr": (result.stderr or "")[:1000], "timed_out": False}
-        except _sp2.TimeoutExpired:
-            return {"returncode": None, "stdout": "", "stderr": "Execution exceeded time limit", "timed_out": True}
-        finally:
-            try:
-                _os2.remove(tmp_path)
-            except Exception:
-                pass
-    except Exception as e:
-        return {"returncode": None, "stdout": "", "stderr": str(e), "timed_out": False}
 def generate_behavior_snapshot(original_code, migrated_code, filename):
     return {"snapshot_status": "Disabled", "match": None, "verdict": "Behavioral comparison is disabled", "snapshot_disclaimer": "This feature has been disabled: it previously executed both the original and migrated code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. It will return once a properly isolated execution environment is in place."}
 
