@@ -4709,18 +4709,28 @@ def detect_legacy_ghosts(source, filename):
         return {"ghosts_found": 0, "ghosts": [], "ghost_summary": "File too large for legacy-ghost analysis", "ghost_disclaimer": "Skipped - file exceeds size limit."}
     impact = analyze_impact(source, filename)
     impact_map = impact.get("impact_map", [])
+    def _is_genuinely_called_outside_definitions(fn_name, full_source):
+        call_pattern = re.compile(r"\b" + re.escape(fn_name) + r"\s*\(")
+        for cm in call_pattern.finditer(full_source):
+            preceding_text = full_source[:cm.start()].rstrip()
+            if preceding_text.endswith("def") or preceding_text.endswith("function") or re.search(r"(?i)(public|private|protected|static)\s*$", preceding_text):
+                continue
+            return True
+        return False
+
     ghosts = []
     for m in impact_map:
         fn = m.get("function", "")
         if m.get("dependents_count", 0) == 0:
-            body = _get_func_body(source, fn, filename)
             is_entrypoint_like = bool(re.search(r"(?i)\b(main|__main__|handler|endpoint|test_|setup|teardown)\b", fn))
+            called_outside_own_def = _is_genuinely_called_outside_definitions(fn, source)
+            is_low_confidence = is_entrypoint_like or called_outside_own_def
             ghosts.append({
                 "name": fn,
                 "type": "Unused Function (Dead Code Candidate)",
-                "reason": "No other function in this file calls it - it may be dead code, an unused utility, or an external entry point (e.g. called from another file, a router, or a test framework).",
-                "confidence": "Low" if is_entrypoint_like else "Medium",
-                "note": "Likely an entry point (main/handler/test) - probably NOT dead code, just uncalled from within this file." if is_entrypoint_like else "No internal callers found - review before removing."
+                "reason": "No other function in this file calls it - it may be dead code, an unused utility, or an external entry point (e.g. called from another file, a router, or a test framework)." + (" A textual match for this name was found elsewhere in the file (e.g. module-level/script code) - it may genuinely be in use." if called_outside_own_def and not is_entrypoint_like else ""),
+                "confidence": "Low" if is_low_confidence else "Medium",
+                "note": "Likely an entry point (main/handler/test) - probably NOT dead code, just uncalled from within this file." if is_entrypoint_like else ("Found referenced elsewhere in the file outside any function definition (e.g. module-level script code) - likely in genuine use, do NOT delete without checking." if called_outside_own_def else "No internal callers found - review before removing.")
             })
     duplicate_lines = {}
     for i, line in enumerate(source.split(chr(10))):
