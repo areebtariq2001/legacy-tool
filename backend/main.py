@@ -4961,32 +4961,30 @@ async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migr
         original_source, error1 = safe_read_file(orig_content, original_file.filename)
         migrated_source, error2 = safe_read_file(mig_content, migrated_file.filename)
         if error1 or error2:
-            return {"filename": original_file.filename, "error": error1 or error2}
+            return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": error1 or error2})
         result = generate_behavior_snapshot(original_source, migrated_source, original_file.filename)
         result["filename"] = original_file.filename
         track_usage("behavior-snapshot", original_file.filename)
+        write_audit_log("behavior-snapshot", original_file.filename, f"status={result.get('snapshot_status', 'unknown')}")
         return result
     except Exception as e:
-        return {"filename": original_file.filename, "error": "Behavior snapshot comparison failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": f"Behavior snapshot comparison failed safely: {e}"})
 
 def generate_strangler_fig_wrapper(source, filename):
     if filename.lower().endswith(".py"):
-        funcs = _re.findall(r"def\s+(\w+)\s*\(", source) if False else []
-        import re as _sfre
-        funcs = _sfre.findall(r"^def\s+(\w+)\s*\(", source, _sfre.MULTILINE)
+        funcs = re.findall(r"^def\s+(\w+)\s*\(", source, re.MULTILINE)
     elif filename.lower().endswith(".java"):
-        import re as _sfre
-        funcs = _sfre.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+        funcs = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
     elif filename.lower().endswith(".php"):
-        import re as _sfre
-        funcs = _sfre.findall(r"function\s+(\w+)\s*\(", source)
+        funcs = re.findall(r"function\s+(\w+)\s*\(", source)
     elif filename.lower().endswith((".cbl", ".cob")):
-        import re as _sfre
-        funcs = _sfre.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+        funcs = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
     else:
         funcs = []
-    funcs = list(dict.fromkeys(funcs))[:15]
-    class_name = filename.split(".")[0].replace("-", "_").replace(" ", "_")
+    funcs_full = list(dict.fromkeys(funcs))
+    funcs_truncated = len(funcs_full) > 15
+    funcs = funcs_full[:15]
+    class_name = filename.rsplit(".", 1)[0].replace("-", "_").replace(" ", "_").replace(".", "_")
     wrapper_lines = []
     if filename.lower().endswith(".py"):
         wrapper_lines.append("class " + class_name + "Facade:")
@@ -5029,7 +5027,8 @@ def generate_strangler_fig_wrapper(source, filename):
     if not funcs:
         return {"wrapper_generated": False, "wrapper_code": "", "functions_wrapped": [], "strangler_summary": "No functions found to wrap - nothing to generate a facade for.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
     wrapper_code = chr(10).join(wrapper_lines)
-    return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "strangler_summary": "Generated a facade wrapping " + str(len(funcs)) + " function(s) - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
+    _truncation_note = f" ({len(funcs_full) - 15} more function(s) found but not wrapped - facade limited to the first 15 for readability)" if funcs_truncated else ""
+    return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "total_functions_found": len(funcs_full), "functions_truncated": funcs_truncated, "strangler_summary": f"Generated a facade wrapping {len(funcs)} function(s){_truncation_note} - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
 
 @app.post("/strangler-fig")
 async def strangler_fig_endpoint(file: UploadFile = File(...)):
