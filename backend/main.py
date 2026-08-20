@@ -4978,7 +4978,9 @@ def generate_strangler_fig_wrapper(source, filename):
     elif filename.lower().endswith(".php"):
         funcs = re.findall(r"function\s+(\w+)\s*\(", source)
     elif filename.lower().endswith((".cbl", ".cob")):
-        funcs = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+        funcs_raw = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+        _cobol_reserved_structural = {"IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "DIVISION", "CONFIGURATION", "INPUT-OUTPUT", "FILE", "WORKING-STORAGE", "LINKAGE", "SECTION", "STOP", "EXIT", "RUN", "GOBACK"}
+        funcs = [f for f in funcs_raw if f.upper() not in _cobol_reserved_structural]
     else:
         funcs = []
     funcs_full = list(dict.fromkeys(funcs))
