@@ -4595,6 +4595,149 @@ def analyze_regulation_impact(source, filename):
             })
     return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
 
+def _safe_eval_restricted(node, variables):
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id not in variables:
+            raise ValueError(f"Unknown variable: {node.id}")
+        return variables[node.id]
+    if isinstance(node, ast.BinOp):
+        left = _safe_eval_restricted(node.left, variables)
+        right = _safe_eval_restricted(node.right, variables)
+        if isinstance(node.op, ast.Add): return left + right
+        if isinstance(node.op, ast.Sub): return left - right
+        if isinstance(node.op, ast.Mult): return left * right
+        if isinstance(node.op, ast.Div): return left / right if right != 0 else None
+        if isinstance(node.op, ast.FloorDiv): return left // right if right != 0 else None
+        if isinstance(node.op, ast.Mod): return left % right if right != 0 else None
+        if isinstance(node.op, ast.Pow): return left ** right
+        raise ValueError("Unsupported operator")
+    if isinstance(node, ast.UnaryOp):
+        val = _safe_eval_restricted(node.operand, variables)
+        if isinstance(node.op, ast.USub): return -val
+        if isinstance(node.op, ast.Not): return not val
+        raise ValueError("Unsupported unary operator")
+    if isinstance(node, ast.Compare):
+        left = _safe_eval_restricted(node.left, variables)
+        for op, comparator in zip(node.ops, node.comparators):
+            right = _safe_eval_restricted(comparator, variables)
+            if isinstance(op, ast.Eq): result = left == right
+            elif isinstance(op, ast.NotEq): result = left != right
+            elif isinstance(op, ast.Lt): result = left < right
+            elif isinstance(op, ast.Gt): result = left > right
+            elif isinstance(op, ast.LtE): result = left <= right
+            elif isinstance(op, ast.GtE): result = left >= right
+            else: raise ValueError("Unsupported comparison")
+            if not result: return False
+            left = right
+        return True
+    if isinstance(node, ast.BoolOp):
+        vals = [_safe_eval_restricted(v, variables) for v in node.values]
+        if isinstance(node.op, ast.And): return all(vals)
+        if isinstance(node.op, ast.Or): return any(vals)
+        raise ValueError("Unsupported bool op")
+    if isinstance(node, ast.IfExp):
+        cond = _safe_eval_restricted(node.test, variables)
+        return _safe_eval_restricted(node.body, variables) if cond else _safe_eval_restricted(node.orelse, variables)
+    raise ValueError(f"Unsupported node type: {type(node).__name__}")
+
+def _is_ast_safe_for_restricted_eval(node):
+    allowed_types = (ast.Module, ast.FunctionDef, ast.arguments, ast.arg, ast.Return, ast.If, ast.Assign,
+                      ast.BinOp, ast.UnaryOp, ast.Compare, ast.BoolOp, ast.IfExp, ast.Constant, ast.Name,
+                      ast.Load, ast.Store, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+                      ast.USub, ast.Not, ast.Eq, ast.NotEq, ast.Lt, ast.Gt, ast.LtE, ast.GtE, ast.And, ast.Or, ast.Pass)
+    for n in ast.walk(node):
+        if not isinstance(n, allowed_types):
+            return False
+    return True
+
+def _restricted_call_function(func_source, func_name, args_dict):
+    tree = ast.parse(func_source)
+    target_func = None
+    for n in ast.walk(tree):
+        if isinstance(n, ast.FunctionDef) and n.name == func_name:
+            target_func = n
+            break
+    if target_func is None:
+        return None, "Function not found"
+    if not _is_ast_safe_for_restricted_eval(target_func):
+        return None, "Function contains unsupported constructs (calls, loops, imports) - cannot be safely verified without execution"
+    local_vars = dict(args_dict)
+    def _exec_stmts(stmts):
+        for stmt in stmts:
+            if isinstance(stmt, ast.Assign):
+                if len(stmt.targets) != 1 or not isinstance(stmt.targets[0], ast.Name):
+                    raise ValueError("Only simple single-name assignment supported")
+                local_vars[stmt.targets[0].id] = _safe_eval_restricted(stmt.value, local_vars)
+            elif isinstance(stmt, ast.Return):
+                if stmt.value is not None:
+                    return _safe_eval_restricted(stmt.value, local_vars), True
+                return None, True
+            elif isinstance(stmt, ast.If):
+                cond = _safe_eval_restricted(stmt.test, local_vars)
+                branch = stmt.body if cond else stmt.orelse
+                result, returned = _exec_stmts(branch)
+                if returned:
+                    return result, True
+            elif isinstance(stmt, ast.Pass):
+                continue
+            else:
+                raise ValueError(f"Unsupported statement type: {type(stmt).__name__}")
+        return None, False
+    try:
+        result, returned = _exec_stmts(target_func.body)
+        if returned:
+            return result, None
+        return None, "No return statement reached"
+    except Exception as e:
+        return None, f"Evaluation error: {e}"
+
+def calculate_behavioral_confidence(original_source, migrated_source, filename):
+    if not filename.lower().endswith(".py"):
+        return {"behavioral_status": "Not Tested", "behavioral_summary": "Behavioral confidence checking currently only supports Python files.", "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution) on simple pure functions - not a full test suite."}
+    try:
+        orig_tree = ast.parse(original_source)
+        orig_funcs = [n.name for n in ast.walk(orig_tree) if isinstance(n, ast.FunctionDef)]
+    except Exception:
+        return {"behavioral_status": "Not Tested", "behavioral_summary": "Could not parse original source (may have legacy Python 2 syntax) - migrate it first, then check behavioral confidence.", "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution) on simple pure functions - not a full test suite."}
+    verified = []
+    skipped = []
+    for fn in orig_funcs:
+        test_inputs = [{"x": i, "a": i, "b": i + 1, "n": i, "amount": i * 100, "rate": 5, "years": 2, "principal": 1000} for i in [0, 1, 5, 100, -1]]
+        results_match = True
+        cases_checked = 0
+        reason = None
+        for inputs in test_inputs:
+            orig_result, orig_err = _restricted_call_function(original_source, fn, inputs)
+            if orig_err:
+                reason = orig_err
+                break
+            mig_result, mig_err = _restricted_call_function(migrated_source, fn, inputs)
+            if mig_err:
+                reason = mig_err
+                break
+            cases_checked += 1
+            if orig_result != mig_result:
+                results_match = False
+                break
+        if reason:
+            skipped.append({"function": fn, "reason": reason})
+        elif cases_checked > 0:
+            verified.append({"function": fn, "cases_checked": cases_checked, "match": results_match})
+    matched_count = sum(1 for v in verified if v["match"])
+    mismatched = [v["function"] for v in verified if not v["match"]]
+    if mismatched:
+        status = "Mismatch Detected"
+        summary = f"{len(mismatched)} function(s) produced different results after migration: {', '.join(mismatched)} - review before deploying."
+    elif verified:
+        status = f"Verified ({matched_count}/{len(verified)} functions)"
+        summary = f"{matched_count} pure function(s) verified identical on sample inputs using safe symbolic evaluation (no code execution)."
+    else:
+        status = "Not Tested"
+        summary = "No functions were simple enough for safe symbolic verification (this only covers basic pure arithmetic functions, not the whole file)."
+    return {"behavioral_status": status, "verified_functions": verified, "skipped_functions": skipped, "behavioral_summary": summary, "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution, no imports/calls/loops allowed) on simple pure functions only. This is a lightweight sanity check, not a full test suite or execution-based proof of equivalence."}
+
 def detect_hidden_business_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"hidden_rules": [], "hidden_rules_summary": "File too large for hidden-business-logic analysis", "hidden_rules_disclaimer": "Skipped - file exceeds size limit."}
@@ -4812,6 +4955,23 @@ async def strangler_fig_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Strangler fig wrapper generation failed safely: {e}"})
+
+@app.post("/behavioral-confidence")
+async def behavioral_confidence_endpoint(original_file: UploadFile = File(...), migrated_file: UploadFile = File(...)):
+    try:
+        orig_content = await original_file.read()
+        mig_content = await migrated_file.read()
+        original_source, error1 = safe_read_file(orig_content, original_file.filename)
+        migrated_source, error2 = safe_read_file(mig_content, migrated_file.filename)
+        if error1 or error2:
+            return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": error1 or error2})
+        result = calculate_behavioral_confidence(original_source, migrated_source, original_file.filename)
+        result["filename"] = original_file.filename
+        track_usage("behavioral-confidence", original_file.filename)
+        write_audit_log("behavioral-confidence", original_file.filename, f"status={result.get('behavioral_status', 'unknown')}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": f"Behavioral confidence check failed safely: {e}"})
 
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
