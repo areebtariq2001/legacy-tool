@@ -5362,14 +5362,17 @@ def get_file_at_commit(repo_url, file_path, commit_sha):
     gh_token = os.environ.get("GITHUB_TOKEN", "")
     gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
     try:
-        raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/" + commit_sha + "/" + file_path
+        if not re.match(r"^[a-fA-F0-9]{7,40}$", commit_sha):
+            return {"error": "Invalid commit SHA - must be a 7-40 character hex string."}
+        if not re.match(r"^[\w.\-/]+$", file_path) or ".." in file_path:
+            return {"error": "Invalid file path - contains disallowed characters."}
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{commit_sha}/{file_path}"
         r = requests.get(raw_url, headers=gh_headers, timeout=20)
         if r.status_code != 200:
             return {"error": "Could not fetch file at this commit (status " + str(r.status_code) + "). Check the file path and commit SHA."}
         return {"content": r.text, "commit_sha": commit_sha}
     except Exception as e:
-        return {"error": "Failed to fetch file version: " + str(e)}
-        return {"error": "Failed to fetch file version: " + str(e)}
+        return {"error": f"Failed to fetch file version: {e}"}
 def get_time_travel_diff(repo_url, file_path, commit_sha_old, commit_sha_new):
     old_result = get_file_at_commit(repo_url, file_path, commit_sha_old)
     new_result = get_file_at_commit(repo_url, file_path, commit_sha_new)
