@@ -2654,7 +2654,7 @@ async def scan_repo_endpoint(req: RepoRequest):
         _repo_rule_categories = []
         import time as _time_mod
         _scan_start_time = _time_mod.time()
-        _time_budget_seconds = 90
+        _time_budget_seconds = 180
         for f in py_files:
             if _time_mod.time() - _scan_start_time > _time_budget_seconds:
                 skipped_files.append({"file": f.get("path", ""), "reason": "Skipped - scan time budget exceeded"})
@@ -2744,7 +2744,7 @@ async def scan_repo_endpoint(req: RepoRequest):
             "file_dependencies_note": "Static, same-repo local-import relationships only (regex-based on import statements, no code execution). Does not resolve dynamic imports, aliasing, or cross-package structures.",
             "repo_business_domains": {k: _repo_rule_categories.count(k) for k in set(_repo_rule_categories)} if _repo_rule_categories else {},
             "repo_business_domains_note": "Aggregate count of business-rule categories detected across all scanned files in this repo (pattern-based, same detection used for single-file analysis).",
-            "disclaimer": "Scans up to 25 Python files from a public GitHub repo (free-tier limit). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
+            "disclaimer": "Scans Python files from a public GitHub repo within a 3-minute processing budget (free-tier limit, roughly 40-50 typical files). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
         }
         if not gh_token:
             result["warning"] = "No GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
