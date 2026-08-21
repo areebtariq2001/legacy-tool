@@ -5118,16 +5118,23 @@ async def codebase_history_endpoint(payload: dict):
         track_usage("codebase-history", repo_url)
         return result
     except Exception as e:
-        return {"error": "Codebase history lookup failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": f"Codebase history lookup failed safely: {e}"})
 
 def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=None):
     debt = calculate_tech_debt(source, filename)
     hours = debt.get("estimated_hours", 0)
+    _region_norm = (region or "pakistan").strip().lower()
+    _allowed_regions = {"pakistan", "us", "custom"}
+    if _region_norm not in _allowed_regions:
+        _region_norm = "pakistan"
+    if custom_rate is not None and custom_rate <= 0:
+        custom_rate = None
     rates = {"pakistan": 15, "us": 75, "custom": custom_rate if custom_rate else 50}
-    hourly_rate = rates.get(region, 15)
+    hourly_rate = rates.get(_region_norm, 15)
+    region = _region_norm
     total_cost = round(hours * hourly_rate, 2)
     days = round(hours / 8.0, 1)
-    return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": ("$" + str(total_cost) + " estimated cost to fix (" + str(hours) + " hours, ~" + str(days) + " working days at $" + str(hourly_rate) + "/hr)") if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
+    return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": f"${total_cost} estimated cost to fix ({hours} hours, ~{days} working days at ${hourly_rate}/hr)" if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
 
 @app.post("/tech-debt-cost")
 async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):
@@ -5141,7 +5148,7 @@ async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "p
         track_usage("tech-debt-cost", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Tech debt cost calculation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Tech debt cost calculation failed safely: {e}"})
 
 def generate_code_dna(source, filename):
     quality = calculate_code_quality(source, filename)
@@ -5170,7 +5177,7 @@ def generate_code_dna(source, filename):
     overall = round(sum(dimensions.values()) / len(dimensions), 1)
     weakest = min(dimensions.items(), key=lambda x: x[1])
     strongest = max(dimensions.items(), key=lambda x: x[1])
-    return {"dna_dimensions": dimensions, "dna_overall_score": overall, "dna_weakest_area": weakest[0], "dna_strongest_area": strongest[0], "dna_summary": "Code DNA: " + str(overall) + "/100 overall - strongest in " + strongest[0] + " (" + str(strongest[1]) + "), weakest in " + weakest[0] + " (" + str(weakest[1]) + ")", "dna_disclaimer": "Combines existing scores (security, quality, debt, complexity, dependency-risk) into a single visual fingerprint for quick comparison across files. Each dimension uses the same methodology and disclaimers as its source feature - review those for details."}
+    return {"dna_dimensions": dimensions, "dna_overall_score": overall, "dna_weakest_area": weakest[0], "dna_strongest_area": strongest[0], "dna_summary": f"Code DNA: {overall}/100 overall - strongest in {strongest[0]} ({strongest[1]}), weakest in {weakest[0]} ({weakest[1]})", "dna_disclaimer": "Combines existing scores (security, quality, debt, complexity, dependency-risk) into a single visual fingerprint for quick comparison across files. Each dimension uses the same methodology and disclaimers as its source feature - review those for details."}
 
 @app.post("/code-dna")
 async def code_dna_endpoint(file: UploadFile = File(...)):
@@ -5184,7 +5191,7 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
         track_usage("code-dna", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Code DNA generation failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code DNA generation failed safely: {e}"})
 
 def get_file_at_commit(repo_url, file_path, commit_sha):
     import re as _tre
