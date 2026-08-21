@@ -4798,6 +4798,21 @@ async def regulation_impact_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Regulation-impact analysis failed safely: {e}"})
 
+@app.post("/strangler-fig")
+async def strangler_fig_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = generate_strangler_fig_wrapper(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("strangler-fig", file.filename)
+        write_audit_log("strangler-fig", file.filename, f"generated={result.get('wrapper_generated', False)}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Strangler fig wrapper generation failed safely: {e}"})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
@@ -5051,26 +5066,32 @@ def generate_strangler_fig_wrapper(source, filename):
     return {"wrapper_generated": True, "wrapper_code": wrapper_code, "functions_wrapped": funcs, "total_functions_found": len(funcs_full), "functions_truncated": funcs_truncated, "strangler_summary": f"Generated a facade wrapping {len(funcs)} function(s){_truncation_note} - toggle use_new_impl per function as you build replacements.", "strangler_disclaimer": "Generates a Strangler Fig facade/adapter that delegates to legacy functions, letting you swap in new implementations incrementally without a full rewrite. Review and adapt the generated skeleton before use - it does not run or validate the legacy functions themselves."}
 
 def get_codebase_history(repo_url, file_path=""):
-    import re as _hre
-    m = _hre.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
+    m = re.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
     if not m:
         return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
     owner, repo = m.group(1), m.group(2)
+    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo):
+        return {"error": "Invalid owner or repo name in the URL - only letters, numbers, dots, hyphens, and underscores are allowed."}
+    if file_path and not re.match(r"^[\w.\-/]+$", file_path):
+        return {"error": "Invalid file path - contains disallowed characters."}
     gh_token = os.environ.get("GITHUB_TOKEN", "")
-    gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
+    gh_headers = {"Authorization": f"token {gh_token}"} if gh_token else {}
     try:
-        commits_url = "https://api.github.com/repos/" + owner + "/" + repo + "/commits"
+        commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
         params = {"per_page": 20}
         if file_path:
             params["path"] = file_path
         r = requests.get(commits_url, headers=gh_headers, params=params, timeout=20)
+        if r.status_code == 403 and "rate limit" in r.text.lower():
+            return {"error": "GitHub API rate limit exceeded. Add a GITHUB_TOKEN environment variable for higher limits, or try again later."}
         if r.status_code != 200:
-            return {"error": "Could not access commit history (status " + str(r.status_code) + "). Make sure the repo is public."}
+            return {"error": f"Could not access commit history (status {r.status_code}). Make sure the repo is public."}
         commits = r.json()
     except Exception as e:
-        return {"error": "GitHub history lookup failed: " + str(e)}
+        return {"error": f"GitHub history lookup failed: {e}"}
     if not commits:
-        return {"has_history": False, "history_summary": "No commit history found" + (" for this file" if file_path else "") + ".", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository. Limited to the 20 most recent commits."}
+        _scope = " for this file" if file_path else ""
+        return {"has_history": False, "history_summary": f"No commit history found{_scope}.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository. Limited to the 20 most recent commits."}
     authors = {}
     dates = []
     recent_messages = []
@@ -5084,8 +5105,9 @@ def get_codebase_history(repo_url, file_path=""):
     top_authors = sorted(authors.items(), key=lambda x: -x[1])[:5]
     last_modified = dates[0] if dates else "Unknown"
     change_frequency = "High" if len(commits) >= 15 else "Medium" if len(commits) >= 5 else "Low"
-    hotspot_note = "This file has changed frequently (" + str(len(commits)) + " commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
-    return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": str(len(commits)) + " commit(s) found" + (" for this file" if file_path else " for this repo") + " - " + change_frequency + " change frequency, " + str(len(authors)) + " author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
+    hotspot_note = f"This file has changed frequently ({len(commits)} commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
+    _scope2 = "for this file" if file_path else "for this repo"
+    return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": f"{len(commits)} commit(s) found {_scope2} - {change_frequency} change frequency, {len(authors)} author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
 
 @app.post("/codebase-history")
 async def codebase_history_endpoint(payload: dict):
