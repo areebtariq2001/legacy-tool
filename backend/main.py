@@ -5571,21 +5571,27 @@ async def github_issues_endpoint(payload: dict):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"GitHub issues lookup failed safely: {e}"})
 
+class GitHubIssueFixRequest(BaseModel):
+    issue_title: str = ""
+    issue_body: str = ""
+    source: str = ""
+
 @app.post("/github-issue-fix")
-async def github_issue_fix_endpoint(payload: dict):
+async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
     try:
-        issue_title = payload.get("issue_title") or ""
-        issue_body = payload.get("issue_body") or ""
-        source = payload.get("source") or ""
+        issue_title = (payload.issue_title or "")[:500]
+        issue_body = (payload.issue_body or "")[:10000]
+        source = (payload.source or "")[:10000]
         result = suggest_github_issue_fix(issue_title, issue_body, source)
-        track_usage("github-issue-fix", issue_title)
+        track_usage("github-issue-fix", f"issue-{len(issue_title)}-chars")
+        write_audit_log("github-issue-fix", f"issue-{len(issue_title)}-chars", "suggested")
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"AI fix suggestion failed safely: {e}"})
 
-@app.get('/')
+@app.get("/")
 def root():
-    return {"message": "API is running"}
+    return {"message": "StarSage Legacy Migration API", "status": "running", "docs": "/docs", "health": "/health"}
 
 
 
