@@ -5427,17 +5427,25 @@ Return ONLY the translated code with brief comments, no explanations, no markdow
         confidence -= 15
     if from_lang in ("python", "php") and to_lang in ("python", "php"):
         confidence += 10
-    confidence = max(10, min(60, confidence))
+    confidence_raw_original = confidence
+    confidence = round(max(0, min(100, (max(10, min(60, confidence)) - 10) * (100.0 / 50.0))))
     return {"translated_code": result, "from_language": from_lang, "to_language": to_lang, "confidence_score": confidence, "confidence_level": "Low confidence - manual review required" if confidence < 40 else "Moderate confidence - still requires careful review", "source_truncated": len(source) > 6000, "cross_language_summary": f"Experimental {from_lang} to {to_lang} translation - confidence: {confidence}%", "cross_language_disclaimer": f"HIGH-RISK EXPERIMENTAL FEATURE. Cross-language translation cannot be verified with the same rigor as same-language migration - there is no structural parity check, no compile verification, and no guarantee of behavioral equivalence. This output is an AI-generated DRAFT ONLY. A qualified developer fluent in both languages MUST review every line before use. Do not deploy this code without thorough testing.{_js_note}"}
 
+from pydantic import BaseModel as _CrossLangBaseModel
+
+class CrossLanguageMigrateRequest(_CrossLangBaseModel):
+    source: str = ""
+    from_lang: str = ""
+    to_lang: str = ""
+
 @app.post("/cross-language-migrate")
-async def cross_language_migrate_endpoint(payload: dict):
+async def cross_language_migrate_endpoint(payload: CrossLanguageMigrateRequest):
     try:
-        source = payload.get("source", "") or ""
+        source = payload.source or ""
         if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
             return JSONResponse(status_code=400, content={"error": f"Source too large. Maximum is {MAX_FILE_SIZE} bytes."})
-        from_lang = (payload.get("from_lang", "") or "").lower()
-        to_lang = (payload.get("to_lang", "") or "").lower()
+        from_lang = (payload.from_lang or "").lower()
+        to_lang = (payload.to_lang or "").lower()
         result = cross_language_migrate(source, from_lang, to_lang)
         track_usage("cross-language-migrate", f"{from_lang}-to-{to_lang}")
         write_audit_log("cross-language-migrate", f"{from_lang}-to-{to_lang}", f"confidence={result.get('confidence_score', 'N/A')}")
