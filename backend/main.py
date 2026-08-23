@@ -5642,6 +5642,9 @@ class GitHubIssueFixRequest(BaseModel):
 @app.post("/github-issue-fix")
 async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
     try:
+        _raw_body_size = len((payload.issue_title or "").encode("utf-8", errors="ignore")) + len((payload.issue_body or "").encode("utf-8", errors="ignore")) + len((payload.source or "").encode("utf-8", errors="ignore"))
+        if _raw_body_size > MAX_FILE_SIZE:
+            return JSONResponse(status_code=400, content={"error": f"Payload too large. Maximum is {MAX_FILE_SIZE} bytes."})
         issue_title = (payload.issue_title or "")[:500]
         issue_body = (payload.issue_body or "")[:10000]
         source = (payload.source or "")[:10000]
