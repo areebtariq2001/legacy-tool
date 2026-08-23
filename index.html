@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarSage: The Legacy Code Modernization Platform</title>
+<meta name="description" content="StarSage analyzes, migrates, and de-risks legacy Python, Java, PHP, and COBOL codebases — with banking-compliance mapping, behavioral verification, and on-premise AI options.">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#ffffff;--s1:#fafbfc;--s2:#ffffff;--s3:#f1f4f8;
+  --b1:#e5e8ee;--b2:#d7dce4;--b3:#c2c9d4;
+  --blue:#3b82f6;--blue-d:#1d4ed8;--cglow:#eff5ff;
+  --green:#16a34a;--gglow:#f0fdf4;
+  --amber:#d97706;--red:#dc2626;--purple:#7c3aed;
+  --ink:#0f1115;--ink2:#4b5563;--ink3:#6b7280;--ink4:#9ca3af;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;--r:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+img,svg{display:block;max-width:100%}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{color:var(--blue-d)}
+p{color:var(--ink2)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+@media (max-width:720px){.wrap{padding:0 20px}}
+
+/* ---------- background texture ---------- */
+.bg-grid{
+  position:fixed;inset:0;z-index:-2;
+  background-image:
+    linear-gradient(rgba(59,130,246,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,.06) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse 900px 600px at 50% -10%, black 40%, transparent 80%);
+}
+.bg-glow{
+  position:fixed;top:-260px;left:50%;transform:translateX(-50%);
+  width:900px;height:560px;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at center, rgba(59,130,246,.10), transparent 65%);
+}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;border-bottom:1px solid var(--b1);
+  background:rgba(255,255,255,.85);backdrop-filter:blur(10px);
+}
+.brand{display:flex;align-items:center;gap:9px}
+.logo-mark{width:26px;height:26px;border-radius:6px;background:var(--blue);
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
+.brand-name{font-size:14px;font-weight:700;letter-spacing:-.2px;color:var(--ink)}
+.brand-tag{font-size:8.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.12em;margin-top:1px}
+
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{font-size:13.5px;color:var(--ink2);font-weight:500;transition:color .15s}
+.nav-links a:hover{color:var(--blue-d)}
+@media (max-width:860px){.nav-links{display:none}}
+
+.nav-actions{display:flex;align-items:center;gap:10px}
+.btn{
+  font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;
+  border-radius:20px;border:1px solid var(--b1);cursor:pointer;transition:all .15s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn-ghost{background:transparent;color:var(--ink)}
+.btn-ghost:hover{border-color:var(--b3);background:var(--s3)}
+.btn-primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn-primary:hover{background:var(--blue-d);border-color:var(--blue-d)}
+
+/* ---------- hero ---------- */
+.hero{padding:88px 0 64px;display:grid;grid-template-columns:1fr 460px;gap:56px;align-items:center}
+@media (max-width:980px){.hero{grid-template-columns:1fr;padding:56px 0 40px}}
+
+.eyebrow{
+  display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;font-weight:500;
+  color:var(--blue-d);background:var(--cglow);border:1px solid #d6e6ff;
+  padding:5px 11px;border-radius:20px;margin-bottom:22px;
+}
+.eyebrow-dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+h1{font-size:52px;font-weight:800;letter-spacing:-1.6px;line-height:1.06;margin-bottom:22px}
+@media (max-width:980px){h1{font-size:38px;letter-spacing:-1px}}
+h1 .ink{color:var(--ink)}
+
+.hero-sub{font-size:16.5px;color:var(--ink2);line-height:1.65;max-width:520px;margin-bottom:32px}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.btn-lg{padding:13px 24px;font-size:14px}
+.hero-note{font-size:12.5px;color:var(--ink3);display:flex;align-items:center;gap:6px}
+.hero-note svg{width:13px;height:13px;flex-shrink:0}
+
+/* ---------- hero mock panel (signature element) ---------- */
+.panel{
+  background:var(--s2);border:1px solid var(--b1);border-radius:12px;
+  overflow:hidden;box-shadow:0 30px 60px -24px rgba(15,17,21,.16), 0 0 0 1px rgba(59,130,246,.03);
+}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 14px;border-bottom:1px solid var(--b1);background:var(--s1);
+}
+.panel-dots{display:flex;gap:5px}
+.panel-dots span{width:8px;height:8px;border-radius:50%;background:var(--b3)}
+.panel-title{font-size:11px;color:var(--ink3);font-family:var(--mono)}
+.panel-body{padding:18px}
+
+.scan-line{
+  display:flex;align-items:flex-start;gap:9px;font-family:var(--mono);font-size:11.5px;
+  color:var(--ink2);padding:5px 0;opacity:0;animation:reveal .4s ease forwards;
+}
+.scan-line b{color:var(--ink);font-weight:600}
+.scan-line.ok::before{content:'✓';color:var(--green);flex-shrink:0}
+.scan-line.warn::before{content:'!';color:var(--amber);font-weight:700;flex-shrink:0}
+.scan-line.info::before{content:'›';color:var(--blue-d);flex-shrink:0}
+@keyframes reveal{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
+.gauge-row{display:flex;align-items:center;gap:18px;margin-top:16px;padding-top:16px;border-top:1px solid var(--b1)}
+.gauge{position:relative;width:74px;height:74px;flex-shrink:0}
+.gauge svg{transform:rotate(-90deg)}
+.gauge-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge-num b{font-size:18px;font-weight:700;font-family:var(--mono);color:var(--ink)}
+.gauge-num span{font-size:7px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em}
+.gauge-legend{display:flex;flex-direction:column;gap:6px;flex:1}
+.gl-row{display:flex;align-items:center;justify-content:space-between;font-size:10.5px}
+.gl-label{color:var(--ink3)}
+.gl-bar-wrap{flex:1;height:4px;background:var(--s3);border-radius:2px;margin:0 8px;overflow:hidden}
+.gl-bar{height:100%;border-radius:2px;width:0;animation:grow 1s .4s ease forwards}
+@keyframes grow{to{width:var(--w)}}
+.gl-val{font-family:var(--mono);color:var(--ink2);width:24px;text-align:right}
+
+@media (prefers-reduced-motion: reduce){
+  .scan-line,.gl-bar,.eyebrow-dot{animation:none!important;opacity:1!important;width:var(--w,100%)!important}
+}
+
+/* ---------- stat strip ---------- */
+.stats{border-top:1px solid var(--b1);border-bottom:1px solid var(--b1);background:var(--s1)}
+.stats-row{display:flex;justify-content:space-between;padding:26px 0;flex-wrap:wrap;gap:20px}
+.stat{flex:1;min-width:130px}
+.stat-num{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--ink)}
+.stat-num span{color:var(--blue-d)}
+.stat-label{font-size:11.5px;color:var(--ink3);margin-top:3px}
+
+/* ---------- feature sections ---------- */
+.section{padding:88px 0}
+.section-head{max-width:560px;margin-bottom:44px}
+.section-eyebrow{font-family:var(--mono);font-size:11px;color:var(--blue-d);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+.section-head h2{font-size:30px;font-weight:700;letter-spacing:-.7px;margin-bottom:14px}
+.section-head p{font-size:15px;color:var(--ink2);line-height:1.65}
+
+.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.feat-grid{grid-template-columns:1fr}}
+.feat-card{
+  background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:20px;
+  transition:border-color .2s, transform .2s, box-shadow .2s;
+}
+.feat-card:hover{border-color:var(--b3);transform:translateY(-2px);box-shadow:0 12px 24px -16px rgba(15,17,21,.14)}
+.feat-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.feat-card h3{font-size:14.5px;font-weight:600;margin-bottom:7px;color:var(--blue-d)}
+.feat-card p{font-size:12.5px;color:var(--ink3);line-height:1.55}
+.feat-card ul{list-style:none;margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.feat-card ul li{font-size:12px;color:var(--ink3);line-height:1.5;padding-left:14px;position:relative}
+.feat-card ul li::before{content:'—';position:absolute;left:0;color:var(--b3)}
+
+/* ---------- callout banner ---------- */
+.callout{
+  background:linear-gradient(135deg, var(--cglow), var(--s2));
+  border:1px solid #d6e6ff;border-radius:14px;padding:40px;
+  display:flex;align-items:center;gap:32px;justify-content:space-between;flex-wrap:wrap;
+  position:relative;overflow:hidden;
+}
+.callout::before{
+  content:'';position:absolute;top:-40%;right:-10%;width:280px;height:280px;
+  background:radial-gradient(circle, rgba(124,58,237,.10), transparent 70%);
+}
+.callout-text{max-width:480px;position:relative}
+.callout-text h3{font-size:20px;font-weight:700;margin-bottom:9px;letter-spacing:-.3px}
+.callout-text p{font-size:13.5px;color:var(--ink2);line-height:1.6}
+.callout-badge{
+  font-family:var(--mono);font-size:10.5px;color:var(--purple);background:#f5f0ff;
+  border:1px solid #e2d4fc;padding:4px 10px;border-radius:20px;margin-bottom:14px;display:inline-block;
+}
+
+/* ---------- mode toggle section ---------- */
+.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:720px){.mode-cards{grid-template-columns:1fr}}
+.mode-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:22px}
+.mode-card.active{border-color:#bcd6ff;background:linear-gradient(180deg, var(--cglow), var(--s2))}
+.mode-tag{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:12px}
+.mode-tag.blue{background:var(--cglow);color:var(--blue-d);border:1px solid #cfe2ff}
+.mode-tag.gray{background:var(--s3);color:var(--ink3);border:1px solid var(--b1)}
+.mode-card h4{font-size:15px;font-weight:600;margin-bottom:8px;color:var(--blue-d)}
+.mode-card p{font-size:12.5px;color:var(--ink3);line-height:1.6}
+
+/* ---------- changelog ---------- */
+.changelog-list{border-top:1px solid var(--b1)}
+.cl-row{display:flex;gap:20px;padding:16px 0;border-bottom:1px solid var(--b1);align-items:baseline}
+.cl-date{font-family:var(--mono);font-size:11px;color:var(--ink3);width:88px;flex-shrink:0}
+.cl-text{font-size:13.5px;color:var(--ink2)}
+.cl-text b{color:var(--ink);font-weight:600}
+
+/* ---------- final cta ---------- */
+.final-cta{padding:100px 0;text-align:center}
+.final-cta h2{font-size:34px;font-weight:800;letter-spacing:-1px;margin-bottom:14px}
+.final-cta p{font-size:15px;color:var(--ink2);margin-bottom:30px}
+.final-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--b1);background:var(--s1);padding:56px 0 28px}
+.footer-top{display:grid;grid-template-columns:1.4fr repeat(5,1fr);gap:24px;margin-bottom:40px}
+@media (max-width:860px){.footer-top{grid-template-columns:1fr 1fr;gap:32px}}
+.footer-brand-tag{font-size:12.5px;color:var(--ink3);line-height:1.6;margin-top:10px;max-width:220px}
+.footer-col h5{font-size:11px;color:var(--ink4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.footer-col a{display:block;font-size:13px;color:var(--ink2);margin-bottom:10px;transition:color .15s}
+.footer-col a:hover{color:var(--blue-d)}
+.footer-bottom{
+  display:flex;justify-content:space-between;align-items:center;padding-top:24px;
+  border-top:1px solid var(--b1);font-size:12px;color:var(--ink3);flex-wrap:wrap;gap:12px;
+}
+.footer-socials{display:flex;gap:14px}
+.footer-socials a{color:var(--ink3)}
+.footer-socials a:hover{color:var(--blue-d)}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<!-- ============ TOPBAR ============ -->
+<div class="topbar">
+  <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%">
+    <div class="brand">
+      <div class="logo-mark">SS</div>
+      <div>
+        <div class="brand-name">StarSage</div>
+        <div class="brand-tag">Enterprise · v1.0</div>
+      </div>
+    </div>
+    <nav class="nav-links">
+      <a href="#product">Product</a>
+      <a href="#compliance">Compliance</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#changelog">Changelog</a>
+      <a href="app.html">Docs</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="app.html">Login</a>
+      <a class="btn btn-primary" href="app.html">Get Started →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HERO ============ -->
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <div class="eyebrow"><span class="eyebrow-dot"></span> AST-VERIFIED MIGRATION</div>
+      <h1>Modernize Legacy Codebases <span class="ink">with Absolute Precision.</span></h1>
+      <p class="hero-sub">Automated AST analysis, cross-language migration, security auditing, and architectural transformation for Python, Java, PHP, and COBOL.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary btn-lg" href="app.html">Get Started →</a>
+        <a class="btn btn-ghost btn-lg" href="app.html">Scan a Repository</a>
+      </div>
+      <div class="hero-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        Runs on-premise AI — your code never has to leave your network.
+      </div>
+    </div>
+
+    <!-- signature element: live-feeling scan panel mirroring the real product -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">legacy_bank_module.py</span>
+        <div class="panel-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="panel-body">
+        <div class="scan-line info" style="animation-delay:.1s">Parsing AST — <b>6 functions</b>, 1 import found</div>
+        <div class="scan-line warn" style="animation-delay:.5s">Integer-division risk — <b>calculate_interest()</b>, line 15</div>
+        <div class="scan-line warn" style="animation-delay:.9s">Hardcoded credential detected — line 9</div>
+        <div class="scan-line ok" style="animation-delay:1.3s">Behavioral check — <b>12/12</b> outputs match original</div>
+        <div class="scan-line ok" style="animation-delay:1.7s">Migration ready — Python 2 → 3</div>
+
+        <div class="gauge-row">
+          <div class="gauge">
+            <svg width="74" height="74" viewBox="0 0 74 74">
+              <circle cx="37" cy="37" r="31" fill="none" stroke="var(--b1)" stroke-width="6"/>
+              <circle cx="37" cy="37" r="31" fill="none" stroke="var(--blue)" stroke-width="6"
+                stroke-dasharray="195" stroke-dashoffset="60" stroke-linecap="round"/>
+            </svg>
+            <div class="gauge-num"><b>72</b><span>Score</span></div>
+          </div>
+          <div class="gauge-legend">
+            <div class="gl-row"><span class="gl-label">Security</span><div class="gl-bar-wrap"><div class="gl-bar" style="--w:38%;background:var(--red)"></div></div><span class="gl-val">38</span></div>
+            <div class="gl-row"><span class="gl-label">Migration</span><div class="gl-bar-wrap"><div class="gl-bar" style="--w:87%;background:var(--blue)"></div></div><span class="gl-val">87</span></div>
+            <div class="gl-row"><span class="gl-label">Debt Health</span><div class="gl-bar-wrap"><div class="gl-bar" style="--w:64%;background:var(--amber)"></div></div><span class="gl-val">64</span></div>
+            <div class="gl-row"><span class="gl-label">Compliance</span><div class="gl-bar-wrap"><div class="gl-bar" style="--w:71%;background:var(--purple)"></div></div><span class="gl-val">71</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ STAT STRIP ============ -->
+<div class="stats">
+  <div class="wrap">
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num"><span>87</span></div><div class="stat-label">Backend analysis checks</div></div>
+      <div class="stat"><div class="stat-num">4</div><div class="stat-label">Languages — Python, Java, PHP, COBOL</div></div>
+      <div class="stat"><div class="stat-num">2</div><div class="stat-label">Migration modes — Rule-Based &amp; AI</div></div>
+      <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Optional on-premise AI</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SECTION 1: CORE PIPELINE & DEEP ANALYSIS ============ -->
+<div class="wrap">
+  <section class="section" id="product">
+    <div class="section-head">
+      <div class="section-eyebrow">01 · Analysis</div>
+      <h2>Core Pipeline &amp; Deep Analysis</h2>
+      <p>Get complete visibility into complex legacy architectures before touching a single line of production code.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
+        <h3>AST-Based Code Structure Analysis</h3>
+        <p>Deep syntax tree parsing for Python, Java, PHP, and COBOL codebases.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--gglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a3 3 0 013 3v6M6 9v6a3 3 0 003 3h3"/></svg></div>
+        <h3>Comprehensive Code Mapping</h3>
+        <p>Automatic generation of Call Graphs, Dependency Graphs, and Database Schema/CRUD inventories.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#fef6ea"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <h3>Hidden Logic &amp; Ghost Detection</h3>
+        <p>Uncover hidden business logic and identify dead code (Legacy Ghost Detector) instantly.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2L12 16.4l-6.3 4.6 2.3-7.2-6-4.6h7.6z"/></svg></div>
+        <h3>Code DNA Fingerprinting</h3>
+        <p>Multi-dimensional scoring across Security, Quality, Maintainability, and Simplicity.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></div>
+        <h3>Business Rules Extraction</h3>
+        <p>Hybrid extraction using rule-based parsers and AI-driven discovery to map transaction flows.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SECTION 2: INTELLIGENT MIGRATION ENGINE ============ -->
+<div class="wrap">
+  <section class="section">
+    <div class="section-head">
+      <div class="section-eyebrow">02 · Migration</div>
+      <h2>Intelligent Migration Engine</h2>
+      <p>Migrate or rearchitect legacy systems securely with zero-execution behavioral verification.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/></svg></div>
+        <h3>Dual Migration Modes</h3>
+        <p>Choose between strict Rule-Based (AST-verified) or AI-Powered migration paths.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div>
+        <h3>Cross-Language Support</h3>
+        <p>Seamlessly bridge legacy frameworks (Python 2 to 3, Java, PHP, COBOL) and cross-language transitions (Python ↔ JavaScript, PHP ↔ Python).</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--gglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+        <h3>Behavioral Confidence Score</h3>
+        <p>Output verification without code execution.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#fdeeee"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3>Change Risk Radar</h3>
+        <p>Per-function risk ranking and migration impact analysis.</p>
+      </div>
+      <div class="feat-card" style="grid-column:1 / -1">
+        <div class="feat-icon" style="background:#fef6ea"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+        <h3>Enterprise Rollout Tools</h3>
+        <ul>
+          <li>Automated Rollback Plan generation</li>
+          <li>Parity Checks (original vs. migrated structure)</li>
+          <li>Strangler Fig pattern generators</li>
+          <li>ROI calculators</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SECTION 3: SECURITY, COMPLIANCE & BANKING ============ -->
+<div class="wrap">
+  <section class="section" id="compliance">
+    <div class="section-head">
+      <div class="section-eyebrow">03 · Security &amp; Compliance</div>
+      <h2>Security, Compliance &amp; Banking</h2>
+      <p>Built-in security audits and regulatory checks tailored for enterprise and financial systems.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#fdeeee"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Vulnerability Scanning</h3>
+        <p>Automated detection of SQL injection, weak cryptographic algorithms, and exposed secrets/credentials.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <h3>PII &amp; Data Leakage Protection</h3>
+        <p>Deep scanning for sensitive data and zero-trust readiness scoring.</p>
+      </div>
+      <div class="feat-card" style="grid-column:1 / -1">
+        <div class="feat-icon" style="background:var(--gglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></div>
+        <h3>Banking &amp; Regulatory Compliance</h3>
+        <ul>
+          <li>AML/KYC pattern detection and fraud-gap analysis</li>
+          <li>Regulatory framework mapping, regional compliance checks, and regulation impact analysis</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SECTION 4: ARCHITECTURE & CODE QUALITY ============ -->
+<div class="wrap">
+  <section class="section">
+    <div class="section-head">
+      <div class="section-eyebrow">04 · Architecture</div>
+      <h2>Architecture &amp; Code Quality</h2>
+      <p>Transform monolithic legacy code into clean, scalable, container-ready services.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <h3>Service Boundary Detection</h3>
+        <p>Automated microservices extraction and vendor lock-in analysis.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M12 2L2 7v10l10 5 10-5V7l-10-5z"/><path d="M2 7l10 5 10-5M12 22V12"/></svg></div>
+        <h3>CI/CD &amp; Deployment Automation</h3>
+        <p>One-click Dockerfile generation and CI/CD pipeline recommendations.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--gglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+        <h3>Quality Metrics</h3>
+        <p>Cyclomatic complexity analysis, code smell detection, and automated Code Quality Scoring.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SECTION 5: AI-POWERED DEVELOPER WORKSPACE ============ -->
+<div class="wrap">
+  <section class="section">
+    <div class="section-head">
+      <div class="section-eyebrow">05 · AI Workspace</div>
+      <h2>AI-Powered Developer Workspace</h2>
+      <p>Accelerate engineering velocity with built-in context-aware AI tools.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <h3>Ask Codebase</h3>
+        <p>Natural-language Q&amp;A over your entire repository.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#fef6ea"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 8V4H8M4 8h16v12H4z"/><path d="M4 12h16M9 16h.01M15 16h.01"/></svg></div>
+        <h3>Automated Maintenance</h3>
+        <p>AI refactor suggestions, test generation, living documentation, and GitHub issue fix suggestions.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h3>Repo-Level Insights</h3>
+        <p>Multi-file GitHub repo scans and Time-Travel Diffs (commit-to-commit history tracking).</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SECTION 6: ENTERPRISE PLATFORM CAPABILITIES ============ -->
+<div class="wrap">
+  <section class="section">
+    <div class="section-head">
+      <div class="section-eyebrow">06 · Platform</div>
+      <h2>Enterprise Platform Capabilities</h2>
+      <p>Secure, compliant, and deployment-ready for enterprise infrastructure.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--cglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue-d)" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+        <h3>On-Premise AI Option</h3>
+        <p>Run local models instead of cloud APIs for strict data privacy.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:var(--gglow)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>Governance &amp; Control</h3>
+        <p>Granular approval workflows (Approve/Reject/Modify), API key management, and exportable audit logs/trails.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:#f5f0ff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+        <h3>Operations Dashboard</h3>
+        <p>Centralized usage statistics, session-based user authentication, and project metrics.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ ON-PREM CALLOUT ============ -->
+<div class="wrap">
+  <section class="section" style="padding-top:0">
+    <div class="callout">
+      <div class="callout-text">
+        <span class="callout-badge">On-Premise AI</span>
+        <h3>Your code never has to leave your network.</h3>
+        <p>Run StarSage's AI layer against a local model instead of a cloud provider. For regulated institutions, that's the difference between "we can pilot this" and "we can't touch it."</p>
+      </div>
+      <a class="btn btn-primary btn-lg" href="app.html">Learn about On-Premise AI →</a>
+    </div>
+  </section>
+</div>
+
+<!-- ============ CHANGELOG ============ -->
+<div class="wrap">
+  <section class="section" id="changelog">
+    <div class="section-head">
+      <div class="section-eyebrow">Shipping log</div>
+      <h2>Recently shipped</h2>
+    </div>
+    <div class="changelog-list">
+      <div class="cl-row"><span class="cl-date">This month</span><span class="cl-text"><b>Behavioral Confidence Score</b> — verify migrated code behaves identically, without executing untrusted code on the server.</span></div>
+      <div class="cl-row"><span class="cl-date">This month</span><span class="cl-text"><b>Legacy Ghost Detector</b> — safer dead-code detection, aware of module-level usage.</span></div>
+      <div class="cl-row"><span class="cl-date">This month</span><span class="cl-text"><b>Change Risk Radar</b> — per-function risk ranking before you touch anything.</span></div>
+      <div class="cl-row"><span class="cl-date">This month</span><span class="cl-text"><b>Hidden Business Logic Detector</b> — surfaces implicit multi-condition business rules.</span></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ FINAL CTA ============ -->
+<div class="wrap">
+  <section class="final-cta">
+    <h2>Stop guessing what your legacy code does.</h2>
+    <p>Upload a file or scan a repository — StarSage runs the full pipeline in one pass.</p>
+    <div class="final-ctas">
+      <a class="btn btn-primary btn-lg" href="app.html">Get Started →</a>
+      <a class="btn btn-ghost btn-lg" href="#contact">Talk to us →</a>
+    </div>
+  </section>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="footer-top">
+      <div>
+        <div class="brand">
+          <div class="logo-mark">SS</div>
+          <div class="brand-name">StarSage</div>
+        </div>
+        <p class="footer-brand-tag">Legacy code modernization for teams who need to know what changed, and why.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <a href="app.html">Modernize Code</a>
+        <a href="app.html">Dashboard</a>
+        <a href="app.html">Ask Codebase</a>
+        <a href="app.html">ROI &amp; Debt</a>
+        <a href="app.html">API Keys</a>
+        <a href="app.html">On-Premise AI</a>
+      </div>
+      <div class="footer-col">
+        <h5>Resources</h5>
+        <a href="#">Download / API</a>
+        <a href="#changelog">Changelog</a>
+        <a href="#">Docs</a>
+        <a href="#">Help</a>
+        <a href="#">Status</a>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <a href="#">About</a>
+        <a href="#">Blog</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h5>Legal</h5>
+        <a href="#">Terms of Service</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Data Use</a>
+        <a href="#">Security</a>
+      </div>
+      <div class="footer-col">
+        <h5>Connect</h5>
+        <a href="#">X / Twitter</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">GitHub</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 StarSage. All rights reserved.</span>
+      <div class="footer-socials">
+        <a href="#" aria-label="X">𝕏</a>
+        <a href="#" aria-label="LinkedIn">in</a>
+        <a href="#" aria-label="GitHub">GH</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
