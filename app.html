@@ -633,6 +633,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
               <div class="approval-actions">
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadComplianceEvidence()">Compliance Evidence Export</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadJSON()">Export JSON</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
@@ -2505,6 +2506,61 @@ async function doReject() {
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
+function downloadComplianceEvidence() {
+  const fname = files.length ? files[0].name : 'unknown';
+  const conf = document.getElementById('confPct').textContent;
+  const health = document.getElementById('healthNum').textContent;
+  const issuesArr = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => e.textContent.trim());
+  const rulesArr = Array.from(document.querySelectorAll('#rulesList > div')).map(e => e.textContent.replace(/\s+/g, ' ').trim());
+  const fixTime = document.getElementById('impact-time').textContent;
+  const risk = document.getElementById('impact-risk').textContent;
+  const behavioral = (R && R.behavioral && R.behavioral.behavioral_status) ? R.behavioral.behavioral_status : 'Not Tested';
+  const behavioralSummary = (R && R.behavioral && R.behavioral.behavioral_summary) ? R.behavioral.behavioral_summary : 'Not run for this file.';
+  const genDate = new Date().toLocaleString();
+  const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compliance Evidence Report - ${escHtml(fname)}</title>
+<style>
+  @media print { .no-print { display: none; } body { margin: 0; } }
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 24px; color: #0f1115; line-height: 1.6; }
+  h1 { font-size: 24px; border-bottom: 3px solid #1d4ed8; padding-bottom: 12px; margin-bottom: 4px; }
+  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 28px; }
+  h2 { font-size: 16px; color: #1d4ed8; margin-top: 32px; border-bottom: 1px solid #e5e8ee; padding-bottom: 6px; }
+  .meta-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  .meta-table td { padding: 8px 12px; border: 1px solid #e5e8ee; font-size: 13px; }
+  .meta-table td:first-child { font-weight: 600; background: #fafbfc; width: 220px; }
+  ul { padding-left: 20px; } li { margin-bottom: 6px; font-size: 13px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #f0fdf4; color: #16a34a; } .badge-amber { background: #fef6ea; color: #d97706; } .badge-red { background: #fdeeee; color: #dc2626; }
+  .disclaimer { margin-top: 40px; padding: 16px; background: #fafbfc; border: 1px solid #e5e8ee; border-radius: 8px; font-size: 11px; color: #6b7280; }
+  .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #1d4ed8; color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; }
+</style></head><body>
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+<h1>Compliance Evidence Report</h1>
+<div class="subtitle">StarSage Legacy Code Modernization Platform</div>
+<table class="meta-table">
+  <tr><td>File</td><td>${escHtml(fname)}</td></tr>
+  <tr><td>Report Generated</td><td>${escHtml(genDate)}</td></tr>
+  <tr><td>Migration Confidence</td><td>${escHtml(conf)}</td></tr>
+  <tr><td>Codebase Health Score</td><td>${escHtml(health)}/100</td></tr>
+  <tr><td>Overall Risk</td><td>${escHtml(risk)}</td></tr>
+  <tr><td>Behavioral Verification</td><td>${escHtml(behavioral)}</td></tr>
+</table>
+<h2>Behavioral Equivalence Evidence</h2>
+<p style="font-size:13px">${escHtml(behavioralSummary)}</p>
+<h2>Security & Compliance Findings (${issuesArr.length})</h2>
+<ul>${issuesArr.length ? issuesArr.map(i => `<li>${escHtml(i)}</li>`).join('') : '<li>No issues flagged.</li>'}</ul>
+<h2>Business Rules Identified (${rulesArr.length})</h2>
+<ul>${rulesArr.length ? rulesArr.map(r => `<li>${escHtml(r)}</li>`).join('') : '<li>No business rules detected.</li>'}</ul>
+<h2>Estimated Remediation Effort</h2>
+<p style="font-size:13px">${escHtml(fixTime)}</p>
+<div class="disclaimer">
+  <b>Evidence Basis:</b> This report is generated from automated static analysis and, where applicable, safe symbolic behavioral verification (no code execution). It documents what StarSage's analysis pipeline detected at the time of generation. It is an evidentiary planning aid for an internal or external audit review — it does not constitute a formal compliance certification. A qualified compliance officer or auditor should review these findings against your institution's specific regulatory obligations before relying on this document.
+</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else { alert('Please allow pop-ups to view the Compliance Evidence Report.'); }
+}
 function downloadReport() {
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
