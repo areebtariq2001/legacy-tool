@@ -635,6 +635,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="approval-actions">
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadComplianceEvidence()">Compliance Evidence Export</button>
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadMigrationCertificate()">🎖️ Migration Certificate</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadJSON()">Export JSON</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
@@ -2507,6 +2508,61 @@ async function doReject() {
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
+function downloadMigrationCertificate() {
+  const fname = files.length ? files[0].name : 'unknown';
+  const conf = document.getElementById('confPct').textContent;
+  const health = document.getElementById('healthNum').textContent;
+  const critCount = parseInt(document.getElementById('sv-critical')?.textContent || '0', 10) || 0;
+  const rulesCount = document.querySelectorAll('#rulesList > div').length;
+  const behavioral = (R && R.behavioral && R.behavioral.behavioral_status) ? R.behavioral.behavioral_status : 'Not Tested';
+  const genDate = new Date().toLocaleString();
+  const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const secStatus = critCount === 0 ? 'PASS' : 'REVIEW REQUIRED';
+  const secColor = critCount === 0 ? '#16a34a' : '#dc2626';
+  const behStatus = behavioral.startsWith('Verified') ? 'PASS' : behavioral === 'Mismatch Detected' ? 'FAIL' : 'NOT TESTED';
+  const behColor = behavioral.startsWith('Verified') ? '#16a34a' : behavioral === 'Mismatch Detected' ? '#dc2626' : '#d97706';
+  const overallReady = critCount === 0 && !behavioral.includes('Mismatch');
+  const overallText = overallReady ? 'READY FOR REVIEW' : 'NOT READY — ISSUES FOUND';
+  const overallColor = overallReady ? '#16a34a' : '#dc2626';
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Migration Certificate - ${escHtml(fname)}</title>
+<style>
+  @media print { .no-print { display: none; } body { margin: 0; } }
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 24px; color: #0f1115; }
+  .cert-box { border: 3px solid #1d4ed8; border-radius: 12px; padding: 40px; text-align: center; }
+  .cert-badge { font-size: 40px; margin-bottom: 8px; }
+  h1 { font-size: 22px; letter-spacing: 2px; margin-bottom: 4px; color: #1d4ed8; }
+  .cert-sub { color: #6b7280; font-size: 12px; margin-bottom: 24px; }
+  .cert-file { font-size: 16px; font-weight: 700; margin-bottom: 24px; }
+  .status-overall { display: inline-block; padding: 10px 24px; border-radius: 20px; font-weight: 700; font-size: 14px; margin-bottom: 28px; color: #fff; background: ${overallColor}; }
+  .checklist { text-align: left; border-top: 1px solid #e5e8ee; padding-top: 20px; }
+  .check-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f4f8; font-size: 13px; }
+  .check-status { font-weight: 700; font-size: 11px; padding: 2px 10px; border-radius: 10px; color: #fff; }
+  .cert-footer { margin-top: 28px; font-size: 10px; color: #9ca3af; text-align: left; border-top: 1px solid #e5e8ee; padding-top: 16px; }
+  .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #1d4ed8; color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; }
+</style></head><body>
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+<div class="cert-box">
+  <div class="cert-badge">🎖️</div>
+  <h1>MIGRATION CERTIFICATE</h1>
+  <div class="cert-sub">StarSage Automated Evidence Summary — Generated ${escHtml(genDate)}</div>
+  <div class="cert-file">${escHtml(fname)}</div>
+  <div class="status-overall">${overallText}</div>
+  <div class="checklist">
+    <div class="check-row"><span>Migration Confidence</span><span>${escHtml(conf)}</span></div>
+    <div class="check-row"><span>Codebase Health Score</span><span>${escHtml(health)}/100</span></div>
+    <div class="check-row"><span>Security Review</span><span class="check-status" style="background:${secColor}">${secStatus}</span></div>
+    <div class="check-row"><span>Behavioral Equivalence</span><span class="check-status" style="background:${behColor}">${behStatus}</span></div>
+    <div class="check-row"><span>Business Rules Preserved</span><span>${rulesCount} rule(s) tracked</span></div>
+  </div>
+  <div class="cert-footer">
+    This certificate summarizes automated findings from StarSage's static analysis and (where applicable) safe symbolic behavioral verification — it is <b>not</b> a legal or regulatory certification, and does not replace a qualified human reviewer's sign-off. "PASS" indicates no blocking automated finding was detected at generation time, not a guarantee of correctness.
+  </div>
+</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else { alert('Please allow pop-ups to view the Migration Certificate.'); }
+}
 function downloadComplianceEvidence() {
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
