@@ -5265,9 +5265,15 @@ def get_codebase_history(repo_url, file_path=""):
     top_authors = sorted(authors.items(), key=lambda x: -x[1])[:5]
     last_modified = dates[0] if dates else "Unknown"
     change_frequency = "High" if len(commits) >= 15 else "Medium" if len(commits) >= 5 else "Low"
+    _monthly_counts = {}
+    for _d in dates:
+        _month_key = _d[:7] if len(_d) >= 7 else "Unknown"
+        _monthly_counts[_month_key] = _monthly_counts.get(_month_key, 0) + 1
+    _trend_months = sorted(_monthly_counts.keys())
+    commit_trend = [{"month": m, "commits": _monthly_counts[m]} for m in _trend_months]
     hotspot_note = f"This file has changed frequently ({len(commits)} commits in recent history) - a common sign of high risk/complexity when migrating." if change_frequency == "High" else ""
     _scope2 = "for this file" if file_path else "for this repo"
-    return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "hotspot_note": hotspot_note, "history_summary": f"{len(commits)} commit(s) found {_scope2} - {change_frequency} change frequency, {len(authors)} author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed."}
+    return {"has_history": True, "total_commits_checked": len(commits), "last_modified": last_modified, "change_frequency": change_frequency, "top_authors": [{"name": a, "commits": c} for a, c in top_authors], "recent_commits": recent_messages[:10], "commit_trend": commit_trend, "hotspot_note": hotspot_note, "history_summary": f"{len(commits)} commit(s) found {_scope2} - {change_frequency} change frequency, {len(authors)} author(s) involved.", "history_disclaimer": "Uses the GitHub Commits API - does not clone the repository, so this stays fast and lightweight. Limited to the most recent 20 commits; older history is not analyzed. Trend is based on commit activity within these 20 commits, not a full historical scan."}
 
 @app.post("/codebase-history")
 async def codebase_history_endpoint(payload: dict):
