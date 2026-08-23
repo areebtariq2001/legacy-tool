@@ -540,6 +540,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-impact','Impact', this)">Impact</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/predict-risk','Migration Risk', this)">Migration Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/migration-plan','Migration Plan', this)">📋 Migration Plan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Deadline Cost" style="padding:7px 4px;font-size:10px" onclick="runDeadlineCostCalc(this)">⚖️ Deadline Cost</button>
               </div>
 
               <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">🏦 Banking &amp; Compliance</div>
@@ -2852,6 +2853,35 @@ function copyArchMermaid() {
   }).catch(() => {
     alert('Could not copy automatically. Mermaid code:\n\n' + mermaid);
   });
+}
+async function runDeadlineCostCalc(btnEl) {
+  const deadlineInput = prompt('Compliance deadline date (YYYY-MM-DD):');
+  if (!deadlineInput) return;
+  const dailyFineInput = prompt('Estimated daily fine/cost of non-compliance (USD, optional - leave blank to skip):', '0');
+  const autoFilledCost = (document.getElementById('impact-cost')?.textContent || '').replace(/[^0-9.]/g, '');
+  const migCostInput = prompt('Estimated migration cost (USD, optional):', autoFilledCost || '0');
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  document.getElementById('advTitle').textContent = 'Regulatory Deadline Cost Result';
+  loading.style.display = 'block'; result.style.display = 'none';
+  document.querySelectorAll('.adv-check-btn').forEach(b => { if (b !== btnEl) b.classList.remove('adv-active'); });
+  try {
+    const payload = {
+      filename: files.length ? files[0].name : 'unspecified',
+      deadline_date: deadlineInput.trim(),
+      daily_fine_estimate: parseFloat(dailyFineInput) || 0,
+      migration_cost_usd: parseFloat(migCostInput) || 0,
+    };
+    const r = await fetch(BACKEND + '/regulatory-deadline-cost', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.innerHTML = formatGenericResult(d, 'Deadline Cost');
+    if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+  } catch (e) {
+    loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Deadline Cost failed: ' + e.message;
+    if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+  }
 }
 async function runGenericScan(endpoint, label, btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
