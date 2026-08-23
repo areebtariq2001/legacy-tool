@@ -774,6 +774,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="setQ('Summarize what this code does')">Summarize</button>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;padding:8px" onclick="runAsk()">Ask AI</button>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:6px;padding:8px" onclick="runTraceabilityQuery()" title="Traces the specific function(s) and condition(s) triggered by a described scenario, referencing actual code paths">🔍 Trace Logic Path</button>
         </div>
         <div>
           <div class="loading" id="askLoad"><div class="spinner"></div><div class="loading-txt">Thinking…</div></div>
@@ -3151,6 +3152,28 @@ function resetAll() {
   document.getElementById('fi').value = '';
 }
 function setQ(q) { document.getElementById('askInput').value = q; }
+async function runTraceabilityQuery() {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const code = await files[0].text();
+  const q = document.getElementById('askInput').value.trim();
+  if (!q) { alert('Enter a question describing a scenario, e.g. "What happens if a transaction occurs after 5pm on Friday?"'); return; }
+  document.getElementById('askEmpty').style.display = 'none';
+  document.getElementById('askResult').classList.remove('show');
+  document.getElementById('askLoad').classList.add('show');
+  try {
+    const payload = { question: q, source: code, filename: files[0].name };
+    const r = await fetch(BACKEND + '/traceability-query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
+    document.getElementById('askLoad').classList.remove('show');
+    document.getElementById('askBody').textContent = d.traced_answer || JSON.stringify(d, null, 2);
+    document.getElementById('askResult').classList.add('show');
+  } catch (e) {
+    document.getElementById('askLoad').classList.remove('show');
+    document.getElementById('askEmpty').style.display = 'block';
+    alert('Trace failed: ' + e.message);
+  }
+}
 async function runAsk() {
   if (!files.length) { alert('Upload a file first.'); return; }
   const code = await files[0].text();
