@@ -1255,7 +1255,7 @@ def migrate_php(source):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
         changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
     check = validate_php(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check}
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(source, "php")}
 
 # ---------- JAVA ----------
 def analyze_java(source):
@@ -1350,7 +1350,7 @@ def migrate_java(source):
     for pattern, msg in review_rules:
         if re.search(pattern, migrated):
             changes.append("REVIEW NEEDED: " + msg)
-    return {"migrated_code": migrated, "changes": changes}
+    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source, "java")}
 
 # ---------- COBOL ----------
 def analyze_cobol(source):
@@ -1653,7 +1653,7 @@ def migrate_cobol(source):
         out_lines.append("    main()")
     migrated = chr(10).join(out_lines)
     check = validate_cobol(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check}
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(source, "cobol")}
 
 
 # ---------- AI ----------
