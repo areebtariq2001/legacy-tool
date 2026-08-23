@@ -182,7 +182,7 @@ def call_groq(prompt, max_tokens=500):
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "openai/gpt-oss-20b",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens
         }
