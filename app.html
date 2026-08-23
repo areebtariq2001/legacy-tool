@@ -3166,7 +3166,7 @@ async function runTraceabilityQuery() {
     const d = await r.json();
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     document.getElementById('askLoad').classList.remove('show');
-    document.getElementById('askBody').textContent = d.traced_answer || JSON.stringify(d, null, 2);
+    document.getElementById('askBody').innerHTML = escapeHtml(d.traced_answer || JSON.stringify(d, null, 2)).replace(/\n/g, '<br>') + (d.traceability_disclaimer ? '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e8ee;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml(d.traceability_disclaimer) + '</div>' : '');
     document.getElementById('askResult').classList.add('show');
   } catch (e) {
     document.getElementById('askLoad').classList.remove('show');
