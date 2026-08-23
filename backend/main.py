@@ -5030,6 +5030,47 @@ async def migration_plan_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration plan generation failed safely: {e}"})
 
+class RegulatoryDeadlineRequest(BaseModel):
+    filename: str = ""
+    deadline_date: str = ""
+    daily_fine_estimate: float = 0
+    migration_cost_usd: float = 0
+
+@app.post("/regulatory-deadline-cost")
+async def regulatory_deadline_cost_endpoint(payload: RegulatoryDeadlineRequest):
+    try:
+        import datetime as _dt
+        try:
+            deadline = _dt.datetime.strptime(payload.deadline_date.strip(), "%Y-%m-%d").date()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "Invalid deadline_date - use YYYY-MM-DD format."})
+        today = _dt.date.today()
+        days_remaining = (deadline - today).days
+        if payload.daily_fine_estimate < 0:
+            return JSONResponse(status_code=400, content={"error": "daily_fine_estimate cannot be negative."})
+        if days_remaining < 0:
+            status_msg = f"Deadline has already passed by {abs(days_remaining)} day(s)."
+            urgency = "Overdue"
+        elif days_remaining == 0:
+            status_msg = "Deadline is today."
+            urgency = "Critical"
+        elif days_remaining <= 30:
+            status_msg = f"{days_remaining} day(s) remaining."
+            urgency = "Critical"
+        elif days_remaining <= 90:
+            status_msg = f"{days_remaining} day(s) remaining."
+            urgency = "High"
+        else:
+            status_msg = f"{days_remaining} day(s) remaining."
+            urgency = "Moderate"
+        total_exposure = max(0, days_remaining) * payload.daily_fine_estimate if payload.daily_fine_estimate > 0 else None
+        result = {"deadline_date": payload.deadline_date, "days_remaining": days_remaining, "urgency": urgency, "status_message": status_msg, "daily_fine_estimate_usd": payload.daily_fine_estimate if payload.daily_fine_estimate > 0 else None, "estimated_total_exposure_usd": total_exposure, "migration_cost_usd": payload.migration_cost_usd if payload.migration_cost_usd > 0 else None, "net_argument": (f"Migrating now (~${payload.migration_cost_usd}) vs. waiting until the deadline (~${total_exposure} in estimated exposure) - migrating early saves an estimated ${round(total_exposure - payload.migration_cost_usd, 2)}." if total_exposure is not None and payload.migration_cost_usd > 0 else None)}
+        track_usage("regulatory-deadline-cost", payload.filename or "unspecified")
+        write_audit_log("regulatory-deadline-cost", payload.filename or "unspecified", f"days_remaining={days_remaining}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Regulatory deadline calculation failed safely: {e}"})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
