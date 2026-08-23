@@ -1151,6 +1151,11 @@ async function runAnalysis() {
         checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
           _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0">🔴 ' + t + '</div>').join('');
       }
+      const _whyExp = R.migrate && Array.isArray(R.migrate.why_explanations) ? R.migrate.why_explanations : [];
+      if (_whyExp.length > 0) {
+        checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Why This Matters</div>' +
+          _whyExp.map(w => '<div style="font-size:11px;color:#4b5563;padding:4px 0;border-left:2px solid #cfe2ff;padding-left:8px;margin-bottom:4px"><b style="color:#1d4ed8">' + escapeHtml(String(w.change || '')) + ':</b> ' + escapeHtml(String(w.why || '')) + '</div>').join('');
+      }
       checklist.innerHTML = checklistHtml;
     }
     pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
