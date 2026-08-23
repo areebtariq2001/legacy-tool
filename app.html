@@ -10,12 +10,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#07090f;--s1:#0b0f1a;--s2:#0f1525;--s3:#141c2e;
-  --b1:#1e2d45;--b2:#243350;--b3:#2d3f60;
-  --blue:#3b82f6;--blue-l:#60a5fa;--cglow:rgba(59,130,246,.1);
-  --green:#22c55e;--gglow:rgba(34,197,94,.1);
-  --amber:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
-  --t1:#f1f5f9;--t2:#94a3b8;--t3:#64748b;--t4:#334155;
+  --bg:#ffffff;--s1:#fafbfc;--s2:#ffffff;--s3:#f1f4f8;
+  --b1:#e5e8ee;--b2:#d7dce4;--b3:#c2c9d4;
+  --blue:#3b82f6;--blue-l:#1d4ed8;--cglow:#eff5ff;
+  --green:#16a34a;--gglow:#f0fdf4;
+  --amber:#d97706;--red:#dc2626;--purple:#7c3aed;
+  --t1:#0f1115;--t2:#4b5563;--t3:#6b7280;--t4:#9ca3af;
   --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;--r:8px;
 }
 html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;line-height:1.5;overflow:hidden}
@@ -293,7 +293,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="viewCommitHistory()" title="Shows recent commit activity and change frequency using the GitHub Commits API">History</button>
               </div>
               <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 files (Python, Java, PHP, COBOL).</div>
-              <div id="repoScanResult" style="display:none;margin-top:8px;font-family:monospace;font-size:10px;color:#94a3b8;white-space:pre-wrap;background:#07090f;border-radius:6px;padding:10px;max-height:200px;overflow-y:auto"></div>
+              <div id="repoScanResult" style="display:none;margin-top:8px;font-family:monospace;font-size:10px;color:#4b5563;white-space:pre-wrap;background:#ffffff;border-radius:6px;padding:10px;max-height:200px;overflow-y:auto"></div>
             </div>
           </div>
           <div class="card">
@@ -391,7 +391,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="repoSummaryCard" style="display:none">
               <div class="card-head">Repository Summary <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Accumulated across all files analyzed this session</span></div>
-              <div id="repoSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8;margin-bottom:10px"></div>
+              <div id="repoSummaryText" style="font-size:12px;color:#4b5563;line-height:1.8;margin-bottom:10px"></div>
               <div id="repoFileList" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
             <div class="card" id="crossFileCard" style="display:none">
@@ -401,7 +401,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card" id="execSummaryCard" style="display:none">
               <div class="card-head">Executive Summary</div>
-              <div id="execSummaryText" style="font-size:12px;color:#94a3b8;line-height:1.8"></div>
+              <div id="execSummaryText" style="font-size:12px;color:#4b5563;line-height:1.8"></div>
             </div>
             <div class="card">
               <div class="card-head">Issues & Recommendations <span class="card-head-a" id="issue-count"></span></div>
@@ -435,17 +435,17 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head">Analysis Scope</div>
               <div style="font-size:9px;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Included</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)">✓ Source Code Structure</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)">✓ Business Rules (pattern-based)</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)">✓ Security Patterns</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)">✓ Tech Debt Indicators</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#16a34a;border:1px solid rgba(34,197,94,0.2)">✓ Source Code Structure</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#16a34a;border:1px solid rgba(34,197,94,0.2)">✓ Business Rules (pattern-based)</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#16a34a;border:1px solid rgba(34,197,94,0.2)">✓ Security Patterns</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(34,197,94,0.1);color:#16a34a;border:1px solid rgba(34,197,94,0.2)">✓ Tech Debt Indicators</span>
               </div>
               <div style="font-size:9px;color:#ef4444;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Not Included</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)">✗ Runtime Behavior</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)">✗ Production Logs</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)">✗ External Systems</span>
-                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)">✗ Database Contents (structure only)</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2)">✗ Runtime Behavior</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2)">✗ Production Logs</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2)">✗ External Systems</span>
+                <span style="font-size:10px;padding:4px 9px;border-radius:12px;background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2)">✗ Database Contents (structure only)</span>
               </div>
               <div style="font-size:9px;color:#64748b">This is a static analysis of the uploaded source file. It does not execute the code or connect to any live system.</div>
             </div>
@@ -460,15 +460,15 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <div class="card">
               <div class="card-head">Modernization Roadmap <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Suggested phases, board-ready</span></div>
               <div style="display:flex;flex-direction:column;gap:4px">
-                <div style="padding:8px 10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:4px"><span style="font-size:10px;color:#f87171;font-weight:700">PHASE 1</span> <span style="font-size:11px;color:#f1f5f9">Fix Security & Compliance Issues</span></div>
+                <div style="padding:8px 10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:4px"><span style="font-size:10px;color:#dc2626;font-weight:700">PHASE 1</span> <span style="font-size:11px;color:#0f1115">Fix Security & Compliance Issues</span></div>
                 <div style="text-align:center;color:#334155;font-size:10px">↓</div>
-                <div style="padding:8px 10px;background:rgba(245,158,11,0.08);border-left:3px solid #f59e0b;border-radius:4px"><span style="font-size:10px;color:#f59e0b;font-weight:700">PHASE 2</span> <span style="font-size:11px;color:#f1f5f9">Extract Business Rules</span></div>
+                <div style="padding:8px 10px;background:rgba(245,158,11,0.08);border-left:3px solid #f59e0b;border-radius:4px"><span style="font-size:10px;color:#f59e0b;font-weight:700">PHASE 2</span> <span style="font-size:11px;color:#0f1115">Extract Business Rules</span></div>
                 <div style="text-align:center;color:#334155;font-size:10px">↓</div>
-                <div style="padding:8px 10px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;border-radius:4px"><span style="font-size:10px;color:#22c55e;font-weight:700">PHASE 3</span> <span style="font-size:11px;color:#f1f5f9">Generate APIs from Legacy Logic</span></div>
+                <div style="padding:8px 10px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;border-radius:4px"><span style="font-size:10px;color:#22c55e;font-weight:700">PHASE 3</span> <span style="font-size:11px;color:#0f1115">Generate APIs from Legacy Logic</span></div>
                 <div style="text-align:center;color:#334155;font-size:10px">↓</div>
-                <div style="padding:8px 10px;background:rgba(59,130,246,0.08);border-left:3px solid #3b82f6;border-radius:4px"><span style="font-size:10px;color:#60a5fa;font-weight:700">PHASE 4</span> <span style="font-size:11px;color:#f1f5f9">Split into Microservices</span></div>
+                <div style="padding:8px 10px;background:rgba(59,130,246,0.08);border-left:3px solid #3b82f6;border-radius:4px"><span style="font-size:10px;color:#1d4ed8;font-weight:700">PHASE 4</span> <span style="font-size:11px;color:#0f1115">Split into Microservices</span></div>
                 <div style="text-align:center;color:#334155;font-size:10px">↓</div>
-                <div style="padding:8px 10px;background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;border-radius:4px"><span style="font-size:10px;color:#a78bfa;font-weight:700">PHASE 5</span> <span style="font-size:11px;color:#f1f5f9">Cloud-Ready Deployment</span></div>
+                <div style="padding:8px 10px;background:rgba(139,92,246,0.08);border-left:3px solid #8b5cf6;border-radius:4px"><span style="font-size:10px;color:#7c3aed;font-weight:700">PHASE 5</span> <span style="font-size:11px;color:#0f1115">Cloud-Ready Deployment</span></div>
               </div>
               <div style="font-size:9px;color:#64748b;margin-top:8px">Reference roadmap based on detected findings - a standard modernization sequence, not customized line-by-line to this codebase.</div>
             </div>
@@ -522,12 +522,12 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="downloadArchPng()">⬇ Download PNG</button>
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="copyArchMermaid()">📋 Copy as Mermaid</button>
               </div>
-              <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#07090f;border-radius:6px;padding:10px"></div>
+              <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#4b5563;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#ffffff;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card">
               <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
 
-              <div style="font-size:10px;color:#60a5fa;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
+              <div style="font-size:10px;color:#1d4ed8;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" title="Currently supports Python files only" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Data Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sensitive','Data Scan', this)">Data Scan</button>
@@ -565,7 +565,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Strangler Fig" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/strangler-fig','Strangler Fig', this)">Strangler Fig</button>
               </div>
 
-              <div style="font-size:10px;color:#a78bfa;font-weight:700;margin:6px 0 4px">🤖 AI &amp; Reports</div>
+              <div style="font-size:10px;color:#7c3aed;font-weight:700;margin:6px 0 4px">🤖 AI &amp; Reports</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Gen Docs" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/generate-docs','Gen Docs', this)">Gen Docs</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="AI Suggest" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ai-suggest','AI Suggest', this)">AI Suggest</button>
@@ -597,19 +597,19 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
 
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
-              <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#94a3b8;line-height:1.6;max-height:280px;overflow-y:auto;background:#07090f;border-radius:6px;padding:14px"></div>
+              <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#4b5563;line-height:1.6;max-height:280px;overflow-y:auto;background:#ffffff;border-radius:6px;padding:14px"></div>
             </div>
             <div class="card" id="diffCard">
               <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span> <span class="card-head-a" id="behaviorTestBtn" onclick="runBehaviorTest()" style="margin-left:8px" title="Runs the original and migrated Python code and compares their printed output">Test Behavior</span></div>
               <div id="changeCountNote" style="display:none;font-size:10px;color:#22c55e;margin-bottom:6px;font-weight:600"></div>
               <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
-              <div id="explainBox" style="display:none;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#94a3b8;line-height:1.6"></div>
+              <div id="explainBox" style="display:none;background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#4b5563;line-height:1.6"></div>
               <div class="conf-row" style="display:none">
                 <div class="conf-bar"><div class="conf-fill" id="confFill" style="background:var(--green);width:0%"></div></div>
                 <div class="conf-pct" id="confPct" style="color:var(--green)">0%</div>
               </div>
               <div id="changesChecklist" style="display:none;margin-bottom:12px"></div>
-              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#0f1525;border-radius:6px;border-left:2px solid #3b82f6">ℹ️ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong> auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
+              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:2px solid #3b82f6">ℹ️ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong> auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
               <div class="diff-wrap">
                 <div class="diff-pane">
                   <div class="diff-head old">Original Source</div>
@@ -622,9 +622,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
               <div id="bizRuleSpecSection" style="display:none;margin-top:12px">
                 <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="toggleBizRuleSpec()">📋 <span id="bizRuleSpecToggleLabel">Show Business Rule Detail</span></button>
-                <div id="bizRuleSpecBody" style="display:none;margin-top:8px;background:#0f1525;border:1px solid #1e2d45;border-radius:6px;max-height:400px;overflow-y:auto"></div>
+                <div id="bizRuleSpecBody" style="display:none;margin-top:8px;background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;max-height:400px;overflow-y:auto"></div>
               </div>
-              <div id="behaviorTestResult" style="display:none;margin-top:10px;padding:10px;background:#0f1525;border-radius:6px"></div>
+              <div id="behaviorTestResult" style="display:none;margin-top:10px;padding:10px;background:#f1f4f8;border-radius:6px"></div>
             </div>
             <div class="approval" id="approvalBox">
               <div class="approval-text">
@@ -921,7 +921,7 @@ function initCharts() {
         x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#334155', font: { size: 9 } } },
         y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#334155', font: { size: 9 } }, min: 0, max: 100 }
       },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f1525', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 8 } }
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#f1f4f8', borderColor: '#e5e8ee', borderWidth: 1, titleColor: '#0f1115', bodyColor: '#4b5563', padding: 8 } }
     }
   });
 }
@@ -1059,13 +1059,13 @@ async function runAnalysisOrBatch() {
   if (!progBar) {
     progBar = document.createElement('div');
     progBar.id = 'batchProgress';
-    progBar.style.cssText = 'margin-top:10px;background:#0f1525;border-radius:6px;padding:10px;border:1px solid #1e2d45';
+    progBar.style.cssText = 'margin-top:10px;background:#f1f4f8;border-radius:6px;padding:10px;border:1px solid #e5e8ee';
     btn.parentNode.insertBefore(progBar, btn.nextSibling);
   }
   progBar.style.display = 'block';
   for (let i = 0; i < allFiles.length; i++) {
     const pct = Math.round(((i) / allFiles.length) * 100);
-    progBar.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#f1f5f9;font-family:monospace">' + allFiles[i].name + '</span></div><div style="height:6px;background:#1e2d45;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
+    progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + allFiles[i].name + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
     files = [allFiles[i]];
     await runAnalysis();
   }
@@ -1138,7 +1138,7 @@ async function runAnalysis() {
             const lineMatch = text.match(/line\(s\)\s+([\d,\s]+)/i);
             text = (text.split(' - ')[0] || text.substring(0, 50)) + (lineMatch ? '' : '') + ' — see Issues & Recommendations for details.';
           }
-          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#94a3b8') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
+          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
         }).join('');
       const _secRaw = R.security;
       const _secTextForCategorize = _secRaw ? (typeof _secRaw === 'string' ? _secRaw : (_secRaw.result ?? _secRaw.output ?? JSON.stringify(_secRaw))).toLowerCase() : '';
@@ -1159,13 +1159,13 @@ async function runAnalysis() {
     const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
     let _cryptoWarningHtml = '';
     if (_weakCryptoChange) {
-      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#1a1006;border:1px solid #7c4a03;border-radius:6px;font-size:11px"><strong style="color:#fbbf24">⚠ Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#94a3b8">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong> replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code> or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
+      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#1a1006;border:1px solid #7c4a03;border-radius:6px;font-size:11px"><strong style="color:#d97706">⚠ Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#4b5563">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong> replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code> or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
     }
     if (_validity && _validity.migration_ready === false && _approvalTextEl) {
       const _issueLines = [];
       if (!_validity.syntax_valid) _issueLines.push('Syntax error: ' + escapeHtml(_validity.syntax_error || ''));
       (_validity.broken_py3_imports || []).forEach(b => _issueLines.push(`'${escapeHtml(b.module)}' module does not exist in Python 3 (use ${escapeHtml(b.suggested_replacement)} instead)`));
-      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#fca5a5;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>' + _cryptoWarningHtml;
+      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#ef4444;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>' + _cryptoWarningHtml;
     } else if (_approvalTextEl) {
       _approvalTextEl.innerHTML = '<strong>Human Review Required</strong><br>Review the analysis and diff above, then approve or reject this migration.' + _cryptoWarningHtml;
     }
@@ -1362,9 +1362,9 @@ function generateSuggestions(issues, critCount, warnCount) {
   if (suggestions.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   list.innerHTML = suggestions.map(s => `
-    <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #3b82f6">
-      <span style="color:#60a5fa;font-size:12px">→</span>
-      <span style="color:#f1f5f9;font-size:12px;line-height:1.5">${s}</span>
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #3b82f6">
+      <span style="color:#1d4ed8;font-size:12px">→</span>
+      <span style="color:#0f1115;font-size:12px;line-height:1.5">${s}</span>
     </div>
   `).join('');
 }
@@ -1398,8 +1398,8 @@ function detectMainframeAssets(code) {
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   list.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px">' + found.map(a => `
-    <div style="padding:8px 12px;background:#0f1525;border-radius:6px;border:1px solid #1e2d45;flex:1;min-width:140px;text-align:center">
-      <div style="font-size:18px;font-weight:700;color:#f1f5f9;font-family:monospace">${a.count}</div>
+    <div style="padding:8px 12px;background:#f1f4f8;border-radius:6px;border:1px solid #e5e8ee;flex:1;min-width:140px;text-align:center">
+      <div style="font-size:18px;font-weight:700;color:#0f1115;font-family:monospace">${a.count}</div>
       <div style="font-size:9px;color:#64748b;margin-top:2px">${a.label}</div>
     </div>
   `).join('') + '</div>';
@@ -1439,12 +1439,12 @@ function detectInsurance(code) {
   card.style.display = 'block';
   const grouped = groupByFunction(found);
   list.innerHTML = grouped.map(m => `
-    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #8b5cf6;min-width:180px">
+    <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #8b5cf6;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,0.1);color:#a78bfa">${m.maxConf}%</span>
+        <span style="color:#0f1115;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,0.1);color:#7c3aed">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#4b5563;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1482,12 +1482,12 @@ function detectPaymentSystems(code) {
   card.style.display = 'block';
   const grouped = groupByFunction(found);
   list.innerHTML = grouped.map(m => `
-    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #f59e0b;min-width:180px">
+    <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #f59e0b;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="color:#0f1115;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
         <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,0.1);color:#f59e0b">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#4b5563;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1542,12 +1542,12 @@ function detectCompliance(code) {
   card.style.display = 'block';
   const grouped = groupByFunction(found);
   list.innerHTML = grouped.map(m => `
-    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #ef4444;min-width:180px">
+    <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #ef4444;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#f87171">${m.maxConf}%</span>
+        <span style="color:#0f1115;font-size:12px;font-weight:600">✓ ${m.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.1);color:#dc2626">${m.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${m.fn ? 'Function: <span style="color:#4b5563;font-family:monospace">' + escapeHtml(m.fn) + '()</span> · ' : ''}Line ${m.line}</div>
     </div>
   `).join('');
 }
@@ -1618,12 +1618,12 @@ function detectBankingModules(code) {
     }
   });
   list.innerHTML = grouped.map(g => `
-    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #3b82f6;min-width:180px">
+    <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #3b82f6;min-width:180px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="color:#f1f5f9;font-size:12px;font-weight:600">✓ ${g.labels.join(' + ')}</span>
-        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa">${g.maxConf}%</span>
+        <span style="color:#0f1115;font-size:12px;font-weight:600">✓ ${g.labels.join(' + ')}</span>
+        <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#1d4ed8">${g.maxConf}%</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${g.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(g.fn) + '()</span> · ' : ''}Line ${g.line}${g.labels.length > 1 ? ' <span style="color:#f59e0b">(this function matches ' + g.labels.length + ' categories)</span>' : ''}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${g.fn ? 'Function: <span style="color:#4b5563;font-family:monospace">' + escapeHtml(g.fn) + '()</span> · ' : ''}Line ${g.line}${g.labels.length > 1 ? ' <span style="color:#f59e0b">(this function matches ' + g.labels.length + ' categories)</span>' : ''}</div>
     </div>
   `).join('');
 }
@@ -1712,14 +1712,14 @@ function detectBusinessRules(code) {
   }
   card.style.display = 'block';
   list.innerHTML = found.map(r => `
-    <div style="padding:8px 10px;background:#0f1525;border-radius:6px;border-left:3px solid #22c55e">
+    <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #22c55e">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#f1f5f9;font-size:12px;font-weight:600">${r.label}</span></div>
-        <span title="Matched because the source contains the keyword: &quot;${r.matchedKeyword || ''}&quot;" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#60a5fa;cursor:help">${r.conf}% match ⓘ</span>
+        <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-size:12px">✓</span><span style="color:#0f1115;font-size:12px;font-weight:600">${r.label}</span></div>
+        <span title="Matched because the source contains the keyword: &quot;${r.matchedKeyword || ''}&quot;" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.1);color:#1d4ed8;cursor:help">${r.conf}% match ⓘ</span>
       </div>
-      <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#94a3b8;font-family:monospace">' + escapeHtml(r.fn) + '()</span> · ' : ''}Line ${r.line}</div>
-      <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#07090f;padding:4px 6px;border-radius:4px">${escapeHtml(r.snippet)}${r.snippet.length >= 60 ? '…' : ''}</div>
-      <div style="font-size:9px;color:#a78bfa;margin-top:4px">→ Suggested Service: <span style="font-weight:600">${r.service}</span></div>
+      <div style="font-size:9px;color:#64748b;margin-top:4px">${r.fn ? 'Function: <span style="color:#4b5563;font-family:monospace">' + escapeHtml(r.fn) + '()</span> · ' : ''}Line ${r.line}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px;font-family:monospace;background:#ffffff;padding:4px 6px;border-radius:4px">${escapeHtml(r.snippet)}${r.snippet.length >= 60 ? '…' : ''}</div>
+      <div style="font-size:9px;color:#7c3aed;margin-top:4px">→ Suggested Service: <span style="font-weight:600">${r.service}</span></div>
     </div>
   `).join('');
   renderMicroserviceSummary(found);
@@ -1732,8 +1732,8 @@ function renderTransactionFlow(rules) {
   card.style.display = 'block';
   const sorted = [...rules].sort((a, b) => a.line - b.line);
   list.innerHTML = sorted.map((r, i) => `
-    <div style="padding:6px 10px;background:#0f1525;border-left:3px solid #06b6d4;border-radius:4px;margin-bottom:4px">
-      <span style="font-size:11px;color:#f1f5f9;font-weight:600">${r.label}</span>
+    <div style="padding:6px 10px;background:#f1f4f8;border-left:3px solid #06b6d4;border-radius:4px;margin-bottom:4px">
+      <span style="font-size:11px;color:#0f1115;font-weight:600">${r.label}</span>
       <span style="font-size:9px;color:#64748b;margin-left:6px">Line ${r.line}${r.fn ? ' · ' + escapeHtml(r.fn) + '()' : ''}</span>
     </div>
     ${i < sorted.length - 1 ? '<div style="text-align:center;color:#334155;font-size:10px">↓</div>' : ''}
@@ -1762,7 +1762,7 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
   document.getElementById('riskEngineList').innerHTML = items.map(i => {
     const emoji = i.r.label === 'LOW' ? '🟢' : i.r.label === 'MEDIUM' ? '🟡' : '🔴';
     return `
-    <div style="padding:10px;background:#0f1525;border-radius:6px;border:1px solid #1e2d45;text-align:center">
+    <div style="padding:10px;background:#f1f4f8;border-radius:6px;border:1px solid #e5e8ee;text-align:center">
       <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">${i.label}</div>
       <div style="font-size:14px;font-weight:700;color:${i.r.color}">${emoji} ${i.r.label}</div>
     </div>
@@ -1785,7 +1785,7 @@ function detectCopybooks(code) {
   list.innerHTML = [...names].map(n => {
     const sharedWith = sessionFileResults.filter(e => e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e => e.fname);
     return `<div style="padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);min-width:140px">
-      <span style="font-size:11px;color:#a78bfa;font-family:monospace">📄 ${n}</span>
+      <span style="font-size:11px;color:#7c3aed;font-family:monospace">📄 ${n}</span>
       ${sharedWith.length > 0 ? '<div style="font-size:9px;color:#64748b;margin-top:3px">Also used by: ' + sharedWith.join(', ') + '</div>' : '<div style="font-size:9px;color:#64748b;margin-top:3px">Not seen in other files analyzed this session</div>'}
     </div>`;
   }).join('');
@@ -1830,8 +1830,8 @@ function detectCallGraph(code) {
   if (uniqueEdges.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   list.innerHTML = uniqueEdges.map(e => `
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-family:monospace;padding:5px 8px;background:#0f1525;border-radius:5px">
-      <span style="color:#60a5fa">${e.from}()</span><span style="color:#64748b">→</span><span style="color:#a78bfa">${e.to}()</span>
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-family:monospace;padding:5px 8px;background:#f1f4f8;border-radius:5px">
+      <span style="color:#1d4ed8">${e.from}()</span><span style="color:#64748b">→</span><span style="color:#7c3aed">${e.to}()</span>
     </div>
   `).join('') + (allUniqueEdges.length > 15 ? '<div style="font-size:10px;color:#64748b;padding:4px">+' + (allUniqueEdges.length - 15) + ' more edges not shown</div>' : '');
 }
@@ -1851,7 +1851,7 @@ function detectBankingDomains(code) {
   const list = document.getElementById('domainList');
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = found.map(d => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(6,182,212,0.1);color:#22d3ee;border:1px solid rgba(6,182,212,0.25)">✓ ${d.label}</span>`).join('');
+  list.innerHTML = found.map(d => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(6,182,212,0.1);color:#0891b2;border:1px solid rgba(6,182,212,0.25)">✓ ${d.label}</span>`).join('');
 }
 function detectDatabaseIntelligence(code) {
   const card = document.getElementById('dbIntelCard');
@@ -1885,7 +1885,7 @@ function detectDatabaseIntelligence(code) {
     let svgLines = '';
     tArr.forEach((t, i) => {
       const x = 10 + i * (boxW + gapX);
-      svgTables += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH + '" rx="4" fill="#0f1525" stroke="#3b82f6" stroke-width="1.2"/><text x="' + (x + boxW/2) + '" y="' + (y + boxH/2 + 3) + '" text-anchor="middle" fill="#60a5fa" font-size="9" font-family="monospace">' + t + '</text>';
+      svgTables += '<rect x="' + x + '" y="' + y + '" width="' + boxW + '" height="' + boxH + '" rx="4" fill="#f1f4f8" stroke="#3b82f6" stroke-width="1.2"/><text x="' + (x + boxW/2) + '" y="' + (y + boxH/2 + 3) + '" text-anchor="middle" fill="#1d4ed8" font-size="9" font-family="monospace">' + t + '</text>';
     });
     joins.forEach(([a, b]) => {
       const ia = tArr.indexOf(a), ib = tArr.indexOf(b);
@@ -1900,11 +1900,11 @@ function detectDatabaseIntelligence(code) {
   }
   if (tables.size > 0) {
     html += '<div style="font-size:9px;color:#64748b;margin-bottom:4px">Tables Referenced</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">' +
-      [...tables].map(t => `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);font-family:monospace">${t}</span>`).join('') + '</div>';
+      [...tables].map(t => `<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#1d4ed8;border:1px solid rgba(59,130,246,0.25);font-family:monospace">${t}</span>`).join('') + '</div>';
   }
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">' +
-    Object.entries(crud).map(([k, v]) => `<div style="text-align:center;padding:6px;background:#0f1525;border-radius:6px"><div style="font-size:14px;font-weight:700;color:#f1f5f9">${v}</div><div style="font-size:8px;color:#64748b">${k}</div></div>`).join('') + '</div>';
-  if (execSql > 0) html += '<div style="font-size:9px;color:#64748b;margin-top:8px">Embedded SQL (EXEC SQL) blocks: <span style="color:#f1f5f9;font-weight:600">' + execSql + '</span></div>';
+    Object.entries(crud).map(([k, v]) => `<div style="text-align:center;padding:6px;background:#f1f4f8;border-radius:6px"><div style="font-size:14px;font-weight:700;color:#0f1115">${v}</div><div style="font-size:8px;color:#64748b">${k}</div></div>`).join('') + '</div>';
+  if (execSql > 0) html += '<div style="font-size:9px;color:#64748b;margin-top:8px">Embedded SQL (EXEC SQL) blocks: <span style="color:#0f1115;font-weight:600">' + execSql + '</span></div>';
   list.innerHTML = html;
 }
 function detectRegulatoryCompliance(code, R) {
@@ -1941,7 +1941,7 @@ function renderMicroserviceSummary(rules) {
   lastUniqueServices = uniqueServices;
   if (uniqueServices.length === 0) { mCard.style.display = 'none'; return; }
   mCard.style.display = 'block';
-  mList.innerHTML = uniqueServices.map(s => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.25)">✓ ${s}</span>`).join('');
+  mList.innerHTML = uniqueServices.map(s => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:rgba(139,92,246,0.1);color:#7c3aed;border:1px solid rgba(139,92,246,0.25)">✓ ${s}</span>`).join('');
 }
 function computeLineDiff(oldLines, newLines) {
   const m = oldLines.length, n = newLines.length;
@@ -2016,13 +2016,13 @@ function renderBusinessRuleSpec(code, lang) {
       _varsTruncatedCount = Math.max(0, _filtered.length - 12);
       varsFound = _filtered.slice(0, 12);
     }
-    html += '<div style="margin-bottom:16px;padding:10px;background:#0f1525;border-left:3px solid #8b5cf6;border-radius:4px">';
-    html += '<div style="color:#a78bfa;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
-    html += '<div style="color:#94a3b8;margin-top:4px">' + (isCobol ? 'Paragraph' : 'Function') + ': <span style="color:#e2e8f0">' + escapeHtml(r.fn || (isCobol ? 'WORKING-STORAGE (declaration)' : '(module level)')) + '</span></div>';
-    html += '<div style="color:#94a3b8">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
-    html += '<div style="color:#94a3b8">Logic (matched line): <span style="color:#e2e8f0;font-family:monospace">' + escapeHtml(r.snippet || '') + '</span></div>';
-    html += '<div style="color:#94a3b8">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) + (_varsTruncatedCount > 0 ? ' <span style="color:#64748b">(+' + _varsTruncatedCount + ' more)</span>' : '') : '(none found nearby)') + '</span></div>';
-    html += '<div style="color:#94a3b8">Suggested Service: <span style="color:#60a5fa">' + escapeHtml(r.service || '(none)') + '</span></div>';
+    html += '<div style="margin-bottom:16px;padding:10px;background:#f1f4f8;border-left:3px solid #8b5cf6;border-radius:4px">';
+    html += '<div style="color:#7c3aed;font-weight:700">RULE: ' + escapeHtml(r.label) + '</div>';
+    html += '<div style="color:#4b5563;margin-top:4px">' + (isCobol ? 'Paragraph' : 'Function') + ': <span style="color:#e2e8f0">' + escapeHtml(r.fn || (isCobol ? 'WORKING-STORAGE (declaration)' : '(module level)')) + '</span></div>';
+    html += '<div style="color:#4b5563">Source Line: <span style="color:#e2e8f0">' + (r.line || '?') + '</span></div>';
+    html += '<div style="color:#4b5563">Logic (matched line): <span style="color:#e2e8f0;font-family:monospace">' + escapeHtml(r.snippet || '') + '</span></div>';
+    html += '<div style="color:#4b5563">Variables Referenced: <span style="color:#e2e8f0">' + (varsFound.length ? escapeHtml(varsFound.join(', ')) + (_varsTruncatedCount > 0 ? ' <span style="color:#64748b">(+' + _varsTruncatedCount + ' more)</span>' : '') : '(none found nearby)') + '</span></div>';
+    html += '<div style="color:#4b5563">Suggested Service: <span style="color:#1d4ed8">' + escapeHtml(r.service || '(none)') + '</span></div>';
     html += '<div style="color:#64748b;font-size:9px;margin-top:2px">Match confidence: ' + (r.conf || '?') + '%</div>';
     html += '</div>';
   });
@@ -2075,9 +2075,9 @@ function renderKnowledgeGraph() {
   const functions = [...new Set(funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean))];
   const groups = [
     { label: 'Program', items: [fname], color: '#3b82f6' },
-    { label: 'Functions Referenced', items: functions, color: '#22d3ee' },
+    { label: 'Functions Referenced', items: functions, color: '#0891b2' },
     { label: 'Database Tables', items: tables, color: '#22c55e' },
-    { label: 'Copybooks', items: copybooks, color: '#a78bfa' },
+    { label: 'Copybooks', items: copybooks, color: '#7c3aed' },
     { label: 'Candidate Service Boundaries', items: services, color: '#f59e0b' },
   ];
   const nonEmpty = groups.filter(g => g.items.length > 0);
@@ -2087,7 +2087,7 @@ function renderKnowledgeGraph() {
     <div>
       <div style="font-size:9px;color:${g.color};font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">${g.label} (${g.items.length})</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px">
-        ${g.items.map(i => `<span style="font-size:10px;padding:4px 8px;border-radius:6px;background:#0f1525;color:#e2e8f0;font-family:monospace">${escapeHtml(i)}</span>`).join('')}
+        ${g.items.map(i => `<span style="font-size:10px;padding:4px 8px;border-radius:6px;background:#f1f4f8;color:#e2e8f0;font-family:monospace">${escapeHtml(i)}</span>`).join('')}
       </div>
     </div>
   `).join('');
@@ -2100,11 +2100,11 @@ function renderDependencyChainSVG() {
   const allCopybooks = [...new Set(files_.flatMap(f => f.copybooks || []))];
   const allServices = [...new Set(files_.flatMap(f => f.services))];
   const layers = [
-    { items: files_.map(f => f.fname), y: 20, color: '#60a5fa', label: 'Program' },
+    { items: files_.map(f => f.fname), y: 20, color: '#1d4ed8', label: 'Program' },
   ];
-  if (allTables.length > 0) layers.push({ items: allTables, y: 0, color: '#4ade80', label: 'DB Table' });
-  if (allCopybooks.length > 0) layers.push({ items: allCopybooks, y: 0, color: '#a78bfa', label: 'Copybook' });
-  if (allServices.length > 0) layers.push({ items: allServices, y: 0, color: '#fbbf24', label: 'Suggested Service' });
+  if (allTables.length > 0) layers.push({ items: allTables, y: 0, color: '#16a34a', label: 'DB Table' });
+  if (allCopybooks.length > 0) layers.push({ items: allCopybooks, y: 0, color: '#7c3aed', label: 'Copybook' });
+  if (allServices.length > 0) layers.push({ items: allServices, y: 0, color: '#d97706', label: 'Suggested Service' });
   if (layers.length < 2) { container.innerHTML = ''; return; }
   const boxH = 26, boxGapX = 14, layerGapY = 60;
   let svgContent = '';
@@ -2115,7 +2115,7 @@ function renderDependencyChainSVG() {
     layer.items.forEach((item, ii) => {
       const x = ii * 140 + 10;
       positions.push({ layer: li, item, x, y, w: 130 });
-      svgContent += '<rect x="' + x + '" y="' + y + '" width="130" height="' + boxH + '" rx="5" fill="#0f1525" stroke="' + layer.color + '" stroke-width="1.3"/>';
+      svgContent += '<rect x="' + x + '" y="' + y + '" width="130" height="' + boxH + '" rx="5" fill="#f1f4f8" stroke="' + layer.color + '" stroke-width="1.3"/>';
       const shortLabel = item.length > 18 ? item.substring(0, 16) + '…' : item;
       svgContent += '<text x="' + (x + 65) + '" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="' + layer.color + '" font-size="9" font-family="monospace">' + shortLabel + '</text>';
     });
@@ -2130,7 +2130,7 @@ function renderDependencyChainSVG() {
           const p1 = positions.find(p => p.layer === li && p.item === fi);
           const p2 = positions.find(p => p.layer === li + 1 && p.item === ti);
           if (p1 && p2) {
-            linesContent += '<line x1="' + (p1.x + 65) + '" y1="' + (p1.y + boxH) + '" x2="' + (p2.x + 65) + '" y2="' + p2.y + '" stroke="#243350" stroke-width="1"/>';
+            linesContent += '<line x1="' + (p1.x + 65) + '" y1="' + (p1.y + boxH) + '" x2="' + (p2.x + 65) + '" y2="' + p2.y + '" stroke="#d7dce4" stroke-width="1"/>';
           }
         });
       });
@@ -2150,12 +2150,12 @@ function renderCapabilityMap() {
   card.style.display = 'block';
   let html = '';
   if (bankingItems.length > 0) {
-    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#22d3ee;margin-bottom:6px">Banking</div>' +
-      bankingItems.map((it, i) => `<div style="font-size:11px;color:#94a3b8;padding-left:12px;position:relative;margin-bottom:4px">${i === bankingItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
+    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#0891b2;margin-bottom:6px">Banking</div>' +
+      bankingItems.map((it, i) => `<div style="font-size:11px;color:#4b5563;padding-left:12px;position:relative;margin-bottom:4px">${i === bankingItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
   }
   if (insuranceItems.length > 0) {
-    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:6px">Insurance</div>' +
-      insuranceItems.map((it, i) => `<div style="font-size:11px;color:#94a3b8;padding-left:12px;position:relative;margin-bottom:4px">${i === insuranceItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
+    html += '<div style="min-width:180px"><div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:6px">Insurance</div>' +
+      insuranceItems.map((it, i) => `<div style="font-size:11px;color:#4b5563;padding-left:12px;position:relative;margin-bottom:4px">${i === insuranceItems.length-1 ? '└─' : '├─'} ${it}</div>`).join('') + '</div>';
   }
   list.innerHTML = html;
 }
@@ -2211,12 +2211,12 @@ function renderRepositorySummary() {
   const successful = sessionFileResults.length - needsReview;
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
-      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files (${successful} OK, ${needsReview} Review)</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${langs.size}</div><div style="font-size:9px;color:#64748b">Languages</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${totalRules}</div><div style="font-size:9px;color:#64748b">Business Rules</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files (${successful} OK, ${needsReview} Review)</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${langs.size}</div><div style="font-size:9px;color:#64748b">Languages</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${totalRules}</div><div style="font-size:9px;color:#64748b">Business Rules</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#ef4444">${totalCrit}</div><div style="font-size:9px;color:#64748b">Critical Issues</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:#f1f5f9">${allTables.size}</div><div style="font-size:9px;color:#64748b">DB Tables</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:#a78bfa">${allServices.size}</div><div style="font-size:9px;color:#64748b">Microservices</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${allTables.size}</div><div style="font-size:9px;color:#64748b">DB Tables</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#7c3aed">${allServices.size}</div><div style="font-size:9px;color:#64748b">Microservices</div></div>
       <div><div style="font-size:18px;font-weight:700;color:${overallRisk === 'High' ? '#ef4444' : overallRisk === 'Medium' ? '#f59e0b' : '#22c55e'}">${overallRisk}</div><div style="font-size:9px;color:#64748b">Overall Risk</div></div>
     </div>
   `;
@@ -2225,11 +2225,11 @@ function renderRepositorySummary() {
     const statusColor = e.critCount > 0 ? '#f59e0b' : '#22c55e';
     const statusLabel = e.critCount > 0 ? 'Needs Review' : 'View Report';
     return `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#0f1525;border-radius:6px;cursor:pointer" onclick="viewFileReport(${idx})">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f1f4f8;border-radius:6px;cursor:pointer" onclick="viewFileReport(${idx})">
       <span style="font-size:11px;color:${statusColor}">${statusIcon}</span>
-      <span style="font-size:11px;color:#f1f5f9;font-family:monospace;flex:1;margin-left:6px">${escapeHtml(e.fname)}</span>
-      <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#60a5fa;margin-right:6px">${e.confText}</span>
-      <span style="font-size:9px;color:#60a5fa;text-decoration:underline">${statusLabel}</span>
+      <span style="font-size:11px;color:#0f1115;font-family:monospace;flex:1;margin-left:6px">${escapeHtml(e.fname)}</span>
+      <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,0.1);color:#1d4ed8;margin-right:6px">${e.confText}</span>
+      <span style="font-size:9px;color:#1d4ed8;text-decoration:underline">${statusLabel}</span>
     </div>
     `;
   }).join('');
@@ -2258,10 +2258,10 @@ function renderCrossFileGraph() {
   renderDependencyChainSVG();
   if (edges.length === 0) { el.innerHTML = '<div style="font-size:10px;color:#64748b">No files in this session share a table or service - each analyzed file appears independent so far.</div>'; return; }
   el.innerHTML = edges.map(e => `
-    <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#0f1525;border-radius:6px;margin-bottom:4px">
-      <span style="color:#60a5fa;font-family:monospace">${escapeHtml(e.from)}</span>
+    <div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:6px 8px;background:#f1f4f8;border-radius:6px;margin-bottom:4px">
+      <span style="color:#1d4ed8;font-family:monospace">${escapeHtml(e.from)}</span>
       <span style="color:#64748b">${e.type === 'import' ? '→ imports code from →' : '↔ shares ' + escapeHtml(e.type) + ' (' + escapeHtml(e.via) + ') ↔'}</span>
-      <span style="color:#a78bfa;font-family:monospace">${escapeHtml(e.to)}</span>
+      <span style="color:#7c3aed;font-family:monospace">${escapeHtml(e.to)}</span>
     </div>
   `).join('');
 }
@@ -2284,42 +2284,42 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
   const topRuleServiceMatch = topRuleEl ? topRuleEl.textContent.match(/Suggested Service:\s*([^\n]+)/) : null;
   const topRuleService = topRuleServiceMatch ? topRuleServiceMatch[1].trim() : null;
   text.innerHTML = `
-    <div style="background:#0f1525;border:1px solid #1e2d45;border-radius:6px;padding:12px;margin-bottom:12px">
+    <div style="background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;padding:12px;margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Executive Decision</div>
       <div style="font-size:13px;font-weight:700;color:${suitable ? '#22c55e' : '#ef4444'};margin-bottom:8px">${suitable ? '✅ Suitable for modernization' : '⛔ Not suitable until critical issues resolved'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:11px">
-        <div>Migration Type: <strong style="color:#f1f5f9">${migType}</strong></div>
-        <div>Estimated Timeline: <strong style="color:#f1f5f9">${timelineLabel}</strong></div>
+        <div>Migration Type: <strong style="color:#0f1115">${migType}</strong></div>
+        <div>Estimated Timeline: <strong style="color:#0f1115">${timelineLabel}</strong></div>
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
-        <div>Overall Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
-        <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #1e2d45">
+        <div>Overall Migration Confidence: <strong style="color:#0f1115">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #e5e8ee">
           <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(R && R.rules && R.rules.confidence != null) ? R.rules.confidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
           <span title="How confidently the syntax/API migration was performed">Transformation: ${confPct != null ? confPct + '%' : 'N/A'}</span> ·
           ${(() => {
             const beh = R && R.behavioral;
             if (!beh || !beh.behavioral_status) {
-              return '<span style="color:#94a3b8" title="Simple pure functions only - complex functions with I/O, loops, or external calls are skipped. Uses safe symbolic evaluation, not code execution.">Behavioral: Not Tested</span>';
+              return '<span style="color:#4b5563" title="Simple pure functions only - complex functions with I/O, loops, or external calls are skipped. Uses safe symbolic evaluation, not code execution.">Behavioral: Not Tested</span>';
             }
             const status = String(beh.behavioral_status);
-            const color = status.startsWith('Verified') ? '#22c55e' : status === 'Mismatch Detected' ? '#ef4444' : '#94a3b8';
+            const color = status.startsWith('Verified') ? '#22c55e' : status === 'Mismatch Detected' ? '#ef4444' : '#4b5563';
             const summary = beh.behavioral_summary || '';
             return '<span style="color:' + color + '" title="' + escapeHtml(summary) + '">Behavioral: ' + escapeHtml(status) + '</span>';
           })()}
         </div>
-        ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#f1f5f9">' + topRuleService + '</strong></div>' : ''}
+        ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#0f1115">' + topRuleService + '</strong></div>' : ''}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
-      <div>Source: <strong style="color:#f1f5f9">${sourceLabel}</strong></div>
-      <div>Target: <strong style="color:#f1f5f9">${targetLabel}</strong></div>
-      <div>Critical Issues: <strong style="color:#f1f5f9">${critCount}</strong></div>
-      <div>Warnings: <strong style="color:#f1f5f9">${warnCount}</strong></div>
-      <div>Business Rules Found: <strong style="color:#f1f5f9">${rulesCount}</strong></div>
-      <div>Migration Confidence: <strong style="color:#f1f5f9">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
-      <div>Estimated Effort: <strong style="color:#f1f5f9">${fixHours.toFixed(1)} hrs</strong></div>
+      <div>Source: <strong style="color:#0f1115">${sourceLabel}</strong></div>
+      <div>Target: <strong style="color:#0f1115">${targetLabel}</strong></div>
+      <div>Critical Issues: <strong style="color:#0f1115">${critCount}</strong></div>
+      <div>Warnings: <strong style="color:#0f1115">${warnCount}</strong></div>
+      <div>Business Rules Found: <strong style="color:#0f1115">${rulesCount}</strong></div>
+      <div>Migration Confidence: <strong style="color:#0f1115">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+      <div>Estimated Effort: <strong style="color:#0f1115">${fixHours.toFixed(1)} hrs</strong></div>
       <div>Recommendation: <strong style="color:${recColor}">${recommendation}</strong></div>
     </div>
-    ${svcCount > 0 ? '<div style="font-size:10px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #1e2d45">' + rulesCount + ' detected business rule' + (rulesCount === 1 ? '' : 's') + ' and detected banking modules together map to ' + svcCount + ' recommended service' + (svcCount === 1 ? '' : 's') + ' (a single rule or module can map to more than one service).</div>' : ''}
+    ${svcCount > 0 ? '<div style="font-size:10px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #e5e8ee">' + rulesCount + ' detected business rule' + (rulesCount === 1 ? '' : 's') + ' and detected banking modules together map to ' + svcCount + ' recommended service' + (svcCount === 1 ? '' : 's') + ' (a single rule or module can map to more than one service).</div>' : ''}
   `;
 }
 function downloadJSON() {
@@ -2567,14 +2567,14 @@ function renderArchDiagram() {
   let svgBoxes = '';
   serviceInfo.forEach((info, i) => {
     const y = startY + i * (boxH + gap);
-    svgBoxes += '<line data-svc-line="' + i + '" x1="110" y1="20" x2="260" y2="' + (y + boxH/2) + '" stroke="#243350" stroke-width="1.5"/>';
-    svgBoxes += '<rect data-svc-idx="' + i + '" class="arch-svc-box" x="260" y="' + y + '" width="220" height="' + boxH + '" rx="6" fill="#0f1525" stroke="' + info.color + '" stroke-width="1.5" style="cursor:pointer"/>';
-    svgBoxes += '<text data-svc-idx="' + i + '" class="arch-svc-box" x="370" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="#f1f5f9" font-size="10" font-family="monospace" style="cursor:pointer;pointer-events:none">' + info.name + '</text>';
+    svgBoxes += '<line data-svc-line="' + i + '" x1="110" y1="20" x2="260" y2="' + (y + boxH/2) + '" stroke="#d7dce4" stroke-width="1.5"/>';
+    svgBoxes += '<rect data-svc-idx="' + i + '" class="arch-svc-box" x="260" y="' + y + '" width="220" height="' + boxH + '" rx="6" fill="#f1f4f8" stroke="' + info.color + '" stroke-width="1.5" style="cursor:pointer"/>';
+    svgBoxes += '<text data-svc-idx="' + i + '" class="arch-svc-box" x="370" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="#0f1115" font-size="10" font-family="monospace" style="cursor:pointer;pointer-events:none">' + info.name + '</text>';
   });
   const totalH = startY + services.length * (boxH + gap) + 10;
   const svg = '<svg width="100%" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" xmlns="http://www.w3.org/2000/svg">' +
-    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#0f1525" stroke="#3b82f6" stroke-width="1.5"/>' +
-    '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
+    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#f1f4f8" stroke="#3b82f6" stroke-width="1.5"/>' +
+    '<text x="105" y="25" text-anchor="middle" fill="#1d4ed8" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   dia.innerHTML = svg;
   dia.querySelectorAll('.arch-svc-box').forEach(el => {
@@ -2588,9 +2588,9 @@ function renderArchDiagram() {
   legendDiv.style.cssText = 'font-size:9px;color:#64748b;margin-top:6px';
   legendDiv.innerHTML = '🟢 Strong match (≥70%) &nbsp; 🟡 Moderate match (50-69%) &nbsp; 🔴 Weak match (&lt;50%) &nbsp; 🟣 Module-detected (no rule confidence) — click a service box for details';
   dia.appendChild(legendDiv);
-  window.lastArchSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" style="background:#07090f">' +
-    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#0f1525" stroke="#3b82f6" stroke-width="1.5"/>' +
-    '<text x="105" y="25" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
+  window.lastArchSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" style="background:#ffffff">' +
+    '<rect x="5" y="5" width="200" height="30" rx="6" fill="#f1f4f8" stroke="#3b82f6" stroke-width="1.5"/>' +
+    '<text x="105" y="25" text-anchor="middle" fill="#1d4ed8" font-size="11" font-weight="700" font-family="monospace">Legacy Monolith</text>' +
     svgBoxes + '</svg>';
   window.lastArchServices = services.slice();
   if (exportRow) exportRow.style.display = 'flex';
@@ -2618,8 +2618,8 @@ function renderArchSuggestions(serviceInfo) {
   if (suggestions.length === 0) return;
   const div = document.createElement('div');
   div.id = 'archSuggestions';
-  div.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border-left:3px solid #a78bfa';
-  let html = '<div style="font-size:11px;font-weight:700;color:#a78bfa">Architecture Suggestions</div>';
+  div.style.cssText = 'margin-top:10px;padding:10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #7c3aed';
+  let html = '<div style="font-size:11px;font-weight:700;color:#7c3aed">Architecture Suggestions</div>';
   suggestions.forEach(s => { html += '<div style="font-size:10px;color:#e2e8f0;margin-top:4px">✓ ' + s + '</div>'; });
   html += '<div style="font-size:9px;color:#64748b;margin-top:6px">Derived directly from this file&#39;s detected services and confidence levels - not generic best-practice filler.</div>';
   div.innerHTML = html;
@@ -2629,7 +2629,7 @@ function showArchGlobalSummary() {
   const detailDiv = document.getElementById('archServiceDetail') || (() => {
     const d = document.createElement('div');
     d.id = 'archServiceDetail';
-    d.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border:1px solid #3b82f6';
+    d.style.cssText = 'margin-top:10px;padding:10px;background:#f1f4f8;border-radius:6px;border:1px solid #3b82f6';
     document.getElementById('archDiagram').appendChild(d);
     return d;
   })();
@@ -2638,9 +2638,9 @@ function showArchGlobalSummary() {
   const moderateCount = info.filter(s => s.conf !== null && s.conf >= 50 && s.conf < 70).length;
   const weakCount = info.filter(s => s.conf !== null && s.conf < 50).length;
   detailDiv.style.borderColor = '#3b82f6';
-  detailDiv.innerHTML = '<div style="font-size:12px;font-weight:700;color:#60a5fa">Global System Summary</div>' +
-    '<div style="font-size:10px;color:#e2e8f0;margin-top:6px">Total Services Detected: <span style="color:#a78bfa;font-weight:600">' + info.length + '</span></div>' +
-    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Target Architecture: <span style="color:#a78bfa;font-weight:600">Microservices (from Monolith)</span></div>' +
+  detailDiv.innerHTML = '<div style="font-size:12px;font-weight:700;color:#1d4ed8">Global System Summary</div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:6px">Total Services Detected: <span style="color:#7c3aed;font-weight:600">' + info.length + '</span></div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Target Architecture: <span style="color:#7c3aed;font-weight:600">Microservices (from Monolith)</span></div>' +
     '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Confidence Breakdown: 🟢 ' + strongCount + ' strong &nbsp; 🟡 ' + moderateCount + ' moderate &nbsp; 🔴 ' + weakCount + ' weak</div>' +
     '<div style="font-size:9px;color:#64748b;margin-top:6px">Click any service box above for detailed breakdown.</div>';
 }
@@ -2650,7 +2650,7 @@ function showArchServiceDetail(idx) {
   const detailDiv = document.getElementById('archServiceDetail') || (() => {
     const d = document.createElement('div');
     d.id = 'archServiceDetail';
-    d.style.cssText = 'margin-top:10px;padding:10px;background:#0f1525;border-radius:6px;border:1px solid ' + info.color;
+    d.style.cssText = 'margin-top:10px;padding:10px;background:#f1f4f8;border-radius:6px;border:1px solid ' + info.color;
     document.getElementById('archDiagram').appendChild(d);
     return d;
   })();
@@ -2690,7 +2690,7 @@ function downloadArchPng() {
     canvas.width = img.width * 2;
     canvas.height = img.height * 2;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#07090f';
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.scale(2, 2);
     ctx.drawImage(img, 0, 0);
@@ -2761,7 +2761,7 @@ function renderValue(v) {
       ? '<div style="display:flex;flex-direction:column;gap:3px">' +
         v.map(x => '<div style="font-size:11px;color:#e2e8f0">• ' +
           (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) => escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : String(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
-      : '<span style="color:#94a3b8">None</span>';
+      : '<span style="color:#4b5563">None</span>';
   }
   if (v && typeof v === 'object') {
     return Object.entries(v).map(([a, b]) => {
@@ -2787,7 +2787,7 @@ function formatGenericResult(d, label) {
     let codeBlock = '';
     if (codeKey) {
       const escCode = d[codeKey].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      codeBlock = '<div style="margin-bottom:10px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#07090f;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode + '</pre></div>';
+      codeBlock = '<div style="margin-bottom:10px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#ffffff;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode + '</pre></div>';
     }
     if (relevantKeys.length === 0 && !codeKey) return '<div style="font-size:11px;color:#64748b">No findings for this codebase with this check.</div>';
     let html = codeBlock + '<div style="display:flex;flex-direction:column;gap:6px">';
@@ -2815,7 +2815,7 @@ function formatGenericResult(d, label) {
   if (findingsKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
     if (d[findingsKey].length === 0) {
-      html += '<div style="font-size:11px;color:#94a3b8">✅ No vendor-specific or risk components detected.</div>';
+      html += '<div style="font-size:11px;color:#4b5563">✅ No vendor-specific or risk components detected.</div>';
     } else {
       html += '<div style="display:flex;flex-direction:column;gap:6px">' + d[findingsKey].map(f => {
       if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + f + '</div>';
@@ -2823,9 +2823,9 @@ function formatGenericResult(d, label) {
         const fKeys = Object.keys(f);
         const title = f.issue || f.title || f.name || 'Finding';
         const rest = fKeys.filter(k => f[k] !== title);
-        return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#0f1525;border-radius:5px;border-left:2px solid #f59e0b">' +
+        return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:2px solid #f59e0b">' +
           '<div style="font-weight:600;margin-bottom:3px">⚠ ' + title + '</div>' +
-          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#94a3b8">' + f[k] + '</span></div>').join('') +
+          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + f[k] + '</span></div>').join('') +
         '</div>';
       }
       return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + JSON.stringify(f) + '</div>';
@@ -2863,7 +2863,7 @@ function formatGenericResult(d, label) {
   }
   if (codeKey) {
     const escCode2 = d[codeKey].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    html += '<div style="margin-top:6px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#07090f;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode2 + '</pre></div>';
+    html += '<div style="margin-top:6px"><div style="font-size:9px;color:#64748b;margin-bottom:4px">' + codeKey.replace(/_/g, ' ') + '</div><pre style="background:#ffffff;padding:10px;border-radius:6px;font-size:10px;color:#e2e8f0;overflow-x:auto;white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto">' + escCode2 + '</pre></div>';
   }
   html += '</div>';
   return html;
@@ -2979,11 +2979,11 @@ async function runBehaviorTest() {
     resultBox.innerHTML = `
       <div style="font-size:12px;font-weight:600;color:${matchColor};margin-bottom:8px">${matchIcon} ${escapeHtml(d.verdict || '')}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:10px">
-        <div style="background:#07090f;padding:8px;border-radius:4px">
+        <div style="background:#ffffff;padding:8px;border-radius:4px">
           <div style="color:#64748b;margin-bottom:4px">Original Output</div>
           <div style="color:#e2e8f0;font-family:monospace;white-space:pre-wrap">${escapeHtml((d.original_run && d.original_run.output) || (d.original_run && d.original_run.error) || '(no output)')}</div>
         </div>
-        <div style="background:#07090f;padding:8px;border-radius:4px">
+        <div style="background:#ffffff;padding:8px;border-radius:4px">
           <div style="color:#64748b;margin-bottom:4px">Migrated Output</div>
           <div style="color:#e2e8f0;font-family:monospace;white-space:pre-wrap">${escapeHtml((d.migrated_run && d.migrated_run.output) || (d.migrated_run && d.migrated_run.error) || '(no output)')}</div>
         </div>
@@ -3080,7 +3080,7 @@ function renderRepoDepGraph(edges, container) {
     const col = i % cols, row = Math.floor(i / cols);
     pos[n] = { x: padX + col * cellW + cellW / 2, y: padY + row * cellH + cellH / 2 };
   });
-  let svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width:100%;max-width:700px;background:#0f1525;border:1px solid #1e2d45;border-radius:8px;margin-top:12px" xmlns="http://www.w3.org/2000/svg">';
+  let svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width:100%;max-width:700px;background:#f1f4f8;border:1px solid #e5e8ee;border-radius:8px;margin-top:12px" xmlns="http://www.w3.org/2000/svg">';
   svg += '<defs><marker id="repoArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6366f1"/></marker></defs>';
   edges.forEach(e => {
     const a = pos[e.from], b = pos[e.to];
@@ -3108,16 +3108,16 @@ async function viewCommitHistory() {
     const d = await r.json();
     if (d.error) { box.innerHTML = '<div style="font-size:11px;color:#ef4444">Error: ' + escapeHtml(d.error) + '</div>'; return; }
     let html = '';
-    if (d.history_summary) html += '<div style="font-size:12px;font-weight:600;color:#f1f5f9;margin-bottom:8px">' + escapeHtml(d.history_summary) + '</div>';
+    if (d.history_summary) html += '<div style="font-size:12px;font-weight:600;color:#0f1115;margin-bottom:8px">' + escapeHtml(d.history_summary) + '</div>';
     if (d.hotspot_note) html += '<div style="font-size:11px;color:#f59e0b;margin-bottom:8px">⚠ ' + escapeHtml(d.hotspot_note) + '</div>';
     if (d.top_authors && d.top_authors.length) {
       html += '<div style="font-size:10px;color:#64748b;margin-bottom:4px">Top Contributors</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
-      d.top_authors.forEach(a => { html += '<span style="font-size:10px;padding:3px 8px;background:#0f1525;border-radius:10px;color:#e2e8f0">' + escapeHtml(a.name) + ' (' + a.commits + ')</span>'; });
+      d.top_authors.forEach(a => { html += '<span style="font-size:10px;padding:3px 8px;background:#f1f4f8;border-radius:10px;color:#e2e8f0">' + escapeHtml(a.name) + ' (' + a.commits + ')</span>'; });
       html += '</div>';
     }
     if (d.recent_commits && d.recent_commits.length) {
       html += '<div style="font-size:10px;color:#64748b;margin-bottom:4px">Recent Commits</div><div style="display:flex;flex-direction:column;gap:4px">';
-      d.recent_commits.forEach(c => { html += '<div style="font-size:10px;padding:5px 8px;background:#0f1525;border-radius:4px"><span style="color:#e2e8f0">' + escapeHtml(c.message) + '</span> <span style="color:#64748b">— ' + escapeHtml(c.author) + '</span></div>'; });
+      d.recent_commits.forEach(c => { html += '<div style="font-size:10px;padding:5px 8px;background:#f1f4f8;border-radius:4px"><span style="color:#e2e8f0">' + escapeHtml(c.message) + '</span> <span style="color:#64748b">— ' + escapeHtml(c.author) + '</span></div>'; });
       html += '</div>';
     }
     if (d.history_disclaimer) html += '<div style="font-size:9px;color:#64748b;margin-top:8px">' + escapeHtml(d.history_disclaimer) + '</div>';
