@@ -5048,8 +5048,10 @@ async def regulatory_deadline_cost_endpoint(payload: RegulatoryDeadlineRequest):
         days_remaining = (deadline - today).days
         if payload.daily_fine_estimate < 0:
             return JSONResponse(status_code=400, content={"error": "daily_fine_estimate cannot be negative."})
+        days_overdue = abs(days_remaining) if days_remaining < 0 else 0
+        accrued_exposure = (days_overdue * payload.daily_fine_estimate) if (days_remaining < 0 and payload.daily_fine_estimate > 0) else None
         if days_remaining < 0:
-            status_msg = f"Deadline has already passed by {abs(days_remaining)} day(s)."
+            status_msg = f"Deadline has already passed by {days_overdue} day(s)."
             urgency = "Overdue"
         elif days_remaining == 0:
             status_msg = "Deadline is today."
@@ -5063,8 +5065,13 @@ async def regulatory_deadline_cost_endpoint(payload: RegulatoryDeadlineRequest):
         else:
             status_msg = f"{days_remaining} day(s) remaining."
             urgency = "Moderate"
-        total_exposure = max(0, days_remaining) * payload.daily_fine_estimate if payload.daily_fine_estimate > 0 else None
-        result = {"deadline_date": payload.deadline_date, "days_remaining": days_remaining, "urgency": urgency, "status_message": status_msg, "daily_fine_estimate_usd": payload.daily_fine_estimate if payload.daily_fine_estimate > 0 else None, "estimated_total_exposure_usd": total_exposure, "migration_cost_usd": payload.migration_cost_usd if payload.migration_cost_usd > 0 else None, "net_argument": (f"Migrating now (~${payload.migration_cost_usd}) vs. waiting until the deadline (~${total_exposure} in estimated exposure) - migrating early saves an estimated ${round(total_exposure - payload.migration_cost_usd, 2)}." if total_exposure is not None and payload.migration_cost_usd > 0 else None)}
+        total_exposure = (max(0, days_remaining) * payload.daily_fine_estimate) if (payload.daily_fine_estimate > 0 and days_remaining >= 0) else accrued_exposure
+        net_argument = None
+        if days_remaining >= 0 and total_exposure is not None and payload.migration_cost_usd > 0:
+            net_argument = f"Migrating now (~${payload.migration_cost_usd}) vs. waiting until the deadline (~${total_exposure} in estimated exposure) - migrating early saves an estimated ${round(total_exposure - payload.migration_cost_usd, 2)}."
+        elif days_remaining < 0 and accrued_exposure is not None:
+            net_argument = f"This deadline is already {days_overdue} day(s) overdue, with an estimated ${accrued_exposure} in fines already accrued and continuing to accrue daily. Migrating now stops further exposure."
+        result = {"deadline_date": payload.deadline_date, "days_remaining": days_remaining, "urgency": urgency, "status_message": status_msg, "daily_fine_estimate_usd": payload.daily_fine_estimate if payload.daily_fine_estimate > 0 else None, "estimated_total_exposure_usd": total_exposure, "migration_cost_usd": payload.migration_cost_usd if payload.migration_cost_usd > 0 else None, "net_argument": net_argument}
         track_usage("regulatory-deadline-cost", payload.filename or "unspecified")
         write_audit_log("regulatory-deadline-cost", payload.filename or "unspecified", f"days_remaining={days_remaining}")
         return result
@@ -5079,6 +5086,9 @@ class TraceabilityQueryRequest(BaseModel):
 @app.post("/traceability-query")
 async def traceability_query_endpoint(payload: TraceabilityQueryRequest):
     try:
+        _raw_size = len((payload.question or "").encode("utf-8", errors="ignore")) + len((payload.source or "").encode("utf-8", errors="ignore"))
+        if _raw_size > MAX_FILE_SIZE:
+            return JSONResponse(status_code=400, content={"error": f"Payload too large. Maximum is {MAX_FILE_SIZE} bytes."})
         question = (payload.question or "").strip()[:500]
         source = (payload.source or "")[:6000]
         if not question:
