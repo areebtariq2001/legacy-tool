@@ -4738,6 +4738,48 @@ def calculate_behavioral_confidence(original_source, migrated_source, filename):
         summary = "No functions were simple enough for safe symbolic verification (this only covers basic pure arithmetic functions, not the whole file)."
     return {"behavioral_status": status, "verified_functions": verified, "skipped_functions": skipped, "behavioral_summary": summary, "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution, no imports/calls/loops allowed) on simple pure functions only. This is a lightweight sanity check, not a full test suite or execution-based proof of equivalence."}
 
+def generate_autonomous_migration_plan(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"plan_generated": False, "phases": [], "plan_summary": "File too large for migration planning."}
+    impact = analyze_impact(source, filename)
+    impact_map = impact.get("impact_map", [])
+    if not impact_map:
+        return {"plan_generated": False, "phases": [], "plan_summary": "No functions found to plan a migration sequence for."}
+    edges = {}
+    for m in impact_map:
+        fn_name = m["function"]
+        edges.setdefault(fn_name, set())
+        for caller in m.get("affected_by_change", []):
+            edges.setdefault(caller, set())
+            edges[caller].add(fn_name)
+    remaining = set(edges.keys())
+    placed = set()
+    phases = []
+    max_iterations = len(remaining) + 1
+    iteration = 0
+    while remaining and iteration < max_iterations:
+        iteration += 1
+        this_phase = []
+        for fn in sorted(remaining):
+            deps = edges.get(fn, set())
+            if deps.issubset(placed):
+                this_phase.append(fn)
+        if not this_phase:
+            this_phase = sorted(remaining)
+        for fn in this_phase:
+            placed.add(fn)
+            remaining.discard(fn)
+        phases.append(this_phase)
+    phase_list = []
+    for i, fns in enumerate(phases):
+        risk = "Low" if i == 0 else "Medium" if i < len(phases) - 1 else "High"
+        reasoning = "No dependencies on other in-file functions - safest starting point, extract/migrate first." if i == 0 else (
+            "Depends only on already-migrated functions from earlier phases - safe to proceed once those are done." if i < len(phases) - 1 else
+            "Foundational/widely-depended-upon functions - migrate last, with the most test coverage, since changes here have the widest blast radius."
+        )
+        phase_list.append({"phase": i + 1, "functions": fns, "function_count": len(fns), "risk_level": risk, "reasoning": reasoning})
+    return {"plan_generated": True, "phases": phase_list, "total_phases": len(phase_list), "plan_summary": f"{len(phase_list)}-phase dependency-ordered migration sequence generated for {len(edges)} function(s), based on actual in-file call relationships.", "plan_disclaimer": "Ordering is based on static call-graph analysis within this single file only - does not account for cross-file dependencies, external callers, or business priority. A starting sequence, not a mandate."}
+
 def detect_hidden_business_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"hidden_rules": [], "hidden_rules_summary": "File too large for hidden-business-logic analysis", "hidden_rules_disclaimer": "Skipped - file exceeds size limit."}
@@ -4972,6 +5014,21 @@ async def behavioral_confidence_endpoint(original_file: UploadFile = File(...), 
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": f"Behavioral confidence check failed safely: {e}"})
+
+@app.post("/migration-plan")
+async def migration_plan_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = generate_autonomous_migration_plan(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("migration-plan", file.filename)
+        write_audit_log("migration-plan", file.filename, f"phases={result.get('total_phases', 0)}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration plan generation failed safely: {e}"})
 
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
