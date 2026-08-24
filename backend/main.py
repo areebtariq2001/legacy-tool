@@ -5132,6 +5132,39 @@ Trace which specific function(s), condition(s), and line(s) in the source code a
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Traceability query failed safely: {e}"})
 
+def generate_compatibility_matrix(source, filename):
+    is_python = filename.lower().endswith(".py")
+    is_java = filename.lower().endswith(".java")
+    if not (is_python or is_java):
+        return {"matrix_generated": False, "targets": [], "matrix_summary": "Only Python/Java supported."}
+    targets = []
+    if is_python:
+        pairs = [("3.9", "3.12", ["distutils", "smtpd"])]
+        for fv, tv, removed in pairs:
+            found = [p for p in removed if re.search(r"\b" + p + r"\b", source)]
+            targets.append({"from_version": "Python " + fv, "to_version": "Python " + tv, "breaking_issues": found, "compatible": len(found) == 0})
+    else:
+        pairs = [("11", "21", ["SecurityManager"])]
+        for fv, tv, removed in pairs:
+            found = [p for p in removed if re.search(r"\b" + p + r"\b", source)]
+            targets.append({"from_version": "Java " + fv, "to_version": "Java " + tv, "breaking_issues": found, "compatible": len(found) == 0})
+    return {"matrix_generated": True, "targets": targets, "matrix_summary": str(len(targets)) + " version-pair(s) checked.", "matrix_disclaimer": "Curated, non-exhaustive set of documented breaking changes. Always test against your actual target runtime."}
+
+@app.post("/compatibility-matrix")
+async def compatibility_matrix_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = generate_compatibility_matrix(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("compatibility-matrix", file.filename)
+        write_audit_log("compatibility-matrix", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Compatibility matrix failed: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
