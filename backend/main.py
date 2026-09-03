@@ -5215,6 +5215,70 @@ async def data_lineage_endpoint(payload: DataLineageRequest):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": "Data lineage tracing failed safely: " + str(e)})
 
+def check_threat_intelligence(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "libraries": [], "summary": "File too large."}
+    imported = set()
+    if filename.lower().endswith(".py"):
+        try:
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for a in node.names:
+                        imported.add(a.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imported.add(node.module.split(".")[0])
+        except Exception:
+            pass
+    elif filename.lower().endswith(".php"):
+        imported = set(re.findall(r"use\s+([\w\\]+)", source))
+    elif filename.lower().endswith(".java"):
+        imported = set(m.split(".")[-2] if "." in m else m for m in re.findall(r"import\s+([\w.]+);", source))
+    _known_stdlib = {"os", "sys", "re", "json", "time", "math", "random", "collections", "itertools", "functools", "typing", "datetime", "io", "abc", "copy", "logging", "unittest", "string", "enum", "asyncio", "threading", "socket", "subprocess", "sqlite3"}
+    third_party = [lib for lib in imported if lib and lib not in _known_stdlib][:5]
+    if not third_party:
+        return {"checked": True, "libraries": [], "summary": "No third-party libraries detected to check against known vulnerabilities.", "disclaimer": "Checks NIST NVD for CVEs matching detected library names - limited to the first 5 non-stdlib imports to respect NVD rate limits. Keyword matching may include false positives (unrelated libraries with similar names)."}
+    results = []
+    for lib in third_party:
+        try:
+            r = requests.get("https://services.nvd.nist.gov/rest/json/cves/2.0", params={"keywordSearch": lib, "resultsPerPage": 3}, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                cves = []
+                for v in data.get("vulnerabilities", [])[:3]:
+                    cve = v.get("cve", {})
+                    desc_list = cve.get("descriptions", [])
+                    desc = desc_list[0].get("value", "")[:200] if desc_list else ""
+                    metrics = cve.get("metrics", {})
+                    severity = "Unknown"
+                    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+                        if key in metrics and metrics[key]:
+                            severity = metrics[key][0].get("cvssData", {}).get("baseSeverity", "Unknown")
+                            break
+                    cves.append({"cve_id": cve.get("id", "Unknown"), "severity": severity, "description": desc})
+                results.append({"library": lib, "total_matches": data.get("totalResults", 0), "top_cves": cves})
+            else:
+                results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup unavailable (status " + str(r.status_code) + ")"})
+        except Exception as e:
+            results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup failed: " + str(e)})
+    return {"checked": True, "libraries": results, "summary": str(len(third_party)) + " third-party librar" + ("y" if len(third_party) == 1 else "ies") + " checked against NIST NVD.", "disclaimer": "Checks NIST NVD for CVEs matching detected library names by keyword - limited to the first 5 non-stdlib imports to respect NVD rate limits (no API key configured). Keyword matching may include false positives (unrelated libraries with similar names) - always verify against the actual CVE details before acting."}
+
+@app.post("/threat-intelligence")
+async def threat_intelligence_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_threat_intelligence(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("threat-intelligence", file.filename)
+        write_audit_log("threat-intelligence", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Threat intelligence check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
