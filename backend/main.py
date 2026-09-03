@@ -5338,6 +5338,72 @@ async def entropy_secret_scan_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Entropy secret scan failed safely: " + str(e)})
 
+def parse_dependency_file(content_text, filename):
+    libs = []
+    fname_lower = filename.lower()
+    if "requirements" in fname_lower and fname_lower.endswith(".txt"):
+        for line in content_text.split(chr(10)):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"^([A-Za-z0-9_.\-]+)", line)
+            if m:
+                libs.append(m.group(1))
+    elif fname_lower.endswith("package.json"):
+        try:
+            data = json.loads(content_text)
+            for section in ("dependencies", "devDependencies"):
+                libs.extend((data.get(section) or {}).keys())
+        except Exception:
+            pass
+    return libs[:10]
+
+def scan_dependency_file_vulnerabilities(content_text, filename):
+    if len(content_text.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "libraries": [], "summary": "File too large."}
+    libs = parse_dependency_file(content_text, filename)
+    if not libs:
+        return {"checked": True, "libraries": [], "summary": "No recognizable dependencies found. Supported files: requirements.txt, package.json.", "disclaimer": "Checks NIST NVD for CVEs matching each parsed dependency name - limited to the first 10 entries to respect NVD rate limits."}
+    results = []
+    for lib in libs:
+        try:
+            r = requests.get("https://services.nvd.nist.gov/rest/json/cves/2.0", params={"keywordSearch": lib, "resultsPerPage": 3}, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                cves = []
+                for v in data.get("vulnerabilities", [])[:3]:
+                    cve = v.get("cve", {})
+                    desc_list = cve.get("descriptions", [])
+                    desc = desc_list[0].get("value", "")[:200] if desc_list else ""
+                    metrics = cve.get("metrics", {})
+                    severity = "Unknown"
+                    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+                        if key in metrics and metrics[key]:
+                            severity = metrics[key][0].get("cvssData", {}).get("baseSeverity", "Unknown")
+                            break
+                    cves.append({"cve_id": cve.get("id", "Unknown"), "severity": severity, "description": desc})
+                results.append({"library": lib, "total_matches": data.get("totalResults", 0), "top_cves": cves})
+            else:
+                results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup unavailable (status " + str(r.status_code) + ")"})
+        except Exception as e:
+            results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup failed: " + str(e)})
+    return {"checked": True, "libraries": results, "summary": str(len(libs)) + " dependenc" + ("y" if len(libs) == 1 else "ies") + " checked against NIST NVD.", "disclaimer": "Checks NIST NVD for CVEs matching each parsed dependency name by keyword - limited to the first 10 entries to respect NVD rate limits (no API key configured). Keyword matching may include false positives - always verify against actual CVE details and installed version before acting."}
+
+@app.post("/dependency-file-scan")
+async def dependency_file_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        if len(content2) > MAX_FILE_SIZE:
+            return JSONResponse(status_code=400, content={"error": "File too large. Maximum is " + str(MAX_FILE_SIZE) + " bytes."})
+        text = content2.decode("utf-8", errors="ignore")
+        result = scan_dependency_file_vulnerabilities(text, file.filename)
+        result["filename"] = file.filename
+        track_usage("dependency-file-scan", file.filename)
+        write_audit_log("dependency-file-scan", file.filename, "scanned")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Dependency file scan failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
