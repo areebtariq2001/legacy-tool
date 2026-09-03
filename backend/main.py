@@ -5165,6 +5165,56 @@ async def compatibility_matrix_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Compatibility matrix failed: " + str(e)})
 
+class DataLineageRequest(BaseModel):
+    filename: str = ""
+    source: str = ""
+    field_name: str = ""
+
+def trace_data_lineage(source, field_name, filename):
+    if not field_name or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", field_name):
+        return {"lineage_generated": False, "touches": [], "lineage_summary": "Invalid or missing field name."}
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"lineage_generated": False, "touches": [], "lineage_summary": "File too large for lineage tracing."}
+    lines = source.split(chr(10))
+    write_pattern = re.compile(r"(?:self\.)?\b" + re.escape(field_name) + r"\s*=(?!=)")
+    read_pattern = re.compile(r"\b" + re.escape(field_name) + r"\b")
+    current_fn = None
+    current_indent = -1
+    touches = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        fn_match = re.match(r"^\s*def\s+(\w+)\s*\(", line)
+        line_indent = len(line) - len(line.lstrip())
+        if fn_match:
+            current_fn = fn_match.group(1)
+            current_indent = line_indent
+            continue
+        if current_fn is not None and line_indent <= current_indent and stripped:
+            current_fn = None
+            current_indent = -1
+        if read_pattern.search(line):
+            access_type = "write" if write_pattern.search(line) else "read"
+            touches.append({"line": i + 1, "function": current_fn or "(module level)", "access_type": access_type, "code_snippet": stripped[:100]})
+    write_count = sum(1 for t in touches if t["access_type"] == "write")
+    read_count = sum(1 for t in touches if t["access_type"] == "read")
+    return {"lineage_generated": True, "field_name": field_name, "touches": touches, "total_touches": len(touches), "write_count": write_count, "read_count": read_count, "lineage_summary": str(len(touches)) + " touch-point(s) found for '" + field_name + "' - " + str(write_count) + " write(s), " + str(read_count) + " read(s).", "lineage_disclaimer": "Static pattern-based trace within this single file only - does not track cross-file/cross-service data flow, aliasing, or indirect references (e.g. via dict/getattr). A starting point for data-flow review, not exhaustive."}
+
+@app.post("/data-lineage")
+async def data_lineage_endpoint(payload: DataLineageRequest):
+    try:
+        source_size = len(payload.source.encode("utf-8", errors="ignore"))
+        if source_size > MAX_FILE_SIZE:
+            return JSONResponse(status_code=400, content={"error": "Source too large. Maximum is " + str(MAX_FILE_SIZE) + " bytes."})
+        result = trace_data_lineage(payload.source, payload.field_name, payload.filename)
+        result["filename"] = payload.filename
+        track_usage("data-lineage", payload.filename or "unspecified")
+        write_audit_log("data-lineage", payload.filename or "unspecified", "field=" + payload.field_name)
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": "Data lineage tracing failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
