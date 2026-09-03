@@ -2900,6 +2900,8 @@ async function runGenericScan(endpoint, label, btnEl) {
     loading.style.display = 'none'; result.style.display = 'block';
     if (endpoint === '/dependency-graph' && d.has_graph) {
       renderD3DependencyGraph(d, result);
+    } else if (endpoint === '/change-risk-radar' && d.radar) {
+      renderCodeHeatmap(d, result);
     } else {
       result.innerHTML = formatGenericResult(d, label);
     }
@@ -2942,6 +2944,25 @@ function renderD3DependencyGraph(d, container) {
     node.attr('cx', nd => nd.x).attr('cy', nd => nd.y);
     labels.attr('x', nd => nd.x).attr('y', nd => nd.y);
   });
+}
+function renderCodeHeatmap(d, container) {
+  const radar = d.radar || [];
+  const riskColor = { Critical: '#dc2626', High: '#ef4444', Medium: '#d97706', Low: '#16a34a' };
+  const riskOrder = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+  const sorted = [...radar].sort((a, b) => (riskOrder[a.risk_level] ?? 4) - (riskOrder[b.risk_level] ?? 4));
+  container.innerHTML = '<div style="font-size:11px;color:#64748b;margin-bottom:10px">' + escapeHtml(d.radar_summary || '') + ' — hover a tile for details.</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px">' +
+    sorted.map(item => {
+      const color = riskColor[item.risk_level] || '#94a3b8';
+      const factorsText = (item.risk_factors || []).join(' | ');
+      return '<div title="' + escapeHtml(item.function + ': ' + item.risk_level + ' risk. ' + factorsText) + '" style="background:' + color + '22;border:1.5px solid ' + color + ';border-radius:6px;padding:8px 6px;text-align:center;cursor:default">' +
+        '<div style="font-size:10px;font-weight:600;color:' + color + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(item.function) + '</div>' +
+        '<div style="font-size:9px;color:#6b7280;margin-top:2px">' + escapeHtml(item.risk_level) + '</div>' +
+        '</div>';
+    }).join('') + '</div>' +
+    '<div style="display:flex;gap:14px;margin-top:12px;font-size:10px;color:#6b7280">' +
+    Object.entries(riskColor).map(([k, c]) => '<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + c + ';margin-right:4px"></span>' + k + '</span>').join('') +
+    '</div>';
 }
 function exportDepGraphSVG() {
   const svgEl = document.getElementById('depGraphSvg');
