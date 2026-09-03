@@ -5279,6 +5279,64 @@ async def threat_intelligence_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Threat intelligence check failed safely: " + str(e)})
 
+def _calculate_shannon_entropy(s):
+    import math
+    if not s:
+        return 0.0
+    freq = {}
+    for ch in s:
+        freq[ch] = freq.get(ch, 0) + 1
+    entropy = 0.0
+    length = len(s)
+    for count in freq.values():
+        p = count / length
+        entropy -= p * math.log2(p)
+    return entropy
+
+def scan_entropy_secrets(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    _known_prefixes = [("AKIA", "AWS Access Key ID"), ("ghp_", "GitHub Personal Access Token"), ("gho_", "GitHub OAuth Token"), ("xox", "Slack Token"), ("sk_live_", "Stripe Live Secret Key"), ("AIza", "Google API Key")]
+    string_pattern = re.compile(r"[\"\x27]([A-Za-z0-9+/=_.\-]{16,})[\"\x27]")
+    findings = []
+    lines2 = source.split(chr(10))
+    for i, line in enumerate(lines2):
+        if line.strip().startswith("#"):
+            continue
+        for m in string_pattern.finditer(line):
+            candidate = m.group(1)
+            if len(candidate) > 200:
+                continue
+            known_type = None
+            for prefix, label in _known_prefixes:
+                if candidate.startswith(prefix):
+                    known_type = label
+                    break
+            entropy = _calculate_shannon_entropy(candidate)
+            entropy_threshold = 4.0 if len(candidate) >= 20 else 3.5
+            is_high_entropy = entropy >= entropy_threshold
+            if known_type or is_high_entropy:
+                redacted = candidate[:4] + "***REDACTED***" + candidate[-2:] if len(candidate) > 8 else "***REDACTED***"
+                findings.append({"line": i + 1, "entropy_score": round(entropy, 2), "known_pattern": known_type, "confidence": "High" if known_type else ("Medium" if entropy >= 4.5 else "Low"), "evidence": "Line " + str(i + 1) + ": " + redacted})
+    findings = findings[:30]
+    high_count = sum(1 for f in findings if f["confidence"] == "High")
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "high_confidence_count": high_count, "summary": str(len(findings)) + " potential high-entropy secret(s) found - " + str(high_count) + " high-confidence.", "disclaimer": "Entropy-based scan flags random-looking strings (GitLeaks-style) that regex-only scans might miss - has more false positives (hashes, encoded data, UUIDs are also high-entropy). Always manually verify each finding."}
+
+@app.post("/entropy-secret-scan")
+async def entropy_secret_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_entropy_secrets(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("entropy-secret-scan", file.filename)
+        write_audit_log("entropy-secret-scan", file.filename, "scanned")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Entropy secret scan failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
