@@ -5138,15 +5138,16 @@ def generate_compatibility_matrix(source, filename):
     if not (is_python or is_java):
         return {"matrix_generated": False, "targets": [], "matrix_summary": "Only Python/Java supported."}
     targets = []
+    _code_lines_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*")))
     if is_python:
         pairs = [("3.9", "3.12", ["distutils", "smtpd"])]
         for fv, tv, removed in pairs:
-            found = [p for p in removed if re.search(r"\b" + p + r"\b", source)]
+            found = [p for p in removed if re.search(r"^\s*(?:import|from)\s+" + re.escape(p) + r"\b", _code_lines_only, re.MULTILINE)]
             targets.append({"from_version": "Python " + fv, "to_version": "Python " + tv, "breaking_issues": found, "compatible": len(found) == 0})
     else:
         pairs = [("11", "21", ["SecurityManager"])]
         for fv, tv, removed in pairs:
-            found = [p for p in removed if re.search(r"\b" + p + r"\b", source)]
+            found = [p for p in removed if re.search(r"\b" + p + r"\s*\w*\s*[=;(]", _code_lines_only)]
             targets.append({"from_version": "Java " + fv, "to_version": "Java " + tv, "breaking_issues": found, "compatible": len(found) == 0})
     return {"matrix_generated": True, "targets": targets, "matrix_summary": str(len(targets)) + " version-pair(s) checked.", "matrix_disclaimer": "Curated, non-exhaustive set of documented breaking changes. Always test against your actual target runtime."}
 
@@ -5176,7 +5177,7 @@ def trace_data_lineage(source, field_name, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"lineage_generated": False, "touches": [], "lineage_summary": "File too large for lineage tracing."}
     lines = source.split(chr(10))
-    write_pattern = re.compile(r"(?:self\.)?\b" + re.escape(field_name) + r"\s*=(?!=)")
+    write_pattern = re.compile(r"(?:self\.)?\b" + re.escape(field_name) + r"\s*(?:=(?!=)|[+\-*/%&|^]=|\*\*=|//=|>>=|<<=)")
     read_pattern = re.compile(r"\b" + re.escape(field_name) + r"\b")
     current_fn = None
     current_indent = -1
