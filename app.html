@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%236366f1%22/><text x=%2250%22 y=%2268%22 font-size=%2255%22 font-family=%22Arial,sans-serif%22 font-weight=%22700%22 fill=%22white%22 text-anchor=%22middle%22>S</text></svg>">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2897,12 +2898,85 @@ async function runGenericScan(endpoint, label, btnEl) {
     const d = await r.json();
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
-    result.innerHTML = formatGenericResult(d, label);
+    if (endpoint === '/dependency-graph' && d.has_graph) {
+      renderD3DependencyGraph(d, result);
+    } else {
+      result.innerHTML = formatGenericResult(d, label);
+    }
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = label + ' failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
   }
+}
+function renderD3DependencyGraph(d, container) {
+  const nodes = (d.nodes || []).map(n => ({ id: n.id, risk: n.risk, type: n.type, dependents: n.dependents }));
+  const links = (d.links || []).map(l => ({ source: l.source, target: l.target }));
+  const riskColor = { High: '#ef4444', Medium: '#d97706', Low: '#16a34a' };
+  const width = Math.min(container.clientWidth || 600, 700), height = 420;
+  container.innerHTML = '<div style="font-size:11px;color:#64748b;margin-bottom:8px">' + escapeHtml(d.graph_summary || '') + ' — click a node for details, drag to rearrange.</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="exportDepGraphSVG()">Export SVG</button><button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="exportDepGraphPNG()">Export PNG</button></div>' +
+    '<div id="depGraphNodeDetail" style="font-size:11px;color:#4b5563;min-height:18px;margin-bottom:6px"></div>' +
+    '<svg id="depGraphSvg" width="' + width + '" height="' + height + '" style="background:#fafbfc;border:1px solid #e5e8ee;border-radius:8px"></svg>';
+  if (!nodes.length) return;
+  const svg = d3.select('#depGraphSvg');
+  svg.append('defs').append('marker').attr('id', 'arrow').attr('viewBox', '0 -5 10 10').attr('refX', 18).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto').append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#c2c9d4');
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(nd => nd.id).distance(70))
+    .force('charge', d3.forceManyBody().strength(-180))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collide', d3.forceCollide(24));
+  const link = svg.append('g').selectAll('line').data(links).join('line').attr('stroke', '#c2c9d4').attr('stroke-width', 1.5).attr('marker-end', 'url(#arrow)');
+  const node = svg.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r', nd => 8 + Math.min(nd.dependents || 0, 6))
+    .attr('fill', nd => riskColor[nd.risk] || '#3b82f6')
+    .attr('stroke', '#fff').attr('stroke-width', 1.5)
+    .style('cursor', 'pointer')
+    .call(d3.drag().on('start', (ev, nd) => { if (!ev.active) sim.alphaTarget(0.3).restart(); nd.fx = nd.x; nd.fy = nd.y; })
+      .on('drag', (ev, nd) => { nd.fx = ev.x; nd.fy = ev.y; })
+      .on('end', (ev, nd) => { if (!ev.active) sim.alphaTarget(0); nd.fx = null; nd.fy = null; }))
+    .on('click', (ev, nd) => { document.getElementById('depGraphNodeDetail').innerHTML = '<b>' + escapeHtml(nd.id) + '</b> — ' + escapeHtml(nd.type) + ', risk: <span style="color:' + (riskColor[nd.risk] || '#3b82f6') + '">' + escapeHtml(nd.risk) + '</span>, ' + nd.dependents + ' dependent(s)'; });
+  const labels = svg.append('g').selectAll('text').data(nodes).join('text').text(nd => nd.id).attr('font-size', 9).attr('fill', '#4b5563').attr('dx', 10).attr('dy', 3);
+  sim.on('tick', () => {
+    link.attr('x1', l => l.source.x).attr('y1', l => l.source.y).attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+    node.attr('cx', nd => nd.x).attr('cy', nd => nd.y);
+    labels.attr('x', nd => nd.x).attr('y', nd => nd.y);
+  });
+}
+function exportDepGraphSVG() {
+  const svgEl = document.getElementById('depGraphSvg');
+  if (!svgEl) return;
+  const serializer = new XMLSerializer();
+  let svgStr = serializer.serializeToString(svgEl);
+  if (!svgStr.includes('xmlns=')) svgStr = svgStr.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'dependency_graph.svg'; a.click();
+  URL.revokeObjectURL(url);
+}
+function exportDepGraphPNG() {
+  const svgEl = document.getElementById('depGraphSvg');
+  if (!svgEl) return;
+  const serializer = new XMLSerializer();
+  let svgStr = serializer.serializeToString(svgEl);
+  if (!svgStr.includes('xmlns=')) svgStr = svgStr.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  const img = new Image();
+  const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  img.onload = function () {
+    const canvas = document.createElement('canvas');
+    canvas.width = svgEl.width.baseVal.value; canvas.height = svgEl.height.baseVal.value;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fafbfc'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const pngUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = pngUrl; a.download = 'dependency_graph.png'; a.click();
+      URL.revokeObjectURL(pngUrl);
+    });
+  };
+  img.src = url;
 }
 function renderValue(v) {
   if (Array.isArray(v)) {
