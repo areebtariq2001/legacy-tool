@@ -7,3 +7,19 @@ add_*.py
 view_*.py
 debug_*.py
 !test_starsage.py
+# Temp debug/patch scripts (single-use, not meant to persist)
+step*.py
+tinytest*.py
+force_db_test*.py
+remove_dangerous_helper*.py
+remove_duplicates*.py
+fix_*.py
+add_*.py
+check_*.py
+test_*_result*.txt
+*_result.txt
+*_log.txt
+cleanup_*.py
+enhance_*.py
+compat_p*.py
+compat_simple.py

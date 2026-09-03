@@ -1,0 +1,5 @@
+Genuinely-found-target: backend/khол
+removal-returncode: 0
+stdout: rm 'backend/khол'
+
+stderr: 
