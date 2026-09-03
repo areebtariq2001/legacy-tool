@@ -543,6 +543,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/predict-risk','Migration Risk', this)">Migration Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/migration-plan','Migration Plan', this)">📋 Migration Plan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Deadline Cost" style="padding:7px 4px;font-size:10px" onclick="runDeadlineCostCalc(this)">⚖️ Deadline Cost</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Data Lineage" style="padding:7px 4px;font-size:10px" onclick="runDataLineage(this)">🔗 Data Lineage</button>
               </div>
 
               <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">🏦 Banking &amp; Compliance</div>
@@ -2886,6 +2887,29 @@ function openMonacoDiffViewer() {
 }
 function closeMonacoDiffViewer() {
   document.getElementById('monacoDiffModal').style.display = 'none';
+}
+async function runDataLineage(btnEl) {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const fieldName = prompt('Enter the data field/variable name to trace (e.g. account_balance):');
+  if (!fieldName) return;
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  document.getElementById('advTitle').textContent = 'Data Lineage Result';
+  loading.style.display = 'block'; result.style.display = 'none';
+  document.querySelectorAll('.adv-check-btn').forEach(b => { if (b !== btnEl) b.classList.remove('adv-active'); });
+  try {
+    const code = await files[0].text();
+    const payload = { filename: files[0].name, source: code, field_name: fieldName.trim() };
+    const r = await fetch(BACKEND + '/data-lineage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.innerHTML = formatGenericResult(d, 'Data Lineage');
+    if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+  } catch (e) {
+    loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Data Lineage failed: ' + e.message;
+    if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+  }
 }
 async function runDeadlineCostCalc(btnEl) {
   const deadlineInput = prompt('Compliance deadline date (YYYY-MM-DD):');
