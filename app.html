@@ -935,7 +935,7 @@ function initCharts() {
     }
   });
 }
-initCharts();
+try { initCharts(); } catch (e) { console.error('Chart initialization failed (charts will be unavailable, but the app continues to work):', e); }
 updateAuthUI();
 async function checkBackendHealth() {
   document.getElementById('liveLabel').textContent = 'Checking backend...';
@@ -1312,10 +1312,12 @@ function renderResults(R, original, fname, totalMs) {
   }
   const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
   document.getElementById('healthNum').textContent = overall;
-  healthChart.data.datasets[0].data = [overall, 100 - overall];
-  const hColor = overall >= 70 ? '#22c55e' : overall >= 50 ? '#f59e0b' : '#ef4444';
-  healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
-  healthChart.update();
+  if (healthChart) {
+    healthChart.data.datasets[0].data = [overall, 100 - overall];
+    const hColor = overall >= 70 ? '#22c55e' : overall >= 50 ? '#f59e0b' : '#ef4444';
+    healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
+    healthChart.update();
+  }
   const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
   const healthNoteText = critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
