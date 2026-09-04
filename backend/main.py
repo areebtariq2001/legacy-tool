@@ -5482,6 +5482,45 @@ async def audit_maker_checker_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Audit/Maker-Checker analysis failed safely: " + str(e)})
 
+def check_cnic_validation_quality(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    findings = []
+    lines = source.split(chr(10))
+    _cnic_var_pattern = re.compile(r"(?i)\b(cnic|national.?id)\b")
+    _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
+    _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
+    cnic_related_lines = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("#"):
+            continue
+        if _cnic_var_pattern.search(line):
+            cnic_related_lines.append((i + 1, line.strip()))
+    if not cnic_related_lines:
+        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected in this file.", "disclaimer": "Pattern-based structural check for CNIC (13-digit Pakistani national ID) validation quality - looks for length and digit-format checks near CNIC-related variable names. Does not verify actual runtime correctness."}
+    has_length_check = any(_strict_length_pattern.search(l) for _, l in cnic_related_lines)
+    has_format_check = any(_digit_check_pattern.search(l) for _, l in cnic_related_lines)
+    if not has_length_check:
+        findings.append({"issue": "No explicit 13-digit length check found near CNIC-related code", "severity": "Medium", "recommendation": "CNIC is always exactly 13 digits (format: XXXXX-XXXXXXX-X) - add an explicit length == 13 check."})
+    if not has_format_check:
+        findings.append({"issue": "No explicit numeric/digit-format validation found near CNIC-related code", "severity": "Medium", "recommendation": "Validate that all 13 characters are digits (after removing hyphens) - a CNIC should never contain letters."})
+    return {"checked": True, "findings": findings, "cnic_related_lines_found": len(cnic_related_lines), "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation quality issue(s) found across " + str(len(cnic_related_lines)) + " CNIC-related line(s).", "disclaimer": "Pattern-based structural check for CNIC (13-digit Pakistani national ID) validation quality - looks for length and digit-format checks near CNIC-related variable names. Does not verify actual runtime correctness or NADRA-level validity (checksum, issuing authority)."}
+
+@app.post("/cnic-validation-check")
+async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_cnic_validation_quality(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cnic-validation-check", file.filename)
+        write_audit_log("cnic-validation-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CNIC validation check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
