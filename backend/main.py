@@ -5440,6 +5440,48 @@ async def pci_dss_scan_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI-DSS scan failed safely: " + str(e)})
 
+def check_audit_maker_checker(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "summary": "Audit/Maker-Checker analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+    _sensitive_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
+    _audit_call_pattern = re.compile(r"(?i)(audit|log\.|logger\.|logging\.)")
+    _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and _sensitive_name_pattern.search(node.name):
+            func_source = ast.get_source_segment(source, node) or ""
+            has_audit_log = bool(_audit_call_pattern.search(func_source))
+            has_approval_check = bool(_approval_check_pattern.search(func_source))
+            issues = []
+            if not has_audit_log:
+                issues.append("No audit/logging call detected in this sensitive function.")
+            if not has_approval_check and re.search(r"(?i)(approve|disburs|transfer)", node.name):
+                issues.append("No maker-checker / dual-approval pattern detected - operation may execute without a second-actor check.")
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " sensitive function(s) flagged.", "disclaimer": "Pattern-based structural check only - looks for logging calls and approval keywords near sensitive function names. Does not verify actual runtime behavior or genuine dual-control enforcement. Manual review against your institution actual control framework required."}
+
+@app.post("/audit-maker-checker")
+async def audit_maker_checker_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_audit_maker_checker(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("audit-maker-checker", file.filename)
+        write_audit_log("audit-maker-checker", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Audit/Maker-Checker analysis failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
