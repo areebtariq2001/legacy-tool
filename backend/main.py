@@ -5523,6 +5523,42 @@ async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CNIC validation check failed safely: " + str(e)})
 
+def check_data_localization(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    _code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
+    _code_only = chr(10).join(_code_only_lines)
+    findings = []
+    _foreign_region_patterns = [
+        (r"(?i)\bus-(east|west)-\d\b", "AWS US region"),
+        (r"(?i)\beu-(west|central|north)-\d\b", "AWS EU region"),
+        (r"(?i)\bap-(southeast|northeast|south)-\d\b", "AWS Asia-Pacific region (non-Pakistan)"),
+        (r"(?i)\beastus2?\b|\bwesteurope\b|\bnortheurope\b|\bsoutheastasia\b", "Azure foreign region"),
+        (r"(?i)\bus-central1\b|\beurope-west\d\b|\basia-southeast\d\b", "GCP foreign region"),
+    ]
+    lines = _code_only.split(chr(10))
+    for i, line in enumerate(lines):
+        for pattern, label in _foreign_region_patterns:
+            if re.search(pattern, line):
+                findings.append({"line": i + 1, "issue": "Foreign cloud region reference detected (" + label + ")", "severity": "High", "evidence": line.strip()[:100], "note": "If this code stores or processes Pakistani customer data, verify this complies with SBP data localization requirements."})
+    findings = findings[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " potential foreign-region reference(s) found.", "disclaimer": "Pattern-based detection of cloud-provider region identifiers (AWS/Azure/GCP) that are outside Pakistan - Pakistan currently has no major public-cloud region, so any cloud region reference should be reviewed against your institution actual SBP data localization obligations. This does NOT determine actual data residency (data may be encrypted, anonymized, or exempt) - a compliance officer must make the final determination."}
+
+@app.post("/data-localization-check")
+async def data_localization_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_data_localization(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("data-localization-check", file.filename)
+        write_audit_log("data-localization-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Data localization check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
