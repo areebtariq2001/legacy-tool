@@ -5415,7 +5415,7 @@ def scan_pci_dss_signals(source, filename):
         stripped = line.strip()
         if stripped.startswith(("#", "//", "*")):
             continue
-        if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]", line):
+        if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]?\d{3,4}\b", line):
             findings.append({"line": i + 1, "issue": "Possible CVV/CVC storage", "severity": "Critical", "pci_requirement": "PCI-DSS Req 3.2 - CVV must NEVER be stored after authorization", "evidence": stripped[:100]})
         if re.search(r"(?i)\b(card.?num|pan|credit.?card)\b\s*=\s*[\"\x27]?\d{12,19}", line):
             findings.append({"line": i + 1, "issue": "Possible unmasked full card number (PAN)", "severity": "High", "pci_requirement": "PCI-DSS Req 3.3 - PAN must be masked when displayed (max first 6 / last 4 digits visible)", "evidence": stripped[:100]})
