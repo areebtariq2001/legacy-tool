@@ -5451,13 +5451,15 @@ def check_audit_maker_checker(source, filename):
         return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
     _sensitive_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
     _audit_call_pattern = re.compile(r"(?i)(audit|log\.|logger\.|logging\.)")
-    _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
+    _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|(?<!un)authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
     findings = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _sensitive_name_pattern.search(node.name):
             func_source = ast.get_source_segment(source, node) or ""
-            has_audit_log = bool(_audit_call_pattern.search(func_source))
-            has_approval_check = bool(_approval_check_pattern.search(func_source))
+            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
+            _code_only = chr(10).join(_code_only_lines)
+            has_audit_log = bool(_audit_call_pattern.search(_code_only))
+            has_approval_check = bool(_approval_check_pattern.search(_code_only))
             issues = []
             if not has_audit_log:
                 issues.append("No audit/logging call detected in this sensitive function.")
