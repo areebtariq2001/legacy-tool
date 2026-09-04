@@ -5346,6 +5346,8 @@ def parse_dependency_file(content_text, filename):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
+            if line.startswith("-") or line.startswith("git+") or line.startswith("http"):
+                continue
             m = re.match(r"^([A-Za-z0-9_.\-]+)", line)
             if m:
                 libs.append(m.group(1))
