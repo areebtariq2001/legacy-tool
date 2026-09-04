@@ -5406,6 +5406,40 @@ async def dependency_file_scan_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Dependency file scan failed safely: " + str(e)})
 
+def scan_pci_dss_signals(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    findings = []
+    lines = source.split(chr(10))
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(("#", "//", "*")):
+            continue
+        if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]", line):
+            findings.append({"line": i + 1, "issue": "Possible CVV/CVC storage", "severity": "Critical", "pci_requirement": "PCI-DSS Req 3.2 - CVV must NEVER be stored after authorization", "evidence": stripped[:100]})
+        if re.search(r"(?i)\b(card.?num|pan|credit.?card)\b\s*=\s*[\"\x27]?\d{12,19}", line):
+            findings.append({"line": i + 1, "issue": "Possible unmasked full card number (PAN)", "severity": "High", "pci_requirement": "PCI-DSS Req 3.3 - PAN must be masked when displayed (max first 6 / last 4 digits visible)", "evidence": stripped[:100]})
+        if re.search(r"(?i)http://[^\s\"\x27]*(?:pay|card|checkout|billing)", line):
+            findings.append({"line": i + 1, "issue": "Unencrypted HTTP used for payment-related endpoint", "severity": "High", "pci_requirement": "PCI-DSS Req 4.1 - Strong cryptography (TLS) required for cardholder data transmission", "evidence": stripped[:100]})
+    findings = findings[:30]
+    critical_count = sum(1 for f in findings if f["severity"] == "Critical")
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "critical_count": critical_count, "summary": str(len(findings)) + " potential PCI-DSS signal(s) found - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection only (CVV storage, unmasked PAN, unencrypted payment endpoints) - this is NOT a PCI-DSS compliance certification or formal assessment. A Qualified Security Assessor (QSA) must perform the actual PCI-DSS audit. False positives/negatives are possible."}
+
+@app.post("/pci-dss-scan")
+async def pci_dss_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_pci_dss_signals(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("pci-dss-scan", file.filename)
+        write_audit_log("pci-dss-scan", file.filename, "scanned")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI-DSS scan failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
