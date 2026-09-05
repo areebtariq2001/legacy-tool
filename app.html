@@ -528,6 +528,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card">
               <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
+              <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">🇵🇰 Run Pakistan Banking Compliance Suite (7 checks in 1 click)</button>
 
               <div style="font-size:10px;color:#1d4ed8;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
@@ -2920,6 +2921,38 @@ async function runDepFileScan(inputEl) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Dependency File CVE Scan failed: ' + e.message;
   }
   inputEl.value = '';
+}
+async function runPakistanBankingSuite(btnEl) {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  document.getElementById('advTitle').textContent = 'Pakistan Banking Compliance Suite Result';
+  loading.style.display = 'block'; result.style.display = 'none';
+  try {
+    const fd = new FormData();
+    fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/pakistan-banking-suite', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
+    loading.style.display = 'none'; result.style.display = 'block';
+    const scoreColor = d.passed_count === d.total_count ? '#16a34a' : d.passed_count >= d.total_count / 2 ? '#d97706' : '#dc2626';
+    let html = '<div style="text-align:center;padding:16px;background:' + scoreColor + '11;border:2px solid ' + scoreColor + ';border-radius:10px;margin-bottom:12px">' +
+      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + d.passed_count + '/' + d.total_count + '</div>' +
+      '<div style="font-size:11px;color:#64748b;margin-top:2px">checks passed</div></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px">';
+    (d.checks || []).forEach(c => {
+      const badgeColor = c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
+      const badgeText = c.passed === true ? '✓ PASS' : c.passed === false ? '✗ FLAGGED' : '— N/A';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
+        '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name) + '</span>' +
+        '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>';
+    });
+    html += '</div><div style="margin-top:10px;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml(d.disclaimer || '') + '</div>';
+    result.innerHTML = html;
+    if (btnEl) { btnEl.innerHTML = '🇵🇰 Run Pakistan Banking Compliance Suite (7 checks in 1 click) <span style="color:#a7f3d0">✓</span>'; }
+  } catch (e) {
+    loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Pakistan Banking Suite failed: ' + e.message;
+  }
 }
 async function runDataLineage(btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
