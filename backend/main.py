@@ -5699,6 +5699,65 @@ async def unusual_hours_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Unusual hours check failed safely: " + str(e)})
 
+def run_pakistan_banking_suite(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"suite_run": False, "checks": [], "summary": "File too large."}
+    checks = []
+    try:
+        pci = scan_pci_dss_signals(source, filename)
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": pci.get("total_findings", 0) == 0, "finding_count": pci.get("total_findings", 0), "summary": pci.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        amc = check_audit_maker_checker(source, filename)
+        checks.append({"name": "Audit/Maker-Checker", "passed": amc.get("total_findings", 0) == 0, "finding_count": amc.get("total_findings", 0), "summary": amc.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Audit/Maker-Checker", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        cnic = check_cnic_validation_quality(source, filename)
+        checks.append({"name": "CNIC Validation Quality", "passed": cnic.get("total_findings", 0) == 0, "finding_count": cnic.get("total_findings", 0), "summary": cnic.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "CNIC Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        dl = check_data_localization(source, filename)
+        checks.append({"name": "Data Localization", "passed": dl.get("total_findings", 0) == 0, "finding_count": dl.get("total_findings", 0), "summary": dl.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Data Localization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        struct = check_structuring_patterns(source, filename)
+        checks.append({"name": "Structuring/Smurfing Signal", "passed": struct.get("total_findings", 0) == 0, "finding_count": struct.get("total_findings", 0), "summary": struct.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        ntn = check_ntn_strn_validation_quality(source, filename)
+        checks.append({"name": "NTN/STRN Validation Quality", "passed": ntn.get("total_findings", 0) == 0, "finding_count": ntn.get("total_findings", 0), "summary": ntn.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "NTN/STRN Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        uh = check_unusual_hours_flag(source, filename)
+        checks.append({"name": "Unusual Hours Flag", "passed": uh.get("total_findings", 0) == 0, "finding_count": uh.get("total_findings", 0), "summary": uh.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    passed_count = sum(1 for c2 in checks if c2["passed"] is True)
+    total_count = len(checks)
+    flagged = [c2["name"] for c2 in checks if c2["passed"] is False]
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(total_count) + " checks passed" + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found across all checks"), "disclaimer": "Combined summary of 7 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. See individual check results for details."}
+
+@app.post("/pakistan-banking-suite")
+async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = run_pakistan_banking_suite(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("pakistan-banking-suite", file.filename)
+        write_audit_log("pakistan-banking-suite", file.filename, "run")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Pakistan Banking Suite failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
