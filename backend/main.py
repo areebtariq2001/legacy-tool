@@ -5716,6 +5716,11 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "Unusual Hours Flag", "passed": uh.get("total_findings", 0) == 0, "finding_count": uh.get("total_findings", 0), "summary": uh.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        geo = check_geo_anomaly_detection(source, filename)
+        checks.append({"name": "Geo-Anomaly Detection", "passed": geo.get("total_findings", 0) == 0, "finding_count": geo.get("total_findings", 0), "summary": geo.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     passed_count = sum(1 for c2 in checks if c2["passed"] is True)
     total_count = len(checks)
     flagged = [c2["name"] for c2 in checks if c2["passed"] is False]
