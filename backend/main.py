@@ -5642,6 +5642,43 @@ async def ntn_strn_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NTN/STRN check failed safely: " + str(e)})
 
+def check_unusual_hours_flag(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "summary": "Unusual-hours analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
+    _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
+            _code_only = chr(10).join(_code_only_lines)
+            has_time_check = bool(_time_check_pattern.search(_code_only))
+            if not has_time_check:
+                findings.append({"function": node.name, "line": node.lineno, "issue": "No time-of-day/unusual-hours check detected in this transaction function - consider flagging transactions occurring outside normal banking hours for additional review."})
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) with no unusual-hours check detected.", "disclaimer": "Pattern-based structural check only - looks for time-of-day/hour-related keywords near transaction functions. Does not verify actual runtime behavior or determine what counts as unusual for your institution actual customer base. A qualified fraud/TMS analyst must review flagged functions."}
+
+@app.post("/unusual-hours-check")
+async def unusual_hours_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_unusual_hours_flag(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("unusual-hours-check", file.filename)
+        write_audit_log("unusual-hours-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Unusual hours check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
