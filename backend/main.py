@@ -5603,6 +5603,45 @@ async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Structuring pattern check failed safely: " + str(e)})
 
+def check_ntn_strn_validation_quality(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    findings = []
+    lines = source.split(chr(10))
+    _ntn_var_pattern = re.compile(r"(?i)\b(ntn|strn|tax.?number|tax.?registration)\b")
+    _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
+    _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
+    ntn_related_lines = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("#"):
+            continue
+        if _ntn_var_pattern.search(line):
+            ntn_related_lines.append((i + 1, line.strip()))
+    if not ntn_related_lines:
+        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based structural check for NTN/STRN (Pakistani tax registration number) validation quality - looks for length and digit-format checks near NTN/STRN-related variable names. Does not assert a specific correct digit count (varies by registration type) or verify FBR-level validity."}
+    has_length_check = any(_length_check_pattern.search(l) for _, l in ntn_related_lines)
+    has_format_check = any(_digit_check_pattern.search(l) for _, l in ntn_related_lines)
+    if not has_length_check:
+        findings.append({"issue": "No explicit length check found near NTN/STRN-related code", "severity": "Medium", "recommendation": "Verify the code enforces the correct length for the specific tax-number type being handled (NTN and STRN formats differ) - consult current FBR guidance for the exact digit count."})
+    if not has_format_check:
+        findings.append({"issue": "No explicit numeric/digit-format validation found near NTN/STRN-related code", "severity": "Medium", "recommendation": "Validate that the tax number contains only digits (and expected separators) - malformed values should be rejected before use."})
+    return {"checked": True, "findings": findings, "ntn_related_lines_found": len(ntn_related_lines), "total_findings": len(findings), "summary": str(len(findings)) + " NTN/STRN validation quality issue(s) found across " + str(len(ntn_related_lines)) + " related line(s).", "disclaimer": "Pattern-based structural check for NTN/STRN (Pakistani tax registration number) validation quality - looks for length and digit-format checks near NTN/STRN-related variable names. Does not assert a specific correct digit count (varies by registration type) or verify FBR-level validity - consult current FBR (Federal Board of Revenue) guidance for exact format requirements."}
+
+@app.post("/ntn-strn-check")
+async def ntn_strn_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_ntn_strn_validation_quality(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("ntn-strn-check", file.filename)
+        write_audit_log("ntn-strn-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NTN/STRN check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
