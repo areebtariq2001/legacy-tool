@@ -5559,6 +5559,50 @@ async def data_localization_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Data localization check failed safely: " + str(e)})
 
+def check_structuring_patterns(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "summary": "Structuring pattern analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
+    _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
+    _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
+            _code_only = chr(10).join(_code_only_lines)
+            has_velocity_check = bool(_velocity_pattern.search(_code_only))
+            has_suspicious_hint = bool(_suspicious_split_pattern.search(func_source))
+            issues = []
+            if not has_velocity_check:
+                issues.append("No cumulative/velocity tracking detected - this function may evaluate each transaction in isolation, exploitable by structuring/smurfing.")
+            if has_suspicious_hint:
+                issues.append("Comment or identifier suggests transaction-splitting or threshold-avoidance logic - flag for manual compliance review.")
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) flagged.", "disclaimer": "Pattern-based structural check only. Does NOT perform actual AML structuring detection (requires transaction-history analysis, not static code review), does not verify real threshold values, cannot determine intent. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/structuring-pattern-check")
+async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_structuring_patterns(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("structuring-pattern-check", file.filename)
+        write_audit_log("structuring-pattern-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Structuring pattern check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:

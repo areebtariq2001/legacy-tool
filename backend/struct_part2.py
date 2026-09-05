@@ -1,0 +1,20 @@
+lines = []
+lines.append('@app.post("/structuring-pattern-check")')
+lines.append('async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):')
+lines.append('    try:')
+lines.append('        content2 = await file.read()')
+lines.append('        source, error = safe_read_file(content2, file.filename)')
+lines.append('        if error:')
+lines.append('            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})')
+lines.append('        result = check_structuring_patterns(source, file.filename)')
+lines.append('        result["filename"] = file.filename')
+lines.append('        track_usage("structuring-pattern-check", file.filename)')
+lines.append('        write_audit_log("structuring-pattern-check", file.filename, "checked")')
+lines.append('        return result')
+lines.append('    except Exception as e:')
+lines.append('        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Structuring pattern check failed safely: " + str(e)})')
+lines.append('')
+
+with open("struct_part2_out.txt", "w", encoding="utf-8") as f:
+    f.write(chr(10).join(lines))
+print("STRUCT-PART2-SAVED")
