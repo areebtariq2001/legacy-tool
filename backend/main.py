@@ -5496,24 +5496,13 @@ def check_cnic_validation_quality(source, filename):
     _cnic_var_pattern = re.compile(r"(?i)\b(cnic|national.?id)\b")
     _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
-    findings = []
-    cnic_functions_found = 0
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            func_source = ast.get_source_segment(source, node) or ""
-            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
-            if not _cnic_var_pattern.search(_code_only):
-                continue
-            cnic_functions_found += 1
-            has_length_check = bool(_strict_length_pattern.search(_code_only))
-            has_format_check = bool(_digit_check_pattern.search(_code_only))
-            issues = []
-            if not has_length_check:
-                issues.append("No explicit 13-digit length check found in this CNIC-related function.")
-            if not has_format_check:
-                issues.append("No explicit numeric/digit-format validation found in this CNIC-related function.")
-            if issues:
-                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    _check_patterns = [
+        ("length", _strict_length_pattern, "No explicit 13-digit length check found in this CNIC-related function."),
+        ("format", _digit_check_pattern, "No explicit numeric/digit-format validation found in this CNIC-related function."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_var_pattern, _check_patterns)
+    findings = _scan_result["findings"]
+    cnic_functions_found = _scan_result["functions_found"]
     if cnic_functions_found == 0:
         return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected in this file.", "disclaimer": "Pattern-based function-scope CNIC validation check."}
     return {"checked": True, "findings": findings, "cnic_functions_found": cnic_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation issue(s) found across " + str(cnic_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check for CNIC validation quality - handles aliased/renamed local variables correctly. Does not verify NADRA-level validity."}
@@ -5625,24 +5614,13 @@ def check_ntn_strn_validation_quality(source, filename):
     _ntn_var_pattern = re.compile(r"(?i)\b(ntn|strn|tax.?number|tax.?registration)\b")
     _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
-    findings = []
-    ntn_functions_found = 0
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            func_source = ast.get_source_segment(source, node) or ""
-            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
-            if not _ntn_var_pattern.search(_code_only):
-                continue
-            ntn_functions_found += 1
-            has_length_check = bool(_length_check_pattern.search(_code_only))
-            has_format_check = bool(_digit_check_pattern.search(_code_only))
-            issues = []
-            if not has_length_check:
-                issues.append("No explicit length check found in this NTN/STRN-related function.")
-            if not has_format_check:
-                issues.append("No explicit numeric/digit-format validation found in this NTN/STRN-related function.")
-            if issues:
-                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    _check_patterns = [
+        ("length", _length_check_pattern, "No explicit length check found in this NTN/STRN-related function."),
+        ("format", _digit_check_pattern, "No explicit numeric/digit-format validation found in this NTN/STRN-related function."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _ntn_var_pattern, _check_patterns)
+    findings = _scan_result["findings"]
+    ntn_functions_found = _scan_result["functions_found"]
     if ntn_functions_found == 0:
         return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based function-scope NTN/STRN validation check."}
     return {"checked": True, "findings": findings, "ntn_functions_found": ntn_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " NTN/STRN validation issue(s) found across " + str(ntn_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check - handles aliased/renamed local variables correctly. Does not assert specific correct digit count - consult current FBR guidance. Does not verify FBR-level validity."}
@@ -5757,6 +5735,30 @@ async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Pakistan Banking Suite failed safely: " + str(e)})
+
+def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, check_patterns):
+    if not filename.lower().endswith(".py"):
+        return {"supported": False, "functions_found": 0, "findings": []}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"supported": False, "functions_found": 0, "findings": [], "parse_error": True}
+    findings = []
+    functions_found = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            if not keyword_pattern.search(_code_only):
+                continue
+            functions_found += 1
+            issues = []
+            for check_name, check_pattern, missing_message in check_patterns:
+                if not check_pattern.search(_code_only):
+                    issues.append(missing_message)
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    return {"supported": True, "functions_found": functions_found, "findings": findings}
 
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
