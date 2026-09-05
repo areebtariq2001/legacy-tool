@@ -5760,6 +5760,38 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
                 findings.append({"function": node.name, "line": node.lineno, "issues": issues})
     return {"supported": True, "functions_found": functions_found, "findings": findings}
 
+def check_geo_anomaly_detection(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|login|disburs)")
+    _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel)")
+    _check_patterns = [
+        ("geo", _geo_pattern, "No geo-location/IP-based anomaly check detected in this function - consider flagging transactions/logins from unexpected locations or impossible-travel patterns."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "summary": "Geo-anomaly analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "summary": "No transaction/login-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for geo-location/IP anomaly detection near transaction and login functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction/login function(s) with no geo-anomaly check detected.", "disclaimer": "Pattern-based function-scope check only - looks for geo-location/IP-related keywords near transaction and login functions. Does not verify actual runtime behavior. A qualified fraud/TMS analyst must review flagged functions."}
+
+@app.post("/geo-anomaly-check")
+async def geo_anomaly_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_geo_anomaly_detection(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("geo-anomaly-check", file.filename)
+        write_audit_log("geo-anomaly-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Geo anomaly check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
