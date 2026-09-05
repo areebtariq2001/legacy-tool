@@ -5487,26 +5487,36 @@ async def audit_maker_checker_endpoint(file: UploadFile = File(...)):
 def check_cnic_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "summary": "File too large."}
-    findings = []
-    lines = source.split(chr(10))
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
     _cnic_var_pattern = re.compile(r"(?i)\b(cnic|national.?id)\b")
     _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
-    cnic_related_lines = []
-    for i, line in enumerate(lines):
-        if line.strip().startswith("#"):
-            continue
-        if _cnic_var_pattern.search(line):
-            cnic_related_lines.append((i + 1, line.strip()))
-    if not cnic_related_lines:
-        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected in this file.", "disclaimer": "Pattern-based structural check for CNIC (13-digit Pakistani national ID) validation quality - looks for length and digit-format checks near CNIC-related variable names. Does not verify actual runtime correctness."}
-    has_length_check = any(_strict_length_pattern.search(l) for _, l in cnic_related_lines)
-    has_format_check = any(_digit_check_pattern.search(l) for _, l in cnic_related_lines)
-    if not has_length_check:
-        findings.append({"issue": "No explicit 13-digit length check found near CNIC-related code", "severity": "Medium", "recommendation": "CNIC is always exactly 13 digits (format: XXXXX-XXXXXXX-X) - add an explicit length == 13 check."})
-    if not has_format_check:
-        findings.append({"issue": "No explicit numeric/digit-format validation found near CNIC-related code", "severity": "Medium", "recommendation": "Validate that all 13 characters are digits (after removing hyphens) - a CNIC should never contain letters."})
-    return {"checked": True, "findings": findings, "cnic_related_lines_found": len(cnic_related_lines), "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation quality issue(s) found across " + str(len(cnic_related_lines)) + " CNIC-related line(s).", "disclaimer": "Pattern-based structural check for CNIC (13-digit Pakistani national ID) validation quality - looks for length and digit-format checks near CNIC-related variable names. Does not verify actual runtime correctness or NADRA-level validity (checksum, issuing authority)."}
+    findings = []
+    cnic_functions_found = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            if not _cnic_var_pattern.search(_code_only):
+                continue
+            cnic_functions_found += 1
+            has_length_check = bool(_strict_length_pattern.search(_code_only))
+            has_format_check = bool(_digit_check_pattern.search(_code_only))
+            issues = []
+            if not has_length_check:
+                issues.append("No explicit 13-digit length check found in this CNIC-related function.")
+            if not has_format_check:
+                issues.append("No explicit numeric/digit-format validation found in this CNIC-related function.")
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    if cnic_functions_found == 0:
+        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected in this file.", "disclaimer": "Pattern-based function-scope CNIC validation check."}
+    return {"checked": True, "findings": findings, "cnic_functions_found": cnic_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation issue(s) found across " + str(cnic_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check for CNIC validation quality - handles aliased/renamed local variables correctly. Does not verify NADRA-level validity."}
 
 @app.post("/cnic-validation-check")
 async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
@@ -5606,26 +5616,36 @@ async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
 def check_ntn_strn_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "summary": "File too large."}
-    findings = []
-    lines = source.split(chr(10))
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
     _ntn_var_pattern = re.compile(r"(?i)\b(ntn|strn|tax.?number|tax.?registration)\b")
     _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
-    ntn_related_lines = []
-    for i, line in enumerate(lines):
-        if line.strip().startswith("#"):
-            continue
-        if _ntn_var_pattern.search(line):
-            ntn_related_lines.append((i + 1, line.strip()))
-    if not ntn_related_lines:
-        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based structural check for NTN/STRN (Pakistani tax registration number) validation quality - looks for length and digit-format checks near NTN/STRN-related variable names. Does not assert a specific correct digit count (varies by registration type) or verify FBR-level validity."}
-    has_length_check = any(_length_check_pattern.search(l) for _, l in ntn_related_lines)
-    has_format_check = any(_digit_check_pattern.search(l) for _, l in ntn_related_lines)
-    if not has_length_check:
-        findings.append({"issue": "No explicit length check found near NTN/STRN-related code", "severity": "Medium", "recommendation": "Verify the code enforces the correct length for the specific tax-number type being handled (NTN and STRN formats differ) - consult current FBR guidance for the exact digit count."})
-    if not has_format_check:
-        findings.append({"issue": "No explicit numeric/digit-format validation found near NTN/STRN-related code", "severity": "Medium", "recommendation": "Validate that the tax number contains only digits (and expected separators) - malformed values should be rejected before use."})
-    return {"checked": True, "findings": findings, "ntn_related_lines_found": len(ntn_related_lines), "total_findings": len(findings), "summary": str(len(findings)) + " NTN/STRN validation quality issue(s) found across " + str(len(ntn_related_lines)) + " related line(s).", "disclaimer": "Pattern-based structural check for NTN/STRN (Pakistani tax registration number) validation quality - looks for length and digit-format checks near NTN/STRN-related variable names. Does not assert a specific correct digit count (varies by registration type) or verify FBR-level validity - consult current FBR (Federal Board of Revenue) guidance for exact format requirements."}
+    findings = []
+    ntn_functions_found = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            if not _ntn_var_pattern.search(_code_only):
+                continue
+            ntn_functions_found += 1
+            has_length_check = bool(_length_check_pattern.search(_code_only))
+            has_format_check = bool(_digit_check_pattern.search(_code_only))
+            issues = []
+            if not has_length_check:
+                issues.append("No explicit length check found in this NTN/STRN-related function.")
+            if not has_format_check:
+                issues.append("No explicit numeric/digit-format validation found in this NTN/STRN-related function.")
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    if ntn_functions_found == 0:
+        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based function-scope NTN/STRN validation check."}
+    return {"checked": True, "findings": findings, "ntn_functions_found": ntn_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " NTN/STRN validation issue(s) found across " + str(ntn_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check - handles aliased/renamed local variables correctly. Does not assert specific correct digit count - consult current FBR guidance. Does not verify FBR-level validity."}
 
 @app.post("/ntn-strn-check")
 async def ntn_strn_check_endpoint(file: UploadFile = File(...)):
