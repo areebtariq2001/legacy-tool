@@ -5797,6 +5797,40 @@ async def geo_anomaly_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Geo anomaly check failed safely: " + str(e)})
 
+def scan_jwt_oauth_security(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    findings = []
+    lines = source.split(chr(10))
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(("#", "//", "*")):
+            continue
+        if re.search(r"(?i)verify\s*=\s*False", line) and re.search(r"(?i)jwt", line):
+            findings.append({"line": i + 1, "issue": "JWT signature verification explicitly disabled (verify=False)", "severity": "Critical", "evidence": stripped[:100]})
+        if re.search(r"(?i)algorithm\s*=\s*[\"\x27]none[\"\x27]", line):
+            findings.append({"line": i + 1, "issue": "JWT algorithm set to none - allows unsigned token forgery", "severity": "Critical", "evidence": stripped[:100]})
+        if re.search(r"(?i)jwt\.(encode|decode)\([^)]*[\"\x27][A-Za-z0-9+/=_.\-]{8,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
+            findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret key", "severity": "High", "evidence": stripped[:100]})
+    findings = findings[:30]
+    critical_count = sum(1 for f in findings if f["severity"] == "Critical")
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "critical_count": critical_count, "summary": str(len(findings)) + " potential JWT/OAuth security issue(s) found - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection for common JWT/OAuth misconfigurations (disabled signature verification, none algorithm, hardcoded secrets). Not a comprehensive API security audit - a qualified security engineer should review authentication flows in full."}
+
+@app.post("/jwt-oauth-security-scan")
+async def jwt_oauth_security_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_jwt_oauth_security(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("jwt-oauth-security-scan", file.filename)
+        write_audit_log("jwt-oauth-security-scan", file.filename, "scanned")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "JWT/OAuth security scan failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
