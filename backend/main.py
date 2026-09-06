@@ -2173,6 +2173,7 @@ def get_audit_log_json(request: Request):
     return {"audit_ready": True, "total_entries": len(entries), "entries": entries[:100]}
 
 SENSITIVE_PATTERNS = [
+    (r"(?i)\b[A-Za-z0-9_]*api[_-]?key[A-Za-z0-9_]*\s*=\s*[\x27\x22](sk_live_|sk_test_|pk_live_|AKIA|ghp_|gho_|xox[a-z]-|AIza)[A-Za-z0-9_\-]{6,}[\x27\x22]", "Hardcoded live/production API key detected", "Critical"),
     (r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b", "Possible credit card number (Visa/Mastercard/Amex/Discover pattern)", "High"),
     (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded password (COBOL VALUE clause)", "High"), (r"(?i)MOVE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)", "High"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username (COBOL VALUE clause)", "Medium"),
     (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
