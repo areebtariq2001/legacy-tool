@@ -5693,7 +5693,8 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         amc = check_audit_maker_checker(source, filename)
-        checks.append({"name": "Audit/Maker-Checker", "passed": amc.get("total_findings", 0) == 0, "finding_count": amc.get("total_findings", 0), "summary": amc.get("summary", "")})
+        _amc_ran = "total_findings" in amc
+        checks.append({"name": "Audit/Maker-Checker", "passed": (amc.get("total_findings", 0) == 0) if _amc_ran else None, "finding_count": amc.get("total_findings", 0), "summary": amc.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Audit/Maker-Checker", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
@@ -5708,7 +5709,8 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "Data Localization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         struct = check_structuring_patterns(source, filename)
-        checks.append({"name": "Structuring/Smurfing Signal", "passed": struct.get("total_findings", 0) == 0, "finding_count": struct.get("total_findings", 0), "summary": struct.get("summary", "")})
+        _struct_ran = "total_findings" in struct
+        checks.append({"name": "Structuring/Smurfing Signal", "passed": (struct.get("total_findings", 0) == 0) if _struct_ran else None, "finding_count": struct.get("total_findings", 0), "summary": struct.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
@@ -5718,18 +5720,20 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "NTN/STRN Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         uh = check_unusual_hours_flag(source, filename)
-        checks.append({"name": "Unusual Hours Flag", "passed": uh.get("total_findings", 0) == 0, "finding_count": uh.get("total_findings", 0), "summary": uh.get("summary", "")})
+        _uh_ran = "total_findings" in uh
+        checks.append({"name": "Unusual Hours Flag", "passed": (uh.get("total_findings", 0) == 0) if _uh_ran else None, "finding_count": uh.get("total_findings", 0), "summary": uh.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         geo = check_geo_anomaly_detection(source, filename)
-        checks.append({"name": "Geo-Anomaly Detection", "passed": geo.get("total_findings", 0) == 0, "finding_count": geo.get("total_findings", 0), "summary": geo.get("summary", "")})
+        _geo_ran = "total_findings" in geo
+        checks.append({"name": "Geo-Anomaly Detection", "passed": (geo.get("total_findings", 0) == 0) if _geo_ran else None, "finding_count": geo.get("total_findings", 0), "summary": geo.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     passed_count = sum(1 for c2 in checks if c2["passed"] is True)
     total_count = len(checks)
     flagged = [c2["name"] for c2 in checks if c2["passed"] is False]
-    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(total_count) + " checks passed" + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found across all checks"), "disclaimer": "Combined summary of 7 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. See individual check results for details."}
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(total_count) + " checks passed" + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found across all checks"), "disclaimer": "Combined summary of 8 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours, Geo-Anomaly Detection). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. Some AST-based checks only support Python files - see per-check language_supported flag. See individual check results for details."}
 
 @app.post("/pakistan-banking-suite")
 async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
@@ -5811,9 +5815,9 @@ def scan_jwt_oauth_security(source, filename):
         stripped = line.strip()
         if stripped.startswith(("#", "//", "*")):
             continue
-        if re.search(r"(?i)verify\s*=\s*False", line) and re.search(r"(?i)jwt", line):
-            findings.append({"line": i + 1, "issue": "JWT signature verification explicitly disabled (verify=False)", "severity": "Critical", "evidence": stripped[:100]})
-        if re.search(r"(?i)algorithm\s*=\s*[\"\x27]none[\"\x27]", line):
+        if re.search(r"(?i)(verify\s*=\s*False|[\"\x27]verify_signature[\"\x27]\s*:\s*False)", line) and re.search(r"(?i)jwt", line):
+            findings.append({"line": i + 1, "issue": "JWT signature verification explicitly disabled", "severity": "Critical", "evidence": stripped[:100]})
+        if re.search(r"(?i)algorithms?\s*=\s*[\[\"\x27][^)]*none", line):
             findings.append({"line": i + 1, "issue": "JWT algorithm set to none - allows unsigned token forgery", "severity": "Critical", "evidence": stripped[:100]})
         if re.search(r"(?i)jwt\.(encode|decode)\([^)]*[\"\x27][A-Za-z0-9+/=_.\-]{8,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret key", "severity": "High", "evidence": stripped[:100]})
