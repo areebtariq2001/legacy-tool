@@ -5466,13 +5466,13 @@ async def pci_dss_scan_endpoint(file: UploadFile = File(...)):
 
 def check_audit_maker_checker(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "summary": "Audit/Maker-Checker analysis currently supports Python files only."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Audit/Maker-Checker analysis currently supports Python files only."}
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
     _sensitive_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
     _audit_call_pattern = re.compile(r"(?i)(audit|log\.|logger\.|logging\.)")
     _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|(?<!un)authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
@@ -5510,13 +5510,13 @@ async def audit_maker_checker_endpoint(file: UploadFile = File(...)):
 
 def check_cnic_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CNIC validation analysis currently supports Python files only."}
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
     _cnic_var_pattern = re.compile(r"(?i)\b(cnic|national.?id)\b")
     _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
@@ -5567,7 +5567,7 @@ async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
 
 def check_data_localization(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
     _code_only = chr(10).join(_code_only_lines)
     findings = []
@@ -5603,13 +5603,13 @@ async def data_localization_check_endpoint(file: UploadFile = File(...)):
 
 def check_structuring_patterns(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "summary": "Structuring pattern analysis currently supports Python files only."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Structuring pattern analysis currently supports Python files only."}
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
     _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
@@ -5649,13 +5649,13 @@ async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
 
 def check_ntn_strn_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "NTN/STRN validation analysis currently supports Python files only."}
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
     _ntn_var_pattern = re.compile(r"(?i)\b(ntn|strn|tax.?number|tax.?registration)\b")
     _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
@@ -5667,7 +5667,7 @@ def check_ntn_strn_validation_quality(source, filename):
     findings = _scan_result["findings"]
     ntn_functions_found = _scan_result["functions_found"]
     if ntn_functions_found == 0:
-        return {"checked": True, "findings": [], "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based function-scope NTN/STRN validation check."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No NTN/STRN related code detected in this file.", "disclaimer": "Pattern-based function-scope NTN/STRN validation check."}
     return {"checked": True, "findings": findings, "ntn_functions_found": ntn_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " NTN/STRN validation issue(s) found across " + str(ntn_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check - handles aliased/renamed local variables correctly. Does not assert specific correct digit count - consult current FBR guidance. Does not verify FBR-level validity."}
 
 @app.post("/ntn-strn-check")
@@ -5687,13 +5687,13 @@ async def ntn_strn_check_endpoint(file: UploadFile = File(...)):
 
 def check_unusual_hours_flag(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "summary": "Unusual-hours analysis currently supports Python files only."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Unusual-hours analysis currently supports Python files only."}
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
     _txn_name_pattern = re.compile(r"(?i)(login|authenticate|signin|sign_in)")
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     findings = []
@@ -5733,13 +5733,14 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         amc = check_audit_maker_checker(source, filename)
-        _amc_ran = "total_findings" in amc
+        _amc_ran = amc.get("language_supported", True)
         checks.append({"name": "Audit/Maker-Checker", "passed": (amc.get("total_findings", 0) == 0) if _amc_ran else None, "finding_count": amc.get("total_findings", 0), "summary": amc.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Audit/Maker-Checker", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         cnic = check_cnic_validation_quality(source, filename)
-        checks.append({"name": "CNIC Validation Quality", "passed": cnic.get("total_findings", 0) == 0, "finding_count": cnic.get("total_findings", 0), "summary": (cnic.get("summary", "") + " NOTE: FLAGGED means the FUNCTION handling CNIC has no explicit validation LOGIC in its code - this does NOT mean any actual CNIC value in the file is badly formatted.") if cnic.get("total_findings", 0) > 0 else cnic.get("summary", "")})
+        _cnic_lang_ok = cnic.get("language_supported", True)
+        checks.append({"name": "CNIC Validation Quality", "passed": (cnic.get("total_findings", 0) == 0) if _cnic_lang_ok else None, "finding_count": cnic.get("total_findings", 0), "summary": (cnic.get("summary", "") + " NOTE: FLAGGED means the FUNCTION handling CNIC has no explicit validation LOGIC in its code - this does NOT mean any actual CNIC value in the file is badly formatted.") if _cnic_lang_ok and cnic.get("total_findings", 0) > 0 else cnic.get("summary", "")})
     except Exception as e:
         checks.append({"name": "CNIC Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
@@ -5749,24 +5750,25 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "Data Localization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         struct = check_structuring_patterns(source, filename)
-        _struct_ran = "total_findings" in struct
+        _struct_ran = struct.get("language_supported", True)
         checks.append({"name": "Structuring/Smurfing Signal", "passed": (struct.get("total_findings", 0) == 0) if _struct_ran else None, "finding_count": struct.get("total_findings", 0), "summary": (struct.get("summary", "") + " NOTE: FLAGGED means a missing velocity-tracking control was found near sensitive functions - it does NOT mean an actual structuring pattern was detected in the code.") if _struct_ran and struct.get("total_findings", 0) > 0 else struct.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         ntn = check_ntn_strn_validation_quality(source, filename)
-        checks.append({"name": "NTN/STRN Validation Quality", "passed": ntn.get("total_findings", 0) == 0, "finding_count": ntn.get("total_findings", 0), "summary": ntn.get("summary", "")})
+        _ntn_lang_ok = ntn.get("language_supported", True)
+        checks.append({"name": "NTN/STRN Validation Quality", "passed": (ntn.get("total_findings", 0) == 0) if _ntn_lang_ok else None, "finding_count": ntn.get("total_findings", 0), "summary": ntn.get("summary", "")})
     except Exception as e:
         checks.append({"name": "NTN/STRN Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         uh = check_unusual_hours_flag(source, filename)
-        _uh_ran = "total_findings" in uh
+        _uh_ran = uh.get("language_supported", True)
         checks.append({"name": "Unusual Hours Flag", "passed": (uh.get("total_findings", 0) == 0) if _uh_ran else None, "finding_count": uh.get("total_findings", 0), "summary": (uh.get("summary", "") + " NOTE: FLAGGED means a missing time-of-day control was found near sensitive functions - it does NOT mean unusual-hours activity was detected in the code.") if _uh_ran and uh.get("total_findings", 0) > 0 else uh.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         geo = check_geo_anomaly_detection(source, filename)
-        _geo_ran = "total_findings" in geo
+        _geo_ran = geo.get("language_supported", True)
         checks.append({"name": "Geo-Anomaly Detection", "passed": (geo.get("total_findings", 0) == 0) if _geo_ran else None, "finding_count": geo.get("total_findings", 0), "summary": (geo.get("summary", "") + " NOTE: FLAGGED means a missing geo-location control was found near sensitive functions - it does NOT mean geo-anomaly activity was detected in the code.") if _geo_ran and geo.get("total_findings", 0) > 0 else geo.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
@@ -5816,7 +5818,7 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
 
 def check_geo_anomaly_detection(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _txn_pattern = re.compile(r"(?i)(login|authenticate|signin|sign_in)")
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel)")
     _check_patterns = [
@@ -5824,7 +5826,7 @@ def check_geo_anomaly_detection(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "summary": "Geo-anomaly analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Geo-anomaly analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -5882,7 +5884,7 @@ async def jwt_oauth_security_scan_endpoint(file: UploadFile = File(...)):
 
 def check_device_fingerprinting(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|login|disburs|authenticate)")
     _device_pattern = re.compile(r"(?i)(device.?id|device.?fingerprint|user.?agent|device.?token|browser.?fingerprint|hardware.?id)")
     _check_patterns = [
@@ -5914,7 +5916,7 @@ async def device_fingerprint_check_endpoint(file: UploadFile = File(...)):
 
 def check_high_value_threshold(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "summary": "File too large."}
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs|remit)")
     _threshold_pattern = re.compile(r"(?i)(high.?value|large.?transaction|threshold|daily.?limit|max.?amount|limit.?check|reporting.?threshold)")
     _check_patterns = [
@@ -5922,11 +5924,11 @@ def check_high_value_threshold(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "summary": "High-value threshold analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "High-value threshold analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
-        return {"checked": True, "findings": [], "summary": "No transaction-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for high-value transaction threshold logic."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No transaction-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for high-value transaction threshold logic."}
     return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) with no high-value threshold check detected.", "disclaimer": "Pattern-based function-scope check only - looks for threshold/limit-related keywords near transaction functions. Does not verify actual runtime behavior or specific SBP-mandated threshold amounts. A qualified compliance/TMS analyst must review flagged functions."}
 
 @app.post("/high-value-threshold-check")
