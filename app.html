@@ -1173,6 +1173,9 @@ async function runAnalysis() {
         checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
           _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0">🔴 ' + t + '</div>').join('');
       }
+      const _autoFixedCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
+      const _totalTransformItems = _autoFixedCount + _notFixedItems.length;
+      window.lastTransformConfidence = _totalTransformItems > 0 ? Math.round((_autoFixedCount / _totalTransformItems) * 100) : null;
       const _whyExp = R.migrate && Array.isArray(R.migrate.why_explanations) ? R.migrate.why_explanations : [];
       if (_whyExp.length > 0) {
         checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Why This Matters</div>' +
@@ -1736,9 +1739,11 @@ function detectBusinessRules(code) {
   const card = document.getElementById('rulesCard');
   const list = document.getElementById('rulesList');
   if (found.length === 0) {
+    window.lastRulesAvgConfidence = null;
     card.style.display = 'none';
     return;
   }
+  window.lastRulesAvgConfidence = Math.round(found.reduce((sum, r) => sum + (r.conf || 0), 0) / found.length);
   card.style.display = 'block';
   list.innerHTML = found.map(r => `
     <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #22c55e">
@@ -2322,8 +2327,8 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
         <div>Overall Migration Confidence: <strong style="color:#0f1115">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
         <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #e5e8ee">
-          <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(R && R.rules && R.rules.confidence != null) ? R.rules.confidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
-          <span title="How confidently the syntax/API migration was performed">Transformation: ${confPct != null ? confPct + '%' : 'N/A'}</span> ·
+          <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(window.lastRulesAvgConfidence != null) ? window.lastRulesAvgConfidence + '%' : 'N/A (no business rules detected)'}</span> ·
+          <span title="How confidently the syntax/API migration was performed">Transformation: ${(window.lastTransformConfidence != null) ? window.lastTransformConfidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
           ${(() => {
             const beh = R && R.behavioral;
             if (!beh || !beh.behavioral_status) {
