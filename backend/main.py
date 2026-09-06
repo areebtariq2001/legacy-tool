@@ -5699,7 +5699,7 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "Audit/Maker-Checker", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         cnic = check_cnic_validation_quality(source, filename)
-        checks.append({"name": "CNIC Validation Quality", "passed": cnic.get("total_findings", 0) == 0, "finding_count": cnic.get("total_findings", 0), "summary": cnic.get("summary", "")})
+        checks.append({"name": "CNIC Validation Quality", "passed": cnic.get("total_findings", 0) == 0, "finding_count": cnic.get("total_findings", 0), "summary": (cnic.get("summary", "") + " NOTE: FLAGGED means the FUNCTION handling CNIC has no explicit validation LOGIC in its code - this does NOT mean any actual CNIC value in the file is badly formatted.") if cnic.get("total_findings", 0) > 0 else cnic.get("summary", "")})
     except Exception as e:
         checks.append({"name": "CNIC Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
@@ -5710,7 +5710,7 @@ def run_pakistan_banking_suite(source, filename):
     try:
         struct = check_structuring_patterns(source, filename)
         _struct_ran = "total_findings" in struct
-        checks.append({"name": "Structuring/Smurfing Signal", "passed": (struct.get("total_findings", 0) == 0) if _struct_ran else None, "finding_count": struct.get("total_findings", 0), "summary": struct.get("summary", "")})
+        checks.append({"name": "Structuring/Smurfing Signal", "passed": (struct.get("total_findings", 0) == 0) if _struct_ran else None, "finding_count": struct.get("total_findings", 0), "summary": (struct.get("summary", "") + " NOTE: FLAGGED means a missing velocity-tracking control was found near sensitive functions - it does NOT mean an actual structuring pattern was detected in the code.") if _struct_ran and struct.get("total_findings", 0) > 0 else struct.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
@@ -5721,13 +5721,13 @@ def run_pakistan_banking_suite(source, filename):
     try:
         uh = check_unusual_hours_flag(source, filename)
         _uh_ran = "total_findings" in uh
-        checks.append({"name": "Unusual Hours Flag", "passed": (uh.get("total_findings", 0) == 0) if _uh_ran else None, "finding_count": uh.get("total_findings", 0), "summary": uh.get("summary", "")})
+        checks.append({"name": "Unusual Hours Flag", "passed": (uh.get("total_findings", 0) == 0) if _uh_ran else None, "finding_count": uh.get("total_findings", 0), "summary": (uh.get("summary", "") + " NOTE: FLAGGED means a missing time-of-day control was found near sensitive functions - it does NOT mean unusual-hours activity was detected in the code.") if _uh_ran and uh.get("total_findings", 0) > 0 else uh.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     try:
         geo = check_geo_anomaly_detection(source, filename)
         _geo_ran = "total_findings" in geo
-        checks.append({"name": "Geo-Anomaly Detection", "passed": (geo.get("total_findings", 0) == 0) if _geo_ran else None, "finding_count": geo.get("total_findings", 0), "summary": geo.get("summary", "")})
+        checks.append({"name": "Geo-Anomaly Detection", "passed": (geo.get("total_findings", 0) == 0) if _geo_ran else None, "finding_count": geo.get("total_findings", 0), "summary": (geo.get("summary", "") + " NOTE: FLAGGED means a missing geo-location control was found near sensitive functions - it does NOT mean geo-anomaly activity was detected in the code.") if _geo_ran and geo.get("total_findings", 0) > 0 else geo.get("summary", "")})
     except Exception as e:
         checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     passed_count = sum(1 for c2 in checks if c2["passed"] is True)
