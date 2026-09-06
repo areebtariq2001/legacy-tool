@@ -5502,8 +5502,8 @@ def check_cnic_validation_quality(source, filename):
     _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
     _check_patterns = [
-        ("length", _strict_length_pattern, "No explicit 13-digit length check found in this CNIC-related function."),
-        ("format", _digit_check_pattern, "No explicit numeric/digit-format validation found in this CNIC-related function."),
+        ("length", _strict_length_pattern, "MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a CNIC-related variable but its code has no explicit 13-digit length check. Even if the actual CNIC value looks correctly formatted, this function does not verify that programmatically."),
+        ("format", _digit_check_pattern, "MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a CNIC-related variable but its code has no explicit digit-format check (isdigit/isnumeric)."),
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_var_pattern, _check_patterns)
     findings = _scan_result["findings"]
@@ -5585,7 +5585,7 @@ def check_structuring_patterns(source, filename):
             has_suspicious_hint = bool(_suspicious_split_pattern.search(func_source))
             issues = []
             if not has_velocity_check:
-                issues.append("No cumulative/velocity tracking detected - this function may evaluate each transaction in isolation, exploitable by structuring/smurfing.")
+                issues.append("MISSING CONTROL (not a detected anomaly): This function has no cumulative/velocity tracking - it evaluates each transaction in isolation, which structuring/smurfing schemes could exploit. No malicious pattern was found in this code - this is a recommendation to ADD a control.")
             if has_suspicious_hint:
                 issues.append("Comment or identifier suggests transaction-splitting or threshold-avoidance logic - flag for manual compliance review.")
             if issues:
@@ -5620,8 +5620,8 @@ def check_ntn_strn_validation_quality(source, filename):
     _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
     _check_patterns = [
-        ("length", _length_check_pattern, "No explicit length check found in this NTN/STRN-related function."),
-        ("format", _digit_check_pattern, "No explicit numeric/digit-format validation found in this NTN/STRN-related function."),
+        ("length", _length_check_pattern, "MISSING VALIDATION LOGIC (not a bad value): This function references an NTN/STRN-related variable but its code has no explicit length check."),
+        ("format", _digit_check_pattern, "MISSING VALIDATION LOGIC (not a bad value): This function references an NTN/STRN-related variable but its code has no explicit digit-format check."),
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _ntn_var_pattern, _check_patterns)
     findings = _scan_result["findings"]
@@ -5664,7 +5664,7 @@ def check_unusual_hours_flag(source, filename):
             _code_only = chr(10).join(_code_only_lines)
             has_time_check = bool(_time_check_pattern.search(_code_only))
             if not has_time_check:
-                findings.append({"function": node.name, "line": node.lineno, "issue": "No time-of-day/unusual-hours check detected in this transaction function - consider flagging transactions occurring outside normal banking hours for additional review."})
+                findings.append({"function": node.name, "line": node.lineno, "issue": "MISSING CONTROL (not a detected anomaly): This function has no time-of-day check - it does not flag transactions outside normal banking hours. No unusual-hours activity was found in this code - this is a recommendation to ADD a control."})
     return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) with no unusual-hours check detected.", "disclaimer": "Pattern-based structural check only - looks for time-of-day/hour-related keywords near transaction functions. Does not verify actual runtime behavior or determine what counts as unusual for your institution actual customer base. A qualified fraud/TMS analyst must review flagged functions."}
 
 @app.post("/unusual-hours-check")
@@ -5780,7 +5780,7 @@ def check_geo_anomaly_detection(source, filename):
     _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|login|disburs)")
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel)")
     _check_patterns = [
-        ("geo", _geo_pattern, "No geo-location/IP-based anomaly check detected in this function - consider flagging transactions/logins from unexpected locations or impossible-travel patterns."),
+        ("geo", _geo_pattern, "MISSING CONTROL (not a detected anomaly): This function has no geo-location/IP check - it does not flag transactions from unexpected locations. No geo-anomaly activity was found in this code - this is a recommendation to ADD a control."),
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
     if not _scan_result["supported"]:
