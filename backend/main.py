@@ -3174,8 +3174,12 @@ def scan_sql_injection(source, filename):
     for i, line in enumerate(lines):
         up = line.upper()
         _matched_this_line = False
+        _dangers_reported_this_line = set()
         for kw, danger, msg in checks:
+            if danger in _dangers_reported_this_line:
+                continue
             if kw.upper() in up and danger in line:
+                _dangers_reported_this_line.add(danger)
                 _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
                 _tainted = _extract_tainted_var(line)
                 issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
