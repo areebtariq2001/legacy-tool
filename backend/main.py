@@ -5840,6 +5840,38 @@ async def jwt_oauth_security_scan_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "JWT/OAuth security scan failed safely: " + str(e)})
 
+def check_device_fingerprinting(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "summary": "File too large."}
+    _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|login|disburs|authenticate)")
+    _device_pattern = re.compile(r"(?i)(device.?id|device.?fingerprint|user.?agent|device.?token|browser.?fingerprint|hardware.?id)")
+    _check_patterns = [
+        ("device", _device_pattern, "No device-fingerprinting check detected in this function - consider tracking device identity to detect account-takeover attempts from unrecognized devices."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "summary": "Device fingerprinting analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "summary": "No transaction/login-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for device-fingerprinting logic near transaction and login functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction/login function(s) with no device-fingerprinting check detected.", "disclaimer": "Pattern-based function-scope check only - looks for device-identity keywords near transaction and login functions. Does not verify actual runtime behavior. A qualified fraud/TMS analyst must review flagged functions."}
+
+@app.post("/device-fingerprint-check")
+async def device_fingerprint_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_device_fingerprinting(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("device-fingerprint-check", file.filename)
+        write_audit_log("device-fingerprint-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Device fingerprint check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
