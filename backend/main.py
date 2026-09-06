@@ -5524,12 +5524,31 @@ def check_cnic_validation_quality(source, filename):
         ("length", _strict_length_pattern, "MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a CNIC-related variable but its code has no explicit 13-digit length check. Even if the actual CNIC value looks correctly formatted, this function does not verify that programmatically."),
         ("format", _digit_check_pattern, "MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a CNIC-related variable but its code has no explicit digit-format check (isdigit/isnumeric)."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_var_pattern, _check_patterns)
-    findings = _scan_result["findings"]
-    cnic_functions_found = _scan_result["functions_found"]
+    _boolean_flag_pattern = re.compile(r"(?i)\b(has|is|valid)[_a-z]*cnic|cnic[_a-z]*(valid|flag|ok|status)\b")
+    findings = []
+    cnic_functions_found = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            func_source = ast.get_source_segment(source, node) or ""
+            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            if not _cnic_var_pattern.search(_code_only):
+                continue
+            _raw_cnic_matches = [m for m in _cnic_var_pattern.finditer(_code_only) if not _boolean_flag_pattern.search(_code_only[max(0,m.start()-25):m.end()+25])]
+            if not _raw_cnic_matches:
+                continue
+            cnic_functions_found += 1
+            has_length_check = bool(_strict_length_pattern.search(_code_only))
+            has_format_check = bool(_digit_check_pattern.search(_code_only))
+            issues = []
+            if not has_length_check:
+                issues.append("MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a raw CNIC-related variable but its code has no explicit 13-digit length check.")
+            if not has_format_check:
+                issues.append("MISSING VALIDATION LOGIC (not a bad CNIC value): This function references a raw CNIC-related variable but its code has no explicit digit-format check.")
+            if issues:
+                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
     if cnic_functions_found == 0:
-        return {"checked": True, "findings": [], "summary": "No CNIC/National ID related code detected in this file.", "disclaimer": "Pattern-based function-scope CNIC validation check."}
-    return {"checked": True, "findings": findings, "cnic_functions_found": cnic_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation issue(s) found across " + str(cnic_functions_found) + " function(s).", "disclaimer": "Pattern-based function-scope check for CNIC validation quality - handles aliased/renamed local variables correctly. Does not verify NADRA-level validity."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No CNIC/National ID related code detected in this file that handles a raw value (boolean flags like has_valid_cnic are excluded, since validation is presumably done upstream).", "disclaimer": "Pattern-based function-scope CNIC validation check."}
+    return {"checked": True, "findings": findings, "cnic_functions_found": cnic_functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CNIC validation issue(s) found across " + str(cnic_functions_found) + " function(s) handling raw CNIC values.", "disclaimer": "Pattern-based function-scope check for CNIC validation quality - only flags functions handling a raw CNIC value, not boolean flags like has_valid_cnic (whose validation is presumably done elsewhere). Does not verify NADRA-level validity."}
 
 @app.post("/cnic-validation-check")
 async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
@@ -5594,22 +5613,24 @@ def check_structuring_patterns(source, filename):
     _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
+    _sensitive_functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name)]
+    _multi_transaction_evidence = len(_sensitive_functions) >= 2
     findings = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
-            func_source = ast.get_source_segment(source, node) or ""
-            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
-            _code_only = chr(10).join(_code_only_lines)
-            has_velocity_check = bool(_velocity_pattern.search(_code_only))
-            has_suspicious_hint = bool(_suspicious_split_pattern.search(func_source))
-            issues = []
-            if not has_velocity_check:
-                issues.append("MISSING CONTROL (not a detected anomaly): This function has no cumulative/velocity tracking - it evaluates each transaction in isolation, which structuring/smurfing schemes could exploit. No malicious pattern was found in this code - this is a recommendation to ADD a control.")
-            if has_suspicious_hint:
-                issues.append("Comment or identifier suggests transaction-splitting or threshold-avoidance logic - flag for manual compliance review.")
-            if issues:
-                findings.append({"function": node.name, "line": node.lineno, "issues": issues})
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) flagged.", "disclaimer": "Pattern-based structural check only. Does NOT perform actual AML structuring detection (requires transaction-history analysis, not static code review), does not verify real threshold values, cannot determine intent. A qualified AML compliance officer must review flagged functions."}
+    for node in _sensitive_functions:
+        func_source = ast.get_source_segment(source, node) or ""
+        _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
+        _code_only = chr(10).join(_code_only_lines)
+        has_velocity_check = bool(_velocity_pattern.search(_code_only))
+        has_suspicious_hint = bool(_suspicious_split_pattern.search(func_source))
+        issues = []
+        if not has_velocity_check and _multi_transaction_evidence:
+            issues.append("MISSING CONTROL (not a detected anomaly): This function has no cumulative/velocity tracking - it evaluates each transaction in isolation, which structuring/smurfing schemes could exploit. No malicious pattern was found in this code - this is a recommendation to ADD a control. (This file has multiple transaction-related functions, which is why this check applies.)")
+        if has_suspicious_hint:
+            issues.append("Comment or identifier suggests transaction-splitting or threshold-avoidance logic - flag for manual compliance review.")
+        if issues:
+            findings.append({"function": node.name, "line": node.lineno, "issues": issues})
+    _skip_note = "" if _multi_transaction_evidence or len(_sensitive_functions) == 0 else " (Velocity-control check skipped: only 1 transaction-related function found in this file - structuring requires evidence of multiple transactions, which a single-function file cannot demonstrate.)"
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) flagged." + _skip_note, "disclaimer": "Pattern-based structural check only. Does NOT perform actual AML structuring detection (requires transaction-history analysis, not static code review), does not verify real threshold values, cannot determine intent. A qualified AML compliance officer must review flagged functions."}
 
 @app.post("/structuring-pattern-check")
 async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
@@ -5673,7 +5694,7 @@ def check_unusual_hours_flag(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "summary": "Could not parse file (non-Python-3 syntax)."}
-    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
+    _txn_name_pattern = re.compile(r"(?i)(login|authenticate|signin|sign_in)")
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     findings = []
     for node in ast.walk(tree):
@@ -5796,7 +5817,7 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
 def check_geo_anomaly_detection(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "summary": "File too large."}
-    _txn_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|login|disburs)")
+    _txn_pattern = re.compile(r"(?i)(login|authenticate|signin|sign_in)")
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel)")
     _check_patterns = [
         ("geo", _geo_pattern, "MISSING CONTROL (not a detected anomaly): This function has no geo-location/IP check - it does not flag transactions from unexpected locations. No geo-anomaly activity was found in this code - this is a recommendation to ADD a control."),
@@ -5807,7 +5828,7 @@ def check_geo_anomaly_detection(source, filename):
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
-        return {"checked": True, "findings": [], "summary": "No transaction/login-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for geo-location/IP anomaly detection near transaction and login functions."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No transaction/login-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for geo-location/IP anomaly detection near transaction and login functions."}
     return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction/login function(s) with no geo-anomaly check detected.", "disclaimer": "Pattern-based function-scope check only - looks for geo-location/IP-related keywords near transaction and login functions. Does not verify actual runtime behavior. A qualified fraud/TMS analyst must review flagged functions."}
 
 @app.post("/geo-anomaly-check")
