@@ -3241,21 +3241,40 @@ def answer_code_question(source, question, filename):
 def process_github_webhook(payload):
     try:
         repo_name = payload.get("repository", {}).get("full_name", "unknown")
-        pusher = payload.get("pusher", {}).get("name", "unknown")
-        ref = payload.get("ref", "unknown")
+        pusher = payload.get("pusher", {}).get("name", "") or payload.get("sender", {}).get("login", "unknown")
+        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
+        _is_pr_event = "pull_request" in payload
         if not re.match(r"^[\w\-\.]+/[\w\-\.]+$", repo_name):
             return {"error": "Invalid or missing repository name in webhook payload"}
-        commits = payload.get("commits", [])
-        changed_files = set()
-        _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
-        for commit in commits:
-            for f in commit.get("added", []) + commit.get("modified", []):
-                if ".." in f or f.startswith("/"):
-                    continue
-                if f.lower().endswith(_lang_exts):
-                    changed_files.add(f)
+        if _is_pr_event:
+            pr = payload.get("pull_request", {})
+            pr_number = pr.get("number")
+            ref = pr.get("head", {}).get("ref", "unknown")
+            branch = ref if ref != "unknown" else "main"
+            changed_files = set()
+            if pr_number:
+                try:
+                    _pr_files_url = "https://api.github.com/repos/" + repo_name + "/pulls/" + str(pr_number) + "/files"
+                    _pr_resp = requests.get(_pr_files_url, timeout=10)
+                    if _pr_resp.status_code == 200:
+                        for _pf in _pr_resp.json()[:20]:
+                            _fname = _pf.get("filename", "")
+                            if _fname and ".." not in _fname and not _fname.startswith("/") and _fname.lower().endswith(_lang_exts):
+                                changed_files.add(_fname)
+                except Exception:
+                    pass
+        else:
+            ref = payload.get("ref", "unknown")
+            commits = payload.get("commits", [])
+            changed_files = set()
+            for commit in commits:
+                for f in commit.get("added", []) + commit.get("modified", []):
+                    if ".." in f or f.startswith("/"):
+                        continue
+                    if f.lower().endswith(_lang_exts):
+                        changed_files.add(f)
         if not changed_files:
-            return {"repo": repo_name, "pusher": pusher, "ref": ref, "files_scanned": 0, "results": [], "webhook_summary": "No supported files (.py, .java, .php, .cbl) changed in this push - nothing to scan."}
+            return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": 0, "results": [], "webhook_summary": "No supported files (.py, .java, .php, .cbl) changed in this " + ("pull request" if _is_pr_event else "push") + " - nothing to scan."}
         if ref and ref.startswith("refs/heads/"):
             branch = ref[len("refs/heads/"):]
         else:
@@ -3297,7 +3316,7 @@ def process_github_webhook(payload):
             except Exception:
                 results.append({"file": file_path, "risk_level": "Scan error", "issues": 0})
         high_risk = len([r for r in results if r.get("risk_level") == "High"])
-        return {"repo": repo_name, "pusher": pusher, "ref": ref, "files_scanned": len(results), "results": results, "webhook_summary": f"{len(results)} file(s) scanned from push by {pusher}; {high_risk} flagged high-risk", "webhook_disclaimer": "Automated scan triggered by a GitHub push event. Full CI/CD integration (auto-generating a migration pull request) requires GitHub App write-access setup and is on the roadmap."}
+        return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": len(results), "results": results, "webhook_summary": f"{len(results)} file(s) scanned from " + ("pull request" if _is_pr_event else "push") + f" by {pusher}; {high_risk} flagged high-risk", "webhook_disclaimer": "Automated scan triggered by a GitHub push or pull_request event, enabling continuous governance re-scanning on every PR, not just at cutover. Full CI/CD integration (auto-posting scan results as a PR comment or status check) requires GitHub App write-access setup and is on the roadmap."}
     except Exception as e:
         return {"error": "Webhook processing failed safely: " + str(e)}
 
