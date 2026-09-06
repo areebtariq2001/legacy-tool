@@ -2951,7 +2951,7 @@ async function runPakistanBankingSuite(btnEl) {
     html += '<div style="display:flex;flex-direction:column;gap:6px">';
     (d.checks || []).forEach(c => {
       const badgeColor = c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
-      const badgeText = c.passed === true ? '✓ PASS' : c.passed === false ? '✗ FLAGGED' : '— N/A';
+      const badgeText = c.passed === true ? '✓ PASS' : c.passed === false ? '⚠ REVIEW NEEDED' : '— N/A';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
         '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name) + '</span>' +
         '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>';
