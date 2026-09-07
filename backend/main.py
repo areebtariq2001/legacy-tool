@@ -385,6 +385,8 @@ def calculate_tech_debt(source, filename=""):
     total_count = 0
     total_minutes = 0
     active_rules = list(DEBT_RULES_COMPILED)
+    _debt_comment_prefix = "*" if (filename.lower().endswith(".cbl") or filename.lower().endswith(".cob")) else ("//" if (filename.lower().endswith(".java") or filename.lower().endswith(".php")) else "#")
+    _source_code_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(_debt_comment_prefix))
     if filename.lower().endswith(".java"):
         active_rules += JAVA_DEBT_RULES_COMPILED
     elif filename.lower().endswith(".php"):
@@ -392,7 +394,7 @@ def calculate_tech_debt(source, filename=""):
     elif filename.lower().endswith(".cbl") or filename.lower().endswith(".cob"):
         active_rules += COBOL_DEBT_RULES_COMPILED
     for pattern, label, mins in active_rules:
-        matches = pattern.findall(source)
+        matches = pattern.findall(_source_code_only)
         count = len(matches)
         if count > 0:
             items.append({
