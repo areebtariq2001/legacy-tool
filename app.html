@@ -1370,6 +1370,7 @@ function renderResults(R, original, fname, totalMs) {
   detectRegulatoryCompliance(original, R);
   setTimeout(updateRepositorySummary, 50);
   setTimeout(renderCapabilityMap, 60);
+  window.lastAnalyzedSourceForKG = original;
   setTimeout(renderKnowledgeGraph, 70);
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
@@ -2108,7 +2109,16 @@ function renderKnowledgeGraph() {
   const services = lastUniqueServices || [];
   const fname = files.length ? files[0].name : 'this file';
   const funcTexts = Array.from(document.querySelectorAll('#bankingList div div span, #rulesList div div span')).map(s => s.textContent).filter(t => t.includes('()'));
-  const functions = [...new Set(funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean))];
+  const functionsFromDom = funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean);
+  const _kgSource = window.lastAnalyzedSourceForKG || '';
+  const functionsFromSource = [];
+  const _pyDefMatches = _kgSource.matchAll(/^\s*def\s+([A-Za-z_][\w]*)\s*\(/gm);
+  for (const m of _pyDefMatches) functionsFromSource.push(m[1]);
+  const _javaPhpMatches = _kgSource.matchAll(/(?:public|private|protected|static|function)\s+[\w<>\[\]]*\s*([A-Za-z_][\w]*)\s*\([^)]*\)\s*\{/g);
+  for (const m of _javaPhpMatches) functionsFromSource.push(m[1]);
+  const _phpFuncMatches = _kgSource.matchAll(/function\s+([A-Za-z_][\w]*)\s*\(/g);
+  for (const m of _phpFuncMatches) functionsFromSource.push(m[1]);
+  const functions = [...new Set([...functionsFromDom, ...functionsFromSource])];
   const groups = [
     { label: 'Program', items: [fname], color: '#3b82f6' },
     { label: 'Functions Referenced', items: functions, color: '#0891b2' },
