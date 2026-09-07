@@ -761,7 +761,7 @@ def migrate_code(source):
         if migrated != _before_haskey:
             changes.append("has_key() -> in operator")
         if re.search(r'(\w+)\.has_key\([^)]*[()][^)]*\)', _before_haskey):
-            changes.append("has_key() with nested parentheses detected - NOT auto-converted (could produce incorrect logic), please convert manually: replace x.has_key(EXPR) with EXPR in x")
+            changes.append("REVIEW NEEDED: has_key() with nested parentheses detected - NOT auto-converted (could produce incorrect logic), please convert manually: replace x.has_key(EXPR) with EXPR in x")
     if re.search(r'except\s+(\w+)\s*,\s*(\w+)', migrated):
         migrated = re.sub(r'except\s+(\w+)\s*,\s*(\w+)', r'except \1 as \2', migrated)
         changes.append("except X, e -> except X as e")
@@ -5442,7 +5442,7 @@ def scan_pci_dss_signals(source, filename):
             continue
         if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]?\d{3,4}\b", line):
             findings.append({"line": i + 1, "issue": "Possible CVV/CVC storage", "severity": "Critical", "pci_requirement": "PCI-DSS Req 3.2 - CVV must NEVER be stored after authorization", "evidence": stripped[:100]})
-        if re.search(r"(?i)\b(card.?num|pan|credit.?card)\b\s*=\s*[\"\x27]?\d{12,19}", line):
+        if re.search(r"(?i)(card.?number|card.?num|\bpan\b|credit.?card)\s*=\s*[\"\x27]?\d{12,19}", line):
             findings.append({"line": i + 1, "issue": "Possible unmasked full card number (PAN)", "severity": "High", "pci_requirement": "PCI-DSS Req 3.3 - PAN must be masked when displayed (max first 6 / last 4 digits visible)", "evidence": stripped[:100]})
         if re.search(r"(?i)http://[^\s\"\x27]*(?:pay|card|checkout|billing)", line):
             findings.append({"line": i + 1, "issue": "Unencrypted HTTP used for payment-related endpoint", "severity": "High", "pci_requirement": "PCI-DSS Req 4.1 - Strong cryptography (TLS) required for cardholder data transmission", "evidence": stripped[:100]})
@@ -5611,7 +5611,7 @@ def check_structuring_patterns(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
-    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)")
+    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)(?!.?(time|id|type|status|date|hour))")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
     _sensitive_functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name)]
