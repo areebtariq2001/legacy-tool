@@ -5997,6 +5997,56 @@ async def certificate_pinning_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Certificate pinning check failed safely: " + str(e)})
 
+def enrich_risk_radar_with_logs(source, filename, log_content):
+    _base_radar = calculate_change_risk_radar(source, filename)
+    if not _base_radar.get("radar"):
+        return _base_radar
+    if len(log_content.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        _base_radar["log_enrichment_note"] = "Log file too large - risk radar shown without production-signal enrichment."
+        return _base_radar
+    _log_lower = log_content.lower()
+    for entry in _base_radar["radar"]:
+        fn = entry["function"]
+        if not fn:
+            entry["production_call_count"] = 0
+            continue
+        _fn_pattern = re.compile(r"\b" + re.escape(fn.lower()) + r"\b")
+        _count = len(_fn_pattern.findall(_log_lower))
+        entry["production_call_count"] = _count
+        if _count >= 1000 and entry["risk_level"] in ("Low", "Medium"):
+            entry["risk_level"] = "High"
+            entry["risk_factors"].append(f"PRODUCTION SIGNAL: this function name appears {_count}+ times in the uploaded log sample - high real-world usage increases the blast radius of any change, even though static analysis alone found it isolated.")
+        elif _count >= 100 and entry["risk_level"] == "Low":
+            entry["risk_level"] = "Medium"
+            entry["risk_factors"].append(f"PRODUCTION SIGNAL: this function name appears {_count}+ times in the uploaded log sample - some real-world usage detected.")
+    _base_radar["radar"].sort(key=lambda x: {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}[x["risk_level"]])
+    crit_count = sum(1 for r in _base_radar["radar"] if r["risk_level"] == "Critical")
+    high_count = sum(1 for r in _base_radar["radar"] if r["risk_level"] == "High")
+    _base_radar["radar_summary"] = f"{len(_base_radar['radar'])} function(s) analyzed (enriched with production log signal) - {crit_count} Critical, {high_count} High risk to modify"
+    _base_radar["radar_disclaimer"] = "Estimates blast radius using static analysis (callers, DB access, security patterns) enriched with a simple text-frequency count of function-name mentions in the uploaded log sample. This is a lightweight production-usage SIGNAL, not a verified call-frequency trace or full observability integration - a function name appearing in logs does not guarantee it was genuinely invoked, and absence from the log sample does not guarantee low usage."
+    _base_radar["log_enrichment_applied"] = True
+    return _base_radar
+
+@app.post("/risk-radar-with-logs")
+async def risk_radar_with_logs_endpoint(file: UploadFile = File(...), log_file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        log_bytes = await log_file.read()
+        log_content, log_error = safe_read_file(log_bytes, log_file.filename)
+        if log_error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Log file error: " + log_error})
+        result = enrich_risk_radar_with_logs(source, file.filename, log_content)
+        result["filename"] = file.filename
+        result["log_filename"] = log_file.filename
+        track_usage("risk-radar-with-logs", file.filename)
+        write_audit_log("risk-radar-with-logs", file.filename, "analyzed")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk radar with logs failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
