@@ -522,68 +522,68 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div id="archExportRow" style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap" class="scan-row">
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="downloadArchSvg()">⬇ Download SVG</button>
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="downloadArchPng()">⬇ Download PNG</button>
-                <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="copyArchMermaid()">📋 Copy as Mermaid</button>
+                <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="copyArchMermaid()">Copy as Mermaid</button>
               </div>
               <div id="archResult" style="display:none;margin-top:10px;font-family:monospace;font-size:10px;color:#4b5563;line-height:1.8;white-space:pre-wrap;max-height:250px;overflow-y:auto;background:#ffffff;border-radius:6px;padding:10px"></div>
             </div>
             <div class="card">
               <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
-              <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">🇵🇰 Run Pakistan Banking Compliance Suite (8 checks in 1 click)</button>
+              <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">Run Pakistan Banking Compliance Suite (8 checks in 1 click)</button>
 
-              <div style="font-size:10px;color:#1d4ed8;font-weight:700;margin:6px 0 4px">🔍 Analysis</div>
+              <div style="font-size:10px;color:#1d4ed8;font-weight:700;margin:6px 0 4px">Analysis</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" title="Currently supports Python files only" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Data Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sensitive','Data Scan', this)">Data Scan</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Entropy Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/entropy-secret-scan','Entropy Scan', this)">🔐 Entropy Scan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Entropy Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/entropy-secret-scan','Entropy Scan', this)">Entropy Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="SQL Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sqli','SQL Scan', this)">SQL Scan</button>
               </div>
 
-              <div style="font-size:10px;color:#22c55e;font-weight:700;margin:6px 0 4px">🔄 Migration</div>
+              <div style="font-size:10px;color:#22c55e;font-weight:700;margin:6px 0 4px">Migration</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Rollback" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/rollback-plan','Rollback Plan', this)">Rollback</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-impact','Impact', this)">Impact</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/predict-risk','Migration Risk', this)">Migration Risk</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Migration Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/migration-plan','Migration Plan', this)">📋 Migration Plan</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Deadline Cost" style="padding:7px 4px;font-size:10px" onclick="runDeadlineCostCalc(this)">⚖️ Deadline Cost</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Data Lineage" style="padding:7px 4px;font-size:10px" onclick="runDataLineage(this)">🔗 Data Lineage</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Runtime Signal" style="padding:7px 4px;font-size:10px" onclick="triggerRuntimeSignalUpload(this)">📊 Runtime Signal</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Migration Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/migration-plan','Migration Plan', this)">Migration Plan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Deadline Cost" style="padding:7px 4px;font-size:10px" onclick="runDeadlineCostCalc(this)">Deadline Cost</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Data Lineage" style="padding:7px 4px;font-size:10px" onclick="runDataLineage(this)">Data Lineage</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Runtime Signal" style="padding:7px 4px;font-size:10px" onclick="triggerRuntimeSignalUpload(this)">Runtime Signal</button>
                 <input type="file" id="logFileInput" style="display:none" onchange="if(this.files[0]) runRiskRadarWithLogs(this.files[0])">
-                <button class="btn btn-ghost adv-check-btn" data-label="Dep. File CVE" style="padding:7px 4px;font-size:10px" onclick="document.getElementById('depFileInput').click()">📦 Dep. File CVE</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Dep. File CVE" style="padding:7px 4px;font-size:10px" onclick="document.getElementById('depFileInput').click()">Dep. File CVE</button>
                 <input type="file" id="depFileInput" style="display:none" accept=".txt,.json" onchange="runDepFileScan(this)">
               </div>
 
-              <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">🏦 Banking &amp; Compliance</div>
+              <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">Banking &amp; Compliance</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="AML/KYC" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/extract-aml-kyc','AML/KYC', this)">AML/KYC</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Banking Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/banking-patterns','Banking Scan', this)">Banking Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regulation Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulation-impact','Regulation Impact', this)">Reg. Impact</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Threat Intel" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/threat-intelligence','Threat Intel', this)">🛡️ Threat Intel</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="PCI-DSS Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/pci-dss-scan','PCI-DSS Scan', this)">💳 PCI-DSS Scan</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Audit/Maker-Checker" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/audit-maker-checker','Audit/Maker-Checker', this)">👥 Maker-Checker</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="CNIC Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/cnic-validation-check','CNIC Check', this)">🪪 CNIC Check</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Data Localization" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/data-localization-check','Data Localization', this)">🌍 Data Localization</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Structuring Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/structuring-pattern-check','Structuring Check', this)">🔀 Structuring Check</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="NTN/STRN Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ntn-strn-check','NTN/STRN Check', this)">🧾 NTN/STRN Check</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Unusual Hours" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/unusual-hours-check','Unusual Hours', this)">🕐 Unusual Hours</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Geo Anomaly" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/geo-anomaly-check','Geo Anomaly', this)">🌐 Geo Anomaly</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="JWT/OAuth Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/jwt-oauth-security-scan','JWT/OAuth Scan', this)">🔑 JWT/OAuth Scan</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Device FP" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/device-fingerprint-check','Device FP', this)">📱 Device FP</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="High-Value Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/high-value-threshold-check','High-Value Check', this)">💰 High-Value Check</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Cert Pinning" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/certificate-pinning-check','Cert Pinning', this)">🔒 Cert Pinning</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Round-Trip Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/roundtrip-transaction-check','Round-Trip Check', this)">🔄 Round-Trip Check</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Digital Signature" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/digital-signature-check','Digital Signature', this)">✍️ Digital Signature</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Threat Intel" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/threat-intelligence','Threat Intel', this)">Threat Intel</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="PCI-DSS Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/pci-dss-scan','PCI-DSS Scan', this)">PCI-DSS Scan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Audit/Maker-Checker" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/audit-maker-checker','Audit/Maker-Checker', this)">Maker-Checker</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="CNIC Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/cnic-validation-check','CNIC Check', this)">CNIC Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Data Localization" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/data-localization-check','Data Localization', this)">Data Localization</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Structuring Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/structuring-pattern-check','Structuring Check', this)">Structuring Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="NTN/STRN Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ntn-strn-check','NTN/STRN Check', this)">NTN/STRN Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Unusual Hours" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/unusual-hours-check','Unusual Hours', this)">Unusual Hours</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Geo Anomaly" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/geo-anomaly-check','Geo Anomaly', this)">Geo Anomaly</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="JWT/OAuth Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/jwt-oauth-security-scan','JWT/OAuth Scan', this)">JWT/OAuth Scan</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Device FP" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/device-fingerprint-check','Device FP', this)">Device FP</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="High-Value Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/high-value-threshold-check','High-Value Check', this)">High-Value Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Cert Pinning" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/certificate-pinning-check','Cert Pinning', this)">Cert Pinning</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Round-Trip Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/roundtrip-transaction-check','Round-Trip Check', this)">Round-Trip Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Digital Signature" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/digital-signature-check','Digital Signature', this)">Digital Signature</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Fraud Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check', this)">Fraud Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="PII Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-pii','PII Scan', this)">PII Scan</button>
               </div>
 
-              <div style="font-size:10px;color:#f59e0b;font-weight:700;margin:6px 0 4px">🏗️ Architecture</div>
+              <div style="font-size:10px;color:#f59e0b;font-weight:700;margin:6px 0 4px">Architecture</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="API Map" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/map-api-dependencies','API Map', this)">API Map</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="DB Schema" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-db-schema','DB Schema', this)">DB Schema</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Business Rules" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/discover-rules','Business Rules', this)">Business Rules</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Hidden Logic" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/hidden-business-logic','Hidden Logic', this)">🕵️ Hidden Logic</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Hidden Logic" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/hidden-business-logic','Hidden Logic', this)">Hidden Logic</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Tech Stack" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-tech-stack','Tech Stack', this)">Tech Stack</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Vendor Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/vendor-lockin','Vendor Risk', this)">Vendor Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Zero-Trust" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/zero-trust-score','Zero-Trust', this)">Zero-Trust</button>
@@ -591,7 +591,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Strangler Fig" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/strangler-fig','Strangler Fig', this)">Strangler Fig</button>
               </div>
 
-              <div style="font-size:10px;color:#7c3aed;font-weight:700;margin:6px 0 4px">🤖 AI &amp; Reports</div>
+              <div style="font-size:10px;color:#7c3aed;font-weight:700;margin:6px 0 4px">AI &amp; Reports</div>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Gen Docs" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/generate-docs','Gen Docs', this)">Gen Docs</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="AI Suggest" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ai-suggest','AI Suggest', this)">AI Suggest</button>
@@ -618,15 +618,15 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Code DNA" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/code-dna','Code DNA', this)">Code DNA</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Dependency Graph" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/dependency-graph','Dependency Graph', this)">Dependency Graph</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Living Docs" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/living-docs','Living Docs', this)">Living Docs</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Legacy Ghosts" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/legacy-ghosts','Legacy Ghosts', this)">👻 Legacy Ghosts</button>
-                <button class="btn btn-ghost adv-check-btn" data-label="Change Risk Radar" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/change-risk-radar','Change Risk Radar', this)">⚠️ Risk Radar</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Legacy Ghosts" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/legacy-ghosts','Legacy Ghosts', this)">Legacy Ghosts</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Change Risk Radar" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/change-risk-radar','Change Risk Radar', this)">Risk Radar</button>
               </div>
 
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
               <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#4b5563;line-height:1.6;max-height:280px;overflow-y:auto;background:#ffffff;border-radius:6px;padding:14px"></div>
             </div>
             <div class="card" id="diffCard">
-              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span> <span class="card-head-a" id="behaviorTestBtn" onclick="runBehaviorTest()" style="margin-left:8px" title="Runs the original and migrated Python code and compares their printed output">Test Behavior</span> <span class="card-head-a" onclick="openMonacoDiffViewer()" style="margin-left:8px">🔍 Side-by-Side Diff</span></div>
+              <div class="card-head">Migration Diff <span class="card-head-a" onclick="copyMigrated()">Copy result</span> <span class="card-head-a" id="explainBtn" onclick="runExplain()" style="margin-left:8px">Explain</span> <span class="card-head-a" id="behaviorTestBtn" onclick="runBehaviorTest()" style="margin-left:8px" title="Runs the original and migrated Python code and compares their printed output">Test Behavior</span> <span class="card-head-a" onclick="openMonacoDiffViewer()" style="margin-left:8px">Side-by-Side Diff</span></div>
               <div id="changeCountNote" style="display:none;font-size:10px;color:#22c55e;margin-bottom:6px;font-weight:600"></div>
               <div id="batchDiffNote" style="display:none;font-size:9px;color:#f59e0b;margin-bottom:6px">Showing the last-processed file from this batch. Use Repository Summary → View Report to see a specific file.</div>
               <div id="explainBox" style="display:none;background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#4b5563;line-height:1.6"></div>
@@ -635,7 +635,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="conf-pct" id="confPct" style="color:var(--green)">0%</div>
               </div>
               <div id="changesChecklist" style="display:none;margin-bottom:12px"></div>
-              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:2px solid #3b82f6">ℹ️ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong> auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
+              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:2px solid #3b82f6">ℹ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong>auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
               <div class="diff-wrap">
                 <div class="diff-pane">
                   <div class="diff-head old">Original Source</div>
@@ -647,7 +647,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 </div>
               </div>
               <div id="bizRuleSpecSection" style="display:none;margin-top:12px">
-                <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="toggleBizRuleSpec()">📋 <span id="bizRuleSpecToggleLabel">Show Business Rule Detail</span></button>
+                <button class="btn btn-ghost" style="font-size:11px;padding:6px 12px" onclick="toggleBizRuleSpec()"> <span id="bizRuleSpecToggleLabel">Show Business Rule Detail</span></button>
                 <div id="bizRuleSpecBody" style="display:none;margin-top:8px;background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;max-height:400px;overflow-y:auto"></div>
               </div>
               <div id="behaviorTestResult" style="display:none;margin-top:10px;padding:10px;background:#f1f4f8;border-radius:6px"></div>
@@ -660,7 +660,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="approval-actions">
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadComplianceEvidence()">Compliance Evidence Export</button>
-                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadMigrationCertificate()">🎖️ Migration Certificate</button>
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadMigrationCertificate()">Migration Certificate</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadJSON()">Export JSON</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
@@ -798,7 +798,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="setQ('Summarize what this code does')">Summarize</button>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;padding:8px" onclick="runAsk()">Ask AI</button>
-          <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:6px;padding:8px" onclick="runTraceabilityQuery()" title="Traces the specific function(s) and condition(s) triggered by a described scenario, referencing actual code paths">🔍 Trace Logic Path</button>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:6px;padding:8px" onclick="runTraceabilityQuery()" title="Traces the specific function(s) and condition(s) triggered by a described scenario, referencing actual code paths">Trace Logic Path</button>
         </div>
         <div>
           <div class="loading" id="askLoad"><div class="spinner"></div><div class="loading-txt">Thinking…</div></div>
@@ -962,7 +962,7 @@ async function checkBackendHealth() {
   const runBtn = document.getElementById('runBtn');
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() =>controller.abort(), 60000);
     const r = await fetch(BACKEND + '/health', { method: 'GET', signal: controller.signal });
     clearTimeout(timeoutId);
     if (r.ok) {
@@ -997,9 +997,9 @@ async function checkBackendHealth() {
 checkBackendHealth();
 setInterval(checkBackendHealth, 30000);
 function nav(page, el) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p =>p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(i =>i.classList.remove('active'));
   if (el) el.classList.add('active');
   const titles = { modernize: 'Modernize Code', dashboard: 'Dashboard', ask: 'Ask Codebase', docs: 'Documentation', roi: 'ROI & Debt' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
@@ -1009,8 +1009,8 @@ function onFileInput(fs) {
   const incoming = Array.from(fs);
   const unsupported = incoming.filter(f => !supportedExt.includes(f.name.split('.').pop().toLowerCase()));
   if (unsupported.length > 0) {
-    alert('Unsupported file type: ' + unsupported.map(f => f.name).join(', ') + '. StarSage supports .py, .java, .php, and .cbl/.cob files.');
-    const supported = incoming.filter(f => supportedExt.includes(f.name.split('.').pop().toLowerCase()));
+    alert('Unsupported file type: ' + unsupported.map(f =>f.name).join(', ') + '. StarSage supports .py, .java, .php, and .cbl/.cob files.');
+    const supported = incoming.filter(f =>supportedExt.includes(f.name.split('.').pop().toLowerCase()));
     if (supported.length === 0) return;
     fs = supported;
   }
@@ -1150,7 +1150,7 @@ async function runAnalysis() {
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
-    const reviewNeededCount = allChanges.filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
+    const reviewNeededCount = allChanges.filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
     const _adjustedConf = conf != null ? Math.max(40, conf - (reviewNeededCount * 8)) : null;
     const confStr = _adjustedConf != null ? Math.round(_adjustedConf) + '%' : 'N/A';
@@ -1173,7 +1173,7 @@ async function runAnalysis() {
             const lineMatch = text.match(/line\(s\)\s+([\d,\s]+)/i);
             text = (text.split(' - ')[0] || text.substring(0, 50)) + (lineMatch ? '' : '') + ' — see Issues & Recommendations for details.';
           }
-          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? '⚠ ' : '✓ ') + text + '</div>';
+          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? ' ' : '✓ ') + text + '</div>';
         }).join('');
       const _secRaw = R.security;
       const _secTextForCategorize = _secRaw ? (typeof _secRaw === 'string' ? _secRaw : (_secRaw.result ?? _secRaw.output ?? JSON.stringify(_secRaw))).toLowerCase() : '';
@@ -1184,7 +1184,7 @@ async function runAnalysis() {
       if (_secTextForCategorize.includes('weak cryptography') || _secTextForCategorize.includes('md5') || _secTextForCategorize.includes('sha1')) _notFixedItems.push('Weak Cryptography (MD5/SHA1) — syntax made Python-3-compatible, but the weak algorithm itself was not replaced');
       if (_notFixedItems.length > 0) {
         checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
-          _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0">🔴 ' + t + '</div>').join('');
+          _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0"> ' + t + '</div>').join('');
       }
       const _autoFixedCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
       const _totalTransformItems = _autoFixedCount + _notFixedItems.length;
@@ -1202,13 +1202,13 @@ async function runAnalysis() {
     const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
     let _cryptoWarningHtml = '';
     if (_weakCryptoChange) {
-      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#1a1006;border:1px solid #7c4a03;border-radius:6px;font-size:11px"><strong style="color:#d97706">⚠ Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#4b5563">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong> replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code> or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
+      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#1a1006;border:1px solid #7c4a03;border-radius:6px;font-size:11px"><strong style="color:#d97706">Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#4b5563">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong>replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code>or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
     }
     if (_validity && _validity.migration_ready === false && _approvalTextEl) {
       const _issueLines = [];
       if (!_validity.syntax_valid) _issueLines.push('Syntax error: ' + escapeHtml(_validity.syntax_error || ''));
       (_validity.broken_py3_imports || []).forEach(b => _issueLines.push(`'${escapeHtml(b.module)}' module does not exist in Python 3 (use ${escapeHtml(b.suggested_replacement)} instead)`));
-      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">🔴 Migration Validation Failed</strong><br><span style="color:#ef4444;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>' + _cryptoWarningHtml;
+      _approvalTextEl.innerHTML = '<strong style="color:#ef4444">Migration Validation Failed</strong><br><span style="color:#ef4444;font-size:11px">' + _issueLines.join('<br>') + '</span><br><span style="font-size:11px">This migrated code will not run as-is - resolve these issues before approving.</span>' + _cryptoWarningHtml;
     } else if (_approvalTextEl) {
       _approvalTextEl.innerHTML = '<strong>Human Review Required</strong><br>Review the analysis and diff above, then approve or reject this migration.' + _cryptoWarningHtml;
     }
@@ -1262,7 +1262,7 @@ function renderResults(R, original, fname, totalMs) {
   window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
   extraServicesFromModules = [];
   document.getElementById('results').classList.add('show');
-  const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
+  const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
   const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
   const conf = baseConf != null ? Math.max(40, baseConf - (reviewNeededCountForConf * 8)) : null;
   const confPct = conf != null ? Math.round(conf) : null;
@@ -1304,8 +1304,8 @@ function renderResults(R, original, fname, totalMs) {
     renderBusinessRuleSpec(original, lang);
   }
   const issues = buildIssues(R);
-  const critCount = issues.filter(i => i.sev === 'critical').length;
-  const warnCount = issues.filter(i => i.sev === 'warning').length;
+  const critCount = issues.filter(i =>i.sev === 'critical').length;
+  const warnCount = issues.filter(i =>i.sev === 'warning').length;
   document.getElementById('sv-critical').textContent = critCount;
   document.getElementById('sv-warnings').textContent = warnCount;
   document.getElementById('sv-debt').textContent = R.debt ? 'Medium' : 'N/A';
@@ -1346,7 +1346,7 @@ function renderResults(R, original, fname, totalMs) {
     healthChart.data.datasets[0].backgroundColor = [hColor, '#1a2438'];
     healthChart.update();
   }
-  const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
+  const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList >div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
   const healthNoteText = critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
   document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
@@ -1394,14 +1394,14 @@ function renderResults(R, original, fname, totalMs) {
 }
 function generateSuggestions(issues, critCount, warnCount) {
   const suggestions = [];
-  const titles = issues.map(i => i.title.toLowerCase());
-  if (titles.some(t => t.includes('password'))) suggestions.push('Remove hardcoded credentials - move to environment variables or a secrets manager');
-  if (titles.some(t => t.includes('sql injection'))) suggestions.push('Fix SQL injection risk - use parameterized queries');
-  if (titles.some(t => t.includes('weak cryptography') || t.includes('md5') || t.includes('sha1'))) suggestions.push('Upgrade weak hashing/encryption to SHA-256, AES-256, or bcrypt');
-  if (titles.some(t => t.includes('complexity'))) suggestions.push('Refactor high-complexity functions into smaller, focused units');
-  if (titles.some(t => t.includes('duplicate'))) suggestions.push('Remove duplicate code blocks - extract shared logic');
-  if (titles.some(t => t.includes('deprecated'))) suggestions.push('Update deprecated syntax/APIs before deployment');
-  if (titles.some(t => t.includes('documentation'))) suggestions.push('Add docstrings/comments to improve maintainability');
+  const titles = issues.map(i =>i.title.toLowerCase());
+  if (titles.some(t =>t.includes('password'))) suggestions.push('Remove hardcoded credentials - move to environment variables or a secrets manager');
+  if (titles.some(t =>t.includes('sql injection'))) suggestions.push('Fix SQL injection risk - use parameterized queries');
+  if (titles.some(t =>t.includes('weak cryptography') || t.includes('md5') || t.includes('sha1'))) suggestions.push('Upgrade weak hashing/encryption to SHA-256, AES-256, or bcrypt');
+  if (titles.some(t =>t.includes('complexity'))) suggestions.push('Refactor high-complexity functions into smaller, focused units');
+  if (titles.some(t =>t.includes('duplicate'))) suggestions.push('Remove duplicate code blocks - extract shared logic');
+  if (titles.some(t =>t.includes('deprecated'))) suggestions.push('Update deprecated syntax/APIs before deployment');
+  if (titles.some(t =>t.includes('documentation'))) suggestions.push('Add docstrings/comments to improve maintainability');
   if (critCount === 0 && warnCount === 0) suggestions.push('Code looks clean - proceed with standard code review before merging');
   const card = document.getElementById('suggestCard');
   const list = document.getElementById('suggestList');
@@ -1440,7 +1440,7 @@ function detectMainframeAssets(code) {
     { label: 'Online Transactions (CICS TRANSID)', count: countMatches(/TRANSID\s*\(/gi) },
     { label: 'Paragraphs (batch logic units)', count: countMatches(/^(?:\d{6}\s+)?[\w-]+\.\s*$/gim) },
   ];
-  const found = assets.filter(a => a.count > 0);
+  const found = assets.filter(a =>a.count > 0);
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   list.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px">' + found.map(a => `
@@ -1470,7 +1470,7 @@ function detectInsurance(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p => lineLower.includes(p));
+      const hit = m.patterns.find(p =>lineLower.includes(p));
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -1513,7 +1513,7 @@ function detectPaymentSystems(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p => lineLower.includes(p));
+      const hit = m.patterns.find(p =>lineLower.includes(p));
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -1573,7 +1573,7 @@ function detectCompliance(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p => lineLower.includes(p));
+      const hit = m.patterns.find(p =>lineLower.includes(p));
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -1607,7 +1607,7 @@ function detectBatchJobs(code) {
     { label: 'Night Batch', patterns: ['night_batch', 'nightly_batch', 'batch_job'] },
     { label: 'Reconciliation', patterns: ['reconcile', 'reconciliation'] },
   ];
-  const found = jobs.filter(j => j.patterns.some(p => lower.includes(p)));
+  const found = jobs.filter(j =>j.patterns.some(p =>lower.includes(p)));
   const card = document.getElementById('batchJobsCard');
   const list = document.getElementById('batchJobsList');
   if (found.length === 0) { card.style.display = 'none'; return; }
@@ -1635,7 +1635,7 @@ function detectBankingModules(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p => lineLower.includes(p));
+      const hit = m.patterns.find(p =>lineLower.includes(p));
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -1644,7 +1644,7 @@ function detectBankingModules(code) {
       }
     }
   });
-  mergeServicesIntoMicroservices(found.map(f => f.service));
+  mergeServicesIntoMicroservices(found.map(f =>f.service));
   const card = document.getElementById('bankingCard');
   const list = document.getElementById('bankingList');
   if (found.length === 0) { card.style.display = 'none'; return; }
@@ -1698,7 +1698,7 @@ function detectBusinessRules(code) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p => lineLower.includes(p))) { matchIdx = i; break; }
+        if (r.patterns.find(p =>lineLower.includes(p))) { matchIdx = i; break; }
       }
     }
     if (matchIdx === -1) {
@@ -1709,7 +1709,7 @@ function detectBusinessRules(code) {
         const isModuleLevelAssignment = /^[A-Za-z_][\w]*\s*(?:[:=]|:\s*[\w\[\]"'.]+\s*=)/.test(codeLines[i]) && !/^\s/.test(codeLines[i]);
         if (isModuleLevelAssignment) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p => lineLower.includes(p)) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
+        if (r.patterns.find(p =>lineLower.includes(p)) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
       }
     }
     if (matchIdx === -1) {
@@ -1717,13 +1717,13 @@ function detectBusinessRules(code) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p => lineLower.includes(p))) { matchIdx = i; break; }
+        if (r.patterns.find(p =>lineLower.includes(p))) { matchIdx = i; break; }
       }
     }
     if (matchIdx !== -1) {
       let i = matchIdx;
       let lineLower = codeLines[i].toLowerCase();
-      let hit = r.patterns.find(p => lineLower.includes(p));
+      let hit = r.patterns.find(p =>lineLower.includes(p));
       let fn = findEnclosingFunction(codeLines, i);
       const performMatch = codeLines[i].trim().match(/^PERFORM\s+([\w-]+)\s*\.?\s*$/i);
       if (performMatch) {
@@ -1757,7 +1757,7 @@ function detectBusinessRules(code) {
     card.style.display = 'none';
     return;
   }
-  window.lastRulesAvgConfidence = Math.round(found.reduce((sum, r) => sum + (r.conf || 0), 0) / found.length);
+  window.lastRulesAvgConfidence = Math.round(found.reduce((sum, r) =>sum + (r.conf || 0), 0) / found.length);
   card.style.display = 'block';
   list.innerHTML = found.map(r => `
     <div style="padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:3px solid #22c55e">
@@ -1778,7 +1778,7 @@ function renderTransactionFlow(rules) {
   const list = document.getElementById('txnFlowList');
   if (rules.length < 2) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  const sorted = [...rules].sort((a, b) => a.line - b.line);
+  const sorted = [...rules].sort((a, b) =>a.line - b.line);
   list.innerHTML = sorted.map((r, i) => `
     <div style="padding:6px 10px;background:#f1f4f8;border-left:3px solid #06b6d4;border-radius:4px;margin-bottom:4px">
       <span style="font-size:11px;color:#0f1115;font-weight:600">${r.label}</span>
@@ -1808,7 +1808,7 @@ function renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, 
     { label: 'Downtime Risk', r: downtimeRisk },
   ];
   document.getElementById('riskEngineList').innerHTML = items.map(i => {
-    const emoji = i.r.label === 'LOW' ? '🟢' : i.r.label === 'MEDIUM' ? '🟡' : '🔴';
+    const emoji = i.r.label === 'LOW' ? '' : i.r.label === 'MEDIUM' ? '' : '';
     return `
     <div style="padding:10px;background:#f1f4f8;border-radius:6px;border:1px solid #e5e8ee;text-align:center">
       <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">${i.label}</div>
@@ -1831,9 +1831,9 @@ function detectCopybooks(code) {
   lastCopybookNames = [...names];
   card.style.display = 'block';
   list.innerHTML = [...names].map(n => {
-    const sharedWith = sessionFileResults.filter(e => e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e => e.fname);
+    const sharedWith = sessionFileResults.filter(e =>e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e =>e.fname);
     return `<div style="padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);min-width:140px">
-      <span style="font-size:11px;color:#7c3aed;font-family:monospace">📄 ${n}</span>
+      <span style="font-size:11px;color:#7c3aed;font-family:monospace"> ${n}</span>
       ${sharedWith.length > 0 ? '<div style="font-size:9px;color:#64748b;margin-top:3px">Also used by: ' + sharedWith.join(', ') + '</div>' : '<div style="font-size:9px;color:#64748b;margin-top:3px">Not seen in other files analyzed this session</div>'}
     </div>`;
   }).join('');
@@ -1894,7 +1894,7 @@ function detectBankingDomains(code) {
     { label: 'Interest', patterns: ['interest', 'apr', 'apy'] },
     { label: 'GL (General Ledger)', patterns: ['general_ledger', 'ledger', 'gl_entry', 'journal_entry'] },
   ];
-  const found = domains.filter(d => d.patterns.some(p => lower.includes(p)));
+  const found = domains.filter(d =>d.patterns.some(p =>lower.includes(p)));
   const card = document.getElementById('domainCard');
   const list = document.getElementById('domainList');
   if (found.length === 0) { card.style.display = 'none'; return; }
@@ -1974,7 +1974,7 @@ function detectRegulatoryCompliance(code, R) {
   const list = document.getElementById('regComplianceList');
   if (items.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : '⚠'} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
+  list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : ''} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
 }
 let lastUniqueServices = [];
 let extraServicesFromModules = [];
@@ -1985,7 +1985,7 @@ function renderMicroserviceSummary(rules) {
   window.lastBusinessRules = rules;
   const mCard = document.getElementById('microserviceCard');
   const mList = document.getElementById('microserviceList');
-  const uniqueServices = [...new Set([...rules.map(r => r.service), ...extraServicesFromModules])];
+  const uniqueServices = [...new Set([...rules.map(r =>r.service), ...extraServicesFromModules])];
   lastUniqueServices = uniqueServices;
   if (uniqueServices.length === 0) { mCard.style.display = 'none'; return; }
   mCard.style.display = 'block';
@@ -1993,7 +1993,7 @@ function renderMicroserviceSummary(rules) {
 }
 function computeLineDiff(oldLines, newLines) {
   const m = oldLines.length, n = newLines.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  const dp = Array.from({ length: m + 1 }, () =>new Array(n + 1).fill(0));
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       if (oldLines[i - 1] === newLines[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
@@ -2085,7 +2085,7 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums,
   const thisLines = thisCode.split('\n');
   let tags;
   if (oldLines.length * newLines.length > 250000) {
-    const otherLineSet = new Set((isNew ? otherCode : otherCode).split('\n').map(l => l.trim()));
+    const otherLineSet = new Set((isNew ? otherCode : otherCode).split('\n').map(l =>l.trim()));
     tags = thisLines.map(l => (l.trim() !== '' && !otherLineSet.has(l.trim())) ? (isNew ? 'added' : 'removed') : 'same');
   } else {
     const diffResult = computeLineDiff(oldLines, newLines);
@@ -2100,7 +2100,7 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums,
     const lineNum = '<span style="display:inline-block;width:32px;text-align:right;padding-right:8px;color:#4a5568;user-select:none;flex-shrink:0">' + (idx + 1) + '</span>';
     const gutterBase = 'display:flex;align-items:flex-start;';
     if (needsReview) {
-      return '<div style="' + gutterBase + 'background:rgba(245,158,11,0.14);border-left:2px solid #f59e0b">' + lineNum + '<span style="display:inline-block;width:16px;text-align:center;flex-shrink:0" title="Flagged for manual review"><span style="color:#f59e0b">⚠</span></span>' + esc + '</div>';
+      return '<div style="' + gutterBase + 'background:rgba(245,158,11,0.14);border-left:2px solid #f59e0b">' + lineNum + '<span style="display:inline-block;width:16px;text-align:center;flex-shrink:0" title="Flagged for manual review"><span style="color:#f59e0b"></span></span>' + esc + '</div>';
     }
     if (tag === 'added') {
       return '<div style="' + gutterBase + 'background:rgba(34,197,94,0.14);border-left:2px solid #22c55e">' + lineNum + '<span style="display:inline-block;width:16px;text-align:center;flex-shrink:0;color:#22c55e;font-weight:700">+</span>' + esc + '</div>';
@@ -2115,11 +2115,11 @@ let lastRulesCount = 0;
 function renderKnowledgeGraph() {
   const card = document.getElementById('knowledgeGraphCard');
   const list = document.getElementById('knowledgeGraphList');
-  const tables = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
+  const tables = Array.from(document.querySelectorAll('#dbIntelList span')).map(s =>s.textContent.trim());
   const copybooks = lastCopybookNames || [];
   const services = lastUniqueServices || [];
   const fname = files.length ? files[0].name : 'this file';
-  const funcTexts = Array.from(document.querySelectorAll('#bankingList div div span, #rulesList div div span')).map(s => s.textContent).filter(t => t.includes('()'));
+  const funcTexts = Array.from(document.querySelectorAll('#bankingList div div span, #rulesList div div span')).map(s =>s.textContent).filter(t =>t.includes('()'));
   const functionsFromDom = funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean);
   const _kgSource = window.lastAnalyzedSourceForKG || '';
   const functionsFromSource = [];
@@ -2137,7 +2137,7 @@ function renderKnowledgeGraph() {
     { label: 'Copybooks', items: copybooks, color: '#7c3aed' },
     { label: 'Candidate Service Boundaries', items: services, color: '#f59e0b' },
   ];
-  const nonEmpty = groups.filter(g => g.items.length > 0);
+  const nonEmpty = groups.filter(g =>g.items.length > 0);
   if (nonEmpty.length <= 1) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   list.innerHTML = nonEmpty.map(g => `
@@ -2153,11 +2153,11 @@ function renderDependencyChainSVG() {
   const container = document.getElementById('depChainSVG');
   if (!container) return;
   const files_ = sessionFileResults;
-  const allTables = [...new Set(files_.flatMap(f => f.tables))];
-  const allCopybooks = [...new Set(files_.flatMap(f => f.copybooks || []))];
-  const allServices = [...new Set(files_.flatMap(f => f.services))];
+  const allTables = [...new Set(files_.flatMap(f =>f.tables))];
+  const allCopybooks = [...new Set(files_.flatMap(f =>f.copybooks || []))];
+  const allServices = [...new Set(files_.flatMap(f =>f.services))];
   const layers = [
-    { items: files_.map(f => f.fname), y: 20, color: '#1d4ed8', label: 'Program' },
+    { items: files_.map(f =>f.fname), y: 20, color: '#1d4ed8', label: 'Program' },
   ];
   if (allTables.length > 0) layers.push({ items: allTables, y: 0, color: '#16a34a', label: 'DB Table' });
   if (allCopybooks.length > 0) layers.push({ items: allCopybooks, y: 0, color: '#7c3aed', label: 'Copybook' });
@@ -2184,8 +2184,8 @@ function renderDependencyChainSVG() {
       const toItems = layers[li + 1].label === 'DB Table' ? f.tables : layers[li + 1].label === 'Copybook' ? (f.copybooks || []) : f.services;
       fromItems.forEach(fi => {
         toItems.forEach(ti => {
-          const p1 = positions.find(p => p.layer === li && p.item === fi);
-          const p2 = positions.find(p => p.layer === li + 1 && p.item === ti);
+          const p1 = positions.find(p =>p.layer === li && p.item === fi);
+          const p2 = positions.find(p =>p.layer === li + 1 && p.item === ti);
           if (p1 && p2) {
             linesContent += '<line x1="' + (p1.x + 65) + '" y1="' + (p1.y + boxH) + '" x2="' + (p2.x + 65) + '" y2="' + p2.y + '" stroke="#d7dce4" stroke-width="1"/>';
           }
@@ -2193,7 +2193,7 @@ function renderDependencyChainSVG() {
       });
     });
   }
-  const maxItemsInLayer = Math.max(...layers.map(l => l.items.length));
+  const maxItemsInLayer = Math.max(...layers.map(l =>l.items.length));
   const svgW = Math.max(400, maxItemsInLayer * 140 + 20);
   const svgH = 20 + layers.length * layerGapY + 10;
   container.innerHTML = '<svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '">' + linesContent + svgContent + '</svg>';
@@ -2201,8 +2201,8 @@ function renderDependencyChainSVG() {
 function renderCapabilityMap() {
   const card = document.getElementById('capabilityCard');
   const list = document.getElementById('capabilityList');
-  const bankingItems = Array.from(document.querySelectorAll('#domainList span')).map(s => s.textContent.replace('✓', '').trim());
-  const insuranceItems = Array.from(document.querySelectorAll('#insuranceList > div span')).filter(s => s.textContent.includes('✓')).map(s => s.textContent.replace('✓', '').trim());
+  const bankingItems = Array.from(document.querySelectorAll('#domainList span')).map(s =>s.textContent.replace('✓', '').trim());
+  const insuranceItems = Array.from(document.querySelectorAll('#insuranceList >div span')).filter(s =>s.textContent.includes('✓')).map(s =>s.textContent.replace('✓', '').trim());
   if (bankingItems.length === 0 && insuranceItems.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   let html = '';
@@ -2222,23 +2222,23 @@ function updateRepositorySummary() {
   const confText = document.getElementById('confPct').textContent;
   const critCount = parseInt(document.getElementById('sv-critical').textContent) || 0;
   const warnCount = parseInt(document.getElementById('sv-warnings').textContent) || 0;
-  const rulesCount = document.querySelectorAll('#rulesList > div').length;
-  const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s => s.textContent.trim());
+  const rulesCount = document.querySelectorAll('#rulesList >div').length;
+  const tableSpans = Array.from(document.querySelectorAll('#dbIntelList span')).map(s =>s.textContent.trim());
   const serviceSpans = lastUniqueServices || [];
   let localImports = [];
   const _snap = (window.lastFileSnapshot && window.lastFileSnapshot.original) || '';
   const _lname = fname.toLowerCase();
   if (_lname.endsWith('.py')) {
-    localImports = (_snap.match(/(?:^|\n)\s*(?:import|from)\s+([\w\.]+)/g) || []).map(m => m.replace(/^\s*(?:import|from)\s+/, '').split('.')[0]);
+    localImports = (_snap.match(/(?:^|\n)\s*(?:import|from)\s+([\w\.]+)/g) || []).map(m =>m.replace(/^\s*(?:import|from)\s+/, '').split('.')[0]);
   } else if (_lname.endsWith('.java')) {
     localImports = (_snap.match(/(?:^|\n)\s*import\s+[\w\.]*\.(\w+)\s*;/g) || []).map(m => { const mm = m.match(/\.(\w+)\s*;/); return mm ? mm[1] : null; }).filter(Boolean);
   } else if (_lname.endsWith('.php')) {
     localImports = (_snap.match(/(?:require|include)(?:_once)?\s*\(?\s*["']([^"']+)["']/gi) || []).map(m => { const mm = m.match(/["']([^"']+)["']/); return mm ? mm[1].split('/').pop().replace(/\.\w+$/, '') : null; }).filter(Boolean);
   } else if (_lname.endsWith('.cbl') || _lname.endsWith('.cob')) {
-    localImports = (_snap.match(/COPY\s+([\w-]+)/gi) || []).map(m => m.replace(/COPY\s+/i, ''));
+    localImports = (_snap.match(/COPY\s+([\w-]+)/gi) || []).map(m =>m.replace(/COPY\s+/i, ''));
   }
   const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot, localImports };
-  sessionFileResults = sessionFileResults.filter(e => e.fname !== fname);
+  sessionFileResults = sessionFileResults.filter(e =>e.fname !== fname);
   sessionFileResults.push(entry);
   renderRepositorySummary();
 }
@@ -2257,14 +2257,14 @@ function renderRepositorySummary() {
   const fileList = document.getElementById('repoFileList');
   if (sessionFileResults.length < 2) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  const langs = new Set(sessionFileResults.map(e => e.lang));
-  const totalRules = sessionFileResults.reduce((s, e) => s + e.rulesCount, 0);
-  const totalCrit = sessionFileResults.reduce((s, e) => s + e.critCount, 0);
-  const totalWarn = sessionFileResults.reduce((s, e) => s + e.warnCount, 0);
-  const allTables = new Set(sessionFileResults.flatMap(e => e.tables));
-  const allServices = new Set(sessionFileResults.flatMap(e => e.services));
+  const langs = new Set(sessionFileResults.map(e =>e.lang));
+  const totalRules = sessionFileResults.reduce((s, e) =>s + e.rulesCount, 0);
+  const totalCrit = sessionFileResults.reduce((s, e) =>s + e.critCount, 0);
+  const totalWarn = sessionFileResults.reduce((s, e) =>s + e.warnCount, 0);
+  const allTables = new Set(sessionFileResults.flatMap(e =>e.tables));
+  const allServices = new Set(sessionFileResults.flatMap(e =>e.services));
   const overallRisk = totalCrit > 0 ? 'High' : totalWarn > 2 ? 'Medium' : 'Low';
-  const needsReview = sessionFileResults.filter(e => e.critCount > 0).length;
+  const needsReview = sessionFileResults.filter(e =>e.critCount > 0).length;
   const successful = sessionFileResults.length - needsReview;
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
@@ -2278,7 +2278,7 @@ function renderRepositorySummary() {
     </div>
   `;
   fileList.innerHTML = sessionFileResults.map((e, idx) => {
-    const statusIcon = e.critCount > 0 ? '⚠' : '✓';
+    const statusIcon = e.critCount > 0 ? '' : '✓';
     const statusColor = e.critCount > 0 ? '#f59e0b' : '#22c55e';
     const statusLabel = e.critCount > 0 ? 'Needs Review' : 'View Report';
     return `
@@ -2299,8 +2299,8 @@ function renderCrossFileGraph() {
   for (let i = 0; i < sessionFileResults.length; i++) {
     for (let j = i + 1; j < sessionFileResults.length; j++) {
       const a = sessionFileResults[i], b = sessionFileResults[j];
-      const sharedTables = a.tables.filter(t => b.tables.includes(t));
-      const sharedServices = a.services.filter(s => b.services.includes(s));
+      const sharedTables = a.tables.filter(t =>b.tables.includes(t));
+      const sharedServices = a.services.filter(s =>b.services.includes(s));
       if (sharedTables.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedTables.join(', '), type: 'table' });
       if (sharedServices.length > 0) edges.push({ from: a.fname, to: b.fname, via: sharedServices.join(', '), type: 'service' });
       const aBase = a.fname.split('/').pop().replace(/\.\w+$/, '');
@@ -2323,8 +2323,8 @@ function renderCrossFileGraph() {
   `).join('');
 }
 function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
-  const rulesCount = document.querySelectorAll('#rulesList > div').length;
-  const mediumRiskCount = Array.from(document.querySelectorAll('#riskEngineList > div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
+  const rulesCount = document.querySelectorAll('#rulesList >div').length;
+  const mediumRiskCount = Array.from(document.querySelectorAll('#riskEngineList >div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
   const recommendation = critCount >= 1 ? 'Not Safe — Critical Review Required' : mediumRiskCount >= 3 ? 'Migration Possible — Human Review Recommended' : 'Migration Safe';
   const recColor = critCount >= 1 ? '#ef4444' : mediumRiskCount >= 3 ? '#f59e0b' : '#22c55e';
   const card = document.getElementById('execSummaryCard');
@@ -2337,13 +2337,13 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
   const migType = svcCount >= 3 ? 'Incremental (phased by service)' : svcCount >= 1 ? 'Incremental' : 'Direct';
   const timelineWeeks = Math.max(1, Math.ceil(fixHours / 20));
   const timelineLabel = fixHours < 20 ? Math.max(1, Math.ceil(fixHours / 6)) + ' working day' + (Math.ceil(fixHours / 6) === 1 ? '' : 's') + ' (approx.)' : timelineWeeks + ' week' + (timelineWeeks === 1 ? '' : 's') + ' (approx.)';
-  const topRuleEl = document.querySelector('#rulesList > div');
+  const topRuleEl = document.querySelector('#rulesList >div');
   const topRuleServiceMatch = topRuleEl ? topRuleEl.textContent.match(/Suggested Service:\s*([^\n]+)/) : null;
   const topRuleService = topRuleServiceMatch ? topRuleServiceMatch[1].trim() : null;
   text.innerHTML = `
     <div style="background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;padding:12px;margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Executive Decision</div>
-      <div style="font-size:13px;font-weight:700;color:${suitable ? '#22c55e' : '#ef4444'};margin-bottom:8px">${suitable ? '✅ Suitable for modernization' : '⛔ Not suitable until critical issues resolved'}</div>
+      <div style="font-size:13px;font-weight:700;color:${suitable ? '#22c55e' : '#ef4444'};margin-bottom:8px">${suitable ? ' Suitable for modernization' : ' Not suitable until critical issues resolved'}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:11px">
         <div>Migration Type: <strong style="color:#0f1115">${migType}</strong></div>
         <div>Estimated Timeline: <strong style="color:#0f1115">${timelineLabel}</strong></div>
@@ -2386,9 +2386,9 @@ function downloadJSON() {
     generated: new Date().toISOString(),
     confidence: document.getElementById('confPct').textContent,
     health_score: document.getElementById('healthNum').textContent,
-    issues: Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => e.textContent),
-    business_rules: Array.from(document.querySelectorAll('#rulesList > div')).map(e => e.textContent.replace(/\s+/g, ' ').trim()),
-    recommended_actions: Array.from(document.querySelectorAll('#suggestList > div')).map(e => e.textContent.trim()),
+    issues: Array.from(document.querySelectorAll('#issueList .issue-title')).map(e =>e.textContent),
+    business_rules: Array.from(document.querySelectorAll('#rulesList >div')).map(e =>e.textContent.replace(/\s+/g, ' ').trim()),
+    recommended_actions: Array.from(document.querySelectorAll('#suggestList >div')).map(e =>e.textContent.trim()),
     migration_impact: {
       fix_time: document.getElementById('impact-time').textContent,
       cost: document.getElementById('impact-cost').textContent,
@@ -2406,7 +2406,7 @@ function downloadJSON() {
 }
 function buildIssues(R) {
   const issues = [];
-  const getText = d => typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
+  const getText = d =>typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
   if (mode === 'ai' && lang !== 'python') {
     issues.push({ sev: 'warning', title: 'AI Migrate selected but not available for this language', desc: 'AI Migrate is currently only available for Python. This file was migrated using Rule-Based migration instead, even though AI Migrate was selected.', tag: 'Migration', tagClass: 'tag-amber', file: null });
   }
@@ -2515,8 +2515,8 @@ async function doApprove() {
   if (validity && validity.migration_ready === false) {
     const issues = [];
     if (!validity.syntax_valid) issues.push('Syntax error: ' + validity.syntax_error);
-    (validity.broken_py3_imports || []).forEach(b => issues.push(`'${b.module}' module does not exist in Python 3 (suggested: ${b.suggested_replacement})`));
-    const proceed = confirm('⚠ Migration Validation Failed:\n\n' + issues.join('\n') + '\n\nThis migrated code will NOT run as-is. Approve anyway? (Not recommended - resolve the issues first)');
+    (validity.broken_py3_imports || []).forEach(b =>issues.push(`'${b.module}' module does not exist in Python 3 (suggested: ${b.suggested_replacement})`));
+    const proceed = confirm(' Migration Validation Failed:\n\n' + issues.join('\n') + '\n\nThis migrated code will NOT run as-is. Approve anyway? (Not recommended - resolve the issues first)');
     if (!proceed) return;
   }
   const fname = files.length ? files[0].name : 'unknown';
@@ -2526,7 +2526,7 @@ async function doApprove() {
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
-      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Approval was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Approval was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
       return;
     }
     sessionApproved++;
@@ -2534,7 +2534,7 @@ async function doApprove() {
     logAuditEntry('APPROVED');
     box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
   } catch (e) {
-    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Approval was NOT saved: network error - ' + e.message + '</div>';
+    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Approval was NOT saved: network error - ' + e.message + '</div>';
   }
 }
 async function doReject() {
@@ -2545,13 +2545,13 @@ async function doReject() {
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
-      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Rejection was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Rejection was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
       return;
     }
     logAuditEntry('REJECTED');
     box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
   } catch (e) {
-    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">⚠ Rejection was NOT saved: network error - ' + e.message + '</div>';
+    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Rejection was NOT saved: network error - ' + e.message + '</div>';
   }
   document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
@@ -2562,10 +2562,10 @@ function downloadMigrationCertificate() {
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
   const critCount = parseInt(document.getElementById('sv-critical')?.textContent || '0', 10) || 0;
-  const rulesCount = document.querySelectorAll('#rulesList > div').length;
+  const rulesCount = document.querySelectorAll('#rulesList >div').length;
   const behavioral = (R && R.behavioral && R.behavioral.behavioral_status) ? R.behavioral.behavioral_status : 'Not Tested';
   const genDate = new Date().toLocaleString();
-  const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escHtml = (s) =>String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const secStatus = critCount === 0 ? 'PASS' : 'REVIEW REQUIRED';
   const secColor = critCount === 0 ? '#16a34a' : '#dc2626';
   const behStatus = behavioral.startsWith('Verified') ? 'PASS' : behavioral === 'Mismatch Detected' ? 'FAIL' : 'NOT TESTED';
@@ -2589,9 +2589,9 @@ function downloadMigrationCertificate() {
   .cert-footer { margin-top: 28px; font-size: 10px; color: #9ca3af; text-align: left; border-top: 1px solid #e5e8ee; padding-top: 16px; }
   .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #1d4ed8; color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; }
 </style></head><body>
-<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
 <div class="cert-box">
-  <div class="cert-badge">🎖️</div>
+  <div class="cert-badge"></div>
   <h1>MIGRATION CERTIFICATE</h1>
   <div class="cert-sub">StarSage Automated Evidence Summary — Generated ${escHtml(genDate)}</div>
   <div class="cert-file">${escHtml(fname)}</div>
@@ -2604,7 +2604,7 @@ function downloadMigrationCertificate() {
     <div class="check-row"><span>Business Rules Preserved</span><span>${rulesCount} rule(s) tracked</span></div>
   </div>
   <div class="cert-footer">
-    This certificate summarizes automated findings from StarSage's static analysis and (where applicable) safe symbolic behavioral verification — it is <b>not</b> a legal or regulatory certification, and does not replace a qualified human reviewer's sign-off. "PASS" indicates no blocking automated finding was detected at generation time, not a guarantee of correctness.
+    This certificate summarizes automated findings from StarSage's static analysis and (where applicable) safe symbolic behavioral verification — it is <b>not</b>a legal or regulatory certification, and does not replace a qualified human reviewer's sign-off. "PASS" indicates no blocking automated finding was detected at generation time, not a guarantee of correctness.
   </div>
 </div>
 </body></html>`;
@@ -2616,14 +2616,14 @@ function downloadComplianceEvidence() {
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
-  const issuesArr = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => e.textContent.trim());
-  const rulesArr = Array.from(document.querySelectorAll('#rulesList > div')).map(e => e.textContent.replace(/\s+/g, ' ').trim());
+  const issuesArr = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e =>e.textContent.trim());
+  const rulesArr = Array.from(document.querySelectorAll('#rulesList >div')).map(e =>e.textContent.replace(/\s+/g, ' ').trim());
   const fixTime = document.getElementById('impact-time').textContent;
   const risk = document.getElementById('impact-risk').textContent;
   const behavioral = (R && R.behavioral && R.behavioral.behavioral_status) ? R.behavioral.behavioral_status : 'Not Tested';
   const behavioralSummary = (R && R.behavioral && R.behavioral.behavioral_summary) ? R.behavioral.behavioral_summary : 'Not run for this file.';
   const genDate = new Date().toLocaleString();
-  const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escHtml = (s) =>String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compliance Evidence Report - ${escHtml(fname)}</title>
 <style>
   @media print { .no-print { display: none; } body { margin: 0; } }
@@ -2640,7 +2640,7 @@ function downloadComplianceEvidence() {
   .disclaimer { margin-top: 40px; padding: 16px; background: #fafbfc; border: 1px solid #e5e8ee; border-radius: 8px; font-size: 11px; color: #6b7280; }
   .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #1d4ed8; color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; }
 </style></head><body>
-<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
 <h1>Compliance Evidence Report</h1>
 <div class="subtitle">StarSage Legacy Code Modernization Platform</div>
 <table class="meta-table">
@@ -2660,7 +2660,7 @@ function downloadComplianceEvidence() {
 <h2>Estimated Remediation Effort</h2>
 <p style="font-size:13px">${escHtml(fixTime)}</p>
 <div class="disclaimer">
-  <b>Evidence Basis:</b> This report is generated from automated static analysis and, where applicable, safe symbolic behavioral verification (no code execution). It documents what StarSage's analysis pipeline detected at the time of generation. It is an evidentiary planning aid for an internal or external audit review — it does not constitute a formal compliance certification. A qualified compliance officer or auditor should review these findings against your institution's specific regulatory obligations before relying on this document.
+  <b>Evidence Basis:</b>This report is generated from automated static analysis and, where applicable, safe symbolic behavioral verification (no code execution). It documents what StarSage's analysis pipeline detected at the time of generation. It is an evidentiary planning aid for an internal or external audit review — it does not constitute a formal compliance certification. A qualified compliance officer or auditor should review these findings against your institution's specific regulatory obligations before relying on this document.
 </div>
 </body></html>`;
   const w = window.open('', '_blank');
@@ -2672,9 +2672,9 @@ function downloadReport() {
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
   const issuesText = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => '- ' + e.textContent).join('\n');
-  const rulesArr = Array.from(document.querySelectorAll('#rulesList > div'));
+  const rulesArr = Array.from(document.querySelectorAll('#rulesList >div'));
   const rulesText = rulesArr.map(e => '- ' + e.textContent.replace(/\s+/g, ' ').trim()).join('\n');
-  const suggestText = Array.from(document.querySelectorAll('#suggestList > div')).map(e => '- ' + e.textContent.trim()).join('\n');
+  const suggestText = Array.from(document.querySelectorAll('#suggestList >div')).map(e => '- ' + e.textContent.trim()).join('\n');
   const fixTime = document.getElementById('impact-time').textContent;
   const fixCost = document.getElementById('impact-cost').textContent;
   const risk = document.getElementById('impact-risk').textContent;
@@ -2724,10 +2724,10 @@ function renderArchDiagram() {
   dia.style.display = 'block';
   const rules = window.lastBusinessRules || [];
   const serviceInfo = services.map(s => {
-    const matched = rules.filter(r => r.service === s);
-    const conf = matched.length ? Math.max(...matched.map(r => r.conf || 0)) : null;
+    const matched = rules.filter(r =>r.service === s);
+    const conf = matched.length ? Math.max(...matched.map(r =>r.conf || 0)) : null;
     const color = conf === null ? '#8b5cf6' : conf >= 70 ? '#22c55e' : conf >= 50 ? '#f59e0b' : '#ef4444';
-    const dot = conf === null ? '' : conf >= 70 ? '🟢 ' : conf >= 50 ? '🟡 ' : '🔴 ';
+    const dot = conf === null ? '' : conf >= 70 ? ' ' : conf >= 50 ? ' ' : ' ';
     return { name: s, matched, conf, color, dot };
   });
   const boxH = 32, gap = 10, startY = 50;
@@ -2753,7 +2753,7 @@ function renderArchDiagram() {
   window.lastArchServiceInfo = serviceInfo;
   const legendDiv = document.createElement('div');
   legendDiv.style.cssText = 'font-size:9px;color:#64748b;margin-top:6px';
-  legendDiv.innerHTML = '🟢 Strong match (≥70%) &nbsp; 🟡 Moderate match (50-69%) &nbsp; 🔴 Weak match (&lt;50%) &nbsp; 🟣 Module-detected (no rule confidence) — click a service box for details';
+  legendDiv.innerHTML = ' Strong match (≥70%) &nbsp; Moderate match (50-69%) &nbsp; Weak match (&lt;50%) &nbsp; Module-detected (no rule confidence) — click a service box for details';
   dia.appendChild(legendDiv);
   window.lastArchSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + totalH + '" viewBox="0 0 520 ' + totalH + '" style="background:#ffffff">' +
     '<rect x="5" y="5" width="200" height="30" rx="6" fill="#f1f4f8" stroke="#3b82f6" stroke-width="1.5"/>' +
@@ -2769,11 +2769,11 @@ function renderArchSuggestions(serviceInfo) {
   if (serviceInfo.length >= 4) {
     suggestions.push('Consider introducing an API Gateway to unify entry points across ' + serviceInfo.length + ' detected services.');
   }
-  const weakCount = serviceInfo.filter(s => s.conf !== null && s.conf < 50).length;
+  const weakCount = serviceInfo.filter(s =>s.conf !== null && s.conf < 50).length;
   if (weakCount > 0) {
     suggestions.push('Manually review ' + weakCount + ' service boundary(ies) with weak rule-confidence (<50%) before splitting - the detected mapping may be imprecise.');
   }
-  const moduleOnly = serviceInfo.filter(s => s.conf === null).length;
+  const moduleOnly = serviceInfo.filter(s =>s.conf === null).length;
   if (moduleOnly > 0) {
     suggestions.push(moduleOnly + ' service(s) were detected via banking-module pattern matching only (no specific business rule matched) - verify these boundaries manually.');
   }
@@ -2801,14 +2801,14 @@ function showArchGlobalSummary() {
     return d;
   })();
   const info = window.lastArchServiceInfo || [];
-  const strongCount = info.filter(s => s.conf !== null && s.conf >= 70).length;
-  const moderateCount = info.filter(s => s.conf !== null && s.conf >= 50 && s.conf < 70).length;
-  const weakCount = info.filter(s => s.conf !== null && s.conf < 50).length;
+  const strongCount = info.filter(s =>s.conf !== null && s.conf >= 70).length;
+  const moderateCount = info.filter(s =>s.conf !== null && s.conf >= 50 && s.conf < 70).length;
+  const weakCount = info.filter(s =>s.conf !== null && s.conf < 50).length;
   detailDiv.style.borderColor = '#3b82f6';
   detailDiv.innerHTML = '<div style="font-size:12px;font-weight:700;color:#1d4ed8">Global System Summary</div>' +
     '<div style="font-size:10px;color:#e2e8f0;margin-top:6px">Total Services Detected: <span style="color:#7c3aed;font-weight:600">' + info.length + '</span></div>' +
     '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Target Architecture: <span style="color:#7c3aed;font-weight:600">Microservices (from Monolith)</span></div>' +
-    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Confidence Breakdown: 🟢 ' + strongCount + ' strong &nbsp; 🟡 ' + moderateCount + ' moderate &nbsp; 🔴 ' + weakCount + ' weak</div>' +
+    '<div style="font-size:10px;color:#e2e8f0;margin-top:2px">Confidence Breakdown: ' + strongCount + ' strong &nbsp; ' + moderateCount + ' moderate &nbsp; ' + weakCount + ' weak</div>' +
     '<div style="font-size:9px;color:#64748b;margin-top:6px">Click any service box above for detailed breakdown.</div>';
 }
 function showArchServiceDetail(idx) {
@@ -2972,14 +2972,14 @@ async function runPakistanBankingSuite(btnEl) {
     html += '<div style="display:flex;flex-direction:column;gap:6px">';
     (d.checks || []).forEach(c => {
       const badgeColor = c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
-      const badgeText = c.passed === true ? '✓ Static Check Passed' : c.passed === false ? '⚠ REVIEW NEEDED' : '— N/A';
+      const badgeText = c.passed === true ? '✓ Static Check Passed' : c.passed === false ? ' REVIEW NEEDED' : '— N/A';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
         '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name) + '</span>' +
         '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>';
     });
     html += '</div><div style="margin-top:10px;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml(d.disclaimer || '') + '</div>';
     result.innerHTML = html;
-    if (btnEl) { btnEl.innerHTML = '🇵🇰 Run Pakistan Banking Compliance Suite (8 checks in 1 click) <span style="color:#a7f3d0">✓</span>'; }
+    if (btnEl) { btnEl.innerHTML = ' Run Pakistan Banking Compliance Suite (8 checks in 1 click) <span style="color:#a7f3d0">✓</span>'; }
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Pakistan Banking Suite failed: ' + e.message;
   }
@@ -3102,25 +3102,25 @@ function renderD3DependencyGraph(d, container) {
   const svg = d3.select('#depGraphSvg');
   svg.append('defs').append('marker').attr('id', 'arrow').attr('viewBox', '0 -5 10 10').attr('refX', 18).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto').append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#c2c9d4');
   const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(nd => nd.id).distance(70))
+    .force('link', d3.forceLink(links).id(nd =>nd.id).distance(70))
     .force('charge', d3.forceManyBody().strength(-180))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collide', d3.forceCollide(24));
   const link = svg.append('g').selectAll('line').data(links).join('line').attr('stroke', '#c2c9d4').attr('stroke-width', 1.5).attr('marker-end', 'url(#arrow)');
   const node = svg.append('g').selectAll('circle').data(nodes).join('circle')
     .attr('r', nd => 8 + Math.min(nd.dependents || 0, 6))
-    .attr('fill', nd => riskColor[nd.risk] || '#3b82f6')
+    .attr('fill', nd =>riskColor[nd.risk] || '#3b82f6')
     .attr('stroke', '#fff').attr('stroke-width', 1.5)
     .style('cursor', 'pointer')
     .call(d3.drag().on('start', (ev, nd) => { if (!ev.active) sim.alphaTarget(0.3).restart(); nd.fx = nd.x; nd.fy = nd.y; })
       .on('drag', (ev, nd) => { nd.fx = ev.x; nd.fy = ev.y; })
       .on('end', (ev, nd) => { if (!ev.active) sim.alphaTarget(0); nd.fx = null; nd.fy = null; }))
     .on('click', (ev, nd) => { document.getElementById('depGraphNodeDetail').innerHTML = '<b>' + escapeHtml(nd.id) + '</b> — ' + escapeHtml(nd.type) + ', risk: <span style="color:' + (riskColor[nd.risk] || '#3b82f6') + '">' + escapeHtml(nd.risk) + '</span>, ' + nd.dependents + ' dependent(s)'; });
-  const labels = svg.append('g').selectAll('text').data(nodes).join('text').text(nd => nd.id).attr('font-size', 9).attr('fill', '#4b5563').attr('dx', 10).attr('dy', 3);
+  const labels = svg.append('g').selectAll('text').data(nodes).join('text').text(nd =>nd.id).attr('font-size', 9).attr('fill', '#4b5563').attr('dx', 10).attr('dy', 3);
   sim.on('tick', () => {
-    link.attr('x1', l => l.source.x).attr('y1', l => l.source.y).attr('x2', l => l.target.x).attr('y2', l => l.target.y);
-    node.attr('cx', nd => nd.x).attr('cy', nd => nd.y);
-    labels.attr('x', nd => nd.x).attr('y', nd => nd.y);
+    link.attr('x1', l =>l.source.x).attr('y1', l =>l.source.y).attr('x2', l =>l.target.x).attr('y2', l =>l.target.y);
+    node.attr('cx', nd =>nd.x).attr('cy', nd =>nd.y);
+    labels.attr('x', nd =>nd.x).attr('y', nd =>nd.y);
   });
 }
 function renderCodeHeatmap(d, container) {
@@ -3182,7 +3182,7 @@ function renderValue(v) {
     return v.length
       ? '<div style="display:flex;flex-direction:column;gap:3px">' +
         v.map(x => '<div style="font-size:11px;color:#e2e8f0">• ' +
-          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) => escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : String(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
+          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) =>escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : String(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
       : '<span style="color:#4b5563">None</span>';
   }
   if (v && typeof v === 'object') {
@@ -3205,7 +3205,7 @@ function formatGenericResult(d, label) {
   let confKey = keys.find(k => /confidence|score/i.test(k) && (typeof d[k] === 'number' || typeof d[k] === 'string'));
   let codeKey = keys.find(k => /_code$/i.test(k) && typeof d[k] === 'string' && d[k].length > 40);
   if (!detectedKey && !findingsKey && !summaryKey) {
-    const relevantKeys = keys.filter(k => k !== 'filename' && k !== codeKey);
+    const relevantKeys = keys.filter(k =>k !== 'filename' && k !== codeKey);
     let codeBlock = '';
     if (codeKey) {
       const escCode = d[codeKey].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -3230,27 +3230,27 @@ function formatGenericResult(d, label) {
   } else {
     isPositive = null;
   }
-  const statusIcon = isPositive === null ? 'ℹ️' : isPositive ? '🟢' : '🔴';
+  const statusIcon = isPositive === null ? 'ℹ' : isPositive ? '' : '';
   const statusText = isPositive === null ? 'Result' : isPositive ? 'Low Risk' : (riskKey ? d[riskKey] + ' Risk' : 'Findings Detected');
   let html = '<div style="display:flex;flex-direction:column;gap:10px">';
   html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + statusText + '</span>' + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + d[confKey] + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
   if (findingsKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
     if (d[findingsKey].length === 0) {
-      html += '<div style="font-size:11px;color:#4b5563">✅ ' + (summaryKey && d[summaryKey] ? escapeHtml(d[summaryKey]) : 'No issues found by this check.') + '</div>';
+      html += '<div style="font-size:11px;color:#4b5563"> ' + (summaryKey && d[summaryKey] ? escapeHtml(d[summaryKey]) : 'No issues found by this check.') + '</div>';
     } else {
       html += '<div style="display:flex;flex-direction:column;gap:6px">' + d[findingsKey].map(f => {
-      if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + f + '</div>';
+      if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0"> ' + f + '</div>';
       if (typeof f === 'object' && f !== null) {
         const fKeys = Object.keys(f);
         const title = f.issue || f.title || f.name || 'Finding';
-        const rest = fKeys.filter(k => f[k] !== title);
+        const rest = fKeys.filter(k =>f[k] !== title);
         return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:2px solid #f59e0b">' +
-          '<div style="font-weight:600;margin-bottom:3px">⚠ ' + title + '</div>' +
+          '<div style="font-weight:600;margin-bottom:3px"> ' + title + '</div>' +
           rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + f[k] + '</span></div>').join('') +
         '</div>';
       }
-      return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + JSON.stringify(f) + '</div>';
+      return '<div style="font-size:11px;color:#e2e8f0"> ' + JSON.stringify(f) + '</div>';
     }).join('') + '</div>';
     }
   }
@@ -3261,8 +3261,8 @@ function formatGenericResult(d, label) {
     let _dnaHeader = '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:8px">Dimension Breakdown</div>';
     if (d.dna_strongest_area || d.dna_weakest_area) {
       _dnaHeader += '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">';
-      if (d.dna_strongest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(34,197,94,0.15);color:#22c55e;padding:3px 8px;border-radius:10px">💪 Strongest: ' + escapeHtml(String(d.dna_strongest_area)) + '</span>';
-      if (d.dna_weakest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(239,68,68,0.15);color:#ef4444;padding:3px 8px;border-radius:10px">⚠ Weakest: ' + escapeHtml(String(d.dna_weakest_area)) + '</span>';
+      if (d.dna_strongest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(34,197,94,0.15);color:#22c55e;padding:3px 8px;border-radius:10px">Strongest: ' + escapeHtml(String(d.dna_strongest_area)) + '</span>';
+      if (d.dna_weakest_area) _dnaHeader += '<span style="font-size:10px;background:rgba(239,68,68,0.15);color:#ef4444;padding:3px 8px;border-radius:10px">Weakest: ' + escapeHtml(String(d.dna_weakest_area)) + '</span>';
       _dnaHeader += '</div>';
     }
     html += _dnaHeader + '<div style="margin-top:6px">';
@@ -3397,7 +3397,7 @@ async function runBehaviorTest() {
     const d = await r.json();
     if (d.error) { resultBox.innerHTML = '<div style="font-size:11px;color:#ef4444">Error: ' + escapeHtml(d.error) + '</div>'; return; }
     const matchColor = d.match === true ? '#22c55e' : d.match === false ? '#ef4444' : '#64748b';
-    const matchIcon = d.match === true ? '✅' : d.match === false ? '⚠️' : 'ℹ️';
+    const matchIcon = d.match === true ? '' : d.match === false ? '' : 'ℹ';
     resultBox.innerHTML = `
       <div style="font-size:12px;font-weight:600;color:${matchColor};margin-bottom:8px">${matchIcon} ${escapeHtml(d.verdict || '')}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:10px">
@@ -3482,9 +3482,9 @@ async function scanRepo() {
     let out = (d.summary || d.message || ('Scanned ' + (d.files_scanned || d.total_files_found || '?') + ' files')) + '\n\n';
     if (d.repo_business_domains && Object.keys(d.repo_business_domains).length > 0) {
       const _domainCount = Object.keys(d.repo_business_domains).length;
-      const _ruleCount = Object.values(d.repo_business_domains).reduce((a, b) => a + b, 0);
+      const _ruleCount = Object.values(d.repo_business_domains).reduce((a, b) =>a + b, 0);
       out += `--- Repo-Wide Business Intelligence ---\n${_domainCount} business domain(s) detected across ${_ruleCount} total rule(s):\n`;
-      Object.entries(d.repo_business_domains).sort((a, b) => b[1] - a[1]).forEach(([domain, count]) => { out += `  ${domain}: ${count}\n`; });
+      Object.entries(d.repo_business_domains).sort((a, b) =>b[1] - a[1]).forEach(([domain, count]) => { out += `  ${domain}: ${count}\n`; });
       out += '\n';
     }
     if (d.file_reports && Array.isArray(d.file_reports)) {
@@ -3498,7 +3498,7 @@ async function scanRepo() {
       out += '\n--- Skipped Files ---\n';
       d.skipped_files.forEach(s => { out += (s.file || '?') + ' - ' + (s.reason || 'skipped') + '\n'; });
     }
-    if (d.warning) { out += '\n⚠ ' + d.warning + '\n'; }
+    if (d.warning) { out += '\n ' + d.warning + '\n'; }
     box.innerHTML = '';
     box.style.whiteSpace = 'pre-wrap';
     box.textContent = out;
@@ -3513,7 +3513,7 @@ function renderRepoDepGraph(edges, container) {
   const nodeSet = new Set();
   edges.forEach(e => { nodeSet.add(e.from); nodeSet.add(e.to); });
   const nodes = Array.from(nodeSet);
-  const shortName = n => n.split('/').pop();
+  const shortName = n =>n.split('/').pop();
   const cols = Math.min(4, nodes.length) || 1;
   const rows = Math.ceil(nodes.length / cols);
   const cellW = 170, cellH = 70, padX = 20, padY = 30;
@@ -3553,14 +3553,14 @@ async function viewCommitHistory() {
     if (d.error) { box.innerHTML = '<div style="font-size:11px;color:#ef4444">Error: ' + escapeHtml(d.error) + '</div>'; return; }
     let html = '';
     if (d.history_summary) html += '<div style="font-size:12px;font-weight:600;color:#0f1115;margin-bottom:8px">' + escapeHtml(d.history_summary) + '</div>';
-    if (d.hotspot_note) html += '<div style="font-size:11px;color:#f59e0b;margin-bottom:8px">⚠ ' + escapeHtml(d.hotspot_note) + '</div>';
+    if (d.hotspot_note) html += '<div style="font-size:11px;color:#f59e0b;margin-bottom:8px"> ' + escapeHtml(d.hotspot_note) + '</div>';
     if (d.top_authors && d.top_authors.length) {
       html += '<div style="font-size:10px;color:#64748b;margin-bottom:4px">Top Contributors</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
       d.top_authors.forEach(a => { html += '<span style="font-size:10px;padding:3px 8px;background:#f1f4f8;border-radius:10px;color:#e2e8f0">' + escapeHtml(a.name) + ' (' + a.commits + ')</span>'; });
       html += '</div>';
     }
     if (d.commit_trend && d.commit_trend.length > 1) {
-      const _maxTrendCommits = Math.max(...d.commit_trend.map(t => t.commits));
+      const _maxTrendCommits = Math.max(...d.commit_trend.map(t =>t.commits));
       html += '<div style="font-size:10px;color:#64748b;margin-bottom:6px">Commit Activity by Month</div><div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-bottom:10px;padding:0 2px">';
       d.commit_trend.forEach(t => {
         const _barHeightPct = Math.max(8, Math.round((t.commits / _maxTrendCommits) * 100));
