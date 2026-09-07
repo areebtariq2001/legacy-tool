@@ -6055,6 +6055,70 @@ async def risk_radar_with_logs_endpoint(file: UploadFile = File(...), log_file: 
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk radar with logs failed safely: " + str(e)})
 
+def check_roundtrip_transaction_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _txn_pattern = re.compile(r"(?i)(transfer|remit|disburs)(?!.?(time|id|type|status|date|hour|history|report|log))")
+    _roundtrip_pattern = re.compile(r"(?i)(round.?trip|circular.?transfer|previous.?recipient|reverse.?transfer|same.?pair|recent.?transfer.?check)")
+    _check_patterns = [
+        ("roundtrip", _roundtrip_pattern, "MISSING CONTROL (not a detected anomaly): This function has no round-trip/circular-transfer detection logic - it does not check whether funds are being sent back to a recent sender (A-to-B-to-A pattern), a classic AML red flag. No malicious pattern was found in this code - this is a recommendation to ADD a control."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Round-trip transaction analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No transfer-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for round-trip/circular-transaction detection logic near transfer functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transfer function(s) with no round-trip detection control found.", "disclaimer": "Pattern-based function-scope check only - looks for round-trip/circular-transfer detection keywords near transfer functions. IMPORTANT: A PASS here means a plausibly-named control EXISTS with the relevant keyword - it does NOT mean the tool executed or verified that the logic correctly detects round-trip patterns. This tool performs static pattern analysis only; it cannot run the code. A qualified AML compliance officer must review flagged functions AND manually verify the actual logic of any passing control functions."}
+
+@app.post("/roundtrip-transaction-check")
+async def roundtrip_transaction_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_roundtrip_transaction_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("roundtrip-transaction-check", file.filename)
+        write_audit_log("roundtrip-transaction-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Round-trip transaction check failed safely: " + str(e)})
+
+def check_digital_signature_verification(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _sig_pattern = re.compile(r"(?i)(signature|signed.?data|signed.?payload|signed.?message)(?!.?(time|id|type|status|date))")
+    _verify_pattern = re.compile(r"(?i)(verify.?signature|check.?signature|signature.?valid|validate.?signature|verify\(|\.verify\b)")
+    _check_patterns = [
+        ("verify", _verify_pattern, "MISSING CONTROL (not a detected vulnerability): This function handles signature/signed data but has no signature-verification call detected - accepting signed data without verifying it defeats the purpose of digital signatures. No malicious pattern was found in this code - this is a recommendation to ADD verification."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _sig_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Digital signature verification analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No signature-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for digital-signature verification logic near signature-handling functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " signature-handling function(s) with no verification call found.", "disclaimer": "Pattern-based function-scope check only - looks for signature-verification keywords/calls near functions that reference signature/signed data. IMPORTANT: A PASS here means a plausibly-named verification call EXISTS - it does NOT mean the tool executed or verified that verification is cryptographically correct or actually enforced (e.g. that failure to verify actually rejects the request). This tool performs static pattern analysis only; it cannot run the code. A qualified security engineer must review flagged functions AND manually verify the actual logic of any passing functions."}
+
+@app.post("/digital-signature-check")
+async def digital_signature_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_digital_signature_verification(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("digital-signature-check", file.filename)
+        write_audit_log("digital-signature-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital signature check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
