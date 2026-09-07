@@ -3237,7 +3237,7 @@ function formatGenericResult(d, label) {
   if (findingsKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
     if (d[findingsKey].length === 0) {
-      html += '<div style="font-size:11px;color:#4b5563">✅ No vendor-specific or risk components detected.</div>';
+      html += '<div style="font-size:11px;color:#4b5563">✅ ' + (summaryKey && d[summaryKey] ? escapeHtml(d[summaryKey]) : 'No issues found by this check.') + '</div>';
     } else {
       html += '<div style="display:flex;flex-direction:column;gap:6px">' + d[findingsKey].map(f => {
       if (typeof f === 'string') return '<div style="font-size:11px;color:#e2e8f0">⚠ ' + f + '</div>';
