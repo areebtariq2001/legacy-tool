@@ -1108,6 +1108,12 @@ async function runAnalysisOrBatch() {
 }
 async function runAnalysis() {
   if (!files.length) return;
+  document.querySelectorAll('.adv-check-btn').forEach(b => {
+    if (!b.dataset.originalHtml) b.dataset.originalHtml = b.innerHTML;
+    delete b.dataset.ran;
+    b.classList.remove('adv-active');
+    b.innerHTML = b.dataset.originalHtml;
+  });
   const code = await files[0].text();
   const fname = files[0].name;
   if (!code || !code.trim()) {
@@ -2046,7 +2052,7 @@ function renderBusinessRuleSpec(code, lang) {
         searchEnd = Math.min(lines.length - 1, lineIdx + 30);
       }
     }
-    const paraBody = lines.slice(searchStart, searchEnd + 1).join('\n');
+    const paraBody = lines.slice(searchStart, searchEnd + 1).filter(l => !l.trim().startsWith(isCobol ? '*' : '#')).join('\n');
     const varPattern = isCobol ? /\bWS-[\w-]+\b/g : /\b[a-z_][a-zA-Z0-9_]{2,}\b/g;
     const jsKeywords = new Set(['def','function','return','if','else','elif','for','while','import','from','class','public','private','protected','static','void','int','string','const','let','var','true','false','none','null','self','this']);
     let varsFound = Array.from(new Set((paraBody.match(varPattern) || [])));
