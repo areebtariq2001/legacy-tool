@@ -546,6 +546,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/migration-plan','Migration Plan', this)">📋 Migration Plan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Deadline Cost" style="padding:7px 4px;font-size:10px" onclick="runDeadlineCostCalc(this)">⚖️ Deadline Cost</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Data Lineage" style="padding:7px 4px;font-size:10px" onclick="runDataLineage(this)">🔗 Data Lineage</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Runtime Signal" style="padding:7px 4px;font-size:10px" onclick="triggerRuntimeSignalUpload(this)">📊 Runtime Signal</button>
+                <input type="file" id="logFileInput" style="display:none" onchange="if(this.files[0]) runRiskRadarWithLogs(this.files[0])">
                 <button class="btn btn-ghost adv-check-btn" data-label="Dep. File CVE" style="padding:7px 4px;font-size:10px" onclick="document.getElementById('depFileInput').click()">📦 Dep. File CVE</button>
                 <input type="file" id="depFileInput" style="display:none" accept=".txt,.json" onchange="runDepFileScan(this)">
               </div>
@@ -567,6 +569,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="JWT/OAuth Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/jwt-oauth-security-scan','JWT/OAuth Scan', this)">🔑 JWT/OAuth Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Device FP" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/device-fingerprint-check','Device FP', this)">📱 Device FP</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="High-Value Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/high-value-threshold-check','High-Value Check', this)">💰 High-Value Check</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Cert Pinning" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/certificate-pinning-check','Cert Pinning', this)">🔒 Cert Pinning</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Fraud Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check', this)">Fraud Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
@@ -3048,6 +3051,33 @@ async function runGenericScan(endpoint, label, btnEl) {
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = label + ' failed: ' + e.message;
+    if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+  }
+}
+function triggerRuntimeSignalUpload(btnEl) {
+  if (!files.length) { alert('Upload your source-code file first.'); return; }
+  window._runtimeSignalBtn = btnEl;
+  document.getElementById('logFileInput').click();
+}
+async function runRiskRadarWithLogs(logFile) {
+  const btnEl = window._runtimeSignalBtn;
+  const loading = document.getElementById('advLoading');
+  const result = document.getElementById('advResult');
+  document.getElementById('advTitle').textContent = 'Runtime Signal Lite Result';
+  loading.style.display = 'block'; result.style.display = 'none';
+  document.querySelectorAll('.adv-check-btn').forEach(b => { if (b !== btnEl) b.classList.remove('adv-active'); });
+  try {
+    const fd = new FormData();
+    fd.append('file', files[0]);
+    fd.append('log_file', logFile);
+    const r = await fetch(BACKEND + '/risk-radar-with-logs', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
+    loading.style.display = 'none'; result.style.display = 'block';
+    result.innerHTML = formatGenericResult(d, 'Runtime Signal Lite');
+    if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+  } catch (e) {
+    loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Runtime Signal Lite failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
   }
 }
