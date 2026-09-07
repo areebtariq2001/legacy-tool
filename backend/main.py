@@ -5803,7 +5803,7 @@ async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Pakistan Banking Suite failed safely: " + str(e)})
 
-def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, check_patterns):
+def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, check_patterns, context_filter=None):
     if not filename.lower().endswith(".py"):
         return {"supported": False, "functions_found": 0, "findings": []}
     try:
@@ -5817,6 +5817,8 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
             func_source = ast.get_source_segment(source, node) or ""
             _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
             if not keyword_pattern.search(_code_only):
+                continue
+            if context_filter is not None and not context_filter(func_source):
                 continue
             functions_found += 1
             issues = []
@@ -6063,7 +6065,7 @@ def check_roundtrip_transaction_logic(source, filename):
     _check_patterns = [
         ("roundtrip", _roundtrip_pattern, "MISSING CONTROL (not a detected anomaly): This function has no round-trip/circular-transfer detection logic - it does not check whether funds are being sent back to a recent sender (A-to-B-to-A pattern), a classic AML red flag. No malicious pattern was found in this code - this is a recommendation to ADD a control."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Round-trip transaction analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
     findings = _scan_result["findings"]
@@ -6095,7 +6097,7 @@ def check_digital_signature_verification(source, filename):
     _check_patterns = [
         ("verify", _verify_pattern, "MISSING CONTROL (not a detected vulnerability): This function handles signature/signed data but has no signature-verification call detected - accepting signed data without verifying it defeats the purpose of digital signatures. No malicious pattern was found in this code - this is a recommendation to ADD verification."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _sig_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _sig_pattern, _check_patterns, context_filter=_has_crypto_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Digital signature verification analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
     findings = _scan_result["findings"]
@@ -6118,6 +6120,14 @@ async def digital_signature_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital signature check failed safely: " + str(e)})
+
+def _has_financial_context(func_source):
+    _financial_context_pattern = re.compile(r"(?i)\b(amount|balance|account|currency|money|fund|principal|payee|payer|beneficiary|iban|swift)\b")
+    return bool(_financial_context_pattern.search(func_source))
+
+def _has_crypto_context(func_source):
+    _crypto_context_pattern = re.compile(r"(?i)\b(crypto|hash|hmac|rsa|certificate|cert|public_key|private_key|digest|pkcs|x509|ecdsa)\b")
+    return bool(_crypto_context_pattern.search(func_source))
 
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
