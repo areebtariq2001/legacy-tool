@@ -5617,7 +5617,8 @@ def check_structuring_patterns(source, filename):
     _sensitive_functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name)]
     _multi_transaction_evidence = len(_sensitive_functions) >= 2
     _velocity_control_func_pattern = re.compile(r"(?i)(structur|smurf|velocity.?check|check.*velocity)")
-    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) for n in ast.walk(tree))
+    _velocity_body_signal_pattern = re.compile(r"(>=|<=|>|<|==|\+=)")
+    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) and _velocity_body_signal_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
     findings = []
     for node in _sensitive_functions:
         func_source = ast.get_source_segment(source, node) or ""
@@ -5633,7 +5634,7 @@ def check_structuring_patterns(source, filename):
         if issues:
             findings.append({"function": node.name, "line": node.lineno, "issues": issues})
     _skip_note = "" if _multi_transaction_evidence or len(_sensitive_functions) == 0 else " (Velocity-control check skipped: only 1 transaction-related function found in this file - structuring requires evidence of multiple transactions, which a single-function file cannot demonstrate.)"
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) flagged." + _skip_note, "disclaimer": "Pattern-based structural check only. Does NOT perform actual AML structuring detection (requires transaction-history analysis, not static code review), does not verify real threshold values, cannot determine intent. A qualified AML compliance officer must review flagged functions."}
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) flagged." + _skip_note, "disclaimer": "Pattern-based structural check only. Does NOT perform actual AML structuring detection (requires transaction-history analysis, not static code review), does not verify real threshold values, cannot determine intent. IMPORTANT: A PASS here means a plausibly-named control function EXISTS with genuine comparison logic - it does NOT mean the tool executed or verified that this function correctly detects structuring patterns. This tool performs static pattern analysis only; it cannot run the code. A qualified AML compliance officer must review flagged functions AND manually verify the actual logic of any passing control functions."}
 
 @app.post("/structuring-pattern-check")
 async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
@@ -5700,7 +5701,8 @@ def check_unusual_hours_flag(source, filename):
     _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     _time_control_func_pattern = re.compile(r"(?i)(check.*hour|hour.*check|unusual.?hour|time.?of.?day|transaction.?time)")
-    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) for n in ast.walk(tree))
+    _comparison_op_pattern = re.compile(r"(>=|<=|>|<|==)\s*\d")
+    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) and _comparison_op_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
     findings = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
@@ -5710,7 +5712,7 @@ def check_unusual_hours_flag(source, filename):
             has_time_check = bool(_time_check_pattern.search(_code_only)) or _file_has_dedicated_time_control
             if not has_time_check:
                 findings.append({"function": node.name, "line": node.lineno, "issue": "MISSING CONTROL (not a detected anomaly): This function has no time-of-day check - it does not flag transactions outside normal banking hours. No unusual-hours activity was found in this code - this is a recommendation to ADD a control."})
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) with no unusual-hours check detected.", "disclaimer": "Pattern-based structural check only - looks for time-of-day/hour-related keywords near transaction functions. Does not verify actual runtime behavior or determine what counts as unusual for your institution actual customer base. A qualified fraud/TMS analyst must review flagged functions."}
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " transaction function(s) with no unusual-hours check detected.", "disclaimer": "Pattern-based structural check only - looks for time-of-day/hour-related keywords near transaction functions, or a dedicated control function with hour-comparison logic anywhere in the file. IMPORTANT: A PASS here means a plausibly-named control function EXISTS with genuine comparison logic - it does NOT mean the tool executed or verified that this function correctly implements hour-checking behavior (e.g. that it actually flags the right hours or returns the right value). This tool performs static pattern analysis only; it cannot run the code. A qualified fraud/TMS analyst must review flagged functions AND manually verify the actual logic of any passing control functions."}
 
 @app.post("/unusual-hours-check")
 async def unusual_hours_check_endpoint(file: UploadFile = File(...)):
@@ -5833,7 +5835,8 @@ def check_geo_anomaly_detection(source, filename):
     _txn_pattern = re.compile(r"(?i)(transfer|withdraw|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel|cross.?border)")
     _geo_control_func_pattern = re.compile(r"(?i)(check.*geo|geo.*check|geo.?location|cross.?border|location.?check)")
-    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) for n in ast.walk(tree))
+    _geo_body_signal_pattern = re.compile(r"(?i)(!=|==|not\s+in|in\s+\[)")
+    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) and _geo_body_signal_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
     findings = []
     functions_found = 0
     for node in ast.walk(tree):
@@ -5846,7 +5849,7 @@ def check_geo_anomaly_detection(source, filename):
                 findings.append({"function": node.name, "line": node.lineno, "issue": "MISSING CONTROL (not a detected anomaly): This function has no geo-location/IP check - it does not flag transactions from unexpected locations. No geo-anomaly activity was found in this code - this is a recommendation to ADD a control."})
     if functions_found == 0:
         return {"checked": True, "findings": [], "total_findings": 0, "summary": "No transaction/login-related functions detected in this file.", "disclaimer": "Pattern-based function-scope check for geo-location/IP anomaly detection near transaction and login functions."}
-    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction/login function(s) with no geo-anomaly check detected.", "disclaimer": "Pattern-based function-scope check only - looks for geo-location/IP-related keywords near transaction and login functions, and checks the whole file for a dedicated geo-check function. Does not verify actual runtime behavior. A qualified fraud/TMS analyst must review flagged functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " transaction/login function(s) with no geo-anomaly check detected.", "disclaimer": "Pattern-based function-scope check only - looks for geo-location/IP-related keywords near transaction and login functions, and checks the whole file for a dedicated geo-check function with genuine comparison logic. IMPORTANT: A PASS here means a plausibly-named control function EXISTS - it does NOT mean the tool executed or verified that this function correctly implements geo-anomaly detection. This tool performs static pattern analysis only; it cannot run the code. A qualified fraud/TMS analyst must review flagged functions AND manually verify the actual logic of any passing control functions."}
 
 @app.post("/geo-anomaly-check")
 async def geo_anomaly_check_endpoint(file: UploadFile = File(...)):
