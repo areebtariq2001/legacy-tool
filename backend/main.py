@@ -238,10 +238,10 @@ COBOL_WHY_RULES = [
 def get_why_explanations(original_source, language="python"):
     explanations = []
     if language == "python":
-        if "print " in original_source and not "print(" in original_source.split("print ")[0][-5:]:
+        if re.search(r"\bprint\s+[^(]", original_source):
             explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
         for keyword, reason in WHY_RULES:
-            if keyword in original_source:
+            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "java":
         for keyword, reason in JAVA_WHY_RULES:
@@ -275,7 +275,7 @@ DEPENDENCY_RULES = [
 def check_dependencies(source):
     deps = []
     for keyword, note in DEPENDENCY_RULES:
-        if keyword in source:
+        if re.search(r"\b" + re.escape(keyword) + r"\b", source):
             deps.append(note)
     return deps
 
@@ -415,6 +415,8 @@ def calculate_tech_debt(source, filename=""):
         elif _comp["complexity_level"] == "Moderate complexity" and debt_score < 15:
             debt_score = MIN_SCORE_MODERATE_COMPLEXITY
         if _comp["complexity_level"] in ["High complexity", "Very high complexity", "Moderate complexity"] and total_minutes < 60:
+            _overhead_minutes = MIN_MINUTES_IF_COMPLEX - total_minutes
+            items.append({"issue": "Complexity-based review overhead (no specific legacy pattern found, but code complexity itself needs review time)", "occurrences": 1, "minutes_each": _overhead_minutes, "estimated_minutes": _overhead_minutes})
             total_minutes = max(total_minutes, MIN_MINUTES_IF_COMPLEX)
     except Exception as e:
         print("Warning: complexity calculation failed in calculate_tech_debt: " + str(e))
