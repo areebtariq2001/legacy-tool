@@ -48,7 +48,7 @@ def _get_client_ip(request):
     if _xff:
         _parts = [p.strip() for p in _xff.split(",") if p.strip()]
         if _parts:
-            return _parts[-1]
+            return _parts[0]
     return request.client.host if request.client else "unknown"
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -3243,7 +3243,8 @@ def process_github_webhook(payload):
         repo_name = payload.get("repository", {}).get("full_name", "unknown")
         pusher = payload.get("pusher", {}).get("name", "") or payload.get("sender", {}).get("login", "unknown")
         _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
-        _is_pr_event = "pull_request" in payload and payload.get("action") in ("opened", "synchronize", "reopened")
+        _payload_is_pr = "pull_request" in payload
+        _is_pr_event = _payload_is_pr and payload.get("action") in ("opened", "synchronize", "reopened")
         if not re.match(r"^[\w\-\.]+/[\w\-\.]+$", repo_name):
             return {"error": "Invalid or missing repository name in webhook payload"}
         if _is_pr_event:
@@ -3274,7 +3275,7 @@ def process_github_webhook(payload):
                     if f.lower().endswith(_lang_exts):
                         changed_files.add(f)
         if not changed_files:
-            return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": 0, "results": [], "webhook_summary": "No supported files (.py, .java, .php, .cbl) changed in this " + ("pull request" if _is_pr_event else "push") + " - nothing to scan."}
+            return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": 0, "results": [], "webhook_summary": "No supported files (.py, .java, .php, .cbl) changed, or this event type/action is not scanned (only opened/synchronize/reopened pull_request actions and push events are scanned)." if _payload_is_pr and not _is_pr_event else "No supported files (.py, .java, .php, .cbl) changed in this " + ("pull request" if _is_pr_event else "push") + " - nothing to scan."}
         if not _is_pr_event:
             if ref and ref.startswith("refs/heads/"):
                 branch = ref[len("refs/heads/"):]
@@ -5611,7 +5612,7 @@ def check_structuring_patterns(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
-    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|transaction|disburs)(?!.?(time|id|type|status|date|hour))")
+    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|remit|disburs)(?!.?(time|id|type|status|date|hour|history|report|log))")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
     _sensitive_functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name)]
@@ -5783,8 +5784,9 @@ def run_pakistan_banking_suite(source, filename):
         checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
     passed_count = sum(1 for c2 in checks if c2["passed"] is True)
     total_count = len(checks)
+    applicable_count = sum(1 for c2 in checks if c2["passed"] is not None)
     flagged = [c2["name"] for c2 in checks if c2["passed"] is False]
-    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(total_count) + " checks passed" + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found across all checks"), "disclaimer": "Combined summary of 8 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours, Geo-Anomaly Detection). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. Some AST-based checks only support Python files - see per-check language_supported flag. See individual check results for details."}
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "applicable_count": applicable_count, "not_applicable_count": total_count - applicable_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(total_count - applicable_count) + " not applicable to this file type)") if applicable_count != total_count else "") + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found among applicable checks"), "disclaimer": "Combined summary of 8 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours, Geo-Anomaly Detection). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. Some AST-based checks only support Python files - see per-check language_supported flag. See individual check results for details."}
 
 @app.post("/pakistan-banking-suite")
 async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
