@@ -5618,7 +5618,8 @@ def check_structuring_patterns(source, filename):
     _multi_transaction_evidence = len(_sensitive_functions) >= 2
     _velocity_control_func_pattern = re.compile(r"(?i)(structur|smurf|velocity.?check|check.*velocity)")
     _velocity_body_signal_pattern = re.compile(r"(>=|<=|>|<|==|\+=)")
-    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) and _velocity_body_signal_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
+    _velocity_flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|structur|smurf)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|structur|smurf)")
+    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) and (_velocity_body_signal_pattern.search(ast.get_source_segment(source, n) or "") or _velocity_flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
     findings = []
     for node in _sensitive_functions:
         func_source = ast.get_source_segment(source, node) or ""
@@ -5702,7 +5703,8 @@ def check_unusual_hours_flag(source, filename):
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     _time_control_func_pattern = re.compile(r"(?i)(check.*hour|hour.*check|unusual.?hour|time.?of.?day|transaction.?time)")
     _comparison_op_pattern = re.compile(r"(>=|<=|>|<|==)\s*\d")
-    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) and _comparison_op_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
+    _flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|unusual|anomaly|suspicious)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|unusual|anomaly)")
+    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) and (_comparison_op_pattern.search(ast.get_source_segment(source, n) or "") or _flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
     findings = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
@@ -5836,7 +5838,8 @@ def check_geo_anomaly_detection(source, filename):
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel|cross.?border)")
     _geo_control_func_pattern = re.compile(r"(?i)(check.*geo|geo.*check|geo.?location|cross.?border|location.?check)")
     _geo_body_signal_pattern = re.compile(r"(?i)(!=|==|not\s+in|in\s+\[)")
-    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) and _geo_body_signal_pattern.search(ast.get_source_segment(source, n) or "") for n in ast.walk(tree))
+    _geo_flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|anomaly|cross.?border)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|anomaly|cross.?border)")
+    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) and (_geo_body_signal_pattern.search(ast.get_source_segment(source, n) or "") or _geo_flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
     findings = []
     functions_found = 0
     for node in ast.walk(tree):
