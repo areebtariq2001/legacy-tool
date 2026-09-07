@@ -5961,6 +5961,42 @@ async def high_value_threshold_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "High-value threshold check failed safely: " + str(e)})
 
+def scan_certificate_pinning(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    findings = []
+    lines = source.split(chr(10))
+    has_https_call = False
+    has_pinning_signal = False
+    _https_pattern = re.compile(r"(?i)(https://|requests\.(get|post)|urlopen|HttpsURLConnection|SSLContext|curl_setopt.*CURLOPT_URL)")
+    _pinning_pattern = re.compile(r"(?i)(pin.?cert|cert.?pin|SSLPinning|TrustManager.*custom|checkServerTrusted|CURLOPT_PINNEDPUBLICKEY|public.?key.?pin|HPKP)")
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(("#", "//", "*")):
+            continue
+        if _https_pattern.search(line):
+            has_https_call = True
+        if _pinning_pattern.search(line):
+            has_pinning_signal = True
+    if has_https_call and not has_pinning_signal:
+        findings.append({"issue": "MISSING CONTROL (not a detected vulnerability): This file makes HTTPS/network calls but has no certificate-pinning signal detected anywhere in the file - consider adding certificate pinning for high-security connections (e.g. banking API endpoints) to reduce man-in-the-middle risk.", "severity": "Medium"})
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "has_https_calls": has_https_call, "has_pinning_detected": has_pinning_signal, "summary": (str(len(findings)) + " certificate-pinning signal issue(s) found.") if has_https_call else "No HTTPS/network calls detected in this file - certificate pinning not applicable.", "disclaimer": "Pattern-based structural check only - looks for the presence of certificate-pinning related keywords in files that make HTTPS/network calls. Does not verify actual runtime TLS configuration. A qualified security engineer should review actual network security configuration."}
+
+@app.post("/certificate-pinning-check")
+async def certificate_pinning_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_certificate_pinning(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("certificate-pinning-check", file.filename)
+        write_audit_log("certificate-pinning-check", file.filename, "scanned")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Certificate pinning check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
