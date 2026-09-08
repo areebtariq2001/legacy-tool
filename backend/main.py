@@ -6133,6 +6133,74 @@ def _has_crypto_context(func_source):
     _crypto_context_pattern = re.compile(r"(?i)\b(crypto|hash|hmac|rsa|certificate|cert|public_key|private_key|digest|pkcs|x509|ecdsa)\b")
     return bool(_crypto_context_pattern.search(func_source))
 
+def _has_kyc_context(func_source):
+    _kyc_context_pattern = re.compile(r"(?i)\b(customer|onboard|kyc|profile|nationality|occupation|pep)\b")
+    return bool(_kyc_context_pattern.search(func_source))
+
+def check_customer_risk_rating(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _crr_pattern = re.compile(r"(?i)(risk.?rating|risk.?score|risk.?level|risk.?category|risk.?classif)(?!.?(time|id|type|status|date|history|report|log))")
+    _risk_tier_pattern = re.compile(r"(?i)(low.?risk|medium.?risk|high.?risk|risk.?tier|risk.?band)")
+    _check_patterns = [
+        ("risktier", _risk_tier_pattern, "MISSING CONTROL (not a detected anomaly): This function references risk-rating but has no low/medium/high risk-tier classification logic detected - SBP AML/CFT guidance expects customers to be classified into risk tiers. No malicious pattern was found in this code - this is a recommendation to ADD tiered classification."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _crr_pattern, _check_patterns, context_filter=_has_kyc_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Customer Risk Rating analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No customer-risk-rating-related KYC functions detected in this file.", "disclaimer": "Pattern-based function-scope check for Customer Risk Rating (CRR) tiered-classification logic near KYC functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " risk-rating function(s) with no tiered classification found.", "disclaimer": "Pattern-based function-scope check only - looks for low/medium/high risk-tier keywords near risk-rating functions that also reference customer/KYC context. IMPORTANT: A PASS here means a plausibly-named classification EXISTS - it does NOT mean the tool executed or verified the classification logic is correct or SBP-compliant. This tool performs static pattern analysis only. A qualified AML/KYC compliance officer must review flagged functions."}
+
+@app.post("/customer-risk-rating-check")
+async def customer_risk_rating_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_customer_risk_rating(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("customer-risk-rating-check", file.filename)
+        write_audit_log("customer-risk-rating-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Customer risk rating check failed safely: " + str(e)})
+
+def check_hsm_integration(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _key_handling_pattern = re.compile(r"(?i)(private.?key|signing.?key|encryption.?key|master.?key)(?!.?(time|id|type|status|date|history|report|log))")
+    _hsm_pattern = re.compile(r"(?i)(hsm|pkcs11|hardware.?security.?module|cloudhsm|key.?vault|kms\b)")
+    _check_patterns = [
+        ("hsm", _hsm_pattern, "MISSING CONTROL (not a detected vulnerability): This function handles a cryptographic key but has no Hardware Security Module (HSM) or key-vault integration detected - storing/using sensitive keys directly in software without HSM protection increases key-compromise risk for banking-grade systems. No malicious pattern was found in this code - this is a recommendation to ADD HSM/key-vault integration."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _key_handling_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "HSM integration analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No cryptographic-key-handling functions detected in this file.", "disclaimer": "Pattern-based function-scope check for HSM/key-vault integration near key-handling functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " key-handling function(s) with no HSM/key-vault integration found.", "disclaimer": "Pattern-based function-scope check only - looks for HSM/PKCS11/key-vault keywords near functions that reference private/signing/encryption/master keys. IMPORTANT: A PASS here means a plausibly-named HSM integration EXISTS - it does NOT mean the tool executed or verified the integration is correctly configured or the key is genuinely hardware-protected. This tool performs static pattern analysis only. A qualified security engineer must review flagged functions."}
+
+@app.post("/hsm-integration-check")
+async def hsm_integration_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_hsm_integration(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("hsm-integration-check", file.filename)
+        write_audit_log("hsm-integration-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "HSM integration check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
