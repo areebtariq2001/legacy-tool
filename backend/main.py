@@ -6413,6 +6413,70 @@ async def concentration_risk_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Concentration risk check failed safely: " + str(e)})
 
+def check_beneficial_ownership(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _entity_pattern = re.compile(r"(?i)(register.{0,5}compan|compan.{0,5}register|register.{0,5}entity|entity.{0,5}register|onboard.{0,5}business|business.{0,5}onboard)(?!.?(time|id|type|status|date|history|report|log))")
+    _beneficial_pattern = re.compile(r"(?i)(beneficial.?owner|ultimate.?owner|shareholder.?structure|control.?person|significant.?owner)")
+    _check_patterns = [
+        ("beneficial", _beneficial_pattern, "MISSING CONTROL (not a detected anomaly): This company/entity-registration function has no beneficial-ownership tracking detected - SBP AML/CFT guidance requires identifying the ultimate beneficial owner(s) of corporate customers to prevent shell-company misuse. No malicious pattern was found in this code - this is a recommendation to ADD beneficial-ownership capture."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _entity_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Beneficial ownership analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No company/entity-registration functions detected in this file.", "disclaimer": "Pattern-based function-scope check for beneficial-ownership tracking logic near company/entity-registration functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " entity-registration function(s) with no beneficial-ownership tracking found.", "disclaimer": "Pattern-based function-scope check only - looks for beneficial-owner/ultimate-owner keywords near functions that register companies/entities. IMPORTANT: A PASS here means a plausibly-named tracking field EXISTS - it does NOT mean the tool executed or verified the ownership chain was correctly traced or verified against a registry. This tool performs static pattern analysis only. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/beneficial-ownership-check")
+async def beneficial_ownership_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_beneficial_ownership(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("beneficial-ownership-check", file.filename)
+        write_audit_log("beneficial-ownership-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Beneficial ownership check failed safely: " + str(e)})
+
+def check_interest_rate_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _rate_pattern = re.compile(r"(?i)(calculat.{0,5}interest|interest.{0,5}calculat|fixed.{0,5}rate|variable.{0,5}rate)(?!.?(time|id|type|status|date|history|report|log))")
+    _irr_pattern = re.compile(r"(?i)(repricing.?gap|duration.?analysis|interest.?rate.?risk|\birr\b|rate.?hedg|basis.?point.?value|bpv\b)")
+    _check_patterns = [
+        ("irr", _irr_pattern, "MISSING CONTROL (not a detected anomaly): This function calculates interest rates but has no Interest Rate Risk (IRR) analysis detected (repricing gap, duration analysis, hedging) - rate mismatches between assets and liabilities expose the institution to interest-rate risk. No malicious pattern was found in this code - this is a recommendation to ADD IRR analysis."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _rate_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Interest rate risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No interest-rate-calculation functions detected in this file.", "disclaimer": "Pattern-based function-scope check for Interest Rate Risk (IRR) analysis logic near interest-calculation functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " interest-calculation function(s) with no IRR analysis found.", "disclaimer": "Pattern-based function-scope check only - looks for repricing-gap/duration-analysis/hedging keywords near functions that calculate interest rates and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named analysis EXISTS - it does NOT mean the tool executed or verified the IRR model is regulator-approved or accurate. This tool performs static pattern analysis only. A qualified ALM/treasury risk analyst must review flagged functions."}
+
+@app.post("/interest-rate-risk-check")
+async def interest_rate_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_interest_rate_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("interest-rate-risk-check", file.filename)
+        write_audit_log("interest-rate-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Interest rate risk check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
