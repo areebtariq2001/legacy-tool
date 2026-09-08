@@ -6349,6 +6349,70 @@ async def credit_risk_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Credit risk check failed safely: " + str(e)})
 
+def check_non_repudiation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _critical_action_pattern = re.compile(r"(?i)(approv.{0,5}transaction|transaction.{0,5}approv|authoriz.{0,5}payment|payment.{0,5}authoriz|approv.{0,5}transfer|transfer.{0,5}approv)(?!.?(time|id|type|status|date|history|report|log))")
+    _nonrepud_pattern = re.compile(r"(?i)(non.?repudiat|digital.?signature|audit.?trail|user.?id.{0,10}log|log.{0,10}user.?id|signed.?by)")
+    _check_patterns = [
+        ("nonrepud", _nonrepud_pattern, "MISSING CONTROL (not a detected anomaly): This function approves/authorizes a critical financial action but has no non-repudiation mechanism detected (digital signature, audit trail with user binding) - without this, a user could later deny having authorized the action, undermining dispute resolution. No malicious pattern was found in this code - this is a recommendation to ADD non-repudiation logging."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _critical_action_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Non-repudiation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No transaction/payment-approval functions detected in this file.", "disclaimer": "Pattern-based function-scope check for non-repudiation logic near transaction/payment-approval functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " approval function(s) with no non-repudiation mechanism found.", "disclaimer": "Pattern-based function-scope check only - looks for digital-signature/audit-trail/user-binding keywords near functions that approve/authorize transactions or payments, and require genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named mechanism EXISTS - it does NOT mean the tool executed or verified it is legally sufficient for non-repudiation. This tool performs static pattern analysis only. A qualified security/legal compliance officer must review flagged functions."}
+
+@app.post("/non-repudiation-check")
+async def non_repudiation_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_non_repudiation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("non-repudiation-check", file.filename)
+        write_audit_log("non-repudiation-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Non-repudiation check failed safely: " + str(e)})
+
+def check_concentration_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _exposure_pattern = re.compile(r"(?i)(portfolio.{0,5}exposure|exposure.{0,5}portfolio|borrower.{0,5}exposure|exposure.{0,5}borrower|lending.{0,5}limit|limit.{0,5}lending)(?!.?(time|id|type|status|date|history|report|log))")
+    _concentration_pattern = re.compile(r"(?i)(concentration.?risk|concentration.?limit|single.?borrower.?limit|sector.?limit|exposure.?limit|diversif)")
+    _check_patterns = [
+        ("concentration", _concentration_pattern, "MISSING CONTROL (not a detected anomaly): This function handles portfolio/exposure/lending-limit logic but has no concentration-risk limit detected (single-borrower cap, sector concentration cap) - excessive concentration in one borrower/sector increases systemic risk. No malicious pattern was found in this code - this is a recommendation to ADD concentration limits."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _exposure_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Concentration risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No portfolio/exposure/lending-limit functions detected in this file.", "disclaimer": "Pattern-based function-scope check for concentration-risk limit logic near portfolio/exposure functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " exposure function(s) with no concentration-risk limit found.", "disclaimer": "Pattern-based function-scope check only - looks for concentration-limit/single-borrower-limit keywords near functions that reference portfolio/exposure/lending-limits and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named limit EXISTS - it does NOT mean the tool executed or verified regulatory-required concentration thresholds. This tool performs static pattern analysis only. A qualified risk-management officer must review flagged functions."}
+
+@app.post("/concentration-risk-check")
+async def concentration_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_concentration_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("concentration-risk-check", file.filename)
+        write_audit_log("concentration-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Concentration risk check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
