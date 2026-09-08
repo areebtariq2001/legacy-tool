@@ -6285,6 +6285,70 @@ async def timestamp_integrity_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Timestamp integrity check failed safely: " + str(e)})
 
+def check_raast_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _raast_pattern = re.compile(r"(?i)(raast|1link|ibft)(?!.?(time|id|type|status|date|history|report|log))")
+    _validation_pattern = re.compile(r"(?i)(iban.{0,5}valid|valid.{0,5}iban|iban.{0,5}check|check.{0,5}iban|transaction.{0,5}limit|limit.{0,5}transaction|amount.{0,5}limit|limit.{0,5}amount|verify.{0,5}iban|iban.{0,5}verify)")
+    _check_patterns = [
+        ("validation", _validation_pattern, "MISSING CONTROL (not a detected anomaly): This function references RAAST/1LINK/IBFT instant-payment processing but has no IBAN validation or transaction-limit check detected - SBP RAAST guidelines require these controls for instant payment processing. No malicious pattern was found in this code - this is a recommendation to ADD IBAN/limit validation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _raast_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "RAAST compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No RAAST/1LINK/IBFT instant-payment functions detected in this file.", "disclaimer": "Pattern-based function-scope check for IBAN/transaction-limit validation near RAAST/1LINK/IBFT instant-payment functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " instant-payment function(s) with no IBAN/limit validation found.", "disclaimer": "Pattern-based function-scope check only - looks for IBAN-validation/transaction-limit keywords near functions that reference RAAST/1LINK/IBFT and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named validation EXISTS - it does NOT mean the tool executed or verified SBP-RAAST-specification compliance. This tool performs static pattern analysis only. A qualified payments compliance engineer must review flagged functions."}
+
+@app.post("/raast-compliance-check")
+async def raast_compliance_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_raast_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("raast-compliance-check", file.filename)
+        write_audit_log("raast-compliance-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "RAAST compliance check failed safely: " + str(e)})
+
+def check_credit_risk_analysis(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _loan_pattern = re.compile(r"(?i)(loan.{0,5}approv|approv.{0,5}loan|loan.{0,5}origin|origin.{0,5}loan|credit.{0,5}approv|approv.{0,5}credit|lending.{0,5}decision|underwrit)(?!.?(time|id|type|status|date|history|report|log))")
+    _credit_risk_pattern = re.compile(r"(?i)(credit.?score|debt.?to.?income|dti\b|creditworthiness|default.?risk|credit.?risk)")
+    _check_patterns = [
+        ("creditrisk", _credit_risk_pattern, "MISSING CONTROL (not a detected anomaly): This loan/credit-approval function has no credit-score or debt-to-income risk assessment logic detected - responsible lending requires evaluating borrower credit risk before approval. No malicious pattern was found in this code - this is a recommendation to ADD credit-risk assessment."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _loan_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Credit risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No loan-approval/underwriting functions detected in this file.", "disclaimer": "Pattern-based function-scope check for credit-risk assessment logic near loan-approval/underwriting functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " loan-approval function(s) with no credit-risk assessment found.", "disclaimer": "Pattern-based function-scope check only - looks for credit-score/debt-to-income keywords near functions that reference loan-approval/underwriting and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named assessment EXISTS - it does NOT mean the tool executed or verified the credit-risk model is statistically sound or regulator-approved. This tool performs static pattern analysis only. A qualified credit-risk analyst must review flagged functions."}
+
+@app.post("/credit-risk-check")
+async def credit_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_credit_risk_analysis(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("credit-risk-check", file.filename)
+        write_audit_log("credit-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Credit risk check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
