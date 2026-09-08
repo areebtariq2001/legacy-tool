@@ -6217,6 +6217,74 @@ async def hsm_integration_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "HSM integration check failed safely: " + str(e)})
 
+def check_edd_triggers(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _high_risk_pattern = re.compile(r"(?i)(high.?risk|(?<![a-z])pep(?![a-z])|politically.?exposed|sanctions.?list)(?!.?(time|id|type|status|date|history|report|log))")
+    _edd_pattern = re.compile(r"(?i)(enhanced.?due.?diligence|\bedd\b|additional.?verification|senior.?approval|extra.?scrutiny|manual.?review.?required)")
+    _check_patterns = [
+        ("edd", _edd_pattern, "MISSING CONTROL (not a detected anomaly): This function references a high-risk/PEP/sanctions customer flag but has no Enhanced Due Diligence (EDD) trigger logic detected - SBP AML/CFT guidance requires additional verification steps for high-risk customers beyond standard KYC. No malicious pattern was found in this code - this is a recommendation to ADD EDD escalation logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _high_risk_pattern, _check_patterns, context_filter=_has_kyc_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "EDD trigger analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No high-risk/PEP customer-handling KYC functions detected in this file.", "disclaimer": "Pattern-based function-scope check for Enhanced Due Diligence (EDD) trigger logic near high-risk-customer KYC functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " high-risk-customer function(s) with no EDD trigger found.", "disclaimer": "Pattern-based function-scope check only - looks for EDD/additional-verification keywords near functions that reference high-risk/PEP/sanctions customer flags, and require genuine KYC/customer context. IMPORTANT: A PASS here means a plausibly-named EDD trigger EXISTS - it does NOT mean the tool executed or verified the EDD process is correct or SBP-compliant. This tool performs static pattern analysis only. A qualified AML/KYC compliance officer must review flagged functions."}
+
+@app.post("/edd-triggers-check")
+async def edd_triggers_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_edd_triggers(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("edd-triggers-check", file.filename)
+        write_audit_log("edd-triggers-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "EDD triggers check failed safely: " + str(e)})
+
+def _has_audit_context(func_source):
+    _audit_context_pattern = re.compile(r"(?i)(audit|log_entry|transaction|record)")
+    return bool(_audit_context_pattern.search(func_source))
+
+def check_timestamp_integrity(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _audit_log_pattern = re.compile(r"(?i)(audit.?log|log.?entry|write.?log)(?!.?(time|id|type|status|date|history|report))")
+    _tamper_evident_pattern = re.compile(r"(?i)(hash.?chain|trusted.?timestamp|tamper.?evident|immutable|blockchain|merkle|ntp|monotonic|digital.?signature)")
+    _check_patterns = [
+        ("tamperevident", _tamper_evident_pattern, "MISSING CONTROL (not a detected vulnerability): This audit-logging function has no tamper-evident timestamp mechanism detected (e.g. hash-chaining, trusted timestamp, immutability) - a naive local timestamp can be altered after the fact, undermining audit-trail integrity for banking compliance. No malicious pattern was found in this code - this is a recommendation to ADD tamper-evidence."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _audit_log_pattern, _check_patterns, context_filter=_has_audit_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Timestamp integrity analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No audit-log-writing functions detected in this file.", "disclaimer": "Pattern-based function-scope check for tamper-evident timestamp mechanisms near audit-logging functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " audit-logging function(s) with no tamper-evident timestamp found.", "disclaimer": "Pattern-based function-scope check only - looks for hash-chain/trusted-timestamp/immutability keywords near audit-log-writing functions. IMPORTANT: A PASS here means a plausibly-named tamper-evidence mechanism EXISTS - it does NOT mean the tool executed or verified the mechanism is cryptographically sound. This tool performs static pattern analysis only. A qualified security/audit engineer must review flagged functions."}
+
+@app.post("/timestamp-integrity-check")
+async def timestamp_integrity_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_timestamp_integrity(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("timestamp-integrity-check", file.filename)
+        write_audit_log("timestamp-integrity-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Timestamp integrity check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
