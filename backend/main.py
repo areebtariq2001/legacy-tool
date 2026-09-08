@@ -238,7 +238,13 @@ COBOL_WHY_RULES = [
 def get_why_explanations(original_source, language="python"):
     explanations = []
     if language == "python":
-        if re.search(r"\bprint\s+[^(]", original_source):
+        _py3_parses_ok = False
+        try:
+            ast.parse(original_source)
+            _py3_parses_ok = True
+        except Exception:
+            pass
+        if not _py3_parses_ok and re.search(r"\bprint\s+[^(]", original_source):
             explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
         for keyword, reason in WHY_RULES:
             if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
@@ -405,6 +411,16 @@ def calculate_tech_debt(source, filename=""):
             })
             total_count += count
             total_minutes += count * mins
+    if filename.lower().endswith(".py"):
+        try:
+            ast.parse(source)
+            _print_item_idx = next((i for i, it in enumerate(items) if it["issue"] == "print statement"), None)
+            if _print_item_idx is not None:
+                _removed_item = items.pop(_print_item_idx)
+                total_count -= _removed_item["occurrences"]
+                total_minutes -= _removed_item["estimated_minutes"]
+        except Exception:
+            pass
     ISSUE_WEIGHT_PER_MINUTE = 8
     MIN_SCORE_HIGH_COMPLEXITY = 25
     MIN_SCORE_MODERATE_COMPLEXITY = 15
