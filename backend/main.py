@@ -6146,6 +6146,9 @@ def _has_financial_context(func_source):
     _financial_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(amount\w*|balance\w*|account\w*|currenc\w*|money|fund\w*|principal\w*|payee\w*|payer\w*|beneficiar\w*|iban|swift)")
     return bool(_financial_context_pattern.search(func_source))
 
+def _has_kyc_or_financial_context(func_source):
+    return _has_kyc_context(func_source) or _has_financial_context(func_source)
+
 def _has_crypto_context(func_source):
     _crypto_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(crypto\w*|hash\w*|hmac\w*|rsa\w*|certificate\w*|cert\w*|public_key\w*|private_key\w*|digest\w*|pkcs\w*|x509|ecdsa)")
     return bool(_crypto_context_pattern.search(func_source))
@@ -6582,7 +6585,7 @@ def check_user_action_traceability(source, filename):
     _check_patterns = [
         ("traceability", _traceability_pattern, "MISSING CONTROL (not a detected anomaly): This account/customer-data-modification function has no user-identity traceability detected (who made the change) - only logging WHAT changed without WHO changed it makes it impossible to trace responsibility for an action. No malicious pattern was found in this code - this is a recommendation to ADD user-identity logging for this action."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _modify_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _modify_pattern, _check_patterns, context_filter=_has_kyc_or_financial_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "User action traceability analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
@@ -6614,7 +6617,7 @@ def check_str_ctr_generation(source, filename):
     _check_patterns = [
         ("strctr", _str_ctr_pattern, "MISSING CONTROL (not a detected anomaly): This suspicious-activity-detection function has no STR or CTR auto-generation logic detected - SBP AML/CFT regulations require filing STR/CTR reports for flagged transactions. No malicious pattern was found in this code - this is a recommendation to ADD STR/CTR generation logic."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _flag_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _flag_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "STR/CTR generation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
