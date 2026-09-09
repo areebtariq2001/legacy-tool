@@ -6542,6 +6542,70 @@ async def fx_risk_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX risk check failed safely: " + str(e)})
 
+def check_sanctions_screening(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _screening_pattern = re.compile(r"(?i)(screen.{0,5}customer|customer.{0,5}screen|screen.{0,5}counterparty|counterparty.{0,5}screen|onboard.{0,5}check)(?!.?(time|id|type|status|date|history|report|log))")
+    _sanctions_pattern = re.compile(r"(?i)(sanctions?.?list|unsc\w*|ofac\w*|sanctions?.?screen|watchlist|denied.?party)")
+    _check_patterns = [
+        ("sanctions", _sanctions_pattern, "MISSING CONTROL (not a detected anomaly): This customer/counterparty-screening function has no sanctions-list (UNSC/OFAC) screening detected - SBP AML/CFT guidance requires screening against sanctions lists to prevent dealings with designated entities. No malicious pattern was found in this code - this is a recommendation to ADD sanctions-list screening."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _screening_pattern, _check_patterns, context_filter=_has_kyc_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Sanctions screening analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No customer/counterparty-screening functions detected in this file.", "disclaimer": "Pattern-based function-scope check for UNSC/OFAC sanctions-list screening logic near customer-screening functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " screening function(s) with no sanctions-list check found.", "disclaimer": "Pattern-based function-scope check only - looks for sanctions-list/UNSC/OFAC/watchlist keywords near functions that screen customers and require genuine KYC/customer context. IMPORTANT: A PASS here means a plausibly-named check EXISTS - it does NOT mean the tool executed or verified the sanctions list is current or the screening logic is correct. This tool performs static pattern analysis only. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/sanctions-screening-check")
+async def sanctions_screening_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_sanctions_screening(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("sanctions-screening-check", file.filename)
+        write_audit_log("sanctions-screening-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Sanctions screening check failed safely: " + str(e)})
+
+def check_user_action_traceability(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _modify_pattern = re.compile(r"(?i)(update.{0,5}account|account.{0,5}update|modify.{0,5}customer|customer.{0,5}modify|delete.{0,5}record|record.{0,5}delete)(?!.?(time|id|type|status|date|history|report|log))")
+    _traceability_pattern = re.compile(r"(?i)(modified.?by|changed.?by|current.?user|actor.?id|performed.?by|user.?id.{0,10}log|log.{0,10}user.?id)")
+    _check_patterns = [
+        ("traceability", _traceability_pattern, "MISSING CONTROL (not a detected anomaly): This account/customer-data-modification function has no user-identity traceability detected (who made the change) - only logging WHAT changed without WHO changed it makes it impossible to trace responsibility for an action. No malicious pattern was found in this code - this is a recommendation to ADD user-identity logging for this action."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _modify_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "User action traceability analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No account/customer-data-modification functions detected in this file.", "disclaimer": "Pattern-based function-scope check for user-identity traceability logic near data-modification functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " modification function(s) with no user traceability found.", "disclaimer": "Pattern-based function-scope check only - looks for modified-by/changed-by/current-user/actor-id keywords near functions that update/modify/delete account or customer data. IMPORTANT: A PASS here means a plausibly-named traceability field EXISTS - it does NOT mean the tool executed or verified the identity capture is tamper-proof or enforced. This tool performs static pattern analysis only. A qualified security/audit engineer must review flagged functions."}
+
+@app.post("/user-action-traceability-check")
+async def user_action_traceability_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_user_action_traceability(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("user-action-traceability-check", file.filename)
+        write_audit_log("user-action-traceability-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "User action traceability check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
