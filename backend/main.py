@@ -6478,6 +6478,70 @@ async def interest_rate_risk_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Interest rate risk check failed safely: " + str(e)})
 
+def check_group_lending_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _group_loan_pattern = re.compile(r"(?i)(group.{0,5}loan|loan.{0,5}group|microfinance.{0,5}disburs|disburs.{0,5}microfinance)(?!.?(time|id|type|status|date|history|report|log))")
+    _liability_pattern = re.compile(r"(?i)(joint.?liability|group.?guarantee|co.?borrower|solidarity.?group|verify.{0,5}group|group.{0,5}verify)")
+    _check_patterns = [
+        ("liability", _liability_pattern, "MISSING CONTROL (not a detected anomaly): This group/microfinance-loan function has no joint-liability or group-guarantee tracking detected - group lending models rely on shared accountability among members, which should be reflected in the code. No malicious pattern was found in this code - this is a recommendation to ADD group-liability tracking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _group_loan_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Group lending analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No group/microfinance-lending functions detected in this file.", "disclaimer": "Pattern-based function-scope check for joint-liability/group-guarantee tracking near group-lending functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " group-lending function(s) with no joint-liability tracking found.", "disclaimer": "Pattern-based function-scope check only - looks for joint-liability/group-guarantee keywords near functions that reference group/microfinance loans and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named tracking mechanism EXISTS - it does NOT mean the tool executed or verified SECP-microfinance-ordinance compliance. This tool performs static pattern analysis only. A qualified microfinance compliance officer must review flagged functions."}
+
+@app.post("/group-lending-check")
+async def group_lending_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_group_lending_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("group-lending-check", file.filename)
+        write_audit_log("group-lending-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Group lending check failed safely: " + str(e)})
+
+def check_fx_risk_management(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _fx_pattern = re.compile(r"(?i)(convert.{0,5}currency|currency.{0,5}convert|foreign.{0,5}exchange|exchange.{0,5}rate.{0,5}calc)(?!.?(time|id|type|status|date|history|report|log))")
+    _hedge_pattern = re.compile(r"(?i)(fx.?hedg|currency.?hedg|forward.?contract|currency.?exposure.?limit|fx.?exposure)")
+    _check_patterns = [
+        ("hedge", _hedge_pattern, "MISSING CONTROL (not a detected anomaly): This foreign-exchange/currency-conversion function has no FX-hedging or exposure-limit logic detected - unhedged currency exposure creates financial risk from exchange-rate volatility. No malicious pattern was found in this code - this is a recommendation to ADD FX risk management."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _fx_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "FX risk management analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No foreign-exchange/currency-conversion functions detected in this file.", "disclaimer": "Pattern-based function-scope check for FX-hedging/exposure-limit logic near currency-conversion functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " currency-conversion function(s) with no FX risk management found.", "disclaimer": "Pattern-based function-scope check only - looks for FX-hedging/exposure-limit keywords near functions that convert currency and genuine financial-parameter context. IMPORTANT: A PASS here means a plausibly-named hedging mechanism EXISTS - it does NOT mean the tool executed or verified the hedge strategy is financially sound. This tool performs static pattern analysis only. A qualified treasury/FX risk analyst must review flagged functions."}
+
+@app.post("/fx-risk-check")
+async def fx_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_fx_risk_management(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("fx-risk-check", file.filename)
+        write_audit_log("fx-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX risk check failed safely: " + str(e)})
+
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
