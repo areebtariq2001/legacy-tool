@@ -3,6 +3,8 @@ fix_*.py
 get_*.py
 check_*.py
 test_*.py
+!test_starsage.py
+!test_regex_patterns.py
 add_*.py
 view_*.py
 debug_*.py
