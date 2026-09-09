@@ -6606,6 +6606,68 @@ async def user_action_traceability_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "User action traceability check failed safely: " + str(e)})
 
+def check_str_ctr_generation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _flag_pattern = re.compile(r"(?i)(flag.{0,5}suspicious|suspicious.{0,5}flag|detect.{0,5}suspicious|suspicious.{0,5}detect|flag.{0,5}transaction)(?!.?(time|id|type|status|date|history|report|log))")
+    _str_ctr_pattern = re.compile(r"(?i)(\bstr\b.{0,10}report|\bctr\b.{0,10}report|suspicious.?transaction.?report|currency.?transaction.?report|generate.?str|generate.?ctr|file.?str|file.?ctr)")
+    _check_patterns = [
+        ("strctr", _str_ctr_pattern, "MISSING CONTROL (not a detected anomaly): This suspicious-activity-detection function has no STR or CTR auto-generation logic detected - SBP AML/CFT regulations require filing STR/CTR reports for flagged transactions. No malicious pattern was found in this code - this is a recommendation to ADD STR/CTR generation logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _flag_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "STR/CTR generation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No suspicious-activity-flagging functions detected in this file.", "disclaimer": "Pattern-based function-scope check for STR/CTR auto-generation logic near suspicious-activity-detection functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " suspicious-activity function(s) with no STR/CTR generation found.", "disclaimer": "Pattern-based check only - looks for STR/CTR report-generation keywords near suspicious-activity functions. A PASS means a plausibly-named mechanism EXISTS, not that it was verified against FMU/SBP filing requirements. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/str-ctr-check")
+async def str_ctr_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_str_ctr_generation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("str-ctr-check", file.filename)
+        write_audit_log("str-ctr-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "STR/CTR check failed safely: " + str(e)})
+def check_repo_collateral_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _repo_pattern = re.compile(r"(?i)(process.{0,5}repo|repo.{0,5}process|reverse.{0,5}repo|repo.{0,5}transaction)(?!.?(time|id|type|status|date|history|report|log))")
+    _collateral_pattern = re.compile(r"(?i)(collateral.?valu|collateral.?haircut|haircut.?rate|margin.?call|collateral.?check)")
+    _check_patterns = [
+        ("collateral", _collateral_pattern, "MISSING CONTROL (not a detected anomaly): This repo/reverse-repo transaction function has no collateral-valuation or haircut logic detected - repo transactions require proper collateral valuation with an appropriate haircut to manage counterparty credit risk. No malicious pattern was found in this code - this is a recommendation to ADD collateral-haircut logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _repo_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Repo collateral analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No repo/reverse-repo transaction functions detected in this file.", "disclaimer": "Pattern-based function-scope check for collateral-haircut logic near repo/reverse-repo functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " repo function(s) with no collateral-haircut logic found.", "disclaimer": "Pattern-based check only - looks for collateral-valuation/haircut keywords near repo/reverse-repo functions with genuine financial-parameter context. A PASS means a plausibly-named mechanism EXISTS, not that the haircut rate is regulator-compliant. A qualified treasury risk analyst must review flagged functions."}
+
+@app.post("/repo-collateral-check")
+async def repo_collateral_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_repo_collateral_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("repo-collateral-check", file.filename)
+        write_audit_log("repo-collateral-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Repo collateral check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
