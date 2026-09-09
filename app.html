@@ -582,6 +582,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Concentration Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/concentration-risk-check','Concentration Risk', this)">Concentration Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Beneficial Ownership" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/beneficial-ownership-check','Beneficial Ownership', this)">Beneficial Ownership</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Interest Rate Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/interest-rate-risk-check','Interest Rate Risk', this)">Interest Rate Risk</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Group Lending" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/group-lending-check','Group Lending', this)">Group Lending</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="FX Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/fx-risk-check','FX Risk', this)">FX Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Fraud Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check', this)">Fraud Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
@@ -2974,6 +2976,8 @@ async function runDepFileScan(inputEl) {
 }
 async function runPakistanBankingSuite(btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
+  window._advCheckToken = (window._advCheckToken || 0) + 1;
+  const _myToken = window._advCheckToken;
   const loading = document.getElementById('advLoading');
   const result = document.getElementById('advResult');
   document.getElementById('advTitle').textContent = 'Pakistan Banking Compliance Suite Result';
@@ -2983,6 +2987,7 @@ async function runPakistanBankingSuite(btnEl) {
     fd.append('file', files[0]);
     const r = await fetch(BACKEND + '/pakistan-banking-suite', { method: 'POST', body: fd });
     const d = await r.json();
+    if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     const scoreColor = d.passed_count === d.total_count ? '#16a34a' : d.passed_count >= d.total_count / 2 ? '#d97706' : '#dc2626';
@@ -3058,6 +3063,8 @@ async function runDeadlineCostCalc(btnEl) {
 }
 async function runGenericScan(endpoint, label, btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
+  window._advCheckToken = (window._advCheckToken || 0) + 1;
+  const _myToken = window._advCheckToken;
   const loading = document.getElementById('advLoading');
   const result = document.getElementById('advResult');
   document.getElementById('advTitle').textContent = label + ' Result';
@@ -3067,6 +3074,7 @@ async function runGenericScan(endpoint, label, btnEl) {
     const fd = new FormData(); fd.append('file', files[0]);
     const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
     const d = await r.json();
+    if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
     if (endpoint === '/dependency-graph' && d.has_graph) {
