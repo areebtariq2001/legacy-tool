@@ -6071,6 +6071,7 @@ async def risk_radar_with_logs_endpoint(file: UploadFile = File(...), log_file: 
         result = enrich_risk_radar_with_logs(source, file.filename, log_content)
         result["filename"] = file.filename
         result["log_filename"] = log_file.filename
+        result["data_source_note"] = "IMPORTANT: This tool never accesses any real production system, live logs, or runtime environment - it only counts text-frequency of function names inside the specific log file YOU uploaded. If this was not a genuine production log export, these numbers reflect only that file's content, not actual production usage."
         track_usage("risk-radar-with-logs", file.filename)
         write_audit_log("risk-radar-with-logs", file.filename, "analyzed")
         return result
