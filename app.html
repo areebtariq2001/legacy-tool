@@ -3267,7 +3267,7 @@ function formatGenericResult(d, label) {
         const rest = fKeys.filter(k =>f[k] !== title);
         return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:2px solid #f59e0b">' +
           '<div style="font-weight:600;margin-bottom:3px"> ' + title + '</div>' +
-          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + f[k] + '</span></div>').join('') +
+          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(String(f[k]))) + '</span></div>').join('') +
         '</div>';
       }
       return '<div style="font-size:11px;color:#e2e8f0"> ' + JSON.stringify(f) + '</div>';
