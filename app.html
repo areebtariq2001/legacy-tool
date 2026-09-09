@@ -1120,6 +1120,12 @@ async function runAnalysisOrBatch() {
 }
 async function runAnalysis() {
   if (!files.length) return;
+  if (window._analysisInProgress) return;
+  window._analysisInProgress = true;
+  const runBtnEl = document.getElementById('runBtn');
+  const _runBtnWasDisabled = runBtnEl ? runBtnEl.disabled : false;
+  if (runBtnEl) runBtnEl.disabled = true;
+  try {
   document.querySelectorAll('.adv-check-btn').forEach(b => {
     if (!b.dataset.originalHtml) b.dataset.originalHtml = b.innerHTML;
     delete b.dataset.ran;
@@ -1267,6 +1273,10 @@ async function runAnalysis() {
     pipeDone('debt', 'Skipped', '<span class="badge" style="font-size:9px;background:var(--s3);color:var(--t3);border:1px solid var(--b2)">Skip</span>', '');
   }
   renderResults(R, code, fname, Date.now() - t0);
+  } finally {
+    window._analysisInProgress = false;
+    if (runBtnEl && !_runBtnWasDisabled) runBtnEl.disabled = false;
+  }
 }
 function renderResults(R, original, fname, totalMs) {
   window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
