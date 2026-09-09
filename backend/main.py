@@ -5494,7 +5494,7 @@ def check_audit_maker_checker(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _sensitive_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
     _audit_call_pattern = re.compile(r"(?i)(audit|log\.|logger\.|logging\.)")
     _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|(?<!un)authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
@@ -5538,7 +5538,7 @@ def check_cnic_validation_quality(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _cnic_var_pattern = re.compile(r"(?i)\b(cnic|national.?id)\b")
     _strict_length_pattern = re.compile(r"(?i)len\([^)]*\)\s*==\s*13|len\([^)]*\)\s*!=\s*13")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{13\}|\\d\{5\}-\\d\{7\}-\\d")
@@ -5631,7 +5631,7 @@ def check_structuring_patterns(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|remit|disburs)(?!.?(time|id|type|status|date|hour|history|report|log))")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
@@ -5681,7 +5681,7 @@ def check_ntn_strn_validation_quality(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _ntn_var_pattern = re.compile(r"(?i)\b(ntn|strn|tax.?number|tax.?registration)\b")
     _length_check_pattern = re.compile(r"(?i)len\([^)]*\)\s*[=!]=\s*\d+")
     _digit_check_pattern = re.compile(r"(?i)isdigit|isnumeric|\\d\{\d+\}")
@@ -5719,7 +5719,7 @@ def check_unusual_hours_flag(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     _time_control_func_pattern = re.compile(r"(?i)(check.*hour|hour.*check|unusual.?hour|time.?of.?day|transaction.?time)")
@@ -5857,7 +5857,7 @@ def check_geo_anomaly_detection(source, filename):
     try:
         tree = ast.parse(source)
     except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     _txn_pattern = re.compile(r"(?i)(transfer|withdraw|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
     _geo_pattern = re.compile(r"(?i)(geo.?location|ip.?address|country.?code|\bgeoip\b|location.?check|distance.?from|impossible.?travel|cross.?border)")
     _geo_control_func_pattern = re.compile(r"(?i)(check.*geo|geo.*check|geo.?location|cross.?border|location.?check)")
@@ -5937,7 +5937,7 @@ def check_device_fingerprinting(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "summary": "Device fingerprinting analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "summary": "Device fingerprinting analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -5969,7 +5969,7 @@ def check_high_value_threshold(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "High-value threshold analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "High-value threshold analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6087,7 +6087,7 @@ def check_roundtrip_transaction_logic(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _txn_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Round-trip transaction analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Round-trip transaction analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6119,7 +6119,7 @@ def check_digital_signature_verification(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _sig_pattern, _check_patterns, context_filter=_has_crypto_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Digital signature verification analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Digital signature verification analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6163,7 +6163,7 @@ def check_customer_risk_rating(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _crr_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Customer Risk Rating analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Customer Risk Rating analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6195,7 +6195,7 @@ def check_hsm_integration(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _key_handling_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "HSM integration analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "HSM integration analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6227,7 +6227,7 @@ def check_edd_triggers(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _high_risk_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "EDD trigger analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "EDD trigger analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6263,7 +6263,7 @@ def check_timestamp_integrity(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _audit_log_pattern, _check_patterns, context_filter=_has_audit_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Timestamp integrity analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Timestamp integrity analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6295,7 +6295,7 @@ def check_raast_compliance(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _raast_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "RAAST compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "RAAST compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6327,7 +6327,7 @@ def check_credit_risk_analysis(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _loan_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Credit risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Credit risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6359,7 +6359,7 @@ def check_non_repudiation(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _critical_action_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Non-repudiation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Non-repudiation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6391,7 +6391,7 @@ def check_concentration_risk(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _exposure_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Concentration risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Concentration risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6423,7 +6423,7 @@ def check_beneficial_ownership(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _entity_pattern, _check_patterns)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Beneficial ownership analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Beneficial ownership analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
@@ -6455,7 +6455,7 @@ def check_interest_rate_risk(source, filename):
     ]
     _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _rate_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Interest rate risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "Could not parse file (non-Python-3 syntax)."}
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "Interest rate risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
     findings = _scan_result["findings"]
     functions_found = _scan_result["functions_found"]
     if functions_found == 0:
