@@ -6142,15 +6142,15 @@ async def digital_signature_check_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital signature check failed safely: " + str(e)})
 
 def _has_financial_context(func_source):
-    _financial_context_pattern = re.compile(r"(?i)\b(amount|balance|account|currency|money|fund|principal|payee|payer|beneficiary|iban|swift)\b")
+    _financial_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(amount|balance|account|currency|money|fund|principal|payee|payer|beneficiary|iban|swift)(?![a-zA-Z])")
     return bool(_financial_context_pattern.search(func_source))
 
 def _has_crypto_context(func_source):
-    _crypto_context_pattern = re.compile(r"(?i)\b(crypto|hash|hmac|rsa|certificate|cert|public_key|private_key|digest|pkcs|x509|ecdsa)\b")
+    _crypto_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(crypto|hash|hmac|rsa|certificate|cert|public_key|private_key|digest|pkcs|x509|ecdsa)(?![a-zA-Z])")
     return bool(_crypto_context_pattern.search(func_source))
 
 def _has_kyc_context(func_source):
-    _kyc_context_pattern = re.compile(r"(?i)\b(customer|onboard|kyc|profile|nationality|occupation|pep)\b")
+    _kyc_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(customer|onboard|kyc|profile|nationality|occupation|pep)(?![a-zA-Z])")
     return bool(_kyc_context_pattern.search(func_source))
 
 def check_customer_risk_rating(source, filename):
