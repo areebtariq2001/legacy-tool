@@ -7266,6 +7266,68 @@ async def libor_sofr_migration_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "LIBOR SOFR migration check failed safely: " + str(e)})
+def check_swift_mt_iso20022_migration(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "SWIFT MT to ISO 20022 migration analysis currently supports Python files only."}
+    _swift_mt_pattern = re.compile(r"(?i)(?<![a-zA-Z0-9])mt(103|202|940|950)(?![0-9])")
+    findings = []
+    lines_arr = source.split(chr(10))
+    for i, line in enumerate(lines_arr):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if _swift_mt_pattern.search(line):
+            findings.append({"line": i + 1, "issue": "Legacy SWIFT MT message-type reference found - the industry is migrating to ISO 20022 (MX/XML-based messages) for cross-border payments; consider planning migration for this message type.", "severity": "Low", "evidence": stripped[:100]})
+    findings = findings[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " legacy SWIFT MT reference(s) found - review for ISO 20022 migration." if findings else "No legacy SWIFT MT message-type references detected in this file.", "disclaimer": "Pattern-based textual detection of legacy SWIFT MT message-type codes (MT103, MT202, MT940, MT950) in the source. Does not verify actual message-format compliance - a qualified payments engineer should assess genuine ISO 20022 migration readiness."}
+
+@app.post("/swift-iso20022-check")
+async def swift_iso20022_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_swift_mt_iso20022_migration(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("swift-iso20022-check", file.filename)
+        write_audit_log("swift-iso20022-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "SWIFT ISO20022 check failed safely: " + str(e)})
+def check_realtime_alert_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _detect_pattern = re.compile(r"(?i)(detect.{0,5}anomaly|anomaly.{0,5}detect|flag.{0,5}suspicious.?activity|suspicious.?activity.{0,5}flag)(?!.?(time|id|type|status|date|history|report|log))")
+    _notify_pattern = re.compile(r"(?i)(send.?alert|notify.?compliance|escalate.?alert|trigger.?notification)")
+    _check_patterns = [
+        ("notify", _notify_pattern, "MISSING CONTROL (not a detected anomaly): This anomaly-detection function has no alert-notification or escalation logic detected - detecting suspicious activity without actually notifying/escalating to a compliance team means the detection has no real-world effect. No malicious pattern was found in this code - this is a recommendation to ADD alert/notification logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _detect_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Real-time alert analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No anomaly-detection functions detected in this file.", "disclaimer": "Pattern-based function-scope check for alert/notification/escalation logic near anomaly-detection functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " anomaly-detection function(s) with no alert-notification logic found.", "disclaimer": "Pattern-based check only - looks for alert/notify/escalate keywords near functions that detect anomalies/suspicious activity. A PASS means a plausibly-named notification call EXISTS, not that it actually reaches a compliance team in production. A qualified TMS engineer must review flagged functions."}
+
+@app.post("/realtime-alert-check")
+async def realtime_alert_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_realtime_alert_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("realtime-alert-check", file.filename)
+        write_audit_log("realtime-alert-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Realtime alert check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
