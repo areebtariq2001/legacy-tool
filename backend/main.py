@@ -6707,7 +6707,7 @@ async def four_eyes_check_endpoint(file: UploadFile = File(...)):
 def check_mtm_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
-    _valuation_pattern = re.compile(r"(?i)(calculate.{0,5}portfolio.?value|portfolio.?value.{0,5}calculate|calculate.{0,5}investment.?value|value.{0,5}security)(?!.?(time|id|type|status|date|history|report|log))")
+    _valuation_pattern = re.compile(r"(?i)(calculate.{0,5}portfolio.?value|portfolio.?value.{0,5}calculate|calculate.{0,5}investment.?value|revalue.{0,5}holding|value.{0,5}investment.?security|investment.?security.{0,5}value)(?!.?(time|id|type|status|date|history|report|log))")
     _mtm_pattern = re.compile(r"(?i)(mark.?to.?market|\bmtm\b|current.?market.?price|fair.?value.?adjust|revalu)")
     _check_patterns = [
         ("mtm", _mtm_pattern, "MISSING CONTROL (not a detected anomaly): This portfolio/investment-valuation function has no mark-to-market (MTM) revaluation logic detected - using stale purchase prices instead of current market prices can misstate portfolio value and hide losses. No malicious pattern was found in this code - this is a recommendation to ADD mark-to-market revaluation."),
