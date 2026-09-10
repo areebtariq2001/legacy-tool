@@ -536,16 +536,14 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
               <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">Run Pakistan Banking Compliance Suite (8 checks in 1 click)</button>
 
-              <div style="font-size:10px;color:#1d4ed8;font-weight:700;margin:6px 0 4px">Analysis</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+              <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#1d4ed8;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>Analysis</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" title="Currently supports Python files only" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Data Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sensitive','Data Scan', this)">Data Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Entropy Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/entropy-secret-scan','Entropy Scan', this)">Entropy Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="SQL Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/scan-sqli','SQL Scan', this)">SQL Scan</button>
-              </div>
+              </div></div></details>
 
-              <div style="font-size:10px;color:#22c55e;font-weight:700;margin:6px 0 4px">Migration</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+              <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#22c55e;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>Migration</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Rollback" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/rollback-plan','Rollback Plan', this)">Rollback</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-impact','Impact', this)">Impact</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Migration Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/predict-risk','Migration Risk', this)">Migration Risk</button>
@@ -556,10 +554,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <input type="file" id="logFileInput" style="display:none" onchange="if(this.files[0]) runRiskRadarWithLogs(this.files[0])">
                 <button class="btn btn-ghost adv-check-btn" data-label="Dep. File CVE" style="padding:7px 4px;font-size:10px" onclick="document.getElementById('depFileInput').click()">Dep. File CVE</button>
                 <input type="file" id="depFileInput" style="display:none" accept=".txt,.json" onchange="runDepFileScan(this)">
-              </div>
+              </div></div></details>
 
-              <div style="font-size:10px;color:#ef4444;font-weight:700;margin:6px 0 4px">Banking &amp; Compliance</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+              <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#ef4444;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>Banking &amp; Compliance</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="AML/KYC" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/extract-aml-kyc','AML/KYC', this)">AML/KYC</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Banking Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/banking-patterns','Banking Scan', this)">Banking Scan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regulation Impact" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulation-impact','Regulation Impact', this)">Reg. Impact</button>
@@ -600,10 +597,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="PII Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-pii','PII Scan', this)">PII Scan</button>
-              </div>
+              </div></div></details>
 
-              <div style="font-size:10px;color:#f59e0b;font-weight:700;margin:6px 0 4px">Architecture</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+              <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#f59e0b;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>Architecture</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="API Map" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/map-api-dependencies','API Map', this)">API Map</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="DB Schema" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/analyze-db-schema','DB Schema', this)">DB Schema</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Business Rules" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/discover-rules','Business Rules', this)">Business Rules</button>
@@ -613,10 +609,9 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Zero-Trust" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/zero-trust-score','Zero-Trust', this)">Zero-Trust</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="CI/CD Plan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/cicd-recommendations','CI/CD Plan', this)">CI/CD Plan</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Strangler Fig" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/strangler-fig','Strangler Fig', this)">Strangler Fig</button>
-              </div>
+              </div></div></details>
 
-              <div style="font-size:10px;color:#7c3aed;font-weight:700;margin:6px 0 4px">AI &amp; Reports</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+              <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#7c3aed;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>AI &amp; Reports</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Gen Docs" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/generate-docs','Gen Docs', this)">Gen Docs</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="AI Suggest" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ai-suggest','AI Suggest', this)">AI Suggest</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Exec Report" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/executive-report','Exec Report', this)">Exec Report</button>
@@ -644,7 +639,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Living Docs" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/living-docs','Living Docs', this)">Living Docs</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Legacy Ghosts" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/legacy-ghosts','Legacy Ghosts', this)">Legacy Ghosts</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Change Risk Radar" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/change-risk-radar','Change Risk Radar', this)">Risk Radar</button>
-              </div>
+              </div></div></details>
 
               <div id="advLoading" style="display:none;font-size:11px;color:#64748b;margin-top:8px;text-align:center">Running...</div>
               <div id="advResult" style="display:none;margin-top:10px;font-family:'Inter',sans-serif;font-size:11px;color:#4b5563;line-height:1.6;max-height:280px;overflow-y:auto;background:#ffffff;border-radius:6px;padding:14px"></div>
