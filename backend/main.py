@@ -6801,6 +6801,99 @@ async def derivatives_risk_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Derivatives risk check failed safely: " + str(e)})
+def check_loan_officer_segregation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _loan_officer_pattern = re.compile(r"(?i)(officer.{0,5}approve|approve.{0,5}officer|officer.{0,5}process.{0,5}loan|process.{0,5}loan.{0,5}officer)(?!.?(time|id|type|status|date|history|report|log))")
+    _segregation_pattern = re.compile(r"(?i)(segregation.?of.?duties|different.?officer|self.?approv.{0,10}check|officer.?mismatch|conflict.?of.?interest)")
+    _check_patterns = [
+        ("segregation", _segregation_pattern, "MISSING CONTROL (not a detected anomaly): This loan-officer function has no segregation-of-duties check detected - a loan officer should not be able to approve their own processed loan, since this creates conflict-of-interest risk. No malicious pattern was found in this code - this is a recommendation to ADD segregation-of-duties enforcement."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _loan_officer_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Loan officer workflow analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No loan-officer approval/processing functions detected in this file.", "disclaimer": "Pattern-based function-scope check for segregation-of-duties logic near loan-officer functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " loan-officer function(s) with no segregation-of-duties check found.", "disclaimer": "Pattern-based check only - looks for segregation-of-duties keywords near loan-officer approval functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that it is correctly enforced at runtime. A qualified microfinance compliance officer must review flagged functions."}
+
+@app.post("/loan-officer-workflow-check")
+async def loan_officer_workflow_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_loan_officer_segregation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("loan-officer-workflow-check", file.filename)
+        write_audit_log("loan-officer-workflow-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Loan officer workflow check failed safely: " + str(e)})
+def check_digital_evidence_preservation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _delete_pattern = re.compile(r"(?i)(delete.{0,5}audit|audit.{0,5}delete|purge.{0,5}record|record.{0,5}purge|delete.{0,5}evidence|evidence.{0,5}delete)(?!.?(time|id|type|status|date|history|report|log))")
+    _retention_pattern = re.compile(r"(?i)(retention.?period|retention.?check|minimum.?retention|before.?retention|retention.?policy)")
+    _check_patterns = [
+        ("retention", _retention_pattern, "MISSING CONTROL (not a detected anomaly): This audit-record/evidence-deletion function has no retention-period check detected - deleting audit evidence before the regulatory-mandated retention period could destroy evidence needed for compliance investigations. No malicious pattern was found in this code - this is a recommendation to ADD a retention-period check before deletion."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _delete_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Digital evidence preservation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No audit-record/evidence-deletion functions detected in this file.", "disclaimer": "Pattern-based function-scope check for retention-period enforcement near audit-record-deletion functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " deletion function(s) with no retention-period check found.", "disclaimer": "Pattern-based check only - looks for retention-period keywords near functions that delete/purge audit records or evidence. A PASS means a plausibly-named check EXISTS, not that the retention period matches regulatory requirements. A qualified compliance/legal officer must review flagged functions."}
+
+@app.post("/digital-evidence-check")
+async def digital_evidence_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_digital_evidence_preservation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("digital-evidence-check", file.filename)
+        write_audit_log("digital-evidence-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital evidence check failed safely: " + str(e)})
+def check_operational_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _critical_op_pattern = re.compile(r"(?i)(process.{0,5}payment|payment.{0,5}process|execute.{0,5}transaction|transaction.{0,5}execute)(?!.?(time|id|type|status|date|history|report|log))")
+    _recovery_pattern = re.compile(r"(?i)(rollback|retry|failure.?recover|except\s|try\s*:|circuit.?breaker)")
+    _check_patterns = [
+        ("recovery", _recovery_pattern, "MISSING CONTROL (not a detected anomaly): This critical payment/transaction-execution function has no error-handling or failure-recovery logic detected (no try/except, rollback, or retry mechanism) - an unhandled failure mid-transaction could leave the system in an inconsistent state, a key operational-risk concern. No malicious pattern was found in this code - this is a recommendation to ADD error-handling and recovery logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _critical_op_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Operational risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No critical payment/transaction-execution functions detected in this file.", "disclaimer": "Pattern-based function-scope check for error-handling/failure-recovery logic near critical payment/transaction functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " critical function(s) with no error-handling/recovery logic found.", "disclaimer": "Pattern-based check only - looks for try/except/rollback/retry keywords near critical payment/transaction functions with genuine financial-parameter context. A PASS means error-handling syntax EXISTS, not that recovery logic is correct or complete. A qualified operational risk engineer must review flagged functions."}
+
+@app.post("/operational-risk-check")
+async def operational_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_operational_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("operational-risk-check", file.filename)
+        write_audit_log("operational-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Operational risk check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
