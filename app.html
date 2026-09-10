@@ -243,6 +243,11 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
   </header>
+  <div class="trust-bar" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 20px;background:var(--s2);border-bottom:1px solid var(--b2);font-size:10px">
+    <span class="badge b-green" style="font-size:9px">No Code Execution - Static Analysis Only</span>
+    <span class="badge b-blue" style="font-size:9px">Pattern-Based Scanning</span>
+    <span class="badge" style="font-size:9px;background:var(--s3);color:var(--t3);border:1px solid var(--b2)">Human-Approval Required for Migrations</span>
+  </div>
   <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
     <div style="background:var(--bg2,#1a1a1a);border-radius:10px;padding:20px;width:320px;max-width:90vw">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -3279,7 +3284,9 @@ function formatGenericResult(d, label) {
         const fKeys = Object.keys(f);
         const title = f.issue || f.title || f.name || 'Finding';
         const rest = fKeys.filter(k =>f[k] !== title);
-        return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:2px solid #f59e0b">' +
+        const _sevRaw = (f.severity || '').toLowerCase();
+        const _sevColor = _sevRaw === 'critical' ? '#DC2626' : _sevRaw === 'high' ? '#EA580C' : _sevRaw === 'medium' ? '#CA8A04' : _sevRaw === 'low' ? '#16A34A' : _sevRaw === 'info' ? '#2563EB' : '#f59e0b';
+        return '<div style="font-size:11px;color:#e2e8f0;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:3px solid ' + _sevColor + '">' +
           '<div style="font-weight:600;margin-bottom:3px"> ' + title + '</div>' +
           rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(String(f[k]))) + '</span></div>').join('') +
         '</div>';
