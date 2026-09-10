@@ -6735,6 +6735,68 @@ async def mtm_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "MTM check failed safely: " + str(e)})
+def check_biometric_liveness(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _biometric_pattern = re.compile(r"(?i)(verify.{0,5}fingerprint|fingerprint.{0,5}verify|verify.{0,5}face.?scan|face.?scan.{0,5}verify|verify.{0,5}biometric|biometric.{0,5}verify)(?!.?(time|id|type|status|date|history|report|log))")
+    _liveness_pattern = re.compile(r"(?i)(liveness.?detect|anti.?spoof|spoof.?detect|presentation.?attack)")
+    _check_patterns = [
+        ("liveness", _liveness_pattern, "MISSING CONTROL (not a detected anomaly): This biometric-verification function has no liveness-detection or anti-spoofing logic detected - without this, a static photo or fingerprint replica could be used to bypass biometric authentication. No malicious pattern was found in this code - this is a recommendation to ADD liveness detection."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _biometric_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Biometric liveness analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No biometric-verification functions detected in this file.", "disclaimer": "Pattern-based function-scope check for liveness-detection/anti-spoofing logic near biometric-verification functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " biometric-verification function(s) with no liveness detection found.", "disclaimer": "Pattern-based check only - looks for liveness-detection/anti-spoofing keywords near biometric-verification functions. A PASS means a plausibly-named mechanism EXISTS, not that it correctly defeats presentation attacks. A qualified biometric security engineer must review flagged functions."}
+
+@app.post("/biometric-liveness-check")
+async def biometric_liveness_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_biometric_liveness(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("biometric-liveness-check", file.filename)
+        write_audit_log("biometric-liveness-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Biometric liveness check failed safely: " + str(e)})
+def check_derivatives_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _derivative_pattern = re.compile(r"(?i)(price.{0,5}option|option.{0,5}price|price.{0,5}derivative|derivative.{0,5}price|price.{0,5}future|future.{0,5}price)(?!.?(time|id|type|status|date|history|report|log))")
+    _greeks_pattern = re.compile(r"(?i)(\bdelta\b|\bgamma\b|\bvega\b|\btheta\b|\brho\b|greeks|exposure.?limit|var\b|value.?at.?risk)")
+    _check_patterns = [
+        ("greeks", _greeks_pattern, "MISSING CONTROL (not a detected anomaly): This derivatives pricing/trading function has no risk-sensitivity (Greeks/VaR/exposure-limit) calculation detected - derivatives carry non-linear risk that requires sensitivity analysis beyond simple pricing. No malicious pattern was found in this code - this is a recommendation to ADD risk-sensitivity calculation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _derivative_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Derivatives risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No derivatives pricing/trading functions detected in this file.", "disclaimer": "Pattern-based function-scope check for Greeks/VaR/exposure-limit risk-sensitivity logic near derivatives-pricing functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " derivatives function(s) with no risk-sensitivity calculation found.", "disclaimer": "Pattern-based check only - looks for Greeks/VaR/exposure-limit keywords near derivatives-pricing functions with genuine financial-parameter context. A PASS means a plausibly-named calculation EXISTS, not that the risk model is mathematically sound. A qualified quantitative risk analyst must review flagged functions."}
+
+@app.post("/derivatives-risk-check")
+async def derivatives_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_derivatives_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("derivatives-risk-check", file.filename)
+        write_audit_log("derivatives-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Derivatives risk check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
