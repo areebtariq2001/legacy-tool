@@ -7080,6 +7080,68 @@ async def risk_appetite_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk appetite check failed safely: " + str(e)})
+def check_mfb_loan_limits(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _mfb_pattern = re.compile(r"(?i)(disburse.{0,5}microfinance|microfinance.{0,5}disburse|mfb.{0,5}loan|loan.{0,5}mfb)(?!.?(time|id|type|status|date|history|report|log))")
+    _limit_pattern = re.compile(r"(?i)(maximum.?loan.?size|loan.?size.?limit|mfb.?limit|sbp.?prudential.?limit)")
+    _check_patterns = [
+        ("mfblimit", _limit_pattern, "MISSING CONTROL (not a detected anomaly): This microfinance-bank loan-disbursement function has no maximum-loan-size limit check detected - SBP prudential regulations for microfinance banks cap individual loan sizes to protect against over-indebtedness. No malicious pattern was found in this code - this is a recommendation to ADD a loan-size-limit check."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _mfb_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "MFB loan-limit analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No microfinance-bank loan-disbursement functions detected in this file.", "disclaimer": "Pattern-based function-scope check for maximum-loan-size limit logic near MFB loan-disbursement functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " MFB loan function(s) with no size-limit check found.", "disclaimer": "Pattern-based check only - looks for loan-size-limit keywords near microfinance loan-disbursement functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit matches current SBP prudential regulations. A qualified microfinance compliance officer must review flagged functions."}
+
+@app.post("/mfb-loan-limit-check")
+async def mfb_loan_limit_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_mfb_loan_limits(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("mfb-loan-limit-check", file.filename)
+        write_audit_log("mfb-loan-limit-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "MFB loan limit check failed safely: " + str(e)})
+def check_branchless_banking(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _agent_pattern = re.compile(r"(?i)(agent.{0,5}transaction|transaction.{0,5}agent|branchless.{0,5}banking|banking.{0,5}agent)(?!.?(time|id|type|status|date|history|report|log))")
+    _verify_pattern = re.compile(r"(?i)(agent.?limit|agent.?verify|agent.?authoriz|agent.?daily.?cap)")
+    _check_patterns = [
+        ("agentverify", _verify_pattern, "MISSING CONTROL (not a detected anomaly): This branchless-banking/agent-transaction function has no agent-limit or agent-verification logic detected - agent banking requires per-agent transaction limits and authorization to control fraud risk from the agent network. No malicious pattern was found in this code - this is a recommendation to ADD agent-limit/verification checks."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _agent_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Branchless banking analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No branchless-banking/agent-transaction functions detected in this file.", "disclaimer": "Pattern-based function-scope check for agent-limit/verification logic near branchless-banking agent functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " agent-banking function(s) with no agent-limit check found.", "disclaimer": "Pattern-based check only - looks for agent-limit/verification keywords near branchless-banking agent-transaction functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the agent-network controls are SBP-compliant. A qualified branchless-banking compliance officer must review flagged functions."}
+
+@app.post("/branchless-banking-check")
+async def branchless_banking_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_branchless_banking(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("branchless-banking-check", file.filename)
+        write_audit_log("branchless-banking-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Branchless banking check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
