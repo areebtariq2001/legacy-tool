@@ -6995,7 +6995,7 @@ def check_mobile_banking_security(source, filename):
     _check_patterns = [
         ("mobilesecure", _security_pattern, "MISSING CONTROL (not a detected anomaly): This mobile-banking authentication/session function has no device-binding or jailbreak/root-detection logic detected - mobile banking apps should verify device integrity to reduce fraud risk from compromised devices. No malicious pattern was found in this code - this is a recommendation to ADD device-security checks."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _mobile_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _mobile_pattern, _check_patterns, context_filter=_has_financial_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Mobile banking security analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
@@ -7146,7 +7146,7 @@ def check_tbill_pib_trading(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _tbill_pattern = re.compile(r"(?i)(trade.{0,5}t.?bill|t.?bill.{0,5}trade|trade.{0,5}pib|pib.{0,5}trade)(?!.?(time|id|type|status|date|history|report|log))")
-    _settlement_pattern = re.compile(r"(?i)(settlement.?date|yield.?calculat|face.?value.?check|accrued.?interest)")
+    _settlement_pattern = re.compile(r"(?i)((if\s+.{0,20}settlement.?date|settlement.?date\s*[<>=]|check.{0,10}settlement.?date)|yield.?calculat|face.?value.?check|accrued.?interest)")
     _check_patterns = [
         ("settlement", _settlement_pattern, "MISSING CONTROL (not a detected anomaly): This T-Bill/PIB trading function has no settlement-date or yield-calculation validation detected - government securities trading requires accurate settlement and yield mechanics per SBP conventions. No malicious pattern was found in this code - this is a recommendation to ADD settlement/yield validation."),
     ]
