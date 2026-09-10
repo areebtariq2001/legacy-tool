@@ -5908,6 +5908,8 @@ def scan_jwt_oauth_security(source, filename):
             findings.append({"line": i + 1, "issue": "JWT algorithm set to none - allows unsigned token forgery", "severity": "Critical", "evidence": stripped[:100]})
         if re.search(r"(?i)jwt\.(encode|decode)\([^)]*[\"\x27][A-Za-z0-9+/=_.\-]{8,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret key", "severity": "High", "evidence": stripped[:100]})
+        if re.search(r"(?i)\bjwt\w*(secret|key)\w*\s*=\s*[\"\x27][^\"\x27]{4,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
+            findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret/key in a standalone variable assignment (not yet used in jwt.encode/decode, but hardcoding it here is still a risk once it is used)", "severity": "High", "evidence": stripped[:100]})
     findings = findings[:30]
     critical_count = sum(1 for f in findings if f["severity"] == "Critical")
     return {"scanned": True, "findings": findings, "total_findings": len(findings), "critical_count": critical_count, "summary": str(len(findings)) + " potential JWT/OAuth security issue(s) found - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection for common JWT/OAuth misconfigurations (disabled signature verification, none algorithm, hardcoded secrets). Not a comprehensive API security audit - a qualified security engineer should review authentication flows in full."}
