@@ -6894,6 +6894,68 @@ async def operational_risk_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Operational risk check failed safely: " + str(e)})
+def check_1link_network_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _atm_pattern = re.compile(r"(?i)(1link|atm.{0,5}switch|switch.{0,5}atm|atm.{0,5}transaction)(?!.?(time|id|type|status|date|history|report|log))")
+    _validation_pattern = re.compile(r"(?i)(response.?code|validate.?message|message.?validat|iso.?8583|mti.?check)")
+    _check_patterns = [
+        ("validation", _validation_pattern, "MISSING CONTROL (not a detected anomaly): This 1LINK/ATM-switch transaction function has no message-validation or response-code checking detected - interbank switch transactions require validating message format and response codes per network standards. No malicious pattern was found in this code - this is a recommendation to ADD message/response-code validation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _atm_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "1LINK network compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No 1LINK/ATM-switch transaction functions detected in this file.", "disclaimer": "Pattern-based function-scope check for message/response-code validation near 1LINK/ATM-switch functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " 1LINK/ATM function(s) with no message validation found.", "disclaimer": "Pattern-based check only - looks for response-code/message-validation keywords near 1LINK/ATM-switch functions with genuine financial-parameter context. A PASS means a plausibly-named validation EXISTS, not that it is ISO-8583-compliant. A qualified payments engineer must review flagged functions."}
+
+@app.post("/1link-compliance-check")
+async def link1_compliance_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_1link_network_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("1link-compliance-check", file.filename)
+        write_audit_log("1link-compliance-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "1LINK compliance check failed safely: " + str(e)})
+def check_backup_dr_location(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _backup_pattern = re.compile(r"(?i)(backup.{0,5}database|database.{0,5}backup|disaster.{0,5}recovery|backup.{0,5}customer)(?!.?(time|id|type|status|date|history|report|log))")
+    _location_pattern = re.compile(r"(?i)(local.?data.?center|pakistan.?region|dr.?site.?location|backup.?region.?check|onshore)")
+    _check_patterns = [
+        ("location", _location_pattern, "MISSING CONTROL (not a detected anomaly): This backup/disaster-recovery function has no data-center location validation detected - SBP data localization requirements typically mandate that backup/DR copies of customer data also remain within approved (local) locations. No malicious pattern was found in this code - this is a recommendation to ADD backup-location validation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _backup_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Backup/DR location analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No backup/disaster-recovery functions detected in this file.", "disclaimer": "Pattern-based function-scope check for data-center location validation near backup/disaster-recovery functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " backup/DR function(s) with no location validation found.", "disclaimer": "Pattern-based check only - looks for local-datacenter/region-check keywords near backup/disaster-recovery functions. A PASS means a plausibly-named check EXISTS, not that the backup genuinely resides in an SBP-approved location. A qualified data-governance officer must review flagged functions."}
+
+@app.post("/backup-dr-location-check")
+async def backup_dr_location_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_backup_dr_location(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("backup-dr-location-check", file.filename)
+        write_audit_log("backup-dr-location-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Backup DR location check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
