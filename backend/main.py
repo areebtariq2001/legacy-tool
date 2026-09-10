@@ -7328,6 +7328,68 @@ async def realtime_alert_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Realtime alert check failed safely: " + str(e)})
+def check_crossborder_transfer_controls(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _crossborder_pattern = re.compile(r"(?i)(international.{0,5}transfer|transfer.{0,5}international|cross.?border.{0,5}transfer|transfer.{0,5}cross.?border)(?!.?(time|id|type|status|date|history|report|log))")
+    _limit_pattern = re.compile(r"(?i)(remittance.?limit|foreign.?exchange.?limit|regulatory.?reporting.?threshold|cross.?border.?limit)")
+    _check_patterns = [
+        ("limit", _limit_pattern, "MISSING CONTROL (not a detected anomaly): This cross-border/international-transfer function has no remittance-limit or regulatory-reporting-threshold check detected - cross-border transfers are typically subject to per-transaction and cumulative limits under SBP foreign-exchange regulations. No malicious pattern was found in this code - this is a recommendation to ADD cross-border limit/threshold checking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _crossborder_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Cross-border transfer controls analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No cross-border/international-transfer functions detected in this file.", "disclaimer": "Pattern-based function-scope check for remittance-limit/reporting-threshold logic near cross-border-transfer functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " cross-border function(s) with no limit/threshold check found.", "disclaimer": "Pattern-based check only - looks for remittance-limit/reporting-threshold keywords near cross-border-transfer functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit matches current SBP FX regulations. A qualified FX compliance officer must review flagged functions."}
+
+@app.post("/crossborder-transfer-check")
+async def crossborder_transfer_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_crossborder_transfer_controls(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("crossborder-transfer-check", file.filename)
+        write_audit_log("crossborder-transfer-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Crossborder transfer check failed safely: " + str(e)})
+def check_crossborder_data_transfer(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _export_pattern = re.compile(r"(?i)(export.{0,5}customer.?data|customer.?data.{0,5}export|sync.{0,5}customer.?data|customer.?data.{0,5}sync)(?!.?(time|id|type|status|date|history|report|log))")
+    _destination_pattern = re.compile(r"(?i)(destination.?country.?check|approved.?jurisdiction|data.?transfer.?agreement|adequacy.?decision)")
+    _check_patterns = [
+        ("destination", _destination_pattern, "MISSING CONTROL (not a detected anomaly): This customer-data-export/sync function has no destination-country validation detected - cross-border data transfers should verify the destination is an approved jurisdiction under SBP data localization requirements. No malicious pattern was found in this code - this is a recommendation to ADD destination-country validation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _export_pattern, _check_patterns, context_filter=_has_kyc_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Cross-border data transfer analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No customer-data-export/sync functions detected in this file.", "disclaimer": "Pattern-based function-scope check for destination-country validation near customer-data-export/sync functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " data-export function(s) with no destination validation found.", "disclaimer": "Pattern-based check only - looks for destination-country/approved-jurisdiction keywords near functions that export/sync customer data, requiring genuine KYC/customer context. A PASS means a plausibly-named check EXISTS, not that the destination is genuinely SBP-approved. A qualified data-governance officer must review flagged functions."}
+
+@app.post("/crossborder-data-check")
+async def crossborder_data_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_crossborder_data_transfer(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("crossborder-data-check", file.filename)
+        write_audit_log("crossborder-data-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Crossborder data check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
