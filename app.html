@@ -593,6 +593,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Repo Collateral" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/repo-collateral-check','Repo Collateral', this)">Repo Collateral</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="4-Eyes Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/four-eyes-check','4-Eyes Check', this)">4-Eyes Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Mark-to-Market" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/mtm-check','Mark-to-Market', this)">Mark-to-Market</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Biometric Liveness" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/biometric-liveness-check','Biometric Liveness', this)">Biometric Liveness</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Derivatives Risk" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/derivatives-risk-check','Derivatives Risk', this)">Derivatives Risk</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Fraud Check" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/detect-fraud-gaps','Fraud Check', this)">Fraud Check</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Regional Compliance" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regional-compliance','Regional Compliance', this)">Regional Compliance</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Reg Framework" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/regulatory-framework','Reg Framework', this)">Reg Framework</button>
@@ -2996,10 +2998,11 @@ async function runPakistanBankingSuite(btnEl) {
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
-    const scoreColor = d.passed_count === d.total_count ? '#16a34a' : d.passed_count >= d.total_count / 2 ? '#d97706' : '#dc2626';
+    const _denom = d.applicable_count ?? d.total_count;
+    const scoreColor = d.passed_count === _denom ? '#16a34a' : d.passed_count >= _denom / 2 ? '#d97706' : '#dc2626';
     let html = '<div style="text-align:center;padding:16px;background:' + scoreColor + '11;border:2px solid ' + scoreColor + ';border-radius:10px;margin-bottom:12px">' +
-      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + d.passed_count + '/' + d.total_count + '</div>' +
-      '<div style="font-size:11px;color:#64748b;margin-top:2px">checks passed</div></div>';
+      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + d.passed_count + '/' + _denom + (d.not_applicable_count ? ' <span style="font-size:12px;color:#9ca3af">(' + d.not_applicable_count + ' N/A)</span>' : '') + '</div>' +
+      '<div style="font-size:11px;color:#64748b;margin-top:2px">applicable checks passed</div></div>';
     html += '<div style="display:flex;flex-direction:column;gap:6px">';
     (d.checks || []).forEach(c => {
       const badgeColor = c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
