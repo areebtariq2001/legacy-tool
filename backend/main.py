@@ -6840,7 +6840,7 @@ def check_digital_evidence_preservation(source, filename):
     _check_patterns = [
         ("retention", _retention_pattern, "MISSING CONTROL (not a detected anomaly): This audit-record/evidence-deletion function has no retention-period check detected - deleting audit evidence before the regulatory-mandated retention period could destroy evidence needed for compliance investigations. No malicious pattern was found in this code - this is a recommendation to ADD a retention-period check before deletion."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _delete_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _delete_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Digital evidence preservation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
@@ -6933,7 +6933,7 @@ def check_backup_dr_location(source, filename):
     _check_patterns = [
         ("location", _location_pattern, "MISSING CONTROL (not a detected anomaly): This backup/disaster-recovery function has no data-center location validation detected - SBP data localization requirements typically mandate that backup/DR copies of customer data also remain within approved (local) locations. No malicious pattern was found in this code - this is a recommendation to ADD backup-location validation."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _backup_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _backup_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Backup/DR location analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
