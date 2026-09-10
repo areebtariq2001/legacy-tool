@@ -6148,6 +6148,10 @@ def _has_financial_context(func_source):
     _financial_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(amount\w*|balance\w*|account\w*|currenc\w*|money|fund\w*|principal\w*|payee\w*|payer\w*|beneficiar\w*|iban|swift)")
     return bool(_financial_context_pattern.search(func_source))
 
+def _has_derivatives_context(func_source):
+    _deriv_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(notional|strike|spot|volatility|premium|underlying|expiry|option|future|forward|swap)")
+    return bool(_deriv_context_pattern.search(func_source))
+
 def _has_kyc_or_financial_context(func_source):
     return _has_kyc_context(func_source) or _has_financial_context(func_source)
 
@@ -6739,7 +6743,7 @@ def check_biometric_liveness(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _biometric_pattern = re.compile(r"(?i)(verify.{0,5}fingerprint|fingerprint.{0,5}verify|verify.{0,5}face.?scan|face.?scan.{0,5}verify|verify.{0,5}biometric|biometric.{0,5}verify)(?!.?(time|id|type|status|date|history|report|log))")
-    _liveness_pattern = re.compile(r"(?i)(liveness.?detect|anti.?spoof|spoof.?detect|presentation.?attack)")
+    _liveness_pattern = re.compile(r"(?i)(liveness.{0,5}detect|detect.{0,5}liveness|anti.?spoof|spoof.?detect|presentation.?attack)")
     _check_patterns = [
         ("liveness", _liveness_pattern, "MISSING CONTROL (not a detected anomaly): This biometric-verification function has no liveness-detection or anti-spoofing logic detected - without this, a static photo or fingerprint replica could be used to bypass biometric authentication. No malicious pattern was found in this code - this is a recommendation to ADD liveness detection."),
     ]
@@ -6774,7 +6778,7 @@ def check_derivatives_risk(source, filename):
     _check_patterns = [
         ("greeks", _greeks_pattern, "MISSING CONTROL (not a detected anomaly): This derivatives pricing/trading function has no risk-sensitivity (Greeks/VaR/exposure-limit) calculation detected - derivatives carry non-linear risk that requires sensitivity analysis beyond simple pricing. No malicious pattern was found in this code - this is a recommendation to ADD risk-sensitivity calculation."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _derivative_pattern, _check_patterns, context_filter=_has_financial_context)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _derivative_pattern, _check_patterns, context_filter=_has_derivatives_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Derivatives risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
