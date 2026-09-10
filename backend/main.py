@@ -7204,6 +7204,68 @@ async def qr_payment_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "QR payment check failed safely: " + str(e)})
+def check_fatf_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _aml_program_pattern = re.compile(r"(?i)(run.{0,5}aml.?program|aml.?program.{0,5}run|execute.{0,5}aml.?screening|aml.?screening.{0,5}execute)(?!.?(time|id|type|status|date|history|report|log))")
+    _fatf_pattern = re.compile(r"(?i)(fatf|risk.?based.?approach|high.?risk.?jurisdiction|enhanced.?monitoring)")
+    _check_patterns = [
+        ("fatf", _fatf_pattern, "MISSING CONTROL (not a detected anomaly): This AML-program function has no FATF recommendation or risk-based-approach reference detected - FATF 40 Recommendations expect AML programs to apply a documented risk-based approach, including high-risk-jurisdiction handling. No malicious pattern was found in this code - this is a recommendation to ADD FATF/risk-based-approach references."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _aml_program_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "FATF compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No AML-program functions detected in this file.", "disclaimer": "Pattern-based function-scope check for FATF/risk-based-approach references near AML-program functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " AML-program function(s) with no FATF/risk-based-approach reference found.", "disclaimer": "Pattern-based check only - looks for FATF/risk-based-approach keywords near AML-program functions. A PASS means a plausibly-named reference EXISTS, not that the program genuinely implements all 40 FATF Recommendations. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/fatf-compliance-check")
+async def fatf_compliance_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_fatf_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("fatf-compliance-check", file.filename)
+        write_audit_log("fatf-compliance-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FATF compliance check failed safely: " + str(e)})
+def check_libor_sofr_migration(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "LIBOR/SOFR migration analysis currently supports Python files only."}
+    _libor_pattern = re.compile(r"(?i)\blibor\w*")
+    findings = []
+    lines_arr = source.split(chr(10))
+    for i, line in enumerate(lines_arr):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if _libor_pattern.search(line):
+            findings.append({"line": i + 1, "issue": "LIBOR reference found - LIBOR was discontinued by end-2023/mid-2023 depending on tenor and currency; interest-rate benchmarks should use SOFR (USD), SONIA (GBP), or the applicable local risk-free rate instead.", "severity": "Medium", "evidence": stripped[:100]})
+    findings = findings[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " LIBOR reference(s) found - review for migration to SOFR/risk-free-rate benchmarks." if findings else "No LIBOR references detected in this file.", "disclaimer": "Pattern-based textual detection of the word LIBOR in the source. Does not verify whether the reference is in active pricing logic, a comment, or dead code - a qualified treasury/legal analyst should confirm the migration status of any flagged usage."}
+
+@app.post("/libor-sofr-migration-check")
+async def libor_sofr_migration_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_libor_sofr_migration(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("libor-sofr-migration-check", file.filename)
+        write_audit_log("libor-sofr-migration-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "LIBOR SOFR migration check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
