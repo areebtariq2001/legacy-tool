@@ -6671,6 +6671,68 @@ async def repo_collateral_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Repo collateral check failed safely: " + str(e)})
+def check_four_eyes_principle(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _approve_pattern = re.compile(r"(?i)(approve.{0,5}high.?value|high.?value.{0,5}approve|approve.{0,5}large|large.{0,5}approve)(?!.?(time|id|type|status|date|history|report|log))")
+    _dual_pattern = re.compile(r"(?i)(second.?approv|dual.?approv|four.?eyes|4.?eyes|two.?person|second.?signator|co.?sign)")
+    _check_patterns = [
+        ("dualapproval", _dual_pattern, "MISSING CONTROL (not a detected anomaly): This high-value approval function has no second-approver or four-eyes enforcement detected - a single person should not be able to unilaterally approve high-value transactions. No malicious pattern was found in this code - this is a recommendation to ADD dual-approval enforcement."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _approve_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "4-eyes principle analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No high-value approval functions detected in this file.", "disclaimer": "Pattern-based function-scope check for 4-eyes/dual-approval enforcement near high-value approval functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " high-value approval function(s) with no dual-approval enforcement found.", "disclaimer": "Pattern-based check only - looks for second-approver/four-eyes keywords near high-value approval functions with genuine financial-parameter context. A PASS means a plausibly-named mechanism EXISTS, not that it is correctly enforced at runtime. A qualified security/audit engineer must review flagged functions."}
+
+@app.post("/four-eyes-check")
+async def four_eyes_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_four_eyes_principle(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("four-eyes-check", file.filename)
+        write_audit_log("four-eyes-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Four eyes check failed safely: " + str(e)})
+def check_mtm_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _valuation_pattern = re.compile(r"(?i)(calculate.{0,5}portfolio.?value|portfolio.?value.{0,5}calculate|calculate.{0,5}investment.?value|value.{0,5}security)(?!.?(time|id|type|status|date|history|report|log))")
+    _mtm_pattern = re.compile(r"(?i)(mark.?to.?market|\bmtm\b|current.?market.?price|fair.?value.?adjust|revalu)")
+    _check_patterns = [
+        ("mtm", _mtm_pattern, "MISSING CONTROL (not a detected anomaly): This portfolio/investment-valuation function has no mark-to-market (MTM) revaluation logic detected - using stale purchase prices instead of current market prices can misstate portfolio value and hide losses. No malicious pattern was found in this code - this is a recommendation to ADD mark-to-market revaluation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _valuation_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": filename.lower().endswith(".py"), "summary": "MTM analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No portfolio/investment-valuation functions detected in this file.", "disclaimer": "Pattern-based function-scope check for mark-to-market revaluation logic near portfolio-valuation functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " valuation function(s) with no mark-to-market logic found.", "disclaimer": "Pattern-based check only - looks for mark-to-market/fair-value keywords near portfolio-valuation functions with genuine financial-parameter context. A PASS means a plausibly-named mechanism EXISTS, not that the valuation methodology is accounting-standard-compliant. A qualified treasury/accounting analyst must review flagged functions."}
+
+@app.post("/mtm-check")
+async def mtm_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_mtm_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("mtm-check", file.filename)
+        write_audit_log("mtm-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "MTM check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
