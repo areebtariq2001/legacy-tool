@@ -7142,6 +7142,68 @@ async def branchless_banking_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Branchless banking check failed safely: " + str(e)})
+def check_tbill_pib_trading(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _tbill_pattern = re.compile(r"(?i)(trade.{0,5}t.?bill|t.?bill.{0,5}trade|trade.{0,5}pib|pib.{0,5}trade)(?!.?(time|id|type|status|date|history|report|log))")
+    _settlement_pattern = re.compile(r"(?i)(settlement.?date|yield.?calculat|face.?value.?check|accrued.?interest)")
+    _check_patterns = [
+        ("settlement", _settlement_pattern, "MISSING CONTROL (not a detected anomaly): This T-Bill/PIB trading function has no settlement-date or yield-calculation validation detected - government securities trading requires accurate settlement and yield mechanics per SBP conventions. No malicious pattern was found in this code - this is a recommendation to ADD settlement/yield validation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _tbill_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "T-Bill/PIB trading analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No T-Bill/PIB trading functions detected in this file.", "disclaimer": "Pattern-based function-scope check for settlement/yield-calculation validation near T-Bill/PIB trading functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " T-Bill/PIB function(s) with no settlement/yield validation found.", "disclaimer": "Pattern-based check only - looks for settlement-date/yield-calculation keywords near T-Bill/PIB trading functions with genuine financial-parameter context. A PASS means a plausibly-named validation EXISTS, not that the yield formula is mathematically correct. A qualified treasury analyst must review flagged functions."}
+
+@app.post("/tbill-pib-check")
+async def tbill_pib_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_tbill_pib_trading(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("tbill-pib-check", file.filename)
+        write_audit_log("tbill-pib-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "T-Bill PIB check failed safely: " + str(e)})
+def check_qr_payment_standards(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _qr_pattern = re.compile(r"(?i)(process.{0,5}qr.?payment|qr.?payment.{0,5}process|generate.{0,5}qr.?code|qr.?code.{0,5}generate)(?!.?(time|id|type|status|date|history|report|log))")
+    _verify_pattern = re.compile(r"(?i)(merchant.?verify|checksum.?valid|qr.?tamper|signature.?verify.{0,10}qr)")
+    _check_patterns = [
+        ("qrverify", _verify_pattern, "MISSING CONTROL (not a detected anomaly): This QR-payment function has no merchant-verification or tamper-detection logic detected - QR payment codes can be tampered with or swapped, so verification of merchant identity and payload integrity is required. No malicious pattern was found in this code - this is a recommendation to ADD merchant-verification/tamper-detection."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _qr_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "QR payment standards analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No QR-payment functions detected in this file.", "disclaimer": "Pattern-based function-scope check for merchant-verification/tamper-detection logic near QR-payment functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " QR-payment function(s) with no verification/tamper-detection found.", "disclaimer": "Pattern-based check only - looks for merchant-verification/checksum/tamper-detection keywords near QR-payment functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that it meets 1LINK/RAAST QR standards. A qualified payments engineer must review flagged functions."}
+
+@app.post("/qr-payment-check")
+async def qr_payment_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_qr_payment_standards(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("qr-payment-check", file.filename)
+        write_audit_log("qr-payment-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "QR payment check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
