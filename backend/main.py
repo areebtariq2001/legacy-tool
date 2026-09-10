@@ -6956,6 +6956,68 @@ async def backup_dr_location_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Backup DR location check failed safely: " + str(e)})
+def check_counterparty_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _counterparty_pattern = re.compile(r"(?i)(counterparty.{0,5}transaction|transaction.{0,5}counterparty|correspondent.{0,5}bank|bank.{0,5}correspondent)(?!.?(time|id|type|status|date|history|report|log))")
+    _limit_pattern = re.compile(r"(?i)(counterparty.?limit|exposure.?limit|credit.?line.?check|counterparty.?rating)")
+    _check_patterns = [
+        ("limit", _limit_pattern, "MISSING CONTROL (not a detected anomaly): This counterparty/correspondent-banking transaction function has no counterparty-exposure-limit check detected - dealing with counterparties without exposure limits increases concentration and default risk. No malicious pattern was found in this code - this is a recommendation to ADD counterparty-limit checking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _counterparty_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Counterparty risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No counterparty/correspondent-banking functions detected in this file.", "disclaimer": "Pattern-based function-scope check for counterparty-exposure-limit logic near counterparty/correspondent-banking functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " counterparty function(s) with no exposure-limit check found.", "disclaimer": "Pattern-based check only - looks for counterparty-limit/exposure-limit keywords near counterparty/correspondent-banking functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit values are regulator-compliant. A qualified credit risk analyst must review flagged functions."}
+
+@app.post("/counterparty-risk-check")
+async def counterparty_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_counterparty_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("counterparty-risk-check", file.filename)
+        write_audit_log("counterparty-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Counterparty risk check failed safely: " + str(e)})
+def check_mobile_banking_security(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _mobile_pattern = re.compile(r"(?i)(mobile.{0,5}app.{0,5}login|mobile.{0,5}session|authenticate.{0,5}mobile|mobile.{0,5}authenticate)(?!.?(time|id|type|status|date|history|report|log))")
+    _security_pattern = re.compile(r"(?i)(device.?bind|jailbreak.?detect|root.?detect|device.?attestation|app.?integrity)")
+    _check_patterns = [
+        ("mobilesecure", _security_pattern, "MISSING CONTROL (not a detected anomaly): This mobile-banking authentication/session function has no device-binding or jailbreak/root-detection logic detected - mobile banking apps should verify device integrity to reduce fraud risk from compromised devices. No malicious pattern was found in this code - this is a recommendation to ADD device-security checks."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _mobile_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Mobile banking security analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No mobile-banking authentication/session functions detected in this file.", "disclaimer": "Pattern-based function-scope check for device-binding/jailbreak-detection logic near mobile-banking authentication functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " mobile-banking function(s) with no device-security check found.", "disclaimer": "Pattern-based check only - looks for device-binding/jailbreak-detection keywords near mobile-app authentication/session functions. A PASS means a plausibly-named check EXISTS, not that it correctly detects compromised devices. A qualified mobile security engineer must review flagged functions."}
+
+@app.post("/mobile-banking-security-check")
+async def mobile_banking_security_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_mobile_banking_security(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("mobile-banking-security-check", file.filename)
+        write_audit_log("mobile-banking-security-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Mobile banking security check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
