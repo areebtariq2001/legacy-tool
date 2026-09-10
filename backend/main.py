@@ -7018,6 +7018,68 @@ async def mobile_banking_security_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Mobile banking security check failed safely: " + str(e)})
+def check_video_kyc_standards(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _video_pattern = re.compile(r"(?i)(video.{0,5}kyc|kyc.{0,5}video|video.{0,5}onboard|onboard.{0,5}video)(?!.?(time|id|type|status|date|history|report|log))")
+    _consent_pattern = re.compile(r"(?i)(recording.?consent|consent.?record|liveness.?check|geo.?tag.?verify|video.?retention)")
+    _check_patterns = [
+        ("consent", _consent_pattern, "MISSING CONTROL (not a detected anomaly): This video-KYC onboarding function has no recording-consent or liveness-check logic detected - SBP video-KYC standards require explicit consent for recording plus liveness verification during the session. No malicious pattern was found in this code - this is a recommendation to ADD consent/liveness controls."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _video_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Video KYC standards analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No video-KYC onboarding functions detected in this file.", "disclaimer": "Pattern-based function-scope check for recording-consent/liveness-check logic near video-KYC functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " video-KYC function(s) with no consent/liveness check found.", "disclaimer": "Pattern-based check only - looks for consent/liveness keywords near video-KYC onboarding functions. A PASS means a plausibly-named check EXISTS, not that it meets SBP video-KYC technical specifications. A qualified KYC compliance officer must review flagged functions."}
+
+@app.post("/video-kyc-check")
+async def video_kyc_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_video_kyc_standards(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("video-kyc-check", file.filename)
+        write_audit_log("video-kyc-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Video KYC check failed safely: " + str(e)})
+def check_risk_appetite_framework(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _limit_setting_pattern = re.compile(r"(?i)(set.{0,5}risk.?limit|risk.?limit.{0,5}set|define.{0,5}risk.?threshold|risk.?threshold.{0,5}define)(?!.?(time|id|type|status|date|history|report|log))")
+    _appetite_pattern = re.compile(r"(?i)(risk.?appetite|board.?approv.{0,10}limit|approved.?limit.?framework|risk.?tolerance)")
+    _check_patterns = [
+        ("appetite", _appetite_pattern, "MISSING CONTROL (not a detected anomaly): This risk-limit-setting function has no reference to a board-approved risk-appetite framework detected - risk limits should trace back to an approved risk-appetite statement, not arbitrary hardcoded thresholds. No malicious pattern was found in this code - this is a recommendation to ADD a risk-appetite-framework reference."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _limit_setting_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Risk appetite framework analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No risk-limit-setting functions detected in this file.", "disclaimer": "Pattern-based function-scope check for risk-appetite-framework references near risk-limit-setting functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " risk-limit function(s) with no risk-appetite reference found.", "disclaimer": "Pattern-based check only - looks for risk-appetite/board-approved-limit keywords near functions that set risk limits with genuine financial-parameter context. A PASS means a plausibly-named reference EXISTS, not that the limit is genuinely board-approved. A qualified risk-governance officer must review flagged functions."}
+
+@app.post("/risk-appetite-check")
+async def risk_appetite_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_risk_appetite_framework(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("risk-appetite-check", file.filename)
+        write_audit_log("risk-appetite-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk appetite check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
