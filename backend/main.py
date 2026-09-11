@@ -7212,7 +7212,7 @@ def check_fatf_compliance(source, filename):
     _check_patterns = [
         ("fatf", _fatf_pattern, "MISSING CONTROL (not a detected anomaly): This AML-program function has no FATF recommendation or risk-based-approach reference detected - FATF 40 Recommendations expect AML programs to apply a documented risk-based approach, including high-risk-jurisdiction handling. No malicious pattern was found in this code - this is a recommendation to ADD FATF/risk-based-approach references."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _aml_program_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _aml_program_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "FATF compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
@@ -7429,7 +7429,7 @@ def check_cloud_provider_compliance(source, filename):
     _check_patterns = [
         ("compliance", _compliance_pattern, "MISSING CONTROL (not a detected anomaly): This cloud-service-provisioning function has no local-data-center-compliance or approved-vendor check detected - SBP guidance expects cloud providers used for banking workloads to meet local data-center compliance requirements. No malicious pattern was found in this code - this is a recommendation to ADD cloud-provider-compliance verification."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _provision_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _provision_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Cloud provider compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
@@ -7522,7 +7522,7 @@ def check_nadra_api_integration(source, filename):
     _check_patterns = [
         ("nadra", _nadra_pattern, "MISSING CONTROL (not a detected anomaly): This CNIC/national-ID online-verification function has no NADRA/Verisys API integration detected - genuine real-time CNIC verification requires calling NADRA (National Database and Registration Authority) systems, not just local format checks. No malicious pattern was found in this code - this is a recommendation to ADD NADRA API integration."),
     ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_verify_pattern, _check_patterns)
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_verify_pattern, _check_patterns, context_filter=_has_kyc_context)
     if not _scan_result["supported"]:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "NADRA API integration analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
     findings = _scan_result["findings"]
