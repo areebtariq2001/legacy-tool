@@ -7855,6 +7855,221 @@ async def pci_dss_scorecard_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI DSS scorecard failed safely: " + str(e)})
+def check_murabaha_disclosure(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _murabaha_pattern = re.compile(r"(?i)(calculate.{0,5}murabaha|murabaha.{0,5}calculate|process.{0,5}murabaha|murabaha.{0,5}process)(?!.?(time|id|type|status|date|history|report|log))")
+    _disclosure_pattern = re.compile(r"(?i)(cost.?price.?disclos|profit.?margin.?disclos|acquisition.?cost.?display|cost.?plus.?disclos)")
+    _check_patterns = [
+        ("disclosure", _disclosure_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Shariah-compliance ruling): This Murabaha calculation function has no explicit cost-price/profit-margin disclosure logic detected - a valid Murabaha (cost-plus-sale) structure requires disclosing the bank acquisition cost and profit margin separately to the customer. No malicious pattern was found in this code - this is a recommendation that a Shariah board/product compliance officer verify this disclosure exists."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _murabaha_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Murabaha disclosure analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Murabaha-calculation functions detected in this file.", "disclaimer": "Pattern-based structural check only, not a Shariah-compliance ruling. Looks for cost-price/profit-margin-disclosure keywords near Murabaha functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " Murabaha function(s) with no cost-disclosure logic found.", "disclaimer": "Pattern-based structural check only - this tool cannot make Shariah-compliance rulings. Looks for cost-price/profit-margin-disclosure keywords near Murabaha-calculation functions. A qualified Shariah board must independently verify actual product compliance."}
+
+@app.post("/murabaha-check")
+async def murabaha_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_murabaha_disclosure(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("murabaha-check", file.filename)
+        write_audit_log("murabaha-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Murabaha check failed safely: " + str(e)})
+def check_musharakah_ownership(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _musharakah_pattern = re.compile(r"(?i)(calculate.{0,5}musharakah|musharakah.{0,5}calculate|process.{0,5}musharakah|musharakah.{0,5}process)(?!.?(time|id|type|status|date|history|report|log))")
+    _ownership_pattern = re.compile(r"(?i)(ownership.?share.?track|ownership.?percentage|proportional.?ownership|unit.?transfer.?track)")
+    _check_patterns = [
+        ("ownership", _ownership_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Shariah-compliance ruling): This Diminishing Musharakah function has no proportional-ownership-tracking logic detected - a valid Diminishing Musharakah structure requires tracking the customers gradually-increasing ownership share as units are purchased over time. No malicious pattern was found in this code - this is a recommendation that a Shariah board/product compliance officer verify this tracking exists."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _musharakah_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Musharakah ownership analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Diminishing-Musharakah functions detected in this file.", "disclaimer": "Pattern-based structural check only, not a Shariah-compliance ruling. Looks for ownership-percentage-tracking keywords near Musharakah functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " Musharakah function(s) with no ownership-tracking logic found.", "disclaimer": "Pattern-based structural check only - this tool cannot make Shariah-compliance rulings. Looks for ownership-percentage-tracking keywords near Musharakah-calculation functions. A qualified Shariah board must independently verify actual product compliance."}
+
+@app.post("/musharakah-check")
+async def musharakah_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_musharakah_ownership(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("musharakah-check", file.filename)
+        write_audit_log("musharakah-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Musharakah check failed safely: " + str(e)})
+def check_ijarah_ownership(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _ijarah_pattern = re.compile(r"(?i)(calculate.{0,5}ijarah|ijarah.{0,5}calculate|process.{0,5}ijarah|ijarah.{0,5}process)(?!.?(time|id|type|status|date|history|report|log))")
+    _ownership_pattern = re.compile(r"(?i)(asset.?ownership.?verif|lessor.?owns.?asset|title.?transfer.?check|asset.?title.?verif)")
+    _check_patterns = [
+        ("ownership", _ownership_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Shariah-compliance ruling): This Ijarah (leasing) function has no asset-ownership-verification logic detected - a valid Ijarah structure requires the lessor (bank) to genuinely own the asset before leasing it, distinguishing it from a conventional interest-based loan. No malicious pattern was found in this code - this is a recommendation that a Shariah board/product compliance officer verify this ownership check exists."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _ijarah_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Ijarah ownership analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Ijarah functions detected in this file.", "disclaimer": "Pattern-based structural check only, not a Shariah-compliance ruling. Looks for asset-ownership-verification keywords near Ijarah functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " Ijarah function(s) with no asset-ownership check found.", "disclaimer": "Pattern-based structural check only - this tool cannot make Shariah-compliance rulings. Looks for asset-ownership-verification keywords near Ijarah-calculation functions. A qualified Shariah board must independently verify actual product compliance."}
+
+@app.post("/ijarah-check")
+async def ijarah_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_ijarah_ownership(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("ijarah-check", file.filename)
+        write_audit_log("ijarah-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Ijarah check failed safely: " + str(e)})
+def check_takaful_structure(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _takaful_pattern = re.compile(r"(?i)(calculate.{0,5}takaful|takaful.{0,5}calculate|process.{0,5}takaful|takaful.{0,5}process)(?!.?(time|id|type|status|date|history|report|log))")
+    _participantfund_pattern = re.compile(r"(?i)(participant.?fund|mutual.?fund.?structure|risk.?sharing.?pool|waqf.?fund)")
+    _check_patterns = [
+        ("participantfund", _participantfund_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Shariah-compliance ruling): This Takaful (Islamic insurance) function has no participant-fund/mutual-risk-sharing-pool structure detected - a valid Takaful structure requires a distinct participant fund where contributions are pooled for mutual risk-sharing, differing from conventional insurance premium models. No malicious pattern was found in this code - this is a recommendation that a Shariah board/product compliance officer verify this fund structure exists."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _takaful_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Takaful structure analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Takaful functions detected in this file.", "disclaimer": "Pattern-based structural check only, not a Shariah-compliance ruling. Looks for participant-fund/mutual-risk-sharing keywords near Takaful functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " Takaful function(s) with no participant-fund structure found.", "disclaimer": "Pattern-based structural check only - this tool cannot make Shariah-compliance rulings. Looks for participant-fund/mutual-risk-sharing keywords near Takaful functions. A qualified Shariah board must independently verify actual product compliance."}
+
+@app.post("/takaful-check")
+async def takaful_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_takaful_structure(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("takaful-check", file.filename)
+        write_audit_log("takaful-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Takaful check failed safely: " + str(e)})
+def check_aaoifi_reference(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _islamicproduct_pattern = re.compile(r"(?i)(calculate.{0,5}murabaha|murabaha.{0,5}calculate|calculate.{0,5}musharakah|musharakah.{0,5}calculate|calculate.{0,5}ijarah|ijarah.{0,5}calculate|calculate.{0,5}takaful|takaful.{0,5}calculate)(?!.?(time|id|type|status|date|history|report|log))")
+    _aaoifi_pattern = re.compile(r"(?i)(aaoifi|shariah.?standard.?reference|shariah.?board.?approv)")
+    _check_patterns = [
+        ("aaoifi", _aaoifi_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Shariah-compliance ruling): This Islamic-finance product function has no AAOIFI (Accounting and Auditing Organization for Islamic Financial Institutions) standard reference or Shariah-board-approval marker detected - AAOIFI standards are the widely-referenced framework for structuring compliant Islamic-finance products. No malicious pattern was found in this code - this is a recommendation that a Shariah board/product compliance officer document which AAOIFI standard this product follows."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _islamicproduct_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "AAOIFI reference analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Islamic-finance product functions detected in this file.", "disclaimer": "Pattern-based structural check only, not a Shariah-compliance ruling. Looks for AAOIFI/Shariah-board-approval references near Islamic-finance product functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " Islamic-finance function(s) with no AAOIFI/Shariah-board reference found.", "disclaimer": "Pattern-based structural check only - this tool cannot make Shariah-compliance rulings. Looks for AAOIFI/Shariah-board-approval keywords near Islamic-finance product functions. A qualified Shariah board must independently verify actual product compliance and standards adherence."}
+
+@app.post("/aaoifi-check")
+async def aaoifi_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_aaoifi_reference(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("aaoifi-check", file.filename)
+        write_audit_log("aaoifi-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AAOIFI check failed safely: " + str(e)})
+def run_islamic_banking_suite(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"suite_run": False, "checks": [], "summary": "File too large."}
+    checks = []
+    try:
+        riba = check_riba_flag(source, filename)
+        _riba_ran = riba.get("language_supported", True)
+        checks.append({"name": "Riba Flag (Shariah Review)", "passed": (riba.get("total_findings", 0) == 0) if _riba_ran else None, "finding_count": riba.get("total_findings", 0), "summary": riba.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Riba Flag (Shariah Review)", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        mur = check_murabaha_disclosure(source, filename)
+        _mur_ran = mur.get("language_supported", True)
+        checks.append({"name": "Murabaha Disclosure", "passed": (mur.get("total_findings", 0) == 0) if _mur_ran else None, "finding_count": mur.get("total_findings", 0), "summary": mur.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Murabaha Disclosure", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        mus = check_musharakah_ownership(source, filename)
+        _mus_ran = mus.get("language_supported", True)
+        checks.append({"name": "Musharakah Ownership", "passed": (mus.get("total_findings", 0) == 0) if _mus_ran else None, "finding_count": mus.get("total_findings", 0), "summary": mus.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Musharakah Ownership", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        ija = check_ijarah_ownership(source, filename)
+        _ija_ran = ija.get("language_supported", True)
+        checks.append({"name": "Ijarah Ownership", "passed": (ija.get("total_findings", 0) == 0) if _ija_ran else None, "finding_count": ija.get("total_findings", 0), "summary": ija.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Ijarah Ownership", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        tak = check_takaful_structure(source, filename)
+        _tak_ran = tak.get("language_supported", True)
+        checks.append({"name": "Takaful Structure", "passed": (tak.get("total_findings", 0) == 0) if _tak_ran else None, "finding_count": tak.get("total_findings", 0), "summary": tak.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Takaful Structure", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        aao = check_aaoifi_reference(source, filename)
+        _aao_ran = aao.get("language_supported", True)
+        checks.append({"name": "AAOIFI Reference", "passed": (aao.get("total_findings", 0) == 0) if _aao_ran else None, "finding_count": aao.get("total_findings", 0), "summary": aao.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "AAOIFI Reference", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    applicable_checks = [c for c in checks if c["passed"] is not None]
+    passed_count = sum(1 for c in applicable_checks if c["passed"])
+    applicable_count = len(applicable_checks)
+    not_applicable_count = len(checks) - applicable_count
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + (" - no structural gaps found among applicable checks. This is a structural/textual signal suite, not a Shariah-compliance certification - only a qualified Shariah board can certify actual compliance." if passed_count == applicable_count else " - review flagged checks with a qualified Shariah board. This is a structural/textual signal suite, not a Shariah-compliance certification.")}
+
+@app.post("/islamic-banking-suite")
+async def islamic_banking_suite_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = run_islamic_banking_suite(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("islamic-banking-suite", file.filename)
+        write_audit_log("islamic-banking-suite", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Islamic banking suite failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
