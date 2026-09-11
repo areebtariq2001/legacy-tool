@@ -3320,6 +3320,18 @@ def process_github_webhook(payload):
                         risk = assess_dependency_risk(source)
                         risk_level = risk.get("overall_risk", "Unknown")
                         issues = risk.get("total_issues", 0)
+                        try:
+                            _gov_suite = run_pakistan_banking_suite(source, file_path)
+                            if _gov_suite.get("suite_run"):
+                                _gov_denom = _gov_suite.get("applicable_count", _gov_suite.get("total_count", 0))
+                                if _gov_denom:
+                                    compliance_status = str(_gov_suite.get("passed_count", 0)) + "/" + str(_gov_denom) + " applicable compliance checks passed"
+                                else:
+                                    compliance_status = "No applicable compliance checks for this file"
+                            else:
+                                compliance_status = None
+                        except Exception:
+                            compliance_status = None
                     elif _plower.endswith(".java"):
                         _r = analyze_java(source)
                         issues = len(_r.get("issues", []))
@@ -3332,7 +3344,10 @@ def process_github_webhook(payload):
                         _r = analyze_cobol(source)
                         issues = len(_r.get("issues", []))
                         risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                    results.append({"file": file_path, "risk_level": risk_level, "issues": issues})
+                    _result_entry = {"file": file_path, "risk_level": risk_level, "issues": issues}
+                    if _plower.endswith(".py") and compliance_status:
+                        _result_entry["compliance_status"] = compliance_status
+                    results.append(_result_entry)
                 else:
                     results.append({"file": file_path, "risk_level": "Could not fetch", "issues": 0})
             except Exception:
