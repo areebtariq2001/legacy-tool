@@ -7611,7 +7611,7 @@ def check_market_risk_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _position_pattern = re.compile(r"(?i)(calculate.{0,5}market.?exposure|market.?exposure.{0,5}calculate|assess.{0,5}position.?risk|position.?risk.{0,5}assess)(?!.?(time|id|type|status|date|history|report|log))")
-    _riskmetric_pattern = re.compile(r"(?i)(value.?at.?risk|\bvar\b|stress.?test|sensitivity.?analysis)")
+    _riskmetric_pattern = re.compile(r"(?i)(value.?at.?risk|stress.?test|sensitivity.?analysis)")
     _check_patterns = [
         ("riskmetric", _riskmetric_pattern, "MISSING CONTROL (not a detected anomaly): This market-exposure/position-risk function has no market-risk-metric (VaR/stress-test/sensitivity-analysis) calculation detected - exposure to market-price movements requires quantified risk metrics beyond simple exposure amounts. No malicious pattern was found in this code - this is a recommendation to ADD market-risk-metric calculation."),
     ]
@@ -7793,58 +7793,6 @@ async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
-def check_fx_dealing_room_limits(source, filename):
-    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
-    _dealer_pattern = re.compile(r"(?i)(execute.{0,5}fx.?trade|fx.?trade.{0,5}execute|dealer.{0,5}fx.?position|fx.?position.{0,5}dealer)(?!.?(time|id|type|status|date|history|report|log))")
-    _dealerlimit_pattern = re.compile(r"(?i)(dealer.?limit|position.?limit.?check|intraday.?limit|dealing.?mandate)")
-    _check_patterns = [
-        ("dealerlimit", _dealerlimit_pattern, "MISSING CONTROL (not a detected anomaly): This FX-dealing-room trade-execution function has no dealer-position-limit check detected - individual FX dealers should operate within board-approved intraday/overnight position limits to control operational and market risk. No malicious pattern was found in this code - this is a recommendation to ADD dealer-position-limit checking."),
-    ]
-    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _dealer_pattern, _check_patterns, context_filter=_has_financial_context)
-    if not _scan_result["supported"]:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "FX dealing room limits analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
-    findings = _scan_result["findings"]
-    functions_found = _scan_result["functions_found"]
-    if functions_found == 0:
-        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No FX-dealing-room trade-execution functions detected in this file.", "disclaimer": "Pattern-based function-scope check for dealer-position-limit logic near FX-trade-execution functions."}
-    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " FX-dealing function(s) with no dealer-limit check found.", "disclaimer": "Pattern-based check only - looks for dealer-limit/position-limit keywords near FX-trade-execution functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit matches the dealer board-approved mandate. A qualified treasury/market-risk officer must review flagged functions."}
-
-@app.post("/fx-dealing-check")
-async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
-    try:
-        content2 = await file.read()
-        source, error = safe_read_file(content2, file.filename)
-        if error:
-            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = check_fx_dealing_room_limits(source, file.filename)
-        result["filename"] = file.filename
-        track_usage("fx-dealing-check", file.filename)
-        write_audit_log("fx-dealing-check", file.filename, "checked")
-        return result
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
-def check_riba_flag(source, filename):
-    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
-    if not filename.lower().endswith(".py"):
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Riba flag analysis currently supports Python files only."}
-    try:
-        tree = ast.parse(source)
-    except Exception:
-        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
-    _islamic_name_pattern = re.compile(r"(?i)(islamic|shariah|murabaha|musharakah|ijarah|takaful)")
-    _interest_pattern = re.compile(r"(?i)(?<![a-zA-Z])interest.?rate|(?<![a-zA-Z])annual.?percentage.?rate")
-    findings = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if _islamic_name_pattern.search(node.name):
-                func_source = ast.get_source_segment(source, node) or ""
-                if _interest_pattern.search(func_source):
-                    findings.append({"line": node.lineno, "issue": "RED FLAG FOR SHARIAH REVIEW (not a determination of non-compliance): This function (" + node.name + ") is named as an Islamic-banking/Shariah product but also references interest-rate-style terminology in its body. This textual co-occurrence does not itself prove Riba (interest) is present - many Islamic-finance profit-rate calculations are legitimately expressed using similar variable names - but it is exactly the kind of code a Shariah board/compliance officer should independently review.", "severity": "Medium", "evidence": node.name})
-    findings = findings[:30]
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " Islamic-finance function(s) with interest-rate-style terminology found - flagged for Shariah board review." if findings else "No interest-rate-style terminology found alongside Islamic-finance function names.", "disclaimer": "Pattern-based textual co-occurrence check only, not a Shariah-compliance ruling. This tool cannot determine whether Riba is genuinely present - only a qualified Shariah board can make that determination. Flagged functions require independent Shariah review, not automatic rejection."}
-
 
 @app.post("/riba-flag-check")
 async def riba_flag_check_endpoint(file: UploadFile = File(...)):
