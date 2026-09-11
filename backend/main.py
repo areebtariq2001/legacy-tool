@@ -8070,6 +8070,152 @@ async def islamic_banking_suite_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Islamic banking suite failed safely: " + str(e)})
+def check_sbp_circular_reference(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "SBP circular reference analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    _compliance_func_pattern = re.compile(r"(?i)(enforce.{0,5}sbp.?compliance|sbp.?compliance.{0,5}enforce|apply.{0,5}prudential.?regulation|prudential.?regulation.{0,5}apply)")
+    _circular_pattern = re.compile(r"(?i)(bprd.?circular|sbp.?circular.?no|prudential.?regulation.?reference|circular.?letter.?ref)")
+    findings = []
+    functions_found = 0
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if _compliance_func_pattern.search(node.name):
+                func_source = ast.get_source_segment(source, node) or ""
+                functions_found += 1
+                if not _circular_pattern.search(func_source):
+                    findings.append({"function": node.name, "line": node.lineno, "issue": "STRUCTURAL CHECK - MISSING ELEMENT (not a regulatory compliance ruling): This SBP-compliance-enforcement function has no BPRD circular/prudential-regulation citation detected in code or comments - traceable regulatory citations help auditors verify which specific SBP requirement a control implements. No malicious pattern was found in this code - this is a recommendation to document which SBP circular/regulation this control satisfies. This tool cannot verify whether the code genuinely satisfies any specific regulation - only that a citation exists."})
+    findings = findings[:30]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No SBP-compliance-enforcement functions detected in this file.", "disclaimer": "Pattern-based structural check only - looks for BPRD-circular/regulation-citation text (including in comments) near compliance-enforcement functions. This tool cannot parse actual SBP regulatory documents or verify genuine regulatory compliance."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " compliance function(s) with no SBP circular/regulation citation found.", "disclaimer": "Pattern-based structural check only - looks for BPRD-circular/regulation-citation text (including in comments) near compliance-enforcement functions. This does NOT parse or interpret actual SBP regulatory documents, and a PASS only means a citation-like string exists, not that the citation is accurate or the control genuinely satisfies that regulation. A qualified compliance officer must independently verify against current SBP circulars."}
+
+
+@app.post("/sbp-circular-check")
+async def sbp_circular_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_sbp_circular_reference(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("sbp-circular-check", file.filename)
+        write_audit_log("sbp-circular-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "SBP circular check failed safely: " + str(e)})
+def check_basel_car_structure(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _car_pattern = re.compile(r"(?i)(calculate.{0,5}capital.?adequacy|capital.?adequacy.{0,5}calculate|calculate.{0,5}\bcar\b|\bcar\b.{0,5}calculate)(?!.?(time|id|type|status|date|history|report|log))")
+    _rwa_pattern = re.compile(r"(?i)(risk.?weighted.?asset|\brwa\b|risk.?weight.?factor)")
+    _check_patterns = [
+        ("rwa", _rwa_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Basel III regulatory certification): This Capital Adequacy Ratio (CAR) calculation function has no Risk-Weighted-Assets (RWA) component detected - Basel III CAR is structurally defined as Capital divided by Risk-Weighted-Assets, so a CAR calculation without an RWA component is likely incomplete or uses a flat denominator instead of risk-weighting. No malicious pattern was found in this code - this is a recommendation that a qualified risk/regulatory-capital analyst verify the calculation genuinely risk-weights assets per Basel III/SBP capital rules."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _car_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Basel III CAR structure analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No Capital-Adequacy-Ratio calculation functions detected in this file.", "disclaimer": "Pattern-based structural check only - looks for RWA-component presence near CAR-calculation functions. This tool does NOT perform actual Basel III capital calculations, verify Tier 1/Tier 2 capital classifications, or certify regulatory capital adequacy."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CAR-calculation function(s) with no RWA component found.", "disclaimer": "Pattern-based structural check only - this tool cannot perform actual Basel III/actuarial calculations or certify capital adequacy. It only flags CAR-named functions missing an obvious risk-weighted-assets component as a structural completeness signal. A qualified regulatory-capital analyst must independently verify the genuine Basel III/SBP capital adequacy calculation."}
+
+@app.post("/basel-car-check")
+async def basel_car_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_basel_car_structure(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("basel-car-check", file.filename)
+        write_audit_log("basel-car-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Basel CAR check failed safely: " + str(e)})
+def scan_cobol_banking_dialect(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    _dialect_categories = {
+        "CICS (transaction processing)": re.compile(r"(?i)\bEXEC\s+CICS\b"),
+        "IMS (hierarchical database)": re.compile(r"(?i)\bEXEC\s+DLI\b|\bIMS\b"),
+        "JCL job step reference": re.compile(r"(?i)//\S+\s+JOB\b|//\S+\s+EXEC\b"),
+        "VSAM file operations": re.compile(r"(?i)\bVSAM\b|SELECT\s+\S+\s+ASSIGN\s+TO"),
+        "MQ messaging": re.compile(r"(?i)\bMQOPEN\b|\bMQPUT\b|\bMQGET\b|\bMQSeries\b"),
+        "COBOL Copybook include": re.compile(r"(?i)\bCOPY\s+\S+"),
+    }
+    findings = []
+    lines_arr = source.split(chr(10))
+    counts = {}
+    for i, line in enumerate(lines_arr):
+        for category, pattern in _dialect_categories.items():
+            if pattern.search(line):
+                counts[category] = counts.get(category, 0) + 1
+                if len(findings) < 40:
+                    findings.append({"line": i + 1, "issue": category + " reference found - this mainframe-specific construct needs a modern-platform equivalent before migration (e.g. CICS transactions -> REST/microservice calls, VSAM -> relational/NoSQL storage, JCL -> orchestration/scheduler jobs).", "severity": "Info", "evidence": line.strip()[:100]})
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " mainframe-specific construct reference(s) found across " + str(len(counts)) + " categories - this is an inventory to help plan migration scope, not an automated migration.") if findings else "No CICS/IMS/JCL/VSAM/MQ/Copybook references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE mainframe-specific constructs appear so a migration team can scope the effort. It does NOT parse COBOL semantics, resolve Copybook dependencies, or automatically convert any of these constructs to modern equivalents. A qualified mainframe migration engineer must design and implement the actual conversion."}
+
+@app.post("/cobol-dialect-scan")
+async def cobol_dialect_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_cobol_banking_dialect(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cobol-dialect-scan", file.filename)
+        write_audit_log("cobol-dialect-scan", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "COBOL dialect scan failed safely: " + str(e)})
+def scan_cbs_integration_points(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"scanned": False, "findings": [], "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"scanned": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CBS integration detection currently supports Python files only."}
+    _cbs_categories = {
+        "T24 (Temenos)": re.compile(r"(?i)\bT24\b|\bTemenos\b"),
+        "Finacle (Infosys)": re.compile(r"(?i)\bFinacle\b"),
+        "Misys Equation": re.compile(r"(?i)\bMisys\b|\bEquation\b(?=.{0,30}(bank|cbs|core))"),
+        "SYMBOL": re.compile(r"(?i)\bSYMBOL\b(?=.{0,30}(bank|cbs|core))"),
+    }
+    findings = []
+    lines_arr = source.split(chr(10))
+    counts = {}
+    for i, line in enumerate(lines_arr):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        for category, pattern in _cbs_categories.items():
+            if pattern.search(line):
+                counts[category] = counts.get(category, 0) + 1
+                if len(findings) < 40:
+                    findings.append({"line": i + 1, "issue": category + " integration reference found - this is a legacy Core Banking System dependency that will need an API/data-mapping strategy when migrating away from this CBS.", "severity": "Info", "evidence": stripped[:100]})
+    return {"scanned": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " legacy CBS integration reference(s) found across " + str(len(counts)) + " platform(s) - this is an inventory to help scope migration effort, not an automated migration tool.") if findings else "No T24/Finacle/Misys/SYMBOL Core Banking System references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE a specific legacy Core Banking System is referenced so a migration team can scope the integration effort. It does NOT extract business logic, map data models, or automatically migrate any CBS-specific functionality. A qualified core-banking migration engineer must design and implement the actual migration to a modern platform."}
+
+@app.post("/cbs-integration-scan")
+async def cbs_integration_scan_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = scan_cbs_integration_points(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cbs-integration-scan", file.filename)
+        write_audit_log("cbs-integration-scan", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CBS integration scan failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
