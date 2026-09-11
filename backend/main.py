@@ -7607,6 +7607,68 @@ async def digital_onboarding_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital onboarding check failed safely: " + str(e)})
+def check_market_risk_logic(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _position_pattern = re.compile(r"(?i)(calculate.{0,5}market.?exposure|market.?exposure.{0,5}calculate|assess.{0,5}position.?risk|position.?risk.{0,5}assess)(?!.?(time|id|type|status|date|history|report|log))")
+    _riskmetric_pattern = re.compile(r"(?i)(value.?at.?risk|\bvar\b|stress.?test|sensitivity.?analysis)")
+    _check_patterns = [
+        ("riskmetric", _riskmetric_pattern, "MISSING CONTROL (not a detected anomaly): This market-exposure/position-risk function has no market-risk-metric (VaR/stress-test/sensitivity-analysis) calculation detected - exposure to market-price movements requires quantified risk metrics beyond simple exposure amounts. No malicious pattern was found in this code - this is a recommendation to ADD market-risk-metric calculation."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _position_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Market risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No market-exposure/position-risk functions detected in this file.", "disclaimer": "Pattern-based function-scope check for VaR/stress-test/sensitivity-analysis logic near market-exposure functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " market-exposure function(s) with no risk-metric calculation found.", "disclaimer": "Pattern-based check only - looks for VaR/stress-test/sensitivity-analysis keywords near functions that calculate market exposure/position risk with genuine financial-parameter context. A PASS means a plausibly-named calculation EXISTS, not that the risk model is statistically sound. A qualified market risk analyst must review flagged functions."}
+
+@app.post("/market-risk-check")
+async def market_risk_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_market_risk_logic(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("market-risk-check", file.filename)
+        write_audit_log("market-risk-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Market risk check failed safely: " + str(e)})
+def check_pci_tokenization(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _cardstore_pattern = re.compile(r"(?i)(store.{0,5}card.?number|card.?number.{0,5}store|save.{0,5}pan\b|process.{0,5}card.?number)(?!.?(time|id|type|status|date|history|report|log))")
+    _tokenize_pattern = re.compile(r"(?i)(tokeniz|token.?vault|surrogate.?value|token.?reference)")
+    _check_patterns = [
+        ("tokenize", _tokenize_pattern, "MISSING CONTROL (not a detected anomaly): This card-number storage/processing function has no tokenization logic detected - PCI-DSS strongly recommends tokenizing card numbers (replacing PAN with a surrogate token) rather than storing/processing raw card data. No malicious pattern was found in this code - this is a recommendation to ADD tokenization."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cardstore_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "PCI tokenization analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No card-number storage/processing functions detected in this file.", "disclaimer": "Pattern-based function-scope check for tokenization logic near card-number storage/processing functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " card-processing function(s) with no tokenization found.", "disclaimer": "Pattern-based check only - looks for tokenization/token-vault keywords near functions that store/process raw card numbers. A PASS means a plausibly-named tokenization mechanism EXISTS, not that it meets PCI-DSS tokenization requirements in full. A qualified PCI compliance engineer must review flagged functions."}
+
+@app.post("/pci-tokenization-check")
+async def pci_tokenization_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_pci_tokenization(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("pci-tokenization-check", file.filename)
+        write_audit_log("pci-tokenization-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI tokenization check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
