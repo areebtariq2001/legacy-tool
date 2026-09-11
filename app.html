@@ -398,7 +398,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               </div>
             </div>
             <div class="card" id="repoSummaryCard" style="display:none">
-              <div class="card-head">Repository Summary <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Accumulated across all files analyzed this session</span></div>
+              <div class="card-head">Repository Summary <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Accumulates every distinct file you've analyzed in this browser session (batch uploads and individual runs) - not just the files in your most recent upload</span></div>
               <div id="repoSummaryText" style="font-size:12px;color:#4b5563;line-height:1.8;margin-bottom:10px"></div>
               <div id="repoFileList" style="display:flex;flex-direction:column;gap:5px"></div>
             </div>
@@ -1453,17 +1453,17 @@ function renderResults(R, original, fname, totalMs) {
   detectInsurance(original);
   detectMainframeAssets(original);
   detectRegulatoryCompliance(original, R);
-  setTimeout(updateRepositorySummary, 50);
-  setTimeout(renderCapabilityMap, 60);
+  updateRepositorySummary(fname);
+  renderCapabilityMap();
   window.lastAnalyzedSourceForKG = original;
-  setTimeout(renderKnowledgeGraph, 70);
+  renderKnowledgeGraph(fname);
   detectDatabaseIntelligence(original);
   detectBankingDomains(original);
   detectCallGraph(original);
   detectCopybooks(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
-  renderExecSummary(critCount, warnCount, confPct, estimateFixHours(critCount, warnCount), R);
+  renderExecSummary(critCount, warnCount, confPct, estimateFixHours(critCount, warnCount), R, fname);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function generateSuggestions(issues, critCount, warnCount) {
@@ -2186,13 +2186,13 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums,
   }).join('');
 }
 let lastRulesCount = 0;
-function renderKnowledgeGraph() {
+function renderKnowledgeGraph(passedFname) {
   const card = document.getElementById('knowledgeGraphCard');
   const list = document.getElementById('knowledgeGraphList');
   const tables = Array.from(document.querySelectorAll('#dbIntelList span')).map(s =>s.textContent.trim());
   const copybooks = lastCopybookNames || [];
   const services = lastUniqueServices || [];
-  const fname = files.length ? files[0].name : 'this file';
+  const fname = passedFname || (files.length ? files[0].name : 'this file');
   const funcTexts = Array.from(document.querySelectorAll('#bankingList div div span, #rulesList div div span')).map(s =>s.textContent).filter(t =>t.includes('()'));
   const functionsFromDom = funcTexts.map(t => { const m = t.match(/([\w-]+)\(\)/); return m ? m[1] : null; }).filter(Boolean);
   const _kgSource = window.lastAnalyzedSourceForKG || '';
@@ -2290,9 +2290,9 @@ function renderCapabilityMap() {
   }
   list.innerHTML = html;
 }
-function updateRepositorySummary() {
-  if (!files.length) return;
-  const fname = files[0].name;
+function updateRepositorySummary(passedFname) {
+  if (!passedFname && !files.length) return;
+  const fname = passedFname || files[0].name;
   const confText = document.getElementById('confPct').textContent;
   const critCount = parseInt(document.getElementById('sv-critical').textContent) || 0;
   const warnCount = parseInt(document.getElementById('sv-warnings').textContent) || 0;
@@ -2302,6 +2302,9 @@ function updateRepositorySummary() {
   let localImports = [];
   const _snap = (window.lastFileSnapshot && window.lastFileSnapshot.original) || '';
   const _lname = fname.toLowerCase();
+  const _extLangMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' };
+  const _fileExt = _lname.split('.').pop();
+  const _entryLang = _extLangMap[_fileExt] || lang;
   if (_lname.endsWith('.py')) {
     localImports = (_snap.match(/(?:^|\n)\s*(?:import|from)\s+([\w\.]+)/g) || []).map(m =>m.replace(/^\s*(?:import|from)\s+/, '').split('.')[0]);
   } else if (_lname.endsWith('.java')) {
@@ -2311,7 +2314,7 @@ function updateRepositorySummary() {
   } else if (_lname.endsWith('.cbl') || _lname.endsWith('.cob')) {
     localImports = (_snap.match(/COPY\s+([\w-]+)/gi) || []).map(m =>m.replace(/COPY\s+/i, ''));
   }
-  const entry = { fname, lang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot, localImports };
+  const entry = { fname, lang: _entryLang, confText, critCount, warnCount, rulesCount, tables: tableSpans, services: serviceSpans, copybooks: lastCopybookNames, snapshot: window.lastFileSnapshot, localImports };
   sessionFileResults = sessionFileResults.filter(e =>e.fname !== fname);
   sessionFileResults.push(entry);
   renderRepositorySummary();
@@ -2343,7 +2346,7 @@ function renderRepositorySummary() {
   text.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
       <div><div style="font-size:18px;font-weight:700;color:#0f1115">${sessionFileResults.length}</div><div style="font-size:9px;color:#64748b">Files (${successful} OK, ${needsReview} Review)</div></div>
-      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${langs.size}</div><div style="font-size:9px;color:#64748b">Languages</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:#0f1115">${langs.size}</div><div style="font-size:9px;color:#64748b">${langs.size === 1 ? 'Language' : 'Languages'}</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#0f1115">${totalRules}</div><div style="font-size:9px;color:#64748b">Business Rules</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#ef4444">${totalCrit}</div><div style="font-size:9px;color:#64748b">Critical Issues</div></div>
       <div><div style="font-size:18px;font-weight:700;color:#0f1115">${allTables.size}</div><div style="font-size:9px;color:#64748b">DB Tables</div></div>
@@ -2396,7 +2399,7 @@ function renderCrossFileGraph() {
     </div>
   `).join('');
 }
-function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
+function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFname) {
   const rulesCount = document.querySelectorAll('#rulesList >div').length;
   const mediumRiskCount = Array.from(document.querySelectorAll('#riskEngineList >div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
   const recommendation = critCount >= 1 ? 'Not Safe — Critical Review Required' : mediumRiskCount >= 3 ? 'Migration Possible — Human Review Recommended' : 'Migration Safe';
@@ -2405,8 +2408,10 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R) {
   const text = document.getElementById('execSummaryText');
   card.style.display = 'block';
   const svcCount = (lastUniqueServices || []).length;
-  const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Modernization Spec' }[lang] || 'Modernized';
-  const sourceLabel = { python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[lang] || lang;
+  const _extLangMap2 = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' };
+  const _execLang = passedFname ? (_extLangMap2[passedFname.toLowerCase().split('.').pop()] || lang) : lang;
+  const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Modernization Spec' }[_execLang] || 'Modernized';
+  const sourceLabel = { python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[_execLang] || _execLang;
   const suitable = critCount === 0;
   const migType = svcCount >= 3 ? 'Incremental (phased by service)' : svcCount >= 1 ? 'Incremental' : 'Direct';
   const timelineWeeks = Math.max(1, Math.ceil(fixHours / 20));
