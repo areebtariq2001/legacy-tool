@@ -7483,6 +7483,68 @@ async def atm_switch_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "ATM switch check failed safely: " + str(e)})
+def check_shell_company_indicators(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _register_pattern = re.compile(r"(?i)(register.{0,5}business.?entity|business.?entity.{0,5}register|register.{0,5}corporate.?customer|corporate.?customer.{0,5}register)(?!.?(time|id|type|status|date|history|report|log))")
+    _shell_pattern = re.compile(r"(?i)(shell.?compan|operational.?substance|physical.?presence.?check|nominee.?director.?check)")
+    _check_patterns = [
+        ("shell", _shell_pattern, "MISSING CONTROL (not a detected anomaly): This business-entity-registration function has no shell-company-indicator or operational-substance check detected - SBP AML/CFT guidance expects screening for shell-company red flags (no physical presence, nominee directors) when onboarding corporate customers. No malicious pattern was found in this code - this is a recommendation to ADD shell-company-indicator checks."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _register_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Shell company indicators analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No business-entity-registration functions detected in this file.", "disclaimer": "Pattern-based function-scope check for shell-company-indicator/operational-substance logic near business-entity-registration functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " entity-registration function(s) with no shell-company check found.", "disclaimer": "Pattern-based check only - looks for shell-company/operational-substance keywords near functions that register business entities/corporate customers. A PASS means a plausibly-named check EXISTS, not that it correctly identifies genuine shell companies. A qualified AML compliance officer must review flagged functions."}
+
+@app.post("/shell-company-check")
+async def shell_company_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_shell_company_indicators(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("shell-company-check", file.filename)
+        write_audit_log("shell-company-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Shell company check failed safely: " + str(e)})
+def check_nadra_api_integration(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _cnic_verify_pattern = re.compile(r"(?i)(verify.{0,5}cnic.?online|cnic.?online.{0,5}verify|verify.{0,5}national.?id|national.?id.{0,5}verify)(?!.?(time|id|type|status|date|history|report|log))")
+    _nadra_pattern = re.compile(r"(?i)(nadra|verisys|national.?database.?registration)")
+    _check_patterns = [
+        ("nadra", _nadra_pattern, "MISSING CONTROL (not a detected anomaly): This CNIC/national-ID online-verification function has no NADRA/Verisys API integration detected - genuine real-time CNIC verification requires calling NADRA (National Database and Registration Authority) systems, not just local format checks. No malicious pattern was found in this code - this is a recommendation to ADD NADRA API integration."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cnic_verify_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "NADRA API integration analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No online CNIC/national-ID-verification functions detected in this file.", "disclaimer": "Pattern-based function-scope check for NADRA/Verisys API integration near online CNIC-verification functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " CNIC-verification function(s) with no NADRA API integration found.", "disclaimer": "Pattern-based check only - looks for NADRA/Verisys keywords near functions that verify CNIC/national ID online. A PASS means a plausibly-named NADRA integration EXISTS, not that the API call is genuinely wired up and returning live results. A qualified KYC compliance officer must review flagged functions."}
+
+@app.post("/nadra-integration-check")
+async def nadra_integration_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_nadra_api_integration(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("nadra-integration-check", file.filename)
+        write_audit_log("nadra-integration-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NADRA integration check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
