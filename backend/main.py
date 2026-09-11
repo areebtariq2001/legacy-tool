@@ -7390,6 +7390,99 @@ async def crossborder_data_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Crossborder data check failed safely: " + str(e)})
+def check_correspondent_banking_risk(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _nostro_pattern = re.compile(r"(?i)(nostro.{0,5}transaction|transaction.{0,5}nostro|vostro.{0,5}transaction|transaction.{0,5}vostro)(?!.?(time|id|type|status|date|history|report|log))")
+    _riskrating_pattern = re.compile(r"(?i)(correspondent.?bank.?risk|correspondent.?rating|nostro.?risk.?check|respondent.?bank.?due.?diligence)")
+    _check_patterns = [
+        ("riskrating", _riskrating_pattern, "MISSING CONTROL (not a detected anomaly): This nostro/vostro correspondent-banking transaction function has no correspondent-bank-risk-rating check detected - correspondent banking relationships require ongoing due-diligence and risk-rating of the respondent bank per FATF/SBP guidance. No malicious pattern was found in this code - this is a recommendation to ADD correspondent-bank-risk-rating checking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _nostro_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Correspondent banking risk analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No nostro/vostro correspondent-banking functions detected in this file.", "disclaimer": "Pattern-based function-scope check for correspondent-bank-risk-rating logic near nostro/vostro transaction functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " nostro/vostro function(s) with no risk-rating check found.", "disclaimer": "Pattern-based check only - looks for correspondent-bank-risk-rating keywords near nostro/vostro transaction functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the risk-rating meets FATF/SBP correspondent-banking due-diligence standards. A qualified AML/correspondent-banking officer must review flagged functions."}
+
+@app.post("/correspondent-banking-check")
+async def correspondent_banking_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_correspondent_banking_risk(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("correspondent-banking-check", file.filename)
+        write_audit_log("correspondent-banking-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Correspondent banking check failed safely: " + str(e)})
+def check_cloud_provider_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _provision_pattern = re.compile(r"(?i)(provision.{0,5}cloud.?service|cloud.?service.{0,5}provision|deploy.{0,5}cloud.?infrastructure|cloud.?infrastructure.{0,5}deploy)(?!.?(time|id|type|status|date|history|report|log))")
+    _compliance_pattern = re.compile(r"(?i)(local.?dc.?check|data.?center.?compliance|cloud.?provider.?approv|sbp.?approved.?vendor)")
+    _check_patterns = [
+        ("compliance", _compliance_pattern, "MISSING CONTROL (not a detected anomaly): This cloud-service-provisioning function has no local-data-center-compliance or approved-vendor check detected - SBP guidance expects cloud providers used for banking workloads to meet local data-center compliance requirements. No malicious pattern was found in this code - this is a recommendation to ADD cloud-provider-compliance verification."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _provision_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Cloud provider compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No cloud-service-provisioning functions detected in this file.", "disclaimer": "Pattern-based function-scope check for local-data-center-compliance/approved-vendor logic near cloud-provisioning functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " cloud-provisioning function(s) with no compliance check found.", "disclaimer": "Pattern-based check only - looks for local-data-center-compliance/approved-vendor keywords near cloud-service-provisioning functions. A PASS means a plausibly-named check EXISTS, not that the cloud provider is genuinely SBP-approved. A qualified data-governance officer must review flagged functions."}
+
+@app.post("/cloud-provider-check")
+async def cloud_provider_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_cloud_provider_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cloud-provider-check", file.filename)
+        write_audit_log("cloud-provider-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Cloud provider check failed safely: " + str(e)})
+def check_atm_switch_reconciliation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _settle_pattern = re.compile(r"(?i)(settle.{0,5}atm.?transaction|atm.?transaction.{0,5}settle|atm.{0,5}end.?of.?day|end.?of.?day.{0,5}atm)(?!.?(time|id|type|status|date|history|report|log))")
+    _reconcile_pattern = re.compile(r"(?i)(reconcil|end.?of.?day.?balance|settlement.?match|dispute.?flag)")
+    _check_patterns = [
+        ("reconcile", _reconcile_pattern, "MISSING CONTROL (not a detected anomaly): This ATM-switch settlement function has no end-of-day reconciliation logic detected - ATM networks require daily reconciliation between the switch and settlement systems to catch discrepancies and disputed transactions. No malicious pattern was found in this code - this is a recommendation to ADD reconciliation logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _settle_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "ATM switch reconciliation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No ATM-switch settlement functions detected in this file.", "disclaimer": "Pattern-based function-scope check for end-of-day reconciliation logic near ATM-switch settlement functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " ATM-settlement function(s) with no reconciliation logic found.", "disclaimer": "Pattern-based check only - looks for reconciliation/end-of-day-balance keywords near ATM-switch settlement functions with genuine financial-parameter context. A PASS means a plausibly-named reconciliation mechanism EXISTS, not that it correctly catches all discrepancies. A qualified payments operations engineer must review flagged functions."}
+
+@app.post("/atm-switch-check")
+async def atm_switch_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_atm_switch_reconciliation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("atm-switch-check", file.filename)
+        write_audit_log("atm-switch-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "ATM switch check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
