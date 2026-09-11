@@ -7545,6 +7545,68 @@ async def nadra_integration_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NADRA integration check failed safely: " + str(e)})
+def check_data_sovereignty(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _process_pattern = re.compile(r"(?i)(process.{0,5}customer.?data|customer.?data.{0,5}process|store.{0,5}customer.?record|customer.?record.{0,5}store)(?!.?(time|id|type|status|date|history|report|log))")
+    _sovereignty_pattern = re.compile(r"(?i)(data.?sovereignty|sovereign.?control|ownership.?verif|jurisdictional.?control)")
+    _check_patterns = [
+        ("sovereignty", _sovereignty_pattern, "MISSING CONTROL (not a detected anomaly): This customer-data processing/storage function has no data-sovereignty verification detected - beyond just where data physically resides, sovereignty compliance also expects verifying that Pakistan retains legal jurisdictional control over the data. No malicious pattern was found in this code - this is a recommendation to ADD data-sovereignty verification."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _process_pattern, _check_patterns, context_filter=_has_kyc_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Data sovereignty analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No customer-data processing/storage functions detected in this file.", "disclaimer": "Pattern-based function-scope check for data-sovereignty verification near customer-data processing functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " data-processing function(s) with no sovereignty verification found.", "disclaimer": "Pattern-based check only - looks for data-sovereignty/jurisdictional-control keywords near functions that process/store customer data, requiring genuine KYC/customer context. A PASS means a plausibly-named check EXISTS, not that Pakistan genuinely retains legal control over the data. A qualified data-governance officer must review flagged functions."}
+
+@app.post("/data-sovereignty-check")
+async def data_sovereignty_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_data_sovereignty(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("data-sovereignty-check", file.filename)
+        write_audit_log("data-sovereignty-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Data sovereignty check failed safely: " + str(e)})
+def check_digital_onboarding_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _onboard_pattern = re.compile(r"(?i)(digital.{0,5}customer.?onboard|customer.?onboard.{0,5}digital|onboard.{0,5}new.?customer|new.?customer.{0,5}onboard)(?!.?(time|id|type|status|date|history|report|log))")
+    _authenticity_pattern = re.compile(r"(?i)(document.?authenticity|fraud.?detect.{0,10}document|forgery.?check|id.?document.?verify)")
+    _check_patterns = [
+        ("authenticity", _authenticity_pattern, "MISSING CONTROL (not a detected anomaly): This digital-customer-onboarding function has no document-authenticity/forgery-detection check detected - digital onboarding relies entirely on document images/data, so verifying authenticity (not just format) is critical to prevent synthetic-identity fraud. No malicious pattern was found in this code - this is a recommendation to ADD document-authenticity verification."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _onboard_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Digital onboarding compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No digital-customer-onboarding functions detected in this file.", "disclaimer": "Pattern-based function-scope check for document-authenticity/forgery-detection logic near digital-onboarding functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " onboarding function(s) with no document-authenticity check found.", "disclaimer": "Pattern-based check only - looks for document-authenticity/forgery-detection keywords near digital-customer-onboarding functions. A PASS means a plausibly-named check EXISTS, not that it correctly detects synthetic identities. A qualified KYC/fraud-prevention officer must review flagged functions."}
+
+@app.post("/digital-onboarding-check")
+async def digital_onboarding_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_digital_onboarding_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("digital-onboarding-check", file.filename)
+        write_audit_log("digital-onboarding-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital onboarding check failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
