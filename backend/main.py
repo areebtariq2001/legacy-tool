@@ -8126,7 +8126,7 @@ async def sbp_circular_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "SBP circular check failed safely: " + str(e)})
 def _has_capital_context(func_source):
-    _capital_pattern = re.compile(r"(?i)(tier.?1|tier.?2|risk.?weighted|\brwa\b|basel|capital.?adequacy)")
+    _capital_pattern = re.compile(r"(?i)(tier.?1|tier.?2|risk.?weighted|(?<![a-zA-Z])rwa(?![a-zA-Z])|basel|capital.?adequacy)")
     return bool(_capital_pattern.search(func_source))
 
 
@@ -8134,7 +8134,7 @@ def check_basel_car_structure(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     _car_pattern = re.compile(r"(?i)(calculate.{0,5}capital.?adequacy|capital.?adequacy.{0,5}calculate|calculate.{0,5}(?<![a-zA-Z])car(?![a-zA-Z])|(?<![a-zA-Z])car(?![a-zA-Z]).{0,5}calculate)(?!.?(time|id|type|status|date|history|report|log))")
-    _rwa_pattern = re.compile(r"(?i)(risk.?weighted.?asset|\brwa\b|risk.?weight.?factor)")
+    _rwa_pattern = re.compile(r"(?i)(risk.?weighted.?asset|(?<![a-zA-Z])rwa(?![a-zA-Z])|risk.?weight.?factor)")
     _check_patterns = [
         ("rwa", _rwa_pattern, "STRUCTURAL CHECK - MISSING ELEMENT (not a Basel III regulatory certification): This Capital Adequacy Ratio (CAR) calculation function has no Risk-Weighted-Assets (RWA) component detected - Basel III CAR is structurally defined as Capital divided by Risk-Weighted-Assets, so a CAR calculation without an RWA component is likely incomplete or uses a flat denominator instead of risk-weighting. No malicious pattern was found in this code - this is a recommendation that a qualified risk/regulatory-capital analyst verify the calculation genuinely risk-weights assets per Basel III/SBP capital rules."),
     ]
