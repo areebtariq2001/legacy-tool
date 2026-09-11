@@ -7669,6 +7669,244 @@ async def pci_tokenization_check_endpoint(file: UploadFile = File(...)):
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI tokenization check failed safely: " + str(e)})
+def check_cde_segmentation(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _cardhandle_pattern = re.compile(r"(?i)(transmit.{0,5}cardholder.?data|cardholder.?data.{0,5}transmit|store.{0,5}cardholder.?data|cardholder.?data.{0,5}store)(?!.?(time|id|type|status|date|history|report|log))")
+    _cde_pattern = re.compile(r"(?i)(cde.?segment|network.?isolat|cardholder.?data.?environment|firewall.?zone.?check)")
+    _check_patterns = [
+        ("cde", _cde_pattern, "MISSING CONTROL (not a detected anomaly): This cardholder-data storage/transmission function has no CDE-segmentation or network-isolation awareness detected - PCI-DSS requires the Cardholder Data Environment to be network-segmented and isolated from other systems. No malicious pattern was found in this code - this is a recommendation to ADD CDE-segmentation checks."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _cardhandle_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CDE segmentation analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No cardholder-data storage/transmission functions detected in this file.", "disclaimer": "Pattern-based function-scope check for CDE-segmentation/network-isolation logic near cardholder-data functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " cardholder-data function(s) with no CDE-segmentation check found.", "disclaimer": "Pattern-based check only - looks for CDE-segmentation/network-isolation keywords near cardholder-data storage/transmission functions. A PASS means a plausibly-named check EXISTS, not that the network is genuinely segmented per PCI-DSS scope requirements. A qualified PCI compliance engineer must review flagged functions."}
+
+@app.post("/cde-segmentation-check")
+async def cde_segmentation_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_cde_segmentation(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("cde-segmentation-check", file.filename)
+        write_audit_log("cde-segmentation-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CDE segmentation check failed safely: " + str(e)})
+def check_key_management_compliance(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _keyuse_pattern = re.compile(r"(?i)(load.{0,5}encryption.?key|encryption.?key.{0,5}load|use.{0,5}encryption.?key|encryption.?key.{0,5}use)(?!.?(time|id|type|status|date|history|report|log))")
+    _rotation_pattern = re.compile(r"(?i)(key.?rotat|key.?expir|key.?rotation.?schedule|key.?version.?check)")
+    _check_patterns = [
+        ("rotation", _rotation_pattern, "MISSING CONTROL (not a detected anomaly): This encryption-key-usage function has no key-rotation or key-expiry logic detected - PCI-DSS and general key-management best practice require periodic key rotation to limit exposure from a compromised key. No malicious pattern was found in this code - this is a recommendation to ADD key-rotation logic."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _keyuse_pattern, _check_patterns)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Key management compliance analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No encryption-key-usage functions detected in this file.", "disclaimer": "Pattern-based function-scope check for key-rotation/key-expiry logic near encryption-key-usage functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " key-usage function(s) with no key-rotation logic found.", "disclaimer": "Pattern-based check only - looks for key-rotation/key-expiry keywords near functions that load/use encryption keys. A PASS means a plausibly-named rotation mechanism EXISTS, not that it is genuinely scheduled and enforced. A qualified security engineer must review flagged functions."}
+
+@app.post("/key-management-check")
+async def key_management_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_key_management_compliance(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("key-management-check", file.filename)
+        write_audit_log("key-management-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Key management check failed safely: " + str(e)})
+def check_reverse_repo_margin(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _reverserepo_pattern = re.compile(r"(?i)(process.{0,5}reverse.?repo|reverse.?repo.{0,5}process|monitor.{0,5}reverse.?repo|reverse.?repo.{0,5}monitor)(?!.?(time|id|type|status|date|history|report|log))")
+    _margin_pattern = re.compile(r"(?i)(margin.?call|collateral.?revalu|mark.?to.?market.{0,10}collateral|margin.?threshold)")
+    _check_patterns = [
+        ("margin", _margin_pattern, "MISSING CONTROL (not a detected anomaly): This reverse-repo transaction function has no margin-call or collateral-revaluation monitoring detected - reverse-repo positions require ongoing margin monitoring since collateral value can move against the position over the transaction term. No malicious pattern was found in this code - this is a recommendation to ADD margin-call monitoring."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _reverserepo_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Reverse repo margin analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No reverse-repo transaction functions detected in this file.", "disclaimer": "Pattern-based function-scope check for margin-call/collateral-revaluation logic near reverse-repo functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " reverse-repo function(s) with no margin-monitoring found.", "disclaimer": "Pattern-based check only - looks for margin-call/collateral-revaluation keywords near reverse-repo transaction functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that margin calls are correctly triggered in production. A qualified treasury operations analyst must review flagged functions."}
+
+@app.post("/reverse-repo-check")
+async def reverse_repo_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_reverse_repo_margin(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("reverse-repo-check", file.filename)
+        write_audit_log("reverse-repo-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Reverse repo check failed safely: " + str(e)})
+def check_fx_dealing_room_limits(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _dealer_pattern = re.compile(r"(?i)(execute.{0,5}fx.?trade|fx.?trade.{0,5}execute|dealer.{0,5}fx.?position|fx.?position.{0,5}dealer)(?!.?(time|id|type|status|date|history|report|log))")
+    _dealerlimit_pattern = re.compile(r"(?i)(dealer.?limit|position.?limit.?check|intraday.?limit|dealing.?mandate)")
+    _check_patterns = [
+        ("dealerlimit", _dealerlimit_pattern, "MISSING CONTROL (not a detected anomaly): This FX-dealing-room trade-execution function has no dealer-position-limit check detected - individual FX dealers should operate within board-approved intraday/overnight position limits to control operational and market risk. No malicious pattern was found in this code - this is a recommendation to ADD dealer-position-limit checking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _dealer_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "FX dealing room limits analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No FX-dealing-room trade-execution functions detected in this file.", "disclaimer": "Pattern-based function-scope check for dealer-position-limit logic near FX-trade-execution functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " FX-dealing function(s) with no dealer-limit check found.", "disclaimer": "Pattern-based check only - looks for dealer-limit/position-limit keywords near FX-trade-execution functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit matches the dealer board-approved mandate. A qualified treasury/market-risk officer must review flagged functions."}
+
+@app.post("/fx-dealing-check")
+async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_fx_dealing_room_limits(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("fx-dealing-check", file.filename)
+        write_audit_log("fx-dealing-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
+def check_fx_dealing_room_limits(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    _dealer_pattern = re.compile(r"(?i)(execute.{0,5}fx.?trade|fx.?trade.{0,5}execute|dealer.{0,5}fx.?position|fx.?position.{0,5}dealer)(?!.?(time|id|type|status|date|history|report|log))")
+    _dealerlimit_pattern = re.compile(r"(?i)(dealer.?limit|position.?limit.?check|intraday.?limit|dealing.?mandate)")
+    _check_patterns = [
+        ("dealerlimit", _dealerlimit_pattern, "MISSING CONTROL (not a detected anomaly): This FX-dealing-room trade-execution function has no dealer-position-limit check detected - individual FX dealers should operate within board-approved intraday/overnight position limits to control operational and market risk. No malicious pattern was found in this code - this is a recommendation to ADD dealer-position-limit checking."),
+    ]
+    _scan_result = _scan_functions_for_keyword_and_checks(source, filename, _dealer_pattern, _check_patterns, context_filter=_has_financial_context)
+    if not _scan_result["supported"]:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "FX dealing room limits analysis currently supports Python files only." if not filename.lower().endswith(".py") else "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    findings = _scan_result["findings"]
+    functions_found = _scan_result["functions_found"]
+    if functions_found == 0:
+        return {"checked": True, "findings": [], "total_findings": 0, "summary": "No FX-dealing-room trade-execution functions detected in this file.", "disclaimer": "Pattern-based function-scope check for dealer-position-limit logic near FX-trade-execution functions."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " FX-dealing function(s) with no dealer-limit check found.", "disclaimer": "Pattern-based check only - looks for dealer-limit/position-limit keywords near FX-trade-execution functions with genuine financial-parameter context. A PASS means a plausibly-named check EXISTS, not that the limit matches the dealer board-approved mandate. A qualified treasury/market-risk officer must review flagged functions."}
+
+@app.post("/fx-dealing-check")
+async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_fx_dealing_room_limits(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("fx-dealing-check", file.filename)
+        write_audit_log("fx-dealing-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
+def check_riba_flag(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Riba flag analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    _islamic_name_pattern = re.compile(r"(?i)(islamic|shariah|murabaha|musharakah|ijarah|takaful)")
+    _interest_pattern = re.compile(r"(?i)(?<![a-zA-Z])interest.?rate|(?<![a-zA-Z])annual.?percentage.?rate")
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if _islamic_name_pattern.search(node.name):
+                func_source = ast.get_source_segment(source, node) or ""
+                if _interest_pattern.search(func_source):
+                    findings.append({"line": node.lineno, "issue": "RED FLAG FOR SHARIAH REVIEW (not a determination of non-compliance): This function (" + node.name + ") is named as an Islamic-banking/Shariah product but also references interest-rate-style terminology in its body. This textual co-occurrence does not itself prove Riba (interest) is present - many Islamic-finance profit-rate calculations are legitimately expressed using similar variable names - but it is exactly the kind of code a Shariah board/compliance officer should independently review.", "severity": "Medium", "evidence": node.name})
+    findings = findings[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " Islamic-finance function(s) with interest-rate-style terminology found - flagged for Shariah board review." if findings else "No interest-rate-style terminology found alongside Islamic-finance function names.", "disclaimer": "Pattern-based textual co-occurrence check only, not a Shariah-compliance ruling. This tool cannot determine whether Riba is genuinely present - only a qualified Shariah board can make that determination. Flagged functions require independent Shariah review, not automatic rejection."}
+
+
+@app.post("/riba-flag-check")
+async def riba_flag_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_riba_flag(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("riba-flag-check", file.filename)
+        write_audit_log("riba-flag-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Riba flag check failed safely: " + str(e)})
+def run_pci_dss_scorecard(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"suite_run": False, "checks": [], "summary": "File too large."}
+    checks = []
+    try:
+        pci = scan_pci_dss_signals(source, filename)
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": pci.get("total_findings", 0) == 0, "finding_count": pci.get("total_findings", 0), "summary": pci.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        cde = check_cde_segmentation(source, filename)
+        _cde_ran = cde.get("language_supported", True)
+        checks.append({"name": "CDE Segmentation", "passed": (cde.get("total_findings", 0) == 0) if _cde_ran else None, "finding_count": cde.get("total_findings", 0), "summary": cde.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "CDE Segmentation", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        km = check_key_management_compliance(source, filename)
+        _km_ran = km.get("language_supported", True)
+        checks.append({"name": "Key Management", "passed": (km.get("total_findings", 0) == 0) if _km_ran else None, "finding_count": km.get("total_findings", 0), "summary": km.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "Key Management", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    try:
+        tok = check_pci_tokenization(source, filename)
+        _tok_ran = tok.get("language_supported", True)
+        checks.append({"name": "PCI Tokenization", "passed": (tok.get("total_findings", 0) == 0) if _tok_ran else None, "finding_count": tok.get("total_findings", 0), "summary": tok.get("summary", "")})
+    except Exception as e:
+        checks.append({"name": "PCI Tokenization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+    applicable_checks = [c for c in checks if c["passed"] is not None]
+    passed_count = sum(1 for c in applicable_checks if c["passed"])
+    applicable_count = len(applicable_checks)
+    not_applicable_count = len(checks) - applicable_count
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + (" - no issues found among applicable checks" if passed_count == applicable_count else " - review flagged checks")}
+
+@app.post("/pci-dss-scorecard")
+async def pci_dss_scorecard_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = run_pci_dss_scorecard(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("pci-dss-scorecard", file.filename)
+        write_audit_log("pci-dss-scorecard", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI DSS scorecard failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
