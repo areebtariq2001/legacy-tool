@@ -1328,7 +1328,7 @@ def analyze_java(source):
     for pattern, msg in java_checks:
         if re.search(pattern, source):
             issues.append(msg)
-    if re.search(r"(?i)(password|passwd|pwd|pass|api_key|apikey|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
         issues.append("Hardcoded password/credential found - move to environment variable")
     try:
         _sqli_result = scan_sql_injection(source, "file.java")
