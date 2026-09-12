@@ -635,6 +635,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Ijarah" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ijarah-check','Ijarah', this)">Ijarah</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Takaful" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/takaful-check','Takaful', this)">Takaful</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="AAOIFI Reference" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/aaoifi-check','AAOIFI Reference', this)">AAOIFI Reference</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Shariah Board Report" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/shariah-board-report-check','Shariah Board Report', this)">Shariah Board Report</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="SBP Circular Ref" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/sbp-circular-check','SBP Circular Ref', this)">SBP Circular Ref</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Basel III CAR" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/basel-car-check','Basel III CAR', this)">Basel III CAR</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="COBOL Dialect Scan" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/cobol-dialect-scan','COBOL Dialect Scan', this)">COBOL Dialect Scan</button>
@@ -725,6 +726,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div class="approval-actions">
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadReport()">Download Report</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadComplianceEvidence()">Compliance Evidence Export</button>
+                <button class="btn btn-ghost" style="font-size:11px" onclick="downloadSBPAuditPack()">SBP Audit Evidence Pack</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadMigrationCertificate()">Migration Certificate</button>
                 <button class="btn btn-ghost" style="font-size:11px" onclick="downloadJSON()">Export JSON</button>
                 <button class="btn btn-danger" style="font-size:11px" onclick="doReject()">Reject</button>
@@ -2753,6 +2755,74 @@ function downloadComplianceEvidence() {
   const w = window.open('', '_blank');
   if (w) { w.document.write(html); w.document.close(); }
   else { alert('Please allow pop-ups to view the Compliance Evidence Report.'); }
+}
+async function downloadSBPAuditPack() {
+  if (!files.length) { alert('Upload a file first.'); return; }
+  const fname = files[0].name;
+  const genDate = new Date().toLocaleString();
+  const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let suiteData = null;
+  try {
+    const fd = new FormData();
+    fd.append('file', files[0]);
+    const r = await fetch(BACKEND + '/pakistan-banking-suite', { method: 'POST', body: fd });
+    suiteData = await r.json();
+    if (!r.ok) throw new Error(suiteData?.error || ('Server error ' + r.status));
+  } catch (e) {
+    alert('Could not generate SBP Audit Evidence Pack: ' + e.message);
+    return;
+  }
+  const categoryMap = {
+    'PCI-DSS Signal Scan': 'Payment Card Security',
+    'Audit/Maker-Checker': 'SBP BPRD Internal Controls Circular',
+    'CNIC Validation Quality': 'SBP AML/CFT Regulations - Customer Identification',
+    'Data Localization': 'SBP Data Localization Requirement',
+    'Structuring/Smurfing Signal': 'SBP AML/CFT Regulations - Suspicious Transaction Detection',
+    'NTN/STRN Validation Quality': 'FBR/SBP Tax Identification Requirements',
+    'Unusual Hours Flag': 'SBP Transaction Monitoring Guidance',
+    'Geo-Anomaly Detection': 'SBP Transaction Monitoring Guidance',
+  };
+  const checks = suiteData.checks || [];
+  const rows = checks.map(c => {
+    const statusLabel = c.error ? 'CHECK ERROR' : c.passed === true ? 'Compliant Signal Found' : c.passed === false ? 'Gap Flagged - Review Required' : 'Not Applicable to This File';
+    const statusColor = c.error ? '#dc2626' : c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
+    return '<tr><td>' + escHtml(categoryMap[c.name] || 'General Banking Compliance') + '</td><td>' + escHtml(c.name) + '</td><td><span style="color:' + statusColor + ';font-weight:600">' + statusLabel + '</span></td><td>' + escHtml(c.summary || '') + '</td></tr>';
+  }).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SBP Audit Evidence Pack - ${escHtml(fname)}</title>
+<style>
+  @media print { .no-print { display: none; } body { margin: 0; } }
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 24px; color: #0f1115; line-height: 1.6; }
+  h1 { font-size: 24px; border-bottom: 3px solid #1d4ed8; padding-bottom: 12px; margin-bottom: 4px; }
+  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 28px; }
+  h2 { font-size: 16px; color: #1d4ed8; margin-top: 32px; border-bottom: 1px solid #e5e8ee; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+  th, td { padding: 8px 10px; border: 1px solid #e5e8ee; text-align: left; vertical-align: top; }
+  th { background: #fafbfc; font-weight: 700; }
+  .meta-table td:first-child { font-weight: 600; background: #fafbfc; width: 220px; }
+  .disclaimer { margin-top: 40px; padding: 16px; background: #fef6ea; border: 1px solid #fde8c0; border-radius: 8px; font-size: 11px; color: #92650a; }
+  .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #1d4ed8; color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; }
+</style></head><body>
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+<h1>SBP Audit Evidence Pack</h1>
+<div class="subtitle">StarSage Pakistan Banking Compliance Suite - Source-Code Signal Analysis</div>
+<table class="meta-table">
+  <tr><td>File Analyzed</td><td>${escHtml(fname)}</td></tr>
+  <tr><td>Report Generated</td><td>${escHtml(genDate)}</td></tr>
+  <tr><td>Checks Run</td><td>${checks.length}</td></tr>
+  <tr><td>Applicable Checks Passed</td><td>${suiteData.passed_count ?? '—'} / ${suiteData.applicable_count ?? suiteData.total_count ?? '—'}</td></tr>
+</table>
+<h2>Regulatory Category Mapping</h2>
+<table>
+  <tr><th>SBP Regulatory Category</th><th>StarSage Check</th><th>Result</th><th>Detail</th></tr>
+  ${rows}
+</table>
+<div class="disclaimer">
+  <b>Important:</b> This pack organizes StarSage's pattern-based static-analysis signals against SBP regulatory categories to help a compliance officer prepare for an SBP examination or internal audit review. It is NOT a certification of SBP compliance and does not replace the compliance officer's own judgment, the bank's internal audit function, or SBP's own examination. Every "Compliant Signal Found" result means a plausibly-named control was detected in the code - it does not verify the control is correctly implemented, actively enforced at runtime, or genuinely satisfies the cited SBP requirement. A qualified compliance officer must independently verify every item before submission to any regulator.
+</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else { alert('Please allow pop-ups to view the SBP Audit Evidence Pack.'); }
 }
 function downloadReport() {
   const fname = files.length ? files[0].name : 'unknown';
