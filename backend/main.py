@@ -792,9 +792,16 @@ def migrate_code(source):
     if re.search(r'except\s*\(([^)]+)\)\s*,\s*(\w+)\s*:', migrated):
         migrated = re.sub(r'except\s*\(([^)]+)\)\s*,\s*(\w+)\s*:', r'except (\1) as \2:', migrated)
         changes.append("except (X, Y), e -> except (X, Y) as e")
-    _div_lines = [str(_i + 1) for _i, _ln in enumerate(migrated.split(chr(10))) if re.search(r'[\w\)\]]\s*/\s*[\w\(]', _ln) and '//' not in _ln and not _ln.strip().startswith('#')]
-    if _div_lines:
-        changes.append("REVIEW NEEDED: Division (/) found on line(s) " + ", ".join(_div_lines) + " - Python 2 used floor division on integers, Python 3 uses true division. Verify this calculation still produces the intended result, especially for financial/numeric logic.")
+    _source_already_py3 = False
+    try:
+        ast.parse(source)
+        _source_already_py3 = True
+    except Exception:
+        pass
+    if not _source_already_py3:
+        _div_lines = [str(_i + 1) for _i, _ln in enumerate(migrated.split(chr(10))) if re.search(r'[\w\)\]]\s*/\s*[\w\(]', _ln) and '//' not in _ln and not _ln.strip().startswith('#')]
+        if _div_lines:
+            changes.append("REVIEW NEEDED: Division (/) found on line(s) " + ", ".join(_div_lines) + " - Python 2 used floor division on integers, Python 3 uses true division. Verify this calculation still produces the intended result, especially for financial/numeric logic.")
     _validity = {"syntax_valid": True, "syntax_error": None, "broken_py3_imports": []}
     try:
         ast.parse(migrated)
