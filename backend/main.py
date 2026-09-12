@@ -703,7 +703,7 @@ def analyze_code(source):
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
-        pass
+        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
@@ -1335,7 +1335,7 @@ def analyze_java(source):
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
-        pass
+        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
@@ -1436,7 +1436,7 @@ def analyze_cobol(source):
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
-        pass
+        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
         _sens_result = scan_sensitive_data(source)
         for _sens_finding in _sens_result.get("findings", []):
