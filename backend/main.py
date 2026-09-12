@@ -1301,7 +1301,7 @@ def migrate_php(source):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
         changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
     check = validate_php(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(source, "php")}
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php")}
 
 # ---------- JAVA ----------
 def analyze_java(source):
