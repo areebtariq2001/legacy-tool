@@ -1399,7 +1399,7 @@ def migrate_java(source):
     return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source, "java")}
 
 # ---------- COBOL ----------
-def analyze_cobol(source):
+def analyze_cobol(source, filename="file.cbl"):
     issues = []
     cobol_checks = [
         (r'PERFORM\s+UNTIL', "PERFORM UNTIL found - convert to while loop"),
@@ -1433,7 +1433,7 @@ def analyze_cobol(source):
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api-key|apikey|secret)\b[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
-        _sqli_result = scan_sql_injection(source, "file.cbl")
+        _sqli_result = scan_sql_injection(source, filename)
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
             issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
     except Exception:
@@ -2011,7 +2011,7 @@ async def analyze_cobol_endpoint(file: UploadFile = File(...)):
     source, error = safe_read_file(content_bytes, file.filename)
     if error:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = analyze_cobol(source)
+    result = analyze_cobol(source, file.filename)
     result["filename"] = file.filename
     track_usage("analyze-cobol", file.filename)
     write_audit_log("analyze-cobol", file.filename, "issues=" + str(len(result.get("issues", []))))
