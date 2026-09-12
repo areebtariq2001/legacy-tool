@@ -870,7 +870,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <div class="result-head"><span class="result-lbl">Answer</span><span class="result-copy" onclick="copyEl('askBody')">Copy</span></div>
             <div class="result-body" id="askBody"></div>
           </div>
-          <div class="card" id="askEmpty"><div class="empty"><div class="empty-title">Ask anything</div><div class="empty-sub">Upload a file first, then ask questions about its logic or structure.</div></div></div>
+          <div class="card" id="askEmpty"><div class="empty"><div class="empty-title" id="askEmptyTitle">Ask anything</div><div class="empty-sub" id="askEmptySub">Upload a file first, then ask questions about its logic or structure.</div></div></div>
         </div>
       </div>
     </div>
@@ -1080,6 +1080,12 @@ function onFileInput(fs) {
   }
   files = Array.from(fs);
   renderChips(); enableRun();
+  const _askTitle = document.getElementById('askEmptyTitle');
+  const _askSub = document.getElementById('askEmptySub');
+  if (_askTitle && _askSub && files.length > 0) {
+    _askTitle.textContent = 'Ready to ask';
+    _askSub.textContent = files.length === 1 ? files[0].name + ' is uploaded — ask a question about it below.' : files.length + ' files uploaded — ask a question about them below.';
+  }
   if (files.length > 0) {
     const ext = files[0].name.split('.').pop().toLowerCase();
     const extMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
@@ -3556,6 +3562,12 @@ function resetAll() {
   document.getElementById('results').classList.remove('show');
   stepIds.forEach(pipeWait);
   document.getElementById('fi').value = '';
+  const _askTitle2 = document.getElementById('askEmptyTitle');
+  const _askSub2 = document.getElementById('askEmptySub');
+  if (_askTitle2 && _askSub2) {
+    _askTitle2.textContent = 'Ask anything';
+    _askSub2.textContent = 'Upload a file first, then ask questions about its logic or structure.';
+  }
 }
 function setQ(q) { document.getElementById('askInput').value = q; }
 async function runTraceabilityQuery() {
