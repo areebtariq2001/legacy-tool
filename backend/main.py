@@ -1532,7 +1532,7 @@ def migrate_cobol(source):
                     _parts.append(_t)
                 else:
                     _parts.append(_cobol_hyphen_fix(_t))
-            disp_content = " + ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
+            disp_content = ", ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
             out_lines.append(cur_indent() + "print(" + disp_content + ")")
             changes.append("DISPLAY -> print()")
             continue
