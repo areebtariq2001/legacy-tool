@@ -247,7 +247,8 @@ def get_why_explanations(original_source, language="python"):
             _py3_parses_ok = True
         except Exception:
             pass
-        if not _py3_parses_ok and re.search(r"\bprint\s+[^(]", original_source):
+        _code_only_for_print_check = chr(10).join(l for l in original_source.split(chr(10)) if not l.strip().startswith("#"))
+        if not _py3_parses_ok and re.search(r"\bprint\s+[^(]", _code_only_for_print_check):
             explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
         for keyword, reason in WHY_RULES:
             if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
