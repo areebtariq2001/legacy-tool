@@ -431,7 +431,7 @@ def calculate_tech_debt(source, filename=""):
     MIN_MINUTES_IF_COMPLEX = 60
     debt_score = min(100, total_count * ISSUE_WEIGHT_PER_MINUTE)
     try:
-        _comp = calculate_complexity(source)
+        _comp = calculate_complexity(_source_code_only)
         if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
             debt_score = MIN_SCORE_HIGH_COMPLEXITY
         elif _comp["complexity_level"] == "Moderate complexity" and debt_score < 15:
