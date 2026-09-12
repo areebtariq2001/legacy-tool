@@ -1512,7 +1512,7 @@ def migrate_cobol(source):
             val = var_m.group(3)
             if val:
                 val_clean = val.rstrip(".").strip()
-                val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
+                val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
                 out_lines.append(var_name + " = " + val_map.get(val_clean.upper(), val_clean))
             else:
                 out_lines.append(var_name + " = None")
