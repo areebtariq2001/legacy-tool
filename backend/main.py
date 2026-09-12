@@ -1197,9 +1197,9 @@ Do not use markdown symbols. Just the headers and plain text. Only analyze the c
 # ---------- PHP ----------
 def analyze_php(source):
     issues = []
-    _source_no_comments = re.sub(r'//.*', '', source)
-    _source_no_comments = re.sub(r'#.*', '', _source_no_comments)
-    if re.search(r"(?i)(password|passwd|pwd|pass|api_key|apikey|secret)\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
+    _source_no_comments = re.sub(r'(?<!:)//.*', '', source)
+    _source_no_comments = re.sub(r'(?<![\x22\x27])#.*', '', _source_no_comments)
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     php_checks = [
         (r"\bmysql_\w+\b", "CRITICAL (will not run): mysql_* functions were completely removed in PHP 7 - use mysqli or PDO"),
@@ -1215,7 +1215,7 @@ def analyze_php(source):
         (r'\bcall_user_method\b', "CRITICAL (will not run): call_user_method() was completely removed in PHP 7 - use call_user_func()"),
         (r'\bget_magic_quotes_gpc\b', "CRITICAL (will not run): get_magic_quotes_gpc() was completely removed in PHP 8"),
         (r'\bpreg_replace\s*\([^)]*[\x22\x27][^\x22\x27]*e[\x22\x27]', "CRITICAL (will not run): the /e modifier was completely removed in PHP 7 - use preg_replace_callback() instead"),
-        (r'\$HTTP_(GET|POST|COOKIE|SERVER|ENV|SESSION)_VARS\b', "CRITICAL (will not run): $HTTP_*_VARS superglobals were completely removed in PHP 5.4+ - use $_GET/$_POST/etc. instead"),
+        (r'\$HTTP_(?:GET|POST|COOKIE|SERVER|ENV|SESSION)_VARS\b', "CRITICAL (will not run): $HTTP_*_VARS superglobals were completely removed in PHP 5.4+ - use $_GET/$_POST/etc. instead"),
         (r'\bset_magic_quotes_runtime\b', "CRITICAL (will not run): set_magic_quotes_runtime() was completely removed in PHP 5.4/7"),
         (r'\bini_set\s*\(\s*[\x22\x27]safe_mode', "safe_mode ini setting found - removed in PHP 7, has no effect"),
         (r'\bereg_replace\(', "CRITICAL (will not run): ereg_replace() was completely removed in PHP 7 - use preg_replace() (pattern needs delimiters added)"),
