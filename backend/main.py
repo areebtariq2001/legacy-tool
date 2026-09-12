@@ -8101,6 +8101,38 @@ def run_islamic_banking_suite(source, filename):
     not_applicable_count = len(checks) - applicable_count - error_count
     return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "error_count": error_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + ((" (" + str(error_count) + " check(s) ERRORED - not a normal not-applicable result, see check details)") if error_count else "") + (" - no structural gaps found among applicable checks. This is a structural/textual signal suite, not a Shariah-compliance certification - only a qualified Shariah board can certify actual compliance." if passed_count == applicable_count else " - review flagged checks with a qualified Shariah board. This is a structural/textual signal suite, not a Shariah-compliance certification.")}
 
+def check_shariah_board_report_readiness(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    suite_result = run_islamic_banking_suite(source, filename)
+    if not suite_result.get("suite_run"):
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": suite_result.get("summary", "Could not run Islamic banking suite.")}
+    checks = suite_result.get("checks", [])
+    flagged = [c for c in checks if c.get("passed") is False]
+    errored = [c for c in checks if c.get("error")]
+    report_sections = []
+    for c in checks:
+        status = "ERROR" if c.get("error") else ("FLAGGED FOR REVIEW" if c.get("passed") is False else ("PASSED (structural signal only)" if c.get("passed") is True else "NOT APPLICABLE"))
+        report_sections.append({"check_name": c.get("name", ""), "status": status, "finding_count": c.get("finding_count", 0), "detail": c.get("summary", "")})
+    return {"checked": True, "findings": [], "total_findings": len(flagged), "report_ready": len(errored) == 0, "report_sections": report_sections, "flagged_count": len(flagged), "errored_count": len(errored), "summary": (str(len(flagged)) + " item(s) flagged for Shariah board review out of " + str(len(checks)) + " structural checks.") if len(errored) == 0 else (str(len(errored)) + " check(s) errored - report generation should be treated as incomplete until check errors are resolved."), "disclaimer": "This report compiles pattern-based structural/textual signals into a submission-ready format for a qualified Shariah board's independent review. It is NOT a Shariah-compliance certification and does not replace the Shariah board's own ruling - it only organizes what StarSage's static analysis detected so the board can review efficiently."}
+
+
+@app.post("/shariah-board-report-check")
+async def shariah_board_report_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content2 = await file.read()
+        source, error = safe_read_file(content2, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = check_shariah_board_report_readiness(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("shariah-board-report-check", file.filename)
+        write_audit_log("shariah-board-report-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Shariah board report check failed safely: " + str(e)})
+
+
 @app.post("/islamic-banking-suite")
 async def islamic_banking_suite_endpoint(file: UploadFile = File(...)):
     try:
