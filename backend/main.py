@@ -1407,12 +1407,12 @@ def analyze_cobol(source):
         (r'PERFORM\s+\w[\w-]*\s+THRU', "PERFORM THRU found - calls a range of paragraphs, convert to sequential function calls"),
         (r'PERFORM\s+\w[\w-]*(?!\s+(?:UNTIL|VARYING|THRU))', "PERFORM (paragraph call) found - convert to a function call"),
         (r'\bALTER\s+\w[\w-]*\s+TO\b', "CRITICAL: ALTER statement found - extremely dangerous self-modifying control flow (changes the target of a GO TO at runtime), refactor immediately before migration"),
-        (r'GOTO|GO\s+TO', "GO TO found - use structured programming"),
+        (r'\bGO\s+TO\b', "GO TO found - use structured programming"),
         (r'\bPIC\s+9', "PIC 9 numeric fields - convert to int/float"),
         (r'\bPIC\s+X', "PIC X string fields - convert to str"),
-        (r'MOVE', "MOVE statement - use Python assignment"),
-        (r'COMPUTE', "COMPUTE found - use Python arithmetic"),
-        (r'ACCEPT', "ACCEPT found - use input()"),
+        (r'\bMOVE\b', "MOVE statement - use Python assignment"),
+        (r'\bCOMPUTE\b', "COMPUTE found - use Python arithmetic"),
+        (r'\bACCEPT\b', "ACCEPT found - use input()"),
         (r'STOP\s+RUN', "STOP RUN found - use return/exit"),
         (r'WORKING-STORAGE', "WORKING-STORAGE section - convert to variables"),
         (r'REDEFINES', "REDEFINES found - memory overlay reinterpretation, needs manual review (no direct Python equivalent)"),
@@ -1427,9 +1427,10 @@ def analyze_cobol(source):
     for pattern, msg in cobol_checks:
         if re.search(pattern, source, re.IGNORECASE):
             issues.append(msg)
-    _cobol_paras = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+    _COBOL_DIVISIONS = {"IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "WORKING-STORAGE", "FILE", "LINKAGE", "COMMUNICATION", "REPORT", "SCREEN"}
+    _cobol_paras = [p for p in re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source) if p.upper() not in _COBOL_DIVISIONS]
     _cobol_paras = list(dict.fromkeys(_cobol_paras))
-    if re.search(r"(?i)(password|passwd|pwd|pass|api-key|apikey|secret)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api-key|apikey|secret)\b[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
         _sqli_result = scan_sql_injection(source, "file.cbl")
@@ -1499,8 +1500,9 @@ def migrate_cobol(source):
         var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             level_num = var_m.group(1)
+            _level_num_int = int(level_num)
             raw_name = var_m.group(2).replace("-", "_")
-            if level_num == "01":
+            if _level_num_int == 1:
                 current_group_01 = raw_name
                 var_name = raw_name
             elif current_group_01:
@@ -1514,7 +1516,7 @@ def migrate_cobol(source):
                 out_lines.append(var_name + " = " + val_map.get(val_clean.upper(), val_clean))
             else:
                 out_lines.append(var_name + " = None")
-            changes.append("Variable " + var_m.group(2) + " declared" + (" (level " + level_num + ", nested under " + current_group_01 + ")" if level_num != "01" and current_group_01 else ""))
+            changes.append("Variable " + var_m.group(2) + " declared" + (" (level " + level_num + ", nested under " + current_group_01 + ")" if _level_num_int != 1 and current_group_01 else ""))
             continue
         group_m = re.match(r"^(\d+)\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if group_m and in_working_storage and group_m.group(1) == "01":
