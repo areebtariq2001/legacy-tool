@@ -44,11 +44,14 @@ def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     return True
 
 def _get_client_ip(request):
-    _xff = request.headers.get("x-forwarded-for", "")
-    if _xff:
-        _parts = [p.strip() for p in _xff.split(",") if p.strip()]
-        if _parts:
-            return _parts[0]
+    # Security note: X-Forwarded-For is NOT used here for rate-limiting/security purposes.
+    # Per MDN and confirmed ambiguity in Render's own community feedback about its proxy
+    # behavior, no position in an X-Forwarded-For list (first, last, or any other index)
+    # can be trusted as non-spoofable unless the exact trusted-proxy hop count is verified
+    # for this specific deployment - a client can freely set this header themselves.
+    # request.client.host reflects the actual TCP peer address of the direct connection
+    # (Render's own proxy/load-balancer in this deployment), which the end client cannot
+    # forge, making it the safe (if less granular) choice for rate-limiting.
     return request.client.host if request.client else "unknown"
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
