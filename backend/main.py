@@ -5778,53 +5778,55 @@ def run_pakistan_banking_suite(source, filename):
         pci = scan_pci_dss_signals(source, filename)
         checks.append({"name": "PCI-DSS Signal Scan", "passed": pci.get("total_findings", 0) == 0, "finding_count": pci.get("total_findings", 0), "summary": pci.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         amc = check_audit_maker_checker(source, filename)
         _amc_ran = amc.get("language_supported", True)
         checks.append({"name": "Audit/Maker-Checker", "passed": (amc.get("total_findings", 0) == 0) if _amc_ran else None, "finding_count": amc.get("total_findings", 0), "summary": amc.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Audit/Maker-Checker", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Audit/Maker-Checker", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         cnic = check_cnic_validation_quality(source, filename)
         _cnic_lang_ok = cnic.get("language_supported", True)
         checks.append({"name": "CNIC Validation Quality", "passed": (cnic.get("total_findings", 0) == 0) if _cnic_lang_ok else None, "finding_count": cnic.get("total_findings", 0), "summary": (cnic.get("summary", "") + " NOTE: FLAGGED means the FUNCTION handling CNIC has no explicit validation LOGIC in its code - this does NOT mean any actual CNIC value in the file is badly formatted.") if _cnic_lang_ok and cnic.get("total_findings", 0) > 0 else cnic.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "CNIC Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "CNIC Validation Quality", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         dl = check_data_localization(source, filename)
         checks.append({"name": "Data Localization", "passed": dl.get("total_findings", 0) == 0, "finding_count": dl.get("total_findings", 0), "summary": dl.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Data Localization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Data Localization", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         struct = check_structuring_patterns(source, filename)
         _struct_ran = struct.get("language_supported", True)
         checks.append({"name": "Structuring/Smurfing Signal", "passed": (struct.get("total_findings", 0) == 0) if _struct_ran else None, "finding_count": struct.get("total_findings", 0), "summary": (struct.get("summary", "") + " NOTE: FLAGGED means a missing velocity-tracking control was found near sensitive functions - it does NOT mean an actual structuring pattern was detected in the code.") if _struct_ran and struct.get("total_findings", 0) > 0 else struct.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Structuring/Smurfing Signal", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         ntn = check_ntn_strn_validation_quality(source, filename)
         _ntn_lang_ok = ntn.get("language_supported", True)
         checks.append({"name": "NTN/STRN Validation Quality", "passed": (ntn.get("total_findings", 0) == 0) if _ntn_lang_ok else None, "finding_count": ntn.get("total_findings", 0), "summary": ntn.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "NTN/STRN Validation Quality", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "NTN/STRN Validation Quality", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         uh = check_unusual_hours_flag(source, filename)
         _uh_ran = uh.get("language_supported", True)
         checks.append({"name": "Unusual Hours Flag", "passed": (uh.get("total_findings", 0) == 0) if _uh_ran else None, "finding_count": uh.get("total_findings", 0), "summary": (uh.get("summary", "") + " NOTE: FLAGGED means a missing time-of-day control was found near sensitive functions - it does NOT mean unusual-hours activity was detected in the code.") if _uh_ran and uh.get("total_findings", 0) > 0 else uh.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Unusual Hours Flag", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Unusual Hours Flag", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         geo = check_geo_anomaly_detection(source, filename)
         _geo_ran = geo.get("language_supported", True)
         checks.append({"name": "Geo-Anomaly Detection", "passed": (geo.get("total_findings", 0) == 0) if _geo_ran else None, "finding_count": geo.get("total_findings", 0), "summary": (geo.get("summary", "") + " NOTE: FLAGGED means a missing geo-location control was found near sensitive functions - it does NOT mean geo-anomaly activity was detected in the code.") if _geo_ran and geo.get("total_findings", 0) > 0 else geo.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Geo-Anomaly Detection", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Geo-Anomaly Detection", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     passed_count = sum(1 for c2 in checks if c2["passed"] is True)
     total_count = len(checks)
     applicable_count = sum(1 for c2 in checks if c2["passed"] is not None)
+    error_count = sum(1 for c2 in checks if c2.get("error"))
+    not_applicable_count = total_count - applicable_count - error_count
     flagged = [c2["name"] for c2 in checks if c2["passed"] is False]
-    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "applicable_count": applicable_count, "not_applicable_count": total_count - applicable_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(total_count - applicable_count) + " not applicable to this file type)") if applicable_count != total_count else "") + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found among applicable checks"), "disclaimer": "Combined summary of 8 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours, Geo-Anomaly Detection). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. Some AST-based checks only support Python files - see per-check language_supported flag. See individual check results for details."}
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": total_count, "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "error_count": error_count, "flagged_checks": flagged, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + ((" (" + str(error_count) + " check(s) ERRORED - not a normal not-applicable result, see check details)") if error_count else "") + (" - flagged: " + ", ".join(flagged) if flagged else " - no issues found among applicable checks"), "disclaimer": "Combined summary of 8 pattern-based Pakistan banking compliance signal checks (PCI-DSS, Audit/Maker-Checker, CNIC, Data Localization, Structuring, NTN/STRN, Unusual Hours, Geo-Anomaly Detection). Each is a structural code-pattern signal, not a formal compliance certification - a qualified compliance officer must review all findings. Some AST-based checks only support Python files - see per-check language_supported flag. See individual check results for details."}
 
 @app.post("/pakistan-banking-suite")
 async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
@@ -7812,6 +7814,28 @@ async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
 
+def check_riba_flag(source, filename):
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
+    if not filename.lower().endswith(".py"):
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "Riba flag analysis currently supports Python files only."}
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax. This check requires parsing function definitions - run the Migration check first."}
+    _islamic_name_pattern = re.compile(r"(?i)(islamic|shariah|murabaha|musharakah|ijarah|takaful)")
+    _interest_pattern = re.compile(r"(?i)(?<![a-zA-Z])interest.?rate|(?<![a-zA-Z])annual.?percentage.?rate")
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if _islamic_name_pattern.search(node.name):
+                func_source = ast.get_source_segment(source, node) or ""
+                if _interest_pattern.search(func_source):
+                    findings.append({"line": node.lineno, "issue": "RED FLAG FOR SHARIAH REVIEW (not a determination of non-compliance): This function (" + node.name + ") is named as an Islamic-banking/Shariah product but also references interest-rate-style terminology in its body. This textual co-occurrence does not itself prove Riba (interest) is present - many Islamic-finance profit-rate calculations are legitimately expressed using similar variable names - but it is exactly the kind of code a Shariah board/compliance officer should independently review.", "severity": "Medium", "evidence": node.name})
+    findings = findings[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " Islamic-finance function(s) with interest-rate-style terminology found - flagged for Shariah board review." if findings else "No interest-rate-style terminology found alongside Islamic-finance function names.", "disclaimer": "Pattern-based textual co-occurrence check only, not a Shariah-compliance ruling. This tool cannot determine whether Riba is genuinely present - only a qualified Shariah board can make that determination. Flagged functions require independent Shariah review, not automatic rejection."}
+
+
 @app.post("/riba-flag-check")
 async def riba_flag_check_endpoint(file: UploadFile = File(...)):
     try:
@@ -7834,30 +7858,31 @@ def run_pci_dss_scorecard(source, filename):
         pci = scan_pci_dss_signals(source, filename)
         checks.append({"name": "PCI-DSS Signal Scan", "passed": pci.get("total_findings", 0) == 0, "finding_count": pci.get("total_findings", 0), "summary": pci.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "PCI-DSS Signal Scan", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         cde = check_cde_segmentation(source, filename)
         _cde_ran = cde.get("language_supported", True)
         checks.append({"name": "CDE Segmentation", "passed": (cde.get("total_findings", 0) == 0) if _cde_ran else None, "finding_count": cde.get("total_findings", 0), "summary": cde.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "CDE Segmentation", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "CDE Segmentation", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         km = check_key_management_compliance(source, filename)
         _km_ran = km.get("language_supported", True)
         checks.append({"name": "Key Management", "passed": (km.get("total_findings", 0) == 0) if _km_ran else None, "finding_count": km.get("total_findings", 0), "summary": km.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Key Management", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Key Management", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         tok = check_pci_tokenization(source, filename)
         _tok_ran = tok.get("language_supported", True)
         checks.append({"name": "PCI Tokenization", "passed": (tok.get("total_findings", 0) == 0) if _tok_ran else None, "finding_count": tok.get("total_findings", 0), "summary": tok.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "PCI Tokenization", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "PCI Tokenization", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     applicable_checks = [c for c in checks if c["passed"] is not None]
     passed_count = sum(1 for c in applicable_checks if c["passed"])
     applicable_count = len(applicable_checks)
-    not_applicable_count = len(checks) - applicable_count
-    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + (" - no issues found among applicable checks" if passed_count == applicable_count else " - review flagged checks")}
+    error_count = sum(1 for c in checks if c.get("error"))
+    not_applicable_count = len(checks) - applicable_count - error_count
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "error_count": error_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + ((" (" + str(error_count) + " check(s) ERRORED - not a normal not-applicable result, see check details)") if error_count else "") + (" - no issues found among applicable checks" if passed_count == applicable_count else " - review flagged checks")}
 
 @app.post("/pci-dss-scorecard")
 async def pci_dss_scorecard_endpoint(file: UploadFile = File(...)):
@@ -8037,42 +8062,43 @@ def run_islamic_banking_suite(source, filename):
         _riba_ran = riba.get("language_supported", True)
         checks.append({"name": "Riba Flag (Shariah Review)", "passed": (riba.get("total_findings", 0) == 0) if _riba_ran else None, "finding_count": riba.get("total_findings", 0), "summary": riba.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Riba Flag (Shariah Review)", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Riba Flag (Shariah Review)", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         mur = check_murabaha_disclosure(source, filename)
         _mur_ran = mur.get("language_supported", True)
         checks.append({"name": "Murabaha Disclosure", "passed": (mur.get("total_findings", 0) == 0) if _mur_ran else None, "finding_count": mur.get("total_findings", 0), "summary": mur.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Murabaha Disclosure", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Murabaha Disclosure", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         mus = check_musharakah_ownership(source, filename)
         _mus_ran = mus.get("language_supported", True)
         checks.append({"name": "Musharakah Ownership", "passed": (mus.get("total_findings", 0) == 0) if _mus_ran else None, "finding_count": mus.get("total_findings", 0), "summary": mus.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Musharakah Ownership", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Musharakah Ownership", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         ija = check_ijarah_ownership(source, filename)
         _ija_ran = ija.get("language_supported", True)
         checks.append({"name": "Ijarah Ownership", "passed": (ija.get("total_findings", 0) == 0) if _ija_ran else None, "finding_count": ija.get("total_findings", 0), "summary": ija.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Ijarah Ownership", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Ijarah Ownership", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         tak = check_takaful_structure(source, filename)
         _tak_ran = tak.get("language_supported", True)
         checks.append({"name": "Takaful Structure", "passed": (tak.get("total_findings", 0) == 0) if _tak_ran else None, "finding_count": tak.get("total_findings", 0), "summary": tak.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "Takaful Structure", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "Takaful Structure", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     try:
         aao = check_aaoifi_reference(source, filename)
         _aao_ran = aao.get("language_supported", True)
         checks.append({"name": "AAOIFI Reference", "passed": (aao.get("total_findings", 0) == 0) if _aao_ran else None, "finding_count": aao.get("total_findings", 0), "summary": aao.get("summary", "")})
     except Exception as e:
-        checks.append({"name": "AAOIFI Reference", "passed": None, "finding_count": 0, "summary": "Check failed: " + str(e)})
+        checks.append({"name": "AAOIFI Reference", "passed": None, "error": True, "finding_count": 0, "summary": "CHECK ERROR (not a normal not-applicable case): " + str(e)})
     applicable_checks = [c for c in checks if c["passed"] is not None]
     passed_count = sum(1 for c in applicable_checks if c["passed"])
     applicable_count = len(applicable_checks)
-    not_applicable_count = len(checks) - applicable_count
-    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + (" - no structural gaps found among applicable checks. This is a structural/textual signal suite, not a Shariah-compliance certification - only a qualified Shariah board can certify actual compliance." if passed_count == applicable_count else " - review flagged checks with a qualified Shariah board. This is a structural/textual signal suite, not a Shariah-compliance certification.")}
+    error_count = sum(1 for c in checks if c.get("error"))
+    not_applicable_count = len(checks) - applicable_count - error_count
+    return {"suite_run": True, "checks": checks, "passed_count": passed_count, "total_count": len(checks), "applicable_count": applicable_count, "not_applicable_count": not_applicable_count, "error_count": error_count, "summary": str(passed_count) + "/" + str(applicable_count) + " applicable checks passed" + ((" (" + str(not_applicable_count) + " not applicable to this file type)") if not_applicable_count else "") + ((" (" + str(error_count) + " check(s) ERRORED - not a normal not-applicable result, see check details)") if error_count else "") + (" - no structural gaps found among applicable checks. This is a structural/textual signal suite, not a Shariah-compliance certification - only a qualified Shariah board can certify actual compliance." if passed_count == applicable_count else " - review flagged checks with a qualified Shariah board. This is a structural/textual signal suite, not a Shariah-compliance certification.")}
 
 @app.post("/islamic-banking-suite")
 async def islamic_banking_suite_endpoint(file: UploadFile = File(...)):
