@@ -2652,22 +2652,22 @@ async def scan_repo_endpoint(req: RepoRequest):
     try:
         url = req.repo_url.strip().rstrip("/")
         if not re.match(r"^https://github\.com/[\w\-\.]+/[\w\-\.]+$", url):
-            return {"error": "Please provide a valid HTTPS GitHub repo URL like https://github.com/owner/repo"}
+            return JSONResponse(status_code=400, content={"error": "Please provide a valid HTTPS GitHub repo URL like https://github.com/owner/repo"})
         parts = url.replace("https://github.com/", "").split("/")
         if len(parts) < 2:
-            return {"error": "Please provide a valid GitHub repo URL like https://github.com/owner/repo"}
+            return JSONResponse(status_code=400, content={"error": "Please provide a valid GitHub repo URL like https://github.com/owner/repo"})
         owner, repo = parts[0], parts[1]
         api_url = "https://api.github.com/repos/" + owner + "/" + repo + "/git/trees/HEAD?recursive=1"
         gh_token = os.environ.get("GITHUB_TOKEN", "")
         gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
         r = requests.get(api_url, headers=gh_headers, timeout=20)
         if r.status_code != 200:
-            return {"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."}
+            return JSONResponse(status_code=400, content={"error": "Could not access repo (status " + str(r.status_code) + "). Make sure it is public and the URL is correct."})
         tree = r.json().get("tree", [])
         _lang_exts = (".py", ".java", ".php", ".cbl", ".cob", ".cpy")
         py_files = [f for f in tree if f.get("path", "").lower().endswith(_lang_exts) and f.get("type") == "blob"]
         if not py_files:
-            return {"error": "No supported files (.py, .java, .php, .cbl) found in this repo.", "repo": owner + "/" + repo}
+            return JSONResponse(status_code=400, content={"error": "No supported files (.py, .java, .php, .cbl) found in this repo.", "repo": owner + "/" + repo})
         py_files = py_files[:25]  # limit for free server
         file_reports = []
         skipped_files = []
@@ -2771,7 +2771,7 @@ async def scan_repo_endpoint(req: RepoRequest):
             result["warning"] = "No GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
         return result
     except Exception as e:
-        return {"error": "Repo scan failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": "Repo scan failed safely: " + str(e)})
 
 ARCH_DB_KEYWORDS = {"sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc", "asyncpg", "motor", "redis"}
 
@@ -4224,7 +4224,7 @@ async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, 
         result["approved_by"] = _user_email
         return result
     except Exception as e:
-        return {"error": f"Approval save failed safely: {e}"}
+        return JSONResponse(status_code=400, content={"error": f"Approval save failed safely: {e}"})
 
 @app.get("/approval-history")
 async def approval_history_endpoint(request: Request):
@@ -4235,7 +4235,7 @@ async def approval_history_endpoint(request: Request):
         history = get_approval_history()
         return {"approval_history": history, "total_decisions": len(history)}
     except Exception as e:
-        return {"error": f"Could not load approval history: {e}"}
+        return JSONResponse(status_code=400, content={"error": f"Could not load approval history: {e}"})
 
 def calculate_code_quality(source, filename):
     source = source[:300000]
@@ -8668,7 +8668,7 @@ async def time_travel_diff_endpoint(payload: dict):
         track_usage("time-travel-diff", repo_url)
         return result
     except Exception as e:
-        return {"error": "Time-travel diff failed safely: " + str(e)}
+        return JSONResponse(status_code=400, content={"error": "Time-travel diff failed safely: " + str(e)})
 
 _CROSS_LANG_SUPPORTED_PAIRS = [("python", "javascript"), ("javascript", "python"), ("php", "python"), ("python", "php")]
 
