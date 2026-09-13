@@ -747,7 +747,8 @@ def migrate_code(source):
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
-            if _mline.lstrip().startswith("#"):
+            _mline_stripped = _mline.lstrip()
+            if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
             _new_line = re.sub(pattern, repl, _mline)
             if _new_line != _mline:
@@ -1269,7 +1270,8 @@ def migrate_php(source):
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
-            if _mline.lstrip().startswith("#"):
+            _mline_stripped = _mline.lstrip()
+            if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
             _new_line = re.sub(pattern, repl, _mline)
             if _new_line != _mline:
@@ -1311,7 +1313,7 @@ def analyze_java(source):
         (r"\bnew\s+Integer\s*\(", "new Integer() found - use Integer.valueOf()"),
         (r"\bnew\s+Boolean\s*\(", "new Boolean() found - use Boolean.valueOf()"),
         (r"\bnew\s+Double\s*\(", "new Double() found - use Double.valueOf()"),
-        (r"\bVector\b", "Vector found - use ArrayList"),
+        (r"import\s+java\.util\.Vector\b|\bnew\s+Vector\s*[<(]", "Vector found - use ArrayList"),
         (r"\bHashtable\b", "Hashtable found - use HashMap"),
         (r"\bEnumeration\b", "Enumeration found - use Iterator"),
         (r"\bSystem\.out\.println\b", "System.out.println - consider a logging framework"),
@@ -1346,7 +1348,7 @@ def analyze_java(source):
                 issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
     except Exception:
         pass
-    classes = re.findall(r"(?:public|private|protected)?\s*class\s+(\w+)", source)
+    classes = re.findall(r"(?:public|private|protected)?\s*(?:abstract\s+|final\s+)?(?:class|interface|enum)\s+(\w+)", source)
     methods = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
     imports = re.findall(r"import\s+([\w\.\*]+);", source)
     methods = [m for m in methods if m not in classes]
@@ -1367,13 +1369,19 @@ def migrate_java(source):
         (r'\bimport javax\.servlet\.', 'import jakarta.servlet.', "javax.servlet -> jakarta.servlet (Jakarta EE 9+ namespace)"),
         (r'\bimport javax\.persistence\.', 'import jakarta.persistence.', "javax.persistence -> jakarta.persistence (Jakarta EE 9+ namespace)"),
         (r'\bimport javax\.annotation\.', 'import jakarta.annotation.', "javax.annotation -> jakarta.annotation (Jakarta EE 9+ namespace)"),
+        (r'\bimport javax\.ws\.rs\.', 'import jakarta.ws.rs.', "javax.ws.rs -> jakarta.ws.rs (JAX-RS, Jakarta EE 9+ namespace)"),
+        (r'\bimport javax\.validation\.', 'import jakarta.validation.', "javax.validation -> jakarta.validation (Jakarta EE 9+ namespace)"),
+        (r'\bimport javax\.transaction\.', 'import jakarta.transaction.', "javax.transaction -> jakarta.transaction (Jakarta EE 9+ namespace)"),
+        (r'\bimport javax\.inject\.', 'import jakarta.inject.', "javax.inject -> jakarta.inject (Jakarta EE 9+ namespace)"),
+        (r'\bimport javax\.xml\.bind\.', 'import jakarta.xml.bind.', "javax.xml.bind -> jakarta.xml.bind (JAXB, Jakarta EE 9+ namespace)"),
         (r'\bimport javax\.ejb\.', 'import jakarta.ejb.', "javax.ejb -> jakarta.ejb (Jakarta EE 9+ namespace)"),
     ]
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
-            if _mline.lstrip().startswith("#"):
+            _mline_stripped = _mline.lstrip()
+            if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
             _new_line = re.sub(pattern, repl, _mline)
             if _new_line != _mline:
@@ -1384,7 +1392,7 @@ def migrate_java(source):
             changes.append(label)
     review_rules = [
         (r'\bStringBuffer\b', "StringBuffer found - StringBuilder is the modern replacement, but StringBuffer is thread-safe and StringBuilder is NOT. Only switch if this code is genuinely single-threaded."),
-        (r'\bVector\b', "Vector found - ArrayList is the modern replacement, but Vector is synchronized (thread-safe) and ArrayList is NOT. Review for concurrent access before switching, or use Collections.synchronizedList()."),
+        (r'import\s+java\.util\.Vector\b|\bnew\s+Vector\s*[<(]', "Vector found - ArrayList is the modern replacement, but Vector is synchronized (thread-safe) and ArrayList is NOT. Review for concurrent access before switching, or use Collections.synchronizedList()."),
         (r'\bHashtable\b', "Hashtable found - HashMap is the modern replacement, but Hashtable is synchronized (thread-safe) and HashMap is NOT. Review for concurrent access before switching, or use ConcurrentHashMap."),
         (r'\bEnumeration\b', "Enumeration found - Iterator is the modern replacement, but the method calls differ (hasMoreElements()/nextElement() vs hasNext()/next()). Renaming the type alone will not compile - all method calls must also be updated."),
         (r'@WebServlet\b', "@WebServlet found - this is a Servlet-API class using doGet()/doPost() with HttpServletRequest/Response. Converting to Spring's @RestController requires rewriting the method signatures entirely (e.g. @GetMapping methods with different parameters and return types), not just swapping the annotation."),
