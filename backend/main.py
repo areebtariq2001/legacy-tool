@@ -1559,6 +1559,21 @@ def migrate_cobol(source, filename="file.cbl"):
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
     eval_subject_stack = []
     eval_first_when_stack = []
+    def _strip_inline_star_comment(_ln):
+        _in_str = False
+        _str_ch = None
+        for _ci in range(len(_ln) - 1):
+            _c = _ln[_ci]
+            if _in_str:
+                if _c == _str_ch:
+                    _in_str = False
+            elif _c in (chr(34), chr(39)):
+                _in_str = True
+                _str_ch = _c
+            elif _c == "*" and _ln[_ci + 1] == ">" and not _in_str:
+                return _ln[:_ci].rstrip()
+        return _ln
+
     for raw_line in lines:
         line = raw_line.strip()
         if filename.lower().endswith((".cbl", ".cob")):
@@ -1566,6 +1581,9 @@ def migrate_cobol(source, filename="file.cbl"):
             if seq_match:
                 line = seq_match.group(2)
         if not line or line.startswith("*"):
+            continue
+        line = _strip_inline_star_comment(line).strip()
+        if not line:
             continue
         upper = line.upper()
         if "IDENTIFICATION DIVISION" in upper:
@@ -1584,12 +1602,22 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("WORKING-STORAGE -> Python variables")
             in_working_storage = True
             continue
+        if "LINKAGE SECTION" in upper:
+            changes.append("LINKAGE SECTION -> Python variables (parameters)")
+            in_working_storage = True
+            continue
         if "PROCEDURE DIVISION" in upper:
             changes.append("PROCEDURE DIVISION -> Python function")
             out_lines.append("")
             out_lines.append("def main():")
             in_working_storage = False
             in_procedure = True
+            current_group_01 = None
+            continue
+        _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+        if _cond_name_m and in_working_storage:
+            out_lines.append(f"# Condition name: {_cond_name_m.group(1).replace('-', '_')} VALUE {_cond_name_m.group(2) or '(unspecified)'} - COBOL level-88 condition names have no direct Python equivalent; consider a helper function or comparison at the point of use.")
+            changes.append(f"Level-88 condition name {_cond_name_m.group(1)} noted as a comment (manual review recommended)")
             continue
         var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
@@ -1606,6 +1634,7 @@ def migrate_cobol(source, filename="file.cbl"):
             val = var_m.group(3)
             if val:
                 val_clean = val.rstrip(".").strip()
+                val_clean = re.sub(r"^ALL\s+", "", val_clean, flags=re.IGNORECASE)
                 val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
                 out_lines.append(f"{var_name} = {val_map.get(val_clean.upper(), val_clean)}")
             else:
