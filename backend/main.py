@@ -1410,14 +1410,15 @@ def migrate_java(source):
     for pattern, msg in review_rules:
         if re.search(pattern, migrated):
             changes.append("REVIEW NEEDED: " + msg)
-    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source, "java")}
+    check = validate_java(migrated)
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "java")}
 
 # ---------- COBOL ----------
 COBOL_CHECKS_COMPILED_RAW = [
         (r'PERFORM\s+UNTIL', "PERFORM UNTIL found - convert to while loop"),
         (r'PERFORM\s+VARYING', "PERFORM VARYING found - convert to for loop"),
         (r'PERFORM\s+\w[\w-]*\s+THRU', "PERFORM THRU found - calls a range of paragraphs, convert to sequential function calls"),
-        (r'PERFORM\s+\w[\w-]*(?!\s+(?:UNTIL|VARYING|THRU))', "PERFORM (paragraph call) found - convert to a function call"),
+        (r'PERFORM\s+(?!UNTIL\b|VARYING\b)\w[\w-]*(?!\s+THRU\b)', "PERFORM (paragraph call) found - convert to a function call"),
         (r'\bALTER\s+\w[\w-]*\s+TO\b', "CRITICAL: ALTER statement found - extremely dangerous self-modifying control flow (changes the target of a GO TO at runtime), refactor immediately before migration"),
         (r'\bGO\s+TO\b', "GO TO found - use structured programming"),
         (r'\bPIC\s+9', "PIC 9 numeric fields - convert to int/float"),
