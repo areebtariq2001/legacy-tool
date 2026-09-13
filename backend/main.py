@@ -862,7 +862,8 @@ def validate_python(code):
         return {"valid": False, "validation_message": f"Warning: could not verify output ({str(e)}). Please review carefully."}
 
 # ---------- VARIABLE SCOPE MAPPING (PYTHON) ----------
-_PY_BUILTINS = set(__builtins__.keys()) if isinstance(__builtins__, dict) else set(dir(__builtins__))
+import builtins as _builtins_module
+_PY_BUILTINS = set(dir(_builtins_module))
 _PY_BUILTINS |= {"True", "False", "None", "self", "cls"}
 
 def extract_variables(code):
@@ -1621,6 +1622,9 @@ def migrate_cobol(source, filename="file.cbl"):
             cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bAND\b", "and", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bOR\b", "or", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
             cond = cond.replace(" = ", " == ")
             if test_after_m:
                 out_lines.append(cur_indent() + "while True:")
@@ -1634,7 +1638,7 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("PERFORM UNTIL -> while loop")
             continue
         if upper.startswith("EVALUATE "):
-            eval_subject = line[9:].rstrip(".").strip().replace("-", "_")
+            eval_subject = _cobol_hyphen_fix(line[9:].rstrip(".").strip())
             eval_first_when = True
             changes.append("EVALUATE -> if/elif chain")
             continue
@@ -1670,6 +1674,8 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("END-EVALUATE removed")
             continue
         if upper.rstrip(".") == "ELSE":
+            if if_depth == 0:
+                changes.append("REVIEW NEEDED: ELSE found with no matching open IF - the generated else below is likely invalid Python and needs manual correction.")
             if_depth = max(0, if_depth - 1)
             out_lines.append(cur_indent() + "else:")
             if_depth += 1
@@ -1683,6 +1689,7 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
+            cond = re.sub(r"\bTHEN\s*$", "", cond, flags=re.IGNORECASE).rstrip()
             _words = cond.split(" ")
             _fixed_words = []
             for _w in _words:
