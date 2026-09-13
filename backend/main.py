@@ -1090,10 +1090,30 @@ def analyze_call_graph(source):
         tree = ast.parse(source)
     except Exception:
         return {"call_graph_error": "This feature only supports Python files. If this is a Python file, it may have Python 2 syntax - try migrating it to Python 3 first."}
-    defined_functions = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            defined_functions.append(node.name)
+
+    _qualified_nodes = []
+
+    def _walk_with_class_context(n, class_stack):
+        if isinstance(n, ast.ClassDef):
+            for child in n.body:
+                _walk_with_class_context(child, class_stack + [n.name])
+            return
+        if isinstance(n, ast.FunctionDef):
+            _qname = (".".join(class_stack) + "." + n.name) if class_stack else n.name
+            _qualified_nodes.append((_qname, n))
+            for child in ast.iter_child_nodes(n):
+                _walk_with_class_context(child, class_stack)
+            return
+        for child in ast.iter_child_nodes(n):
+            _walk_with_class_context(child, class_stack)
+
+    _walk_with_class_context(tree, [])
+    defined_functions = [qn for qn, _n in _qualified_nodes]
+    _bare_to_qualified = {}
+    for qn in defined_functions:
+        _bare = qn.split(".")[-1]
+        _bare_to_qualified.setdefault(_bare, []).append(qn)
+
     def _collect_direct_calls(fn_node):
         collected = []
         def _visit(n, is_root):
@@ -1113,14 +1133,14 @@ def analyze_call_graph(source):
         return collected
 
     calls_map = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            raw_calls = _collect_direct_calls(node)
-            inner_calls = []
-            for fname in raw_calls:
-                if fname in defined_functions and fname != node.name and fname not in inner_calls:
-                    inner_calls.append(fname)
-            calls_map[node.name] = inner_calls
+    for _qname, node in _qualified_nodes:
+        raw_calls = _collect_direct_calls(node)
+        inner_calls = []
+        for fname in raw_calls:
+            for _target_qn in _bare_to_qualified.get(fname, []):
+                if _target_qn != _qname and _target_qn not in inner_calls:
+                    inner_calls.append(_target_qn)
+        calls_map[_qname] = inner_calls
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
