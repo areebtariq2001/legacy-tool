@@ -743,6 +743,20 @@ def migrate_code(source):
         (r'\bimport\s+sha\b', 'import hashlib', "import sha -> import hashlib (sha module removed in Python 3)"),
         (r'\bsha\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.sha1((\1).encode() if isinstance((\1), str) else (\1))', "sha.new(x) -> hashlib.sha1() requires bytes, not str - wrapped with .encode() for the common string case"),
     ]
+    def _split_inline_comment(_line):
+        _in_str = False
+        _str_ch = None
+        for _ci, _ch in enumerate(_line):
+            if _in_str:
+                if _ch == _str_ch:
+                    _in_str = False
+            elif _ch in (chr(34), chr(39)):
+                _in_str = True
+                _str_ch = _ch
+            elif _ch == "#" and not _in_str:
+                return _line[:_ci], _line[_ci:]
+        return _line, ""
+
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
@@ -750,7 +764,9 @@ def migrate_code(source):
             _mline_stripped = _mline.lstrip()
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
-            _new_line = re.sub(pattern, repl, _mline)
+            _code_part, _comment_part = _split_inline_comment(_mline)
+            _new_code_part = re.sub(pattern, repl, _code_part)
+            _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
@@ -840,7 +856,7 @@ def validate_php(code):
         return {"valid": False, "validation_message": "Structural issues detected: " + "; ".join(issues) + ". This is a basic structural check, not a full PHP parser - please review carefully."}
     return {"valid": True, "validation_message": "Basic structural check passed (brace/paren balance). This is not a full PHP parser - please review carefully."}
 
-def validate_cobol(code):
+def validate_migrated_cobol_output(code):
     # Note: despite the name (kept for naming-consistency with validate_java/validate_php),
     # this validates the MIGRATED PYTHON OUTPUT, not the original COBOL source.
     # COBOL syntax validation would require a dedicated COBOL parser, which is not used here.
@@ -1272,6 +1288,20 @@ def migrate_php(source):
     if re.search(curly_brace_pattern, migrated):
         migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
         changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
+    def _split_inline_comment(_line):
+        _in_str = False
+        _str_ch = None
+        for _ci, _ch in enumerate(_line):
+            if _in_str:
+                if _ch == _str_ch:
+                    _in_str = False
+            elif _ch in (chr(34), chr(39)):
+                _in_str = True
+                _str_ch = _ch
+            elif _ch == "#" and not _in_str:
+                return _line[:_ci], _line[_ci:]
+        return _line, ""
+
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
@@ -1279,7 +1309,9 @@ def migrate_php(source):
             _mline_stripped = _mline.lstrip()
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
-            _new_line = re.sub(pattern, repl, _mline)
+            _code_part, _comment_part = _split_inline_comment(_mline)
+            _new_code_part = re.sub(pattern, repl, _code_part)
+            _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
@@ -1387,6 +1419,20 @@ def migrate_java(source):
         (r'\bimport javax\.xml\.bind\.', 'import jakarta.xml.bind.', "javax.xml.bind -> jakarta.xml.bind (JAXB, Jakarta EE 9+ namespace)"),
         (r'\bimport javax\.ejb\.', 'import jakarta.ejb.', "javax.ejb -> jakarta.ejb (Jakarta EE 9+ namespace)"),
     ]
+    def _split_inline_comment(_line):
+        _in_str = False
+        _str_ch = None
+        for _ci, _ch in enumerate(_line):
+            if _in_str:
+                if _ch == _str_ch:
+                    _in_str = False
+            elif _ch in (chr(34), chr(39)):
+                _in_str = True
+                _str_ch = _ch
+            elif _ch == "#" and not _in_str:
+                return _line[:_ci], _line[_ci:]
+        return _line, ""
+
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
@@ -1394,7 +1440,9 @@ def migrate_java(source):
             _mline_stripped = _mline.lstrip()
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
-            _new_line = re.sub(pattern, repl, _mline)
+            _code_part, _comment_part = _split_inline_comment(_mline)
+            _new_code_part = re.sub(pattern, repl, _code_part)
+            _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
@@ -1758,7 +1806,7 @@ def migrate_cobol(source, filename="file.cbl"):
         out_lines.append("if __name__ == '__main__':")
         out_lines.append("    main()")
     migrated = chr(10).join(out_lines)
-    check = validate_cobol(migrated)
+    check = validate_migrated_cobol_output(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(source, "cobol")}
 
 
