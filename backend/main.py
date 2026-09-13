@@ -1614,7 +1614,7 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append(f"Variable {var_m.group(2)} declared{_nest_info}")
             continue
         group_m = re.match(r"^(\d+)\s+([\w-]+)\.?$", line, re.IGNORECASE)
-        if group_m and in_working_storage and group_m.group(1) == "01":
+        if group_m and in_working_storage and int(group_m.group(1)) == 1:
             current_group_01 = group_m.group(2).replace("-", "_")
             out_lines.append(f"# Group: {current_group_01}")
             changes.append(f"Group-level record {group_m.group(2)} noted")
@@ -1622,6 +1622,19 @@ def migrate_cobol(source, filename="file.cbl"):
         disp_m = re.match(r"^DISPLAY\s+(.+?)\.?$", line, re.IGNORECASE)
         if disp_m:
             _disp_val = disp_m.group(1)
+            _disp_in_str = False
+            _disp_str_ch = None
+            for _dci in range(len(_disp_val) - 1):
+                _dch = _disp_val[_dci]
+                if _disp_in_str:
+                    if _dch == _disp_str_ch:
+                        _disp_in_str = False
+                elif _dch in (chr(34), chr(39)):
+                    _disp_in_str = True
+                    _disp_str_ch = _dch
+                elif _dch == "*" and _disp_val[_dci + 1] == ">" and not _disp_in_str:
+                    _disp_val = _disp_val[:_dci].rstrip()
+                    break
             _tokens = re.findall(r'"[^"]*"|\x27[^\x27]*\x27|\S+', _disp_val)
             _parts = []
             for _t in _tokens:
@@ -1633,11 +1646,14 @@ def migrate_cobol(source, filename="file.cbl"):
             out_lines.append(f"{cur_indent()}print({disp_content})")
             changes.append("DISPLAY -> print()")
             continue
-        move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w\s-]+)\.?$", line, re.IGNORECASE)
+        move_m = re.match(r'^MOVE\s+((?:"[^"]*"|\x27[^\x27]*\x27|\S+))\s+TO\s+([\w\s-]+?)\.?$', line, re.IGNORECASE)
         if move_m:
             src_val = move_m.group(1).strip()
-            is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val)
-            if not is_literal:
+            _COBOL_FIGURATIVES_MOVE = {"ZEROS": "0", "ZERO": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
+            is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val) or src_val.upper() in _COBOL_FIGURATIVES_MOVE
+            if src_val.upper() in _COBOL_FIGURATIVES_MOVE:
+                src_val_clean = _COBOL_FIGURATIVES_MOVE[src_val.upper()]
+            elif not is_literal:
                 src_val_clean = src_val.replace("-", "_")
             else:
                 src_val_clean = src_val
@@ -1664,17 +1680,19 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m:
-            src_val = _cobol_hyphen_fix(add_m.group(1))
+            _add_sources = [_cobol_hyphen_fix(s.strip()) for s in add_m.group(1).split() if s.strip()]
+            src_val = " + ".join(_add_sources) if len(_add_sources) > 1 else (_add_sources[0] if _add_sources else "0")
             dst_var = add_m.group(2).replace("-", "_")
             out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
-            changes.append("ADD -> +=")
+            changes.append("ADD -> +=" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
             continue
         sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if sub_m:
-            src_val = _cobol_hyphen_fix(sub_m.group(1))
+            _sub_sources = [_cobol_hyphen_fix(s.strip()) for s in sub_m.group(1).split() if s.strip()]
+            src_val = " + ".join(_sub_sources) if len(_sub_sources) > 1 else (_sub_sources[0] if _sub_sources else "0")
             dst_var = sub_m.group(2).replace("-", "_")
-            out_lines.append(f"{cur_indent()}{dst_var} -= {src_val}")
-            changes.append("SUBTRACT -> -=")
+            out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
+            changes.append("SUBTRACT -> -=" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
             continue
         perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
         if perform_m:
