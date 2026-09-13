@@ -1552,7 +1552,7 @@ def migrate_cobol(source, filename="file.cbl"):
     lines = source.split(chr(10))
     in_working_storage = False
     in_procedure = False
-    current_group_01 = None
+    _group_stack = []
     _skipped_types = {}
     if_depth = 0
     def cur_indent():
@@ -1612,7 +1612,7 @@ def migrate_cobol(source, filename="file.cbl"):
             out_lines.append("def main():")
             in_working_storage = False
             in_procedure = True
-            current_group_01 = None
+            _group_stack = []
             continue
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
@@ -1624,13 +1624,14 @@ def migrate_cobol(source, filename="file.cbl"):
             level_num = var_m.group(1)
             _level_num_int = int(level_num)
             raw_name = var_m.group(2).replace("-", "_")
-            if _level_num_int == 1:
-                current_group_01 = raw_name
-                var_name = raw_name
-            elif current_group_01:
-                var_name = f"{current_group_01}_{raw_name}"
+            while _group_stack and _group_stack[-1][0] >= _level_num_int:
+                _group_stack.pop()
+            if _group_stack:
+                var_name = f"{_group_stack[-1][1]}_{raw_name}"
+                current_group_01 = _group_stack[-1][1]
             else:
                 var_name = raw_name
+                current_group_01 = None
             val = var_m.group(3)
             if val:
                 val_clean = val.rstrip(".").strip()
@@ -1643,10 +1644,16 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append(f"Variable {var_m.group(2)} declared{_nest_info}")
             continue
         group_m = re.match(r"^(\d+)\s+([\w-]+)\.?$", line, re.IGNORECASE)
-        if group_m and in_working_storage and int(group_m.group(1)) == 1:
-            current_group_01 = group_m.group(2).replace("-", "_")
-            out_lines.append(f"# Group: {current_group_01}")
-            changes.append(f"Group-level record {group_m.group(2)} noted")
+        if group_m and in_working_storage:
+            _grp_level = int(group_m.group(1))
+            _grp_raw = group_m.group(2).replace("-", "_")
+            while _group_stack and _group_stack[-1][0] >= _grp_level:
+                _group_stack.pop()
+            _grp_full = f"{_group_stack[-1][1]}_{_grp_raw}" if _group_stack else _grp_raw
+            _group_stack.append((_grp_level, _grp_full))
+            current_group_01 = _grp_full
+            out_lines.append(f"# Group: {_grp_full}")
+            changes.append(f"Group-level record {group_m.group(2)} noted" + (f" (nested under level {_group_stack[-2][0]})" if len(_group_stack) > 1 else ""))
             continue
         disp_m = re.match(r"^DISPLAY\s+(.+?)\.?$", line, re.IGNORECASE)
         if disp_m:
