@@ -1445,6 +1445,23 @@ COBOL_CHECKS_COMPILED_RAW = [
 COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHECKS_COMPILED_RAW]
 
 
+COBOL_IF_OPS_RAW = [
+                (r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">="),
+                (r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<="),
+                (r"\bGREATER\s+THAN\b", ">"),
+                (r"\bLESS\s+THAN\b", "<"),
+                (r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!="),
+                (r"\bEQUAL\s+TO\b", "=="),
+                (r"\bEQUAL\b", "=="),
+                (r"\bNOT\b", "not"),
+                (r"\bAND\b", "and"),
+                (r"\bOR\b", "or"),
+                (r"\bSPACES\b|\bSPACE\b", '""'),
+                (r"\bZEROS\b|\bZERO\b", "0"),
+]
+COBOL_IF_OPS_COMPILED = [(re.compile(p, re.IGNORECASE), r) for p, r in COBOL_IF_OPS_RAW]
+
+
 def analyze_cobol(source, filename="file.cbl"):
     issues = []
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -1708,22 +1725,8 @@ def migrate_cobol(source, filename="file.cbl"):
                 else:
                     _fixed_words.append(_w)
             cond = " ".join(_fixed_words)
-            _cobol_ops = [
-                (r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">="),
-                (r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<="),
-                (r"\bGREATER\s+THAN\b", ">"),
-                (r"\bLESS\s+THAN\b", "<"),
-                (r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!="),
-                (r"\bEQUAL\s+TO\b", "=="),
-                (r"\bEQUAL\b", "=="),
-                (r"\bNOT\b", "not"),
-                (r"\bAND\b", "and"),
-                (r"\bOR\b", "or"),
-                (r"\bSPACES\b|\bSPACE\b", '""'),
-                (r"\bZEROS\b|\bZERO\b", "0"),
-            ]
-            for _pat, _repl in _cobol_ops:
-                cond = re.sub(_pat, _repl, cond, flags=re.IGNORECASE)
+            for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
+                cond = _compiled_pat.sub(_repl, cond)
             cond = cond.replace(" = ", " == ")
             out_lines.append(cur_indent() + "if " + cond + ":")
             if_depth += 1
