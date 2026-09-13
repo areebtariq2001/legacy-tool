@@ -1645,7 +1645,10 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("WHEN OTHER"):
             if not eval_first_when:
                 if_depth = max(0, if_depth - 1)
-            out_lines.append(cur_indent() + "else:")
+                out_lines.append(cur_indent() + "else:")
+            else:
+                out_lines.append(cur_indent() + "if True:")
+                changes.append("REVIEW NEEDED: WHEN OTHER was the first (only) WHEN clause seen for this EVALUATE - generated as an unconditional if True: block since there is no prior WHEN to attach an else to.")
             if_depth += 1
             eval_first_when = False
             eval_subject = None
@@ -1655,7 +1658,12 @@ def migrate_cobol(source, filename="file.cbl"):
             when_val = line[5:].rstrip(".").strip()
             _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
             if _thru_m:
-                when_cond = _thru_m.group(1).strip() + " <= " + eval_subject + " <= " + _thru_m.group(2).strip()
+                _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
+                _thru_lo_raw = _thru_m.group(1).strip()
+                _thru_hi_raw = _thru_m.group(2).strip()
+                _thru_lo = _thru_val_map.get(_thru_lo_raw.upper(), _cobol_hyphen_fix(_thru_lo_raw))
+                _thru_hi = _thru_val_map.get(_thru_hi_raw.upper(), _cobol_hyphen_fix(_thru_hi_raw))
+                when_cond = _thru_lo + " <= " + eval_subject + " <= " + _thru_hi
                 changes.append("REVIEW NEEDED: WHEN " + when_val + " (THRU/range) converted to a range-check (" + when_cond + ") - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             else:
                 when_cond = eval_subject + " == " + when_val
