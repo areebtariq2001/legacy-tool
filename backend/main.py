@@ -1223,6 +1223,8 @@ PHP_CHECKS_COMPILED = [(re.compile(p), m) for p, m in PHP_CHECKS_COMPILED_RAW]
 
 def analyze_php(source):
     issues = []
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"issues": ["File too large - analysis skipped"], "php_summary": "File too large to analyze."}
     _source_no_comments = re.sub(r'(?<!:)//.*', '', source)
     _source_no_comments = re.sub(r'(?<![\x22\x27])#.*', '', _source_no_comments)
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
@@ -1333,6 +1335,8 @@ JAVA_CHECKS_COMPILED = [(re.compile(p), m) for p, m in JAVA_CHECKS_COMPILED_RAW]
 
 def analyze_java(source):
     issues = []
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"issues": ["File too large - analysis skipped"], "java_summary": "File too large to analyze."}
     for _compiled_pattern, msg in JAVA_CHECKS_COMPILED:
         if _compiled_pattern.search(source):
             issues.append(msg)
@@ -1442,6 +1446,8 @@ COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHE
 
 def analyze_cobol(source, filename="file.cbl"):
     issues = []
+    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
+        return {"issues": ["File too large - analysis skipped"], "cobol_summary": "File too large to analyze."}
     for _compiled_pattern, msg in COBOL_CHECKS_COMPILED:
         if _compiled_pattern.search(source):
             issues.append(msg)
