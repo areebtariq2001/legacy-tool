@@ -1522,7 +1522,7 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         prog_id_m = re.match(r"^PROGRAM-ID\.\s+([\w-]+)", line, re.IGNORECASE)
         if prog_id_m:
-            out_lines.append("# Program: " + prog_id_m.group(1))
+            out_lines.append(f"# Program: {prog_id_m.group(1)}")
             changes.append("PROGRAM-ID captured as a comment")
             continue
         if "DATA DIVISION" in upper:
@@ -1549,23 +1549,24 @@ def migrate_cobol(source, filename="file.cbl"):
                 current_group_01 = raw_name
                 var_name = raw_name
             elif current_group_01:
-                var_name = current_group_01 + "_" + raw_name
+                var_name = f"{current_group_01}_{raw_name}"
             else:
                 var_name = raw_name
             val = var_m.group(3)
             if val:
                 val_clean = val.rstrip(".").strip()
                 val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
-                out_lines.append(var_name + " = " + val_map.get(val_clean.upper(), val_clean))
+                out_lines.append(f"{var_name} = {val_map.get(val_clean.upper(), val_clean)}")
             else:
-                out_lines.append(var_name + " = None")
-            changes.append("Variable " + var_m.group(2) + " declared" + (" (level " + level_num + ", nested under " + current_group_01 + ")" if _level_num_int != 1 and current_group_01 else ""))
+                out_lines.append(f"{var_name} = None")
+            _nest_info = f" (level {level_num}, nested under {current_group_01})" if _level_num_int != 1 and current_group_01 else ""
+            changes.append(f"Variable {var_m.group(2)} declared{_nest_info}")
             continue
         group_m = re.match(r"^(\d+)\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if group_m and in_working_storage and group_m.group(1) == "01":
             current_group_01 = group_m.group(2).replace("-", "_")
-            out_lines.append("# Group: " + current_group_01)
-            changes.append("Group-level record " + group_m.group(2) + " noted")
+            out_lines.append(f"# Group: {current_group_01}")
+            changes.append(f"Group-level record {group_m.group(2)} noted")
             continue
         disp_m = re.match(r"^DISPLAY\s+(.+?)\.?$", line, re.IGNORECASE)
         if disp_m:
@@ -1578,7 +1579,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 else:
                     _parts.append(_cobol_hyphen_fix(_t))
             disp_content = ", ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
-            out_lines.append(cur_indent() + "print(" + disp_content + ")")
+            out_lines.append(f"{cur_indent()}print({disp_content})")
             changes.append("DISPLAY -> print()")
             continue
         move_m = re.match(r"^MOVE\s+(.+?)\s+TO\s+([\w\s-]+)\.?$", line, re.IGNORECASE)
@@ -1591,36 +1592,37 @@ def migrate_cobol(source, filename="file.cbl"):
                 src_val_clean = src_val
             dst_vars = [d.replace("-", "_") for d in move_m.group(2).strip().split()]
             for dst_var in dst_vars:
-                out_lines.append(cur_indent() + dst_var + " = " + src_val_clean)
-            changes.append("MOVE -> assignment" + (" (" + str(len(dst_vars)) + " destinations)" if len(dst_vars) > 1 else ""))
+                out_lines.append(f"{cur_indent()}{dst_var} = {src_val_clean}")
+            _dst_info = f" ({len(dst_vars)} destinations)" if len(dst_vars) > 1 else ""
+            changes.append(f"MOVE -> assignment{_dst_info}")
             if not is_literal:
-                changes.append("REVIEW NEEDED: MOVE " + move_m.group(1).strip() + " TO " + move_m.group(2) + " - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
+                changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
         if upper.startswith("STOP RUN"):
-            out_lines.append(cur_indent() + "return")
+            out_lines.append(f"{cur_indent()}return")
             changes.append("STOP RUN -> return")
             continue
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m:
             var_name = compute_m.group(1).replace("-", "_")
             expr = _cobol_hyphen_fix(compute_m.group(2))
-            out_lines.append(cur_indent() + var_name + " = " + expr)
+            out_lines.append(f"{cur_indent()}{var_name} = {expr}")
             changes.append("COMPUTE -> assignment")
             if "/" in expr or "*" in expr:
-                changes.append("REVIEW NEEDED: COMPUTE " + var_name + " = " + expr + " - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
+                changes.append(f"REVIEW NEEDED: COMPUTE {var_name} = {expr} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m:
             src_val = _cobol_hyphen_fix(add_m.group(1))
             dst_var = add_m.group(2).replace("-", "_")
-            out_lines.append(cur_indent() + dst_var + " += " + src_val)
+            out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
             changes.append("ADD -> +=")
             continue
         sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if sub_m:
             src_val = _cobol_hyphen_fix(sub_m.group(1))
             dst_var = sub_m.group(2).replace("-", "_")
-            out_lines.append(cur_indent() + dst_var + " -= " + src_val)
+            out_lines.append(f"{cur_indent()}{dst_var} -= {src_val}")
             changes.append("SUBTRACT -> -=")
             continue
         perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
@@ -1650,8 +1652,8 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}        break")
                 changes.append(f"REVIEW NEEDED: PERFORM {perform_m.group(1)} UNTIL ... WITH TEST AFTER converted to a post-test loop (executes body first, then checks) - verify this matches the intended COBOL semantics.")
             else:
-                out_lines.append(cur_indent() + "while not (" + cond + "):")
-                out_lines.append(cur_indent() + "    " + para_name + "()")
+                out_lines.append(f"{cur_indent()}while not ({cond}):")
+                out_lines.append(f"{cur_indent()}    {para_name}()")
             changes.append("PERFORM UNTIL -> while loop")
             continue
         if upper.startswith("EVALUATE "):
@@ -1663,9 +1665,9 @@ def migrate_cobol(source, filename="file.cbl"):
             _cur_first_when = eval_first_when_stack[-1] if eval_first_when_stack else True
             if not _cur_first_when:
                 if_depth = max(0, if_depth - 1)
-                out_lines.append(cur_indent() + "else:")
+                out_lines.append(f"{cur_indent()}else:")
             else:
-                out_lines.append(cur_indent() + "if True:")
+                out_lines.append(f"{cur_indent()}if True:")
                 changes.append("REVIEW NEEDED: WHEN OTHER was the first (only) WHEN clause seen for this EVALUATE - generated as an unconditional if True: block since there is no prior WHEN to attach an else to.")
             if_depth += 1
             if eval_first_when_stack:
@@ -1690,9 +1692,9 @@ def migrate_cobol(source, filename="file.cbl"):
                 when_cond = f"{eval_subject} == {when_val}"
             if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
-                out_lines.append(cur_indent() + "elif " + when_cond + ":")
+                out_lines.append(f"{cur_indent()}elif {when_cond}:")
             else:
-                out_lines.append(cur_indent() + "if " + when_cond + ":")
+                out_lines.append(f"{cur_indent()}if {when_cond}:")
                 eval_first_when_stack[-1] = False
             if_depth += 1
             changes.append("WHEN -> if/elif")
@@ -1709,7 +1711,7 @@ def migrate_cobol(source, filename="file.cbl"):
             if if_depth == 0:
                 changes.append("REVIEW NEEDED: ELSE found with no matching open IF - the generated else below is likely invalid Python and needs manual correction.")
             if_depth = max(0, if_depth - 1)
-            out_lines.append(cur_indent() + "else:")
+            out_lines.append(f"{cur_indent()}else:")
             if_depth += 1
             changes.append("ELSE -> else")
             continue
@@ -1739,18 +1741,18 @@ def migrate_cobol(source, filename="file.cbl"):
             for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
                 cond = _compiled_pat.sub(_repl, cond)
             cond = cond.replace(" = ", " == ")
-            out_lines.append(cur_indent() + "if " + cond + ":")
+            out_lines.append(f"{cur_indent()}if {cond}:")
             if_depth += 1
             changes.append("IF -> if (COBOL operators converted)")
             continue
-        out_lines.append(cur_indent() + "# TODO: manual review - " + line)
+        out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
         _stmt_type_m = re.match(r"^(\w[\w-]*)", line)
         if _stmt_type_m:
             _skipped_types.setdefault(_stmt_type_m.group(1).upper(), 0)
             _skipped_types[_stmt_type_m.group(1).upper()] += 1
     if _skipped_types:
-        _skip_summary = ", ".join(str(v) + " " + k for k, v in _skipped_types.items())
-        changes.append("REVIEW NEEDED: " + str(sum(_skipped_types.values())) + " statement(s) could not be auto-converted and are marked '# TODO' - manual conversion required: " + _skip_summary)
+        _skip_summary = ", ".join(f"{v} {k}" for k, v in _skipped_types.items())
+        changes.append(f"REVIEW NEEDED: {sum(_skipped_types.values())} statement(s) could not be auto-converted and are marked '# TODO' - manual conversion required: {_skip_summary}")
     if in_procedure:
         out_lines.append("")
         out_lines.append("if __name__ == '__main__':")
