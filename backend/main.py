@@ -1644,11 +1644,11 @@ def migrate_cobol(source, filename="file.cbl"):
             cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
             cond = cond.replace(" = ", " == ")
             if test_after_m:
-                out_lines.append(cur_indent() + "while True:")
-                out_lines.append(cur_indent() + "    " + para_name + "()")
-                out_lines.append(cur_indent() + "    if (" + cond + "):")
-                out_lines.append(cur_indent() + "        break")
-                changes.append("REVIEW NEEDED: PERFORM " + perform_m.group(1) + " UNTIL ... WITH TEST AFTER converted to a post-test loop (executes body first, then checks) - verify this matches the intended COBOL semantics.")
+                out_lines.append(f"{cur_indent()}while True:")
+                out_lines.append(f"{cur_indent()}    {para_name}()")
+                out_lines.append(f"{cur_indent()}    if ({cond}):")
+                out_lines.append(f"{cur_indent()}        break")
+                changes.append(f"REVIEW NEEDED: PERFORM {perform_m.group(1)} UNTIL ... WITH TEST AFTER converted to a post-test loop (executes body first, then checks) - verify this matches the intended COBOL semantics.")
             else:
                 out_lines.append(cur_indent() + "while not (" + cond + "):")
                 out_lines.append(cur_indent() + "    " + para_name + "()")
@@ -1684,10 +1684,10 @@ def migrate_cobol(source, filename="file.cbl"):
                 _thru_hi_raw = _thru_m.group(2).strip()
                 _thru_lo = _thru_val_map.get(_thru_lo_raw.upper(), _cobol_hyphen_fix(_thru_lo_raw))
                 _thru_hi = _thru_val_map.get(_thru_hi_raw.upper(), _cobol_hyphen_fix(_thru_hi_raw))
-                when_cond = _thru_lo + " <= " + eval_subject + " <= " + _thru_hi
-                changes.append("REVIEW NEEDED: WHEN " + when_val + " (THRU/range) converted to a range-check (" + when_cond + ") - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
+                when_cond = f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
+                changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({when_cond}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             else:
-                when_cond = eval_subject + " == " + when_val
+                when_cond = f"{eval_subject} == {when_val}"
             if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
                 out_lines.append(cur_indent() + "elif " + when_cond + ":")
