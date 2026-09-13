@@ -580,7 +580,7 @@ def validate_java(code):
         javalang.parse.parse(code)
         return {"valid": True, "validation_message": "Output is valid Java syntax (parsed successfully)."}
     except Exception as e:
-        return {"valid": False, "validation_message": f"Warning: output has a Java syntax error. Please review before use."}
+        return {"valid": False, "validation_message": f"Warning: output has a Java syntax error: {str(e)}. Please review before use."}
 
 def extract_java_names(code):
     names = set()
@@ -1690,10 +1690,12 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("ELSE -> else")
             continue
         if upper.startswith("END-IF"):
-            if if_depth == 0:
+            _unexpected_end_if = if_depth == 0
+            if _unexpected_end_if:
                 changes.append("REVIEW NEEDED: unexpected END-IF with no matching IF - the source COBOL may have mismatched IF/END-IF blocks. Indentation from this point onward may be incorrect - review the migrated output carefully.")
             if_depth = max(0, if_depth - 1)
-            changes.append("END-IF removed (Python uses indentation)")
+            if not _unexpected_end_if:
+                changes.append("END-IF removed (Python uses indentation)")
             continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
@@ -1717,7 +1719,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 (r"\bNOT\b", "not"),
                 (r"\bAND\b", "and"),
                 (r"\bOR\b", "or"),
-                (r"\bSPACES\b|\bSPACE\b", chr(34)+chr(34)),
+                (r"\bSPACES\b|\bSPACE\b", '""'),
                 (r"\bZEROS\b|\bZERO\b", "0"),
             ]
             for _pat, _repl in _cobol_ops:
