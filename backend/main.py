@@ -1236,7 +1236,7 @@ def analyze_php(source):
     try:
         _sqli_result = scan_sql_injection(source, "file.php")
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
     except Exception:
         issues.append("SQL injection sub-check could not complete - review manually for string-built queries")
     try:
@@ -1246,18 +1246,18 @@ def analyze_php(source):
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
                 continue
             if _sens_finding["severity"] in ("High", "Critical"):
-                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
+                issues.append(f"{_sens_finding['issue']} (line(s): {_sens_finding.get('lines', '?')})")
     except Exception:
         pass
     _php_funcs = list(dict.fromkeys(re.findall(r"function\s+(\w+)\s*\(", source)))
     _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", source)))
-    return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": str(len(_php_classes)) + " class(es), " + str(len(_php_funcs)) + " function(s) found"}
+    return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": f"{len(_php_classes)} class(es), {len(_php_funcs)} function(s) found"}
 
 def migrate_php(source):
     changes = []
     migrated = source
     def _fix_php4_constructor(m):
-        return m.group(1) + "__construct" + m.group(3)
+        return f"{m.group(1)}__construct{m.group(3)}"
     _ctor_pattern = re.compile(r'(class\s+(\w+)\s*\{[^}]*?function\s+)\2(\s*\()')
     _ctor_match = _ctor_pattern.search(migrated)
     if _ctor_match:
@@ -1304,7 +1304,7 @@ def migrate_php(source):
     ]
     for pattern, msg in review_rules:
         if re.search(pattern, migrated):
-            changes.append("REVIEW NEEDED: " + msg)
+            changes.append(f"REVIEW NEEDED: {msg}")
     if re.search(r'var\s+\$(\w+)', migrated):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
         changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
@@ -1346,7 +1346,7 @@ def analyze_java(source):
     try:
         _sqli_result = scan_sql_injection(source, "file.java")
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
@@ -1356,7 +1356,7 @@ def analyze_java(source):
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
                 continue
             if _sens_finding["severity"] in ("High", "Critical"):
-                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
+                issues.append(f"{_sens_finding['issue']} (line(s): {_sens_finding.get('lines', '?')})")
     except Exception:
         pass
     classes = re.findall(r"(?:public|private|protected)?\s*(?:abstract\s+|final\s+)?(?:class|interface|enum)\s+(\w+)", source)
@@ -1365,7 +1365,7 @@ def analyze_java(source):
     methods = [m for m in methods if m not in classes]
     wildcard_imports = [i for i in imports if i.endswith(".*")]
     if wildcard_imports:
-        issues.append("Wildcard import(s) found: " + ", ".join(wildcard_imports) + " - use specific imports instead")
+        issues.append(f"Wildcard import(s) found: {', '.join(wildcard_imports)} - use specific imports instead")
     all_methods = list(dict.fromkeys(methods))
     return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": f"{len(classes)} class(es), {len(methods)} method(s), {len(imports)} import(s), {len(issues)} legacy pattern(s) found"}
 
@@ -1414,7 +1414,7 @@ def migrate_java(source):
     ]
     for pattern, msg in review_rules:
         if re.search(pattern, migrated):
-            changes.append("REVIEW NEEDED: " + msg)
+            changes.append(f"REVIEW NEEDED: {msg}")
     check = validate_java(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "java")}
 
@@ -1477,7 +1477,7 @@ def analyze_cobol(source, filename="file.cbl"):
     try:
         _sqli_result = scan_sql_injection(source, filename)
         for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
@@ -1487,10 +1487,10 @@ def analyze_cobol(source, filename="file.cbl"):
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
                 continue
             if _sens_finding["severity"] in ("High", "Critical"):
-                issues.append(_sens_finding["issue"] + " (line(s): " + _sens_finding.get("lines", "?") + ")")
+                issues.append(f"{_sens_finding['issue']} (line(s): {_sens_finding.get('lines', '?')})")
     except Exception:
         pass
-    return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras) > 20, "cobol_summary": str(len(_cobol_paras)) + " paragraph(s) found (COBOL has no classes/OOP)"}
+    return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras) > 20, "cobol_summary": f"{len(_cobol_paras)} paragraph(s) found (COBOL has no classes/OOP)"}
 
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
