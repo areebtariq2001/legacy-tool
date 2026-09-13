@@ -1196,13 +1196,7 @@ Do not use markdown symbols. Just the headers and plain text. Only analyze the c
     }
 
 # ---------- PHP ----------
-def analyze_php(source):
-    issues = []
-    _source_no_comments = re.sub(r'(?<!:)//.*', '', source)
-    _source_no_comments = re.sub(r'(?<![\x22\x27])#.*', '', _source_no_comments)
-    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
-        issues.append("Hardcoded password/credential found - move to environment variable")
-    php_checks = [
+PHP_CHECKS_COMPILED_RAW = [
         (r"\bmysql_\w+\b", "CRITICAL (will not run): mysql_* functions were completely removed in PHP 7 - use mysqli or PDO"),
         (r'\bereg\(', "CRITICAL (will not run): ereg() was completely removed in PHP 7 - use preg_match()"),
         (r'\beregi\(', "CRITICAL (will not run): eregi() was completely removed in PHP 7 - use preg_match()"),
@@ -1224,8 +1218,17 @@ def analyze_php(source):
         (r'\bmoney_format\s*\(', "CRITICAL (will not run): money_format() was completely removed in PHP 8 - use NumberFormatter instead"),
         (r'class\s+(\w+)\s*\{[^}]*?function\s+\1\s*\(', "PHP 4-style constructor (method name matches class name) found - removed in PHP 8, use __construct() instead"),
     ]
-    for pattern, msg in php_checks:
-        if re.search(pattern, source):
+PHP_CHECKS_COMPILED = [(re.compile(p), m) for p, m in PHP_CHECKS_COMPILED_RAW]
+
+
+def analyze_php(source):
+    issues = []
+    _source_no_comments = re.sub(r'(?<!:)//.*', '', source)
+    _source_no_comments = re.sub(r'(?<![\x22\x27])#.*', '', _source_no_comments)
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
+        issues.append("Hardcoded password/credential found - move to environment variable")
+    for _compiled_pattern, msg in PHP_CHECKS_COMPILED:
+        if _compiled_pattern.search(source):
             issues.append(msg)
     try:
         _sqli_result = scan_sql_injection(source, "file.php")
@@ -1306,9 +1309,7 @@ def migrate_php(source):
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php")}
 
 # ---------- JAVA ----------
-def analyze_java(source):
-    issues = []
-    java_checks = [
+JAVA_CHECKS_COMPILED_RAW = [
         (r"\bStringBuffer\b", "StringBuffer found - use StringBuilder"),
         (r"\bnew\s+Integer\s*\(", "new Integer() found - use Integer.valueOf()"),
         (r"\bnew\s+Boolean\s*\(", "new Boolean() found - use Boolean.valueOf()"),
@@ -1327,8 +1328,13 @@ def analyze_java(source):
         (r"import\s+sun\.", "import from sun.* package found - these are internal JDK APIs, not part of the public API, and may break across JDK versions"),
         (r"\bfinalize\s*\(\s*\)\s*\{", "finalize() method found - deprecated since Java 9, removed in Java 18+"),
     ]
-    for pattern, msg in java_checks:
-        if re.search(pattern, source):
+JAVA_CHECKS_COMPILED = [(re.compile(p), m) for p, m in JAVA_CHECKS_COMPILED_RAW]
+
+
+def analyze_java(source):
+    issues = []
+    for _compiled_pattern, msg in JAVA_CHECKS_COMPILED:
+        if _compiled_pattern.search(source):
             issues.append(msg)
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
         issues.append("Hardcoded password/credential found - move to environment variable")
@@ -1407,9 +1413,7 @@ def migrate_java(source):
     return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source, "java")}
 
 # ---------- COBOL ----------
-def analyze_cobol(source, filename="file.cbl"):
-    issues = []
-    cobol_checks = [
+COBOL_CHECKS_COMPILED_RAW = [
         (r'PERFORM\s+UNTIL', "PERFORM UNTIL found - convert to while loop"),
         (r'PERFORM\s+VARYING', "PERFORM VARYING found - convert to for loop"),
         (r'PERFORM\s+\w[\w-]*\s+THRU', "PERFORM THRU found - calls a range of paragraphs, convert to sequential function calls"),
@@ -1432,8 +1436,13 @@ def analyze_cobol(source, filename="file.cbl"):
         (r'EXEC\s+SQL', "EXEC SQL found - embedded SQL, migrate to a Python DB driver (e.g. using parameterized queries)"),
         (r'DISPLAY', "DISPLAY found - output statement, convert to print()"),
     ]
-    for pattern, msg in cobol_checks:
-        if re.search(pattern, source, re.IGNORECASE):
+COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHECKS_COMPILED_RAW]
+
+
+def analyze_cobol(source, filename="file.cbl"):
+    issues = []
+    for _compiled_pattern, msg in COBOL_CHECKS_COMPILED:
+        if _compiled_pattern.search(source):
             issues.append(msg)
     _COBOL_DIVISIONS = {"IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "WORKING-STORAGE", "FILE", "LINKAGE", "COMMUNICATION", "REPORT", "SCREEN"}
     _cobol_paras = [p for p in re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source) if p.upper() not in _COBOL_DIVISIONS]
