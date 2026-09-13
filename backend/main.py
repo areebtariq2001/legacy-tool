@@ -1717,10 +1717,14 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
             cond = re.sub(r"\bTHEN\s*$", "", cond, flags=re.IGNORECASE).rstrip()
+            _figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None"}
             _words = cond.split(" ")
             _fixed_words = []
             for _w in _words:
-                if _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
+                _w_upper_stripped = _w.rstrip(".,")
+                if _w_upper_stripped.upper() in _figurative_word_map:
+                    _fixed_words.append(_figurative_word_map[_w_upper_stripped.upper()])
+                elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
                     _fixed_words.append(_w.replace("-", "_"))
                 else:
                     _fixed_words.append(_w)
