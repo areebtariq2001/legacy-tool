@@ -1461,7 +1461,7 @@ def analyze_cobol(source, filename="file.cbl"):
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
-def migrate_cobol(source):
+def migrate_cobol(source, filename="file.cbl"):
     changes = []
     out_lines = ["# Converted from COBOL - best-effort rule-based translation. Review carefully before use.", ""]
     lines = source.split(chr(10))
@@ -1476,9 +1476,10 @@ def migrate_cobol(source):
     eval_first_when = False
     for raw_line in lines:
         line = raw_line.strip()
-        seq_match = re.match(r"^(\d{6})\s+(.*)$", line)
-        if seq_match:
-            line = seq_match.group(2)
+        if filename.lower().endswith((".cbl", ".cob")):
+            seq_match = re.match(r"^(\d{6})\s+(.*)$", line)
+            if seq_match:
+                line = seq_match.group(2)
         if not line or line.startswith("*"):
             continue
         upper = line.upper()
@@ -1937,7 +1938,7 @@ async def download(file: UploadFile = File(...)):
     elif lang == "php":
         result = migrate_php(source)
     elif lang == "cobol":
-        result = migrate_cobol(source)
+        result = migrate_cobol(source, file.filename)
     else:
         result = migrate_code(source)
     migrated = result.get("migrated_code", "")
@@ -2036,7 +2037,7 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
         pre_issues = pre_analysis.get("issues", [])
     except Exception:
         pre_issues = []
-    result = migrate_cobol(source)
+    result = migrate_cobol(source, file.filename)
     result["filename"] = file.filename
     result["pre_migration_issues"] = pre_issues
     track_usage("migrate-cobol", file.filename)
