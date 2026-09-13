@@ -1263,8 +1263,27 @@ def analyze_php(source):
     issues = []
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"issues": ["File too large - analysis skipped"], "php_summary": "File too large to analyze."}
-    _source_no_comments = re.sub(r'(?<!:)//.*', '', source)
-    _source_no_comments = re.sub(r'(?<![\x22\x27])#.*', '', _source_no_comments)
+    def _php_strip_line_comment(_ln):
+        _in_str = False
+        _str_ch = None
+        for _ci in range(len(_ln)):
+            _c = _ln[_ci]
+            if _in_str:
+                if _c == chr(92):
+                    continue
+                if _ci > 0 and _ln[_ci - 1] == chr(92):
+                    continue
+                if _c == _str_ch:
+                    _in_str = False
+            elif _c in (chr(34), chr(39)):
+                _in_str = True
+                _str_ch = _c
+            elif _c == "#" and not _in_str:
+                return _ln[:_ci]
+            elif _c == "/" and _ci + 1 < len(_ln) and _ln[_ci + 1] == "/" and not _in_str:
+                return _ln[:_ci]
+        return _ln
+    _source_no_comments = chr(10).join(_php_strip_line_comment(_l) for _l in source.split(chr(10)))
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     for _compiled_pattern, msg in PHP_CHECKS_COMPILED:
