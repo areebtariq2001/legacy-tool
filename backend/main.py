@@ -1506,8 +1506,8 @@ def migrate_cobol(source, filename="file.cbl"):
     if_depth = 0
     def cur_indent():
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
-    eval_subject = None
-    eval_first_when = False
+    eval_subject_stack = []
+    eval_first_when_stack = []
     for raw_line in lines:
         line = raw_line.strip()
         if filename.lower().endswith((".cbl", ".cob")):
@@ -1655,23 +1655,27 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("PERFORM UNTIL -> while loop")
             continue
         if upper.startswith("EVALUATE "):
-            eval_subject = _cobol_hyphen_fix(line[9:].rstrip(".").strip())
-            eval_first_when = True
+            eval_subject_stack.append(_cobol_hyphen_fix(line[9:].rstrip(".").strip()))
+            eval_first_when_stack.append(True)
             changes.append("EVALUATE -> if/elif chain")
             continue
         if upper.startswith("WHEN OTHER"):
-            if not eval_first_when:
+            _cur_first_when = eval_first_when_stack[-1] if eval_first_when_stack else True
+            if not _cur_first_when:
                 if_depth = max(0, if_depth - 1)
                 out_lines.append(cur_indent() + "else:")
             else:
                 out_lines.append(cur_indent() + "if True:")
                 changes.append("REVIEW NEEDED: WHEN OTHER was the first (only) WHEN clause seen for this EVALUATE - generated as an unconditional if True: block since there is no prior WHEN to attach an else to.")
             if_depth += 1
-            eval_first_when = False
-            eval_subject = None
+            if eval_first_when_stack:
+                eval_first_when_stack.pop()
+            if eval_subject_stack:
+                eval_subject_stack.pop()
             changes.append("WHEN OTHER -> else")
             continue
-        if upper.startswith("WHEN ") and eval_subject is not None:
+        if upper.startswith("WHEN ") and eval_subject_stack:
+            eval_subject = eval_subject_stack[-1]
             when_val = line[5:].rstrip(".").strip()
             _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
             if _thru_m:
@@ -1684,18 +1688,21 @@ def migrate_cobol(source, filename="file.cbl"):
                 changes.append("REVIEW NEEDED: WHEN " + when_val + " (THRU/range) converted to a range-check (" + when_cond + ") - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             else:
                 when_cond = eval_subject + " == " + when_val
-            if not eval_first_when:
+            if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
                 out_lines.append(cur_indent() + "elif " + when_cond + ":")
             else:
                 out_lines.append(cur_indent() + "if " + when_cond + ":")
-                eval_first_when = False
+                eval_first_when_stack[-1] = False
             if_depth += 1
             changes.append("WHEN -> if/elif")
             continue
         if upper.startswith("END-EVALUATE"):
             if_depth = max(0, if_depth - 1)
-            eval_subject = None
+            if eval_subject_stack:
+                eval_subject_stack.pop()
+            if eval_first_when_stack:
+                eval_first_when_stack.pop()
             changes.append("END-EVALUATE removed")
             continue
         if upper.rstrip(".") == "ELSE":
