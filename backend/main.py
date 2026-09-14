@@ -1785,6 +1785,10 @@ def migrate_cobol(source, filename="file.cbl"):
             cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bHIGH_VALUES?\b", "None", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bLOW_VALUES?\b", "None", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bTRUE\b", "True", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bFALSE\b", "False", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bAND\b", "and", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bOR\b", "or", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
@@ -1814,13 +1818,9 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}if True:")
                 changes.append("REVIEW NEEDED: WHEN OTHER was the first (only) WHEN clause seen for this EVALUATE - generated as an unconditional if True: block since there is no prior WHEN to attach an else to.")
             if_depth += 1
-            if eval_first_when_stack:
-                eval_first_when_stack.pop()
-            if eval_subject_stack:
-                eval_subject_stack.pop()
             changes.append("WHEN OTHER -> else")
             continue
-        if upper.startswith("WHEN ") and eval_subject_stack:
+        if upper.startswith("WHEN ") and eval_subject_stack and eval_first_when_stack:
             eval_subject = eval_subject_stack[-1]
             when_val = line[5:].rstrip(".").strip()
             _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
@@ -1833,7 +1833,17 @@ def migrate_cobol(source, filename="file.cbl"):
                 when_cond = f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
                 changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({when_cond}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             else:
-                when_cond = f"{eval_subject} == {when_val}"
+                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
+                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
+                _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
+                if _when_op_m:
+                    _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
+                    _when_rhs_raw = _when_op_m.group(2).strip()
+                    _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
+                    when_cond = f"{eval_subject} {_when_op_py} {_when_rhs}"
+                else:
+                    _when_val_py = _when_figurative_map.get(when_val.upper(), _cobol_hyphen_fix(when_val) if not (when_val.startswith(chr(34)) or when_val.startswith(chr(39))) else when_val)
+                    when_cond = f"{eval_subject} == {_when_val_py}"
             if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
                 out_lines.append(f"{cur_indent()}elif {when_cond}:")
