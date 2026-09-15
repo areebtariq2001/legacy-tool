@@ -1968,6 +1968,8 @@ def detect_language(filename):
         "java": "java",
         "php": "php", "php3": "php", "php5": "php", "phtml": "php",
         "cbl": "cobol", "cob": "cobol", "cobol": "cobol",
+        "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript",
+        "rb": "ruby", "go": "go", "rs": "rust",
     }.get(ext, "unknown")
 
 # ---------- ERROR HANDLING ----------
@@ -1983,8 +1985,8 @@ def safe_read_file(content_bytes, filename):
     except Exception as e:
         return None, f"Could not read file (encoding issue): {str(e)}"
     sample = source[:2000]
-    printable = sum(1 for c in sample if c.isprintable() or c in "\n\r\t \x0c")
-    if len(sample) > 0 and printable / len(sample) < 0.5:
+    printable = sum(1 for c in sample if c.isprintable() or c in "\n\r\t ")
+    if len(sample) > 0 and printable / len(sample) < 0.65:
         return None, "File does not appear to be text/code (may be binary)."
     return source, None
 
@@ -3239,7 +3241,13 @@ def predict_migration_risk(source, filename):
     # 1. Risky/deprecated libraries (high migration risk)
     risky_libs = ["MySQLdb", "urllib2", "cStringIO", "cPickle", "itertools.izip", "raw_input", "has_key", "xrange"]
     found_libs = [lib for lib in risky_libs if lib in source]
-    if _re.search(r"(?<![a-zA-Z_])print\s+[^(]", source):
+    _pred_py3_ok = False
+    try:
+        ast.parse(source)
+        _pred_py3_ok = True
+    except Exception:
+        pass
+    if not _pred_py3_ok and _re.search(r"(?<![a-zA-Z_])print\s+[^(]", source):
         found_libs.append("print statement (Py2 style)")
     if _re.search(r"(?<![a-zA-Z_])exec\s+[^(]", source):
         found_libs.append("exec statement (Py2 style)")
@@ -3612,7 +3620,7 @@ def process_github_webhook(payload):
 
 def check_regulatory_framework(source, filename, framework="SBP"):
     _rf = re
-    frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(data.?localiz|pakistan|on.?prem|in.?country)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|\\bcar\\b)", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|\\bpan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(access.?log|audit.?log|audit.?trail|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
+    frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(data.?localiz|pakistan|on.?prem|in.?country)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|(?<![a-zA-Z])car(?![a-zA-Z]))", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|\\bpan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(access.?log|audit.?log|audit.?trail|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
     _used_fallback = framework not in frameworks
     fw = frameworks.get(framework, frameworks["SBP"])
     results = []
