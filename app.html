@@ -2644,7 +2644,6 @@ async function doReject() {
   } catch (e) {
     box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Rejection was NOT saved: network error - ' + e.message + '</div>';
   }
-  document.getElementById('approvalBox').innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
