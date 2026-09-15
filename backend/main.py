@@ -5626,7 +5626,7 @@ def _calculate_shannon_entropy(s):
 
 def scan_entropy_secrets(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     _known_prefixes = [("AKIA", "AWS Access Key ID"), ("ghp_", "GitHub Personal Access Token"), ("gho_", "GitHub OAuth Token"), ("xox", "Slack Token"), ("sk_live_", "Stripe Live Secret Key"), ("AIza", "Google API Key")]
     string_pattern = re.compile(r"[\"\x27]([A-Za-z0-9+/=_.\-]{16,})[\"\x27]")
     findings = []
@@ -5738,7 +5738,7 @@ async def dependency_file_scan_endpoint(file: UploadFile = File(...)):
 
 def scan_pci_dss_signals(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     findings = []
     lines = source.split(chr(10))
     for i, line in enumerate(lines):
@@ -6181,7 +6181,7 @@ async def geo_anomaly_check_endpoint(file: UploadFile = File(...)):
 
 def scan_jwt_oauth_security(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     findings = []
     lines = source.split(chr(10))
     for i, line in enumerate(lines):
@@ -6281,7 +6281,7 @@ async def high_value_threshold_check_endpoint(file: UploadFile = File(...)):
 
 def scan_certificate_pinning(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     findings = []
     lines = source.split(chr(10))
     has_https_call = False
@@ -8490,7 +8490,7 @@ async def basel_car_check_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Basel CAR check failed safely: " + str(e)})
 def scan_cobol_banking_dialect(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     _dialect_categories = {
         "CICS (transaction processing)": re.compile(r"(?i)\bEXEC\s+CICS\b"),
         "IMS (hierarchical database)": re.compile(r"(?i)\bEXEC\s+DLI\b|\bIMS\b"),
@@ -8508,7 +8508,7 @@ def scan_cobol_banking_dialect(source, filename):
                 counts[category] = counts.get(category, 0) + 1
                 if len(findings) < 40:
                     findings.append({"line": i + 1, "issue": category + " reference found - this mainframe-specific construct needs a modern-platform equivalent before migration (e.g. CICS transactions -> REST/microservice calls, VSAM -> relational/NoSQL storage, JCL -> orchestration/scheduler jobs).", "severity": "Info", "evidence": line.strip()[:100]})
-    return {"scanned": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " mainframe-specific construct reference(s) found across " + str(len(counts)) + " categories - this is an inventory to help plan migration scope, not an automated migration.") if findings else "No CICS/IMS/JCL/VSAM/MQ/Copybook references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE mainframe-specific constructs appear so a migration team can scope the effort. It does NOT parse COBOL semantics, resolve Copybook dependencies, or automatically convert any of these constructs to modern equivalents. A qualified mainframe migration engineer must design and implement the actual conversion."}
+    return {"scanned": True, "checked": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " mainframe-specific construct reference(s) found across " + str(len(counts)) + " categories - this is an inventory to help plan migration scope, not an automated migration.") if findings else "No CICS/IMS/JCL/VSAM/MQ/Copybook references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE mainframe-specific constructs appear so a migration team can scope the effort. It does NOT parse COBOL semantics, resolve Copybook dependencies, or automatically convert any of these constructs to modern equivalents. A qualified mainframe migration engineer must design and implement the actual conversion."}
 
 @app.post("/cobol-dialect-scan")
 async def cobol_dialect_scan_endpoint(file: UploadFile = File(...)):
@@ -8526,9 +8526,9 @@ async def cobol_dialect_scan_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "COBOL dialect scan failed safely: " + str(e)})
 def scan_cbs_integration_points(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "findings": [], "summary": "File too large."}
+        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     if not filename.lower().endswith(".py"):
-        return {"scanned": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CBS integration detection currently supports Python files only."}
+        return {"scanned": True, "checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CBS integration detection currently supports Python files only."}
     _cbs_categories = {
         "T24 (Temenos)": re.compile(r"(?i)\bT24\b|\bTemenos\b"),
         "Finacle (Infosys)": re.compile(r"(?i)\bFinacle\b"),
@@ -8547,7 +8547,7 @@ def scan_cbs_integration_points(source, filename):
                 counts[category] = counts.get(category, 0) + 1
                 if len(findings) < 40:
                     findings.append({"line": i + 1, "issue": category + " integration reference found - this is a legacy Core Banking System dependency that will need an API/data-mapping strategy when migrating away from this CBS.", "severity": "Info", "evidence": stripped[:100]})
-    return {"scanned": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " legacy CBS integration reference(s) found across " + str(len(counts)) + " platform(s) - this is an inventory to help scope migration effort, not an automated migration tool.") if findings else "No T24/Finacle/Misys/SYMBOL Core Banking System references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE a specific legacy Core Banking System is referenced so a migration team can scope the integration effort. It does NOT extract business logic, map data models, or automatically migrate any CBS-specific functionality. A qualified core-banking migration engineer must design and implement the actual migration to a modern platform."}
+    return {"scanned": True, "checked": True, "findings": findings, "total_findings": len(findings), "category_counts": counts, "summary": (str(len(findings)) + " legacy CBS integration reference(s) found across " + str(len(counts)) + " platform(s) - this is an inventory to help scope migration effort, not an automated migration tool.") if findings else "No T24/Finacle/Misys/SYMBOL Core Banking System references detected in this file.", "disclaimer": "This is a textual inventory scanner only - it identifies WHERE a specific legacy Core Banking System is referenced so a migration team can scope the integration effort. It does NOT extract business logic, map data models, or automatically migrate any CBS-specific functionality. A qualified core-banking migration engineer must design and implement the actual migration to a modern platform."}
 
 @app.post("/cbs-integration-scan")
 async def cbs_integration_scan_endpoint(file: UploadFile = File(...)):
@@ -8698,7 +8698,7 @@ def calculate_migration_roi(source, filename):
     status_quo_3yr_with_risk = round(status_quo_3yr + breach_risk_cost_3yr, 2)
     savings_with_risk = round(status_quo_3yr_with_risk - migration_3yr_total, 2)
     security_note = f" Note: this file has security findings (SQL injection/weak crypto/hardcoded secrets) - status-quo cost includes an estimated breach/compliance risk cost of ${breach_risk_cost_3yr} over 3 years." if breach_risk_cost_3yr > 0 else ""
-    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr_with_risk, "status_quo_maintenance_only_usd": status_quo_3yr, "estimated_breach_risk_cost_3yr_usd": breach_risk_cost_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_with_risk, "breakeven_months": breakeven_months, "roi_summary": f"Migration (~${migration_cost}) vs 3-year status-quo cost (~${status_quo_3yr_with_risk}, including security-risk exposure) - estimated savings: ${savings_with_risk}.{security_note}", "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr - adjust for your actual team cost), generic multipliers, and a simplified security-risk-cost estimate. Replace with your actual team cost, maintenance history, and risk-assessment figures for an accurate result. A planning aid, not a financial guarantee."}
+    return {"migration_cost_usd": migration_cost, "rebuild_cost_usd": rebuild_cost, "status_quo_3yr_cost_usd": status_quo_3yr_with_risk, "status_quo_maintenance_only_usd": status_quo_3yr, "estimated_breach_risk_cost_3yr_usd": breach_risk_cost_3yr, "migration_3yr_total_usd": migration_3yr_total, "estimated_savings_3yr_usd": savings_with_risk, "estimated_savings_3yr_usd_excluding_risk": savings_vs_status_quo, "breakeven_months": breakeven_months, "roi_summary": f"Migration (~${migration_cost}) vs 3-year status-quo cost (~${status_quo_3yr_with_risk}, including security-risk exposure) - estimated savings: ${savings_with_risk}.{security_note}", "roi_disclaimer": "Rough estimate using a placeholder hourly rate ($50/hr - adjust for your actual team cost), generic multipliers, and a simplified security-risk-cost estimate. Replace with your actual team cost, maintenance history, and risk-assessment figures for an accurate result. A planning aid, not a financial guarantee."}
 
 @app.post("/migration-roi")
 async def migration_roi_endpoint(file: UploadFile = File(...)):
