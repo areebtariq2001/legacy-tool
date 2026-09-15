@@ -1406,7 +1406,10 @@ function renderResults(R, original, fname, totalMs) {
   const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
   const migScore = confPct ?? 70;
   const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
-  const compScore = critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5));
+  detectCompliance(original);
+  const compScore = (window.lastComplianceTotalCount > 0)
+    ? Math.round((window.lastComplianceFoundCount / window.lastComplianceTotalCount) * 100)
+    : (critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5)));
   renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct);
   const roiFixHours = estimateFixHours(critCount, warnCount);
   const roiTotalDebt = Math.round(roiFixHours * 50);
@@ -1454,7 +1457,6 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('impact-files').textContent = files.length;
   detectBatchJobs(original);
   detectBankingModules(original);
-  detectCompliance(original);
   detectPaymentSystems(original);
   detectInsurance(original);
   detectMainframeAssets(original);
@@ -1664,6 +1666,8 @@ function detectCompliance(code) {
   });
   const card = document.getElementById('complianceCard');
   const list = document.getElementById('complianceList');
+  window.lastComplianceFoundCount = found.length;
+  window.lastComplianceTotalCount = items.length;
   if (found.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   const grouped = groupByFunction(found);
