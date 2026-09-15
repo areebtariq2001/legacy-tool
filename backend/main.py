@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import Response, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import ast
 import re
@@ -374,7 +373,6 @@ def calculate_complexity(source):
         divisor = max(1, func_count)
         score = round(raw_score / divisor, 1) if divisor > 1 else raw_score
         func_count = real_func_count
-        method = "keyword-heuristic"
         extra = {"method": "keyword-based heuristic (approximate - full parser not available for this language)"}
     if score <= 5:
         level = "Low complexity"
@@ -3857,7 +3855,6 @@ def check_ai_native_readiness(source, filename=""):
     try:
         tree = ast.parse(source)
         funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
-        classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
         # 1. Functions present (modular = easier for AI/APIs to call)
         if len(funcs) == 0:
             score -= 25
@@ -8789,7 +8786,7 @@ def generate_strangler_fig_wrapper(source, filename):
         wrapper_lines.append(f"    private {class_name} legacy = new {class_name}(); // TODO: adjust to your legacy class name/constructor")
         for fn in funcs:
             wrapper_lines.append("")
-            wrapper_lines.append(f"    // TODO: replace Object with the actual return type and parameter types")
+            wrapper_lines.append("    // TODO: replace Object with the actual return type and parameter types")
             wrapper_lines.append(f"    public Object {fn}(Object... args) {{")
             wrapper_lines.append("        if (useNewImpl) {")
             wrapper_lines.append(f"            // TODO: call new implementation of {fn}")
@@ -8817,7 +8814,7 @@ def generate_strangler_fig_wrapper(source, filename):
         wrapper_lines.append("}")
     elif filename.lower().endswith((".cbl", ".cob")):
         wrapper_lines.append(f"      * Strangler Fig facade for {class_name} - COBOL paragraphs below are candidates for extraction.")
-        wrapper_lines.append(f"      * COBOL does not support object-style facades - this lists the paragraphs found so you can plan a manual extraction/PERFORM-based routing strategy.")
+        wrapper_lines.append("      * COBOL does not support object-style facades - this lists the paragraphs found so you can plan a manual extraction/PERFORM-based routing strategy.")
         for fn in funcs:
             wrapper_lines.append(f"      * - {fn}")
     if not wrapper_lines or not funcs:
@@ -9036,7 +9033,7 @@ Return ONLY the translated code with brief comments, no explanations, no markdow
         confidence += 10
     confidence_raw_original = confidence
     confidence = round(max(0, min(100, (max(10, min(60, confidence)) - 10) * (100.0 / 50.0))))
-    return {"translated_code": result, "from_language": from_lang, "to_language": to_lang, "confidence_score": confidence, "confidence_level": "Low confidence - manual review required" if confidence < 40 else "Moderate confidence - still requires careful review", "source_truncated": len(source) > 6000, "cross_language_summary": f"Experimental {from_lang} to {to_lang} translation - confidence: {confidence}%", "cross_language_disclaimer": f"HIGH-RISK EXPERIMENTAL FEATURE. Cross-language translation cannot be verified with the same rigor as same-language migration - there is no structural parity check, no compile verification, and no guarantee of behavioral equivalence. This output is an AI-generated DRAFT ONLY. A qualified developer fluent in both languages MUST review every line before use. Do not deploy this code without thorough testing.{_js_note}"}
+    return {"translated_code": result, "from_language": from_lang, "to_language": to_lang, "confidence_score": confidence, "confidence_score_raw_internal": confidence_raw_original, "confidence_level": "Low confidence - manual review required" if confidence < 40 else "Moderate confidence - still requires careful review", "source_truncated": len(source) > 6000, "cross_language_summary": f"Experimental {from_lang} to {to_lang} translation - confidence: {confidence}%", "cross_language_disclaimer": f"HIGH-RISK EXPERIMENTAL FEATURE. Cross-language translation cannot be verified with the same rigor as same-language migration - there is no structural parity check, no compile verification, and no guarantee of behavioral equivalence. This output is an AI-generated DRAFT ONLY. A qualified developer fluent in both languages MUST review every line before use. Do not deploy this code without thorough testing.{_js_note}"}
 
 from pydantic import BaseModel as _CrossLangBaseModel
 
