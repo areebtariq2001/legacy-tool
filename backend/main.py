@@ -186,7 +186,9 @@ def call_groq(prompt, max_tokens=500):
         payload = {
             "model": "openai/gpt-oss-20b",
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens,
+            "temperature": 0,
+            "seed": 42
         }
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -1060,6 +1062,7 @@ def ai_advanced_migrate(source, language):
     else:
         output["experimental"] = True
         output["experimental_message"] = f"AI migration for {language.upper()} is experimental. Guardrails for {language.upper()} are planned. For reliable results, use the rule-based Migrate mode."
+    output["reproducibility_note"] = "AI Migrate uses a language model configured for maximum determinism (temperature 0), but LLM outputs can still vary slightly between runs due to provider-side factors outside this application's control. For fully deterministic, byte-for-byte reproducible results suitable for audit trails, use the Rule-Based Migrate mode instead."
     return output
 
 # ---------- AI as QA ASSISTANT ----------
