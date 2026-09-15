@@ -1404,7 +1404,7 @@ function renderResults(R, original, fname, totalMs) {
     </div>
   `).join('');
   const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
-  const migScore = confPct ?? 70;
+  const migScore = confPct;
   const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
   detectCompliance(original);
   const compScore = (window.lastComplianceTotalCount > 0)
@@ -1421,7 +1421,8 @@ function renderResults(R, original, fname, totalMs) {
     document.getElementById('roi-breach').textContent = critCount >= 1 ? '$' + roiBreachCost.toLocaleString() : '$0';
     document.getElementById('roi-score').textContent = debtScore;
   }
-  const overall = Math.round((secScore + migScore + debtScore + compScore) / 4);
+  const _healthMetrics = [secScore, migScore, debtScore, compScore].filter(v => v != null);
+  const overall = Math.round(_healthMetrics.reduce((a, b) => a + b, 0) / _healthMetrics.length);
   document.getElementById('healthNum').textContent = overall;
   if (healthChart) {
     healthChart.data.datasets[0].data = [overall, 100 - overall];
@@ -1440,7 +1441,7 @@ function renderResults(R, original, fname, totalMs) {
   setProg('compliance', compScore);
   document.getElementById('dash-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('dash-issues').textContent = critCount + warnCount;
-  addHistory(fname, confPct ?? 0, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
+  addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
 
   // Migration Impact panel - derived from real analysis data
   const fixHours = estimateFixHours(critCount, warnCount);
@@ -2579,7 +2580,8 @@ function addHistory(fname, conf, issues, time) {
     trendChart.update();
   }
   const hEl = document.getElementById('runHistory');
-  const confColor = conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--amber)' : 'var(--red)';
+  const confColor = conf == null ? 'var(--t4)' : conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--amber)' : 'var(--red)';
+  const confDisplay = conf == null ? 'N/A' : conf;
   const item = `
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)">
       <div style="width:5px;height:5px;border-radius:50%;background:${confColor};flex-shrink:0"></div>
@@ -2587,7 +2589,7 @@ function addHistory(fname, conf, issues, time) {
         <div style="font-size:11px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(fname)}</div>
         <div style="font-size:9px;color:var(--t4);margin-top:1px">${new Date().toLocaleTimeString()} · ${time} · ${issues} issues</div>
       </div>
-      <span class="badge b-blue" style="font-size:9px">${conf}%</span>
+      <span class="badge b-blue" style="font-size:9px">${confDisplay}${conf == null ? '' : '%'}</span>
     </div>
   `;
   if (hEl.querySelector('.empty')) hEl.innerHTML = item;
