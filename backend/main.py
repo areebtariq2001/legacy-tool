@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import ast
 import re
 import os
@@ -2025,13 +2025,23 @@ async def migrate(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = migrate_code(source)
+        _mig_lang = detect_language(file.filename)
+        if _mig_lang == "python":
+            result = migrate_code(source)
+        elif _mig_lang == "java":
+            result = migrate_java(source)
+        elif _mig_lang == "php":
+            result = migrate_php(source)
+        elif _mig_lang == "cobol":
+            result = migrate_cobol(source, file.filename)
+        else:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration not supported for file type: {_mig_lang}"})
         result["filename"] = file.filename
         track_usage("migrate", file.filename)
         write_audit_log("migrate", file.filename, f"changes={len(result.get('changes', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Migration failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Migration failed safely: {e}"})
 
 @app.post("/ai-migrate")
 async def ai_migrate_endpoint(file: UploadFile = File(...)):
@@ -2040,32 +2050,33 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = ai_advanced_migrate(source, detect_language(file.filename))
-        if detect_language(file.filename) == "python" and result.get("migrated_code"):
+        _ai_lang = detect_language(file.filename)
+        result = ai_advanced_migrate(source, _ai_lang)
+        if _ai_lang == "python" and result.get("migrated_code"):
             try:
                 result.update(check_parity(source, result.get("migrated_code", "")))
             except Exception as e:
                 result["parity_ok"] = None
-                result["parity_error"] = "Parity check failed: " + str(e)
+                result["parity_error"] = f"Parity check failed: {e}"
             try:
                 result.update(generate_test_scenarios(source, file.filename))
             except Exception as e:
-                result["test_scenarios_error"] = "Test scenario generation failed: " + str(e)
+                result["test_scenarios_error"] = f"Test scenario generation failed: {e}"
             try:
-                result.update(generate_dockerfile(file.filename, detect_language(file.filename)))
+                result.update(generate_dockerfile(file.filename, _ai_lang))
             except Exception as e:
-                result["dockerfile_error"] = "Dockerfile generation failed: " + str(e)
+                result["dockerfile_error"] = f"Dockerfile generation failed: {e}"
         result["filename"] = file.filename
         track_usage("ai-migrate", file.filename)
         summary = f"confidence={result.get('confidence_score','N/A')} level={result.get('confidence_level','N/A')}"
         write_audit_log("ai-migrate", file.filename, summary)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Migration failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Migration failed safely: {e}"})
 
 class QARequest(BaseModel):
-    original: str
-    migrated: str
+    original: str = Field(default=..., max_length=50_000)
+    migrated: str = Field(default=..., max_length=50_000)
 
 @app.post("/qa-check")
 async def qa_check(req: QARequest):
