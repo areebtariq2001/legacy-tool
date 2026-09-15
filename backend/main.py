@@ -2175,9 +2175,9 @@ async def download(file: UploadFile = File(...)):
     if _validity and _validity.get("migration_ready") is False:
         _warn_lines = ["# WARNING: This migrated code did NOT pass validation and may not run as-is."]
         if not _validity.get("syntax_valid", True):
-            _warn_lines.append("# Syntax error: " + str(_validity.get("syntax_error", "")))
+            _warn_lines.append(f"# Syntax error: {_validity.get('syntax_error', '')}")
         for _b in _validity.get("broken_py3_imports", []) or []:
-            _warn_lines.append("# '" + str(_b.get("module","")) + "' does not exist in Python 3 - use " + str(_b.get("suggested_replacement","")) + " instead")
+            _warn_lines.append(f"# '{_b.get('module','')}' does not exist in Python 3 - use {_b.get('suggested_replacement','')} instead")
         _warn_lines.append("# Review and fix the issues above before using this file.")
         _warn_lines.append("")
         migrated = chr(10).join(_warn_lines) + chr(10) + migrated
@@ -2187,7 +2187,7 @@ async def download(file: UploadFile = File(...)):
         if filename.lower().endswith(ext):
             filename = filename[:-len(ext)] + new_ext
             break
-    write_audit_log("download", file.filename, "language=" + lang)
+    write_audit_log("download", file.filename, f"language={lang}")
     _safe_filename = re.sub(r'[\r\n"\\;]', '_', filename)
     return Response(
         content=migrated.encode('utf-8'),
@@ -2197,63 +2197,78 @@ async def download(file: UploadFile = File(...)):
 
 @app.post("/analyze-php")
 async def analyze_php_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = analyze_php(source)
-    result["filename"] = file.filename
-    track_usage("analyze-php", file.filename)
-    write_audit_log("analyze-php", file.filename, "issues=" + str(len(result.get("issues", []))))
-    return result
+    try:
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = analyze_php(source)
+        result["filename"] = file.filename
+        track_usage("analyze-php", file.filename)
+        write_audit_log("analyze-php", file.filename, f"issues={len(result.get('issues', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"PHP analysis failed safely: {e}"})
 
 @app.post("/migrate-php")
 async def migrate_php_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = migrate_php(source)
-    result["filename"] = file.filename
-    track_usage("migrate-php", file.filename)
-    write_audit_log("migrate-php", file.filename, f"changes={len(result.get('changes', []))}")
-    return result
+    try:
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = migrate_php(source)
+        result["filename"] = file.filename
+        track_usage("migrate-php", file.filename)
+        write_audit_log("migrate-php", file.filename, f"changes={len(result.get('changes', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"PHP migration failed safely: {e}"})
 
 @app.post("/analyze-java")
 async def analyze_java_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = analyze_java(source)
-    result["filename"] = file.filename
-    track_usage("analyze-java", file.filename)
-    write_audit_log("analyze-java", file.filename, "issues=" + str(len(result.get("issues", []))))
-    return result
+    try:
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = analyze_java(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("analyze-java", file.filename)
+        write_audit_log("analyze-java", file.filename, f"issues={len(result.get('issues', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Java analysis failed safely: {e}"})
 
 @app.post("/migrate-java")
 async def migrate_java_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = migrate_java(source)
-    result["filename"] = file.filename
-    track_usage("migrate-java", file.filename)
-    write_audit_log("migrate-java", file.filename, f"changes={len(result.get('changes', []))}")
-    return result
+    try:
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = migrate_java(source)
+        result["filename"] = file.filename
+        track_usage("migrate-java", file.filename)
+        write_audit_log("migrate-java", file.filename, f"changes={len(result.get('changes', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Java migration failed safely: {e}"})
 
 @app.post("/analyze-cobol")
 async def analyze_cobol_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = analyze_cobol(source, file.filename)
-    result["filename"] = file.filename
-    track_usage("analyze-cobol", file.filename)
-    write_audit_log("analyze-cobol", file.filename, "issues=" + str(len(result.get("issues", []))))
-    return result
+    try:
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = analyze_cobol(source, file.filename)
+        result["filename"] = file.filename
+        track_usage("analyze-cobol", file.filename)
+        write_audit_log("analyze-cobol", file.filename, f"issues={len(result.get('issues', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"COBOL analysis failed safely: {e}"})
 
 @app.post("/migrate-cobol")
 async def migrate_cobol_endpoint(file: UploadFile = File(...)):
@@ -2262,7 +2277,7 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
     if error:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
     try:
-        pre_analysis = analyze_cobol(source)
+        pre_analysis = analyze_cobol(source, file.filename)
         pre_issues = pre_analysis.get("issues", [])
     except Exception:
         pre_issues = []
@@ -2275,27 +2290,33 @@ async def migrate_cobol_endpoint(file: UploadFile = File(...)):
 
 @app.post("/ai-suggest")
 async def ai_suggest_endpoint(file: UploadFile = File(...)):
-    content = await file.read()
-    source, error = safe_read_file(content, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = ai_suggest(source, detect_language(file.filename))
-    result["filename"] = file.filename
-    track_usage("ai-suggest", file.filename)
-    write_audit_log("ai-suggest", file.filename, "ok")
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = ai_suggest(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("ai-suggest", file.filename)
+        write_audit_log("ai-suggest", file.filename, "ok")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AI suggestion failed safely: {e}"})
 
 @app.post("/explain")
 async def explain_endpoint(file: UploadFile = File(...)):
-    content = await file.read()
-    source, error = safe_read_file(content, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = ai_explain(source, detect_language(file.filename))
-    result["filename"] = file.filename
-    track_usage("explain", file.filename)
-    write_audit_log("explain", file.filename, "ok")
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = ai_explain(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("explain", file.filename)
+        write_audit_log("explain", file.filename, "ok")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Explanation failed safely: {e}"})
 
 @app.post("/generate-tests")
 async def generate_tests_endpoint(file: UploadFile = File(...)):
