@@ -2049,6 +2049,8 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         _ai_lang = detect_language(file.filename)
+        if _ai_lang == "unknown":
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Unsupported file type for AI migration"})
         result = ai_advanced_migrate(source, _ai_lang)
         if _ai_lang == "python" and result.get("migrated_code"):
             try:
@@ -2073,19 +2075,17 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Migration failed safely: {e}"})
 
 class QARequest(BaseModel):
-    original: str = Field(default=..., max_length=50_000)
-    migrated: str = Field(default=..., max_length=50_000)
+    original: str = Field(..., max_length=50_000)
+    migrated: str = Field(..., max_length=50_000)
 
 @app.post("/qa-check")
 async def qa_check(req: QARequest):
-    if len(req.original) > 50000 or len(req.migrated) > 50000:
-        return {"qa_verdict": "ERROR", "qa_full_response": "Input too large for QA check (max 50,000 characters per field)."}
     try:
         result = ai_qa_compare(req.original, req.migrated)
-        write_audit_log("qa-check", "code-pair", f"verdict={result['qa_verdict']}")
+        write_audit_log("qa-check", "code-pair", f"verdict={result.get('qa_verdict', 'unknown')}")
         return result
     except Exception as e:
-        return {"qa_verdict": "ERROR", "qa_full_response": f"QA check failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"qa_verdict": "ERROR", "qa_full_response": f"QA check failed safely: {e}"})
 
 @app.post("/call-graph")
 async def call_graph_endpoint(file: UploadFile = File(...)):
