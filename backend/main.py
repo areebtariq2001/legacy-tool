@@ -2101,10 +2101,10 @@ async def call_graph_endpoint(file: UploadFile = File(...)):
         result = analyze_call_graph(source)
         result["filename"] = file.filename
         track_usage("call-graph", file.filename)
-        write_audit_log("call-graph", file.filename, "functions=" + str(result.get("total_functions", 0)))
+        write_audit_log("call-graph", file.filename, f"functions={result.get('total_functions', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Call-graph analysis failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Call-graph analysis failed safely: {e}"})
 
 @app.post("/risk-assessment")
 async def risk_assessment_endpoint(file: UploadFile = File(...)):
@@ -2116,10 +2116,10 @@ async def risk_assessment_endpoint(file: UploadFile = File(...)):
         result = assess_dependency_risk(source, file.filename)
         result["filename"] = file.filename
         track_usage("risk-assessment", file.filename)
-        write_audit_log("risk-assessment", file.filename, "overall=" + result.get("overall_risk", "N/A"))
+        write_audit_log("risk-assessment", file.filename, f"overall={result.get('overall_risk', 'N/A')}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Risk assessment failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Risk assessment failed safely: {e}"})
 
 @app.post("/tech-debt")
 async def tech_debt_endpoint(file: UploadFile = File(...)):
@@ -2137,7 +2137,7 @@ async def tech_debt_endpoint(file: UploadFile = File(...)):
         write_audit_log("tech-debt", file.filename, f"score={result.get('debt_score', 0)} hours={result.get('estimated_hours', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Tech-debt analysis failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Tech-debt analysis failed safely: {e}"})
 
 @app.post("/generate-docs")
 async def generate_docs_endpoint(file: UploadFile = File(...)):
@@ -2151,7 +2151,7 @@ async def generate_docs_endpoint(file: UploadFile = File(...)):
         write_audit_log("generate-docs", file.filename, "doc generated")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Doc generation failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Doc generation failed safely: {e}"})
 
 @app.post("/download")
 async def download(file: UploadFile = File(...)):
