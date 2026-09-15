@@ -2498,6 +2498,17 @@ function downloadJSON() {
 function buildIssues(R) {
   const issues = [];
   const getText = d =>typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
+  const near = (text, a, b, window) => {
+    const w = window || 60;
+    let idx = text.indexOf(a);
+    while (idx !== -1) {
+      const start = Math.max(0, idx - w);
+      const end = Math.min(text.length, idx + a.length + w);
+      if (text.slice(start, end).includes(b)) return true;
+      idx = text.indexOf(a, idx + 1);
+    }
+    return false;
+  };
   if (mode === 'ai' && lang !== 'python') {
     issues.push({ sev: 'warning', title: 'AI Migrate selected but not available for this language', desc: 'AI Migrate is currently only available for Python. This file was migrated using Rule-Based migration instead, even though AI Migrate was selected.', tag: 'Migration', tagClass: 'tag-amber', file: null });
   }
@@ -2536,8 +2547,8 @@ function buildIssues(R) {
   }
   if (R.security) {
     const t = getText(R.security).toLowerCase();
-    if (t.includes('password') && (t.includes('hardcoded') || t.includes('hardcode'))) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null });
-    if (t.includes('sql') && (t.includes('injection') || t.includes('concatenat'))) issues.push({ sev: 'critical', title: 'SQL injection vulnerability', desc: 'String concatenation used in SQL queries. Use parameterized queries or an ORM instead.', tag: 'Critical', tagClass: 'tag-red', file: null });
+    if (near(t, 'password', 'hardcoded') || near(t, 'password', 'hardcode')) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null });
+    if (near(t, 'sql', 'injection') || near(t, 'sql', 'concatenat')) issues.push({ sev: 'critical', title: 'SQL injection vulnerability', desc: 'String concatenation used in SQL queries. Use parameterized queries or an ORM instead.', tag: 'Critical', tagClass: 'tag-red', file: null });
     if (t.includes('md5') || t.includes('sha1') || t.includes('rc4') || t.includes('des')) issues.push({ sev: 'warning', title: 'Weak cryptography algorithm', desc: 'MD5, SHA1, RC4 or DES detected. Upgrade to SHA-256, AES-256, or bcrypt for passwords.', tag: 'Security', tagClass: 'tag-amber', file: null });
     if (t.includes('api_key') || t.includes('apikey') || t.includes('secret')) issues.push({ sev: 'critical', title: 'API key or secret exposed', desc: 'Hardcoded API keys or secrets found in source code. Move to environment variables immediately.', tag: 'Critical', tagClass: 'tag-red', file: null });
     if (t.includes('no issues') || t.includes('no vulnerabilit') || t.includes('clean')) issues.push({ sev: 'ok', title: 'No security vulnerabilities detected', desc: 'Security scan passed — no hardcoded secrets, SQL injection, or weak crypto found.', tag: 'Clean', tagClass: 'tag-green', file: null });
@@ -3431,48 +3442,6 @@ function formatGenericResult(d, label) {
   }
   html += '</div>';
   return html;
-}
-async function runCryptoScan() {
-  if (!files.length) { alert('Upload a file first.'); return; }
-  const loading = document.getElementById('advLoading');
-  const result = document.getElementById('advResult');
-  loading.style.display = 'block'; result.style.display = 'none';
-  try {
-    const fd = new FormData(); fd.append('file', files[0]);
-    const r = await fetch(BACKEND + '/scan-crypto', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
-    loading.style.display = 'none'; result.style.display = 'block';
-    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
-  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Crypto scan failed: ' + e.message; }
-}
-async function runBankingScan() {
-  if (!files.length) { alert('Upload a file first.'); return; }
-  const loading = document.getElementById('advLoading');
-  const result = document.getElementById('advResult');
-  loading.style.display = 'block'; result.style.display = 'none';
-  try {
-    const fd = new FormData(); fd.append('file', files[0]);
-    const r = await fetch(BACKEND + '/banking-patterns', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
-    loading.style.display = 'none'; result.style.display = 'block';
-    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
-  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Banking scan failed: ' + e.message; }
-}
-async function runExecReport() {
-  if (!files.length) { alert('Upload a file first.'); return; }
-  const loading = document.getElementById('advLoading');
-  const result = document.getElementById('advResult');
-  loading.style.display = 'block'; result.style.display = 'none';
-  try {
-    const fd = new FormData(); fd.append('file', files[0]);
-    const r = await fetch(BACKEND + '/executive-report', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
-    loading.style.display = 'none'; result.style.display = 'block';
-    result.textContent = typeof d === 'string' ? d : JSON.stringify(d, null, 2);
-  } catch (e) { loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Executive report failed: ' + e.message; }
 }
 async function previewArchitecture() {
   if (!files.length) { alert('Upload a file first.'); return; }
