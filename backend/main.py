@@ -23,11 +23,10 @@ except Exception:
     psycopg2 = None
 
 _rate_limit_store = {}
-import time as _rl_time
-time = _rl_time
+import time
 
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
-    now = _rl_time.time()
+    now = time.time()
     entry = _rate_limit_store.get(ip, [])
     entry = [t for t in entry if now - t < window_seconds]
     if len(entry) >= max_requests:
@@ -3607,10 +3606,10 @@ def process_github_webhook(payload):
         if not branch:
             branch = "main"
         results = []
-        _webhook_scan_start = _rl_time.time()
+        _webhook_scan_start = time.time()
         _webhook_time_budget = 60
         for file_path in list(changed_files)[:10]:
-            if _rl_time.time() - _webhook_scan_start > _webhook_time_budget:
+            if time.time() - _webhook_scan_start > _webhook_time_budget:
                 results.append({"file": file_path, "risk_level": "Skipped - time budget exceeded", "issues": 0})
                 continue
             try:
