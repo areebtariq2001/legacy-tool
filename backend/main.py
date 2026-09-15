@@ -6111,7 +6111,7 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
     findings = []
     functions_found = 0
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             func_source = ast.get_source_segment(source, node) or ""
             _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
             if not keyword_pattern.search(_code_only):
@@ -8371,7 +8371,7 @@ def check_shariah_board_report_readiness(source, filename):
     for c in checks:
         status = "ERROR" if c.get("error") else ("FLAGGED FOR REVIEW" if c.get("passed") is False else ("PASSED (structural signal only)" if c.get("passed") is True else "NOT APPLICABLE"))
         report_sections.append({"check_name": c.get("name", ""), "status": status, "finding_count": c.get("finding_count", 0), "detail": c.get("summary", "")})
-    return {"checked": True, "findings": [], "total_findings": len(flagged), "report_ready": len(errored) == 0, "report_sections": report_sections, "flagged_count": len(flagged), "errored_count": len(errored), "summary": (str(len(flagged)) + " item(s) flagged for Shariah board review out of " + str(len(checks)) + " structural checks.") if len(errored) == 0 else (str(len(errored)) + " check(s) errored - report generation should be treated as incomplete until check errors are resolved."), "disclaimer": "This report compiles pattern-based structural/textual signals into a submission-ready format for a qualified Shariah board's independent review. It is NOT a Shariah-compliance certification and does not replace the Shariah board's own ruling - it only organizes what StarSage's static analysis detected so the board can review efficiently."}
+    return {"checked": True, "findings": flagged, "total_findings": len(flagged), "report_ready": len(errored) == 0, "report_sections": report_sections, "flagged_count": len(flagged), "errored_count": len(errored), "summary": (str(len(flagged)) + " item(s) flagged for Shariah board review out of " + str(len(checks)) + " structural checks.") if len(errored) == 0 else (str(len(errored)) + " check(s) errored - report generation should be treated as incomplete until check errors are resolved."), "disclaimer": "This report compiles pattern-based structural/textual signals into a submission-ready format for a qualified Shariah board's independent review. It is NOT a Shariah-compliance certification and does not replace the Shariah board's own ruling - it only organizes what StarSage's static analysis detected so the board can review efficiently."}
 
 
 @app.post("/shariah-board-report-check")
