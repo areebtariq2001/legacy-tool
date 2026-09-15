@@ -2062,6 +2062,7 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
                 result.update(generate_test_scenarios(source, file.filename))
             except Exception as e:
                 result["test_scenarios_error"] = f"Test scenario generation failed: {e}"
+        if result.get("migrated_code"):
             try:
                 result.update(generate_dockerfile(file.filename, _ai_lang))
             except Exception as e:
