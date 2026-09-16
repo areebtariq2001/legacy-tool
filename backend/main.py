@@ -532,7 +532,12 @@ def assess_dependency_risk(source, filename="file.py"):
     seen = set()
     for pattern, category, level, desc, rec in active_rules:
         in_imports = pattern in imported
-        in_source = re.search(r'\b' + re.escape(pattern) + r'\b' if pattern[-1].isalnum() else re.escape(pattern), source) is not None
+        if pattern[-1].isalnum():
+            in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+        elif pattern.endswith("(") or pattern.endswith("_"):
+            in_source = re.search(r'\b' + re.escape(pattern), source) is not None
+        else:
+            in_source = re.search(re.escape(pattern), source) is not None
         if (in_imports or in_source) and pattern not in seen:
             seen.add(pattern)
             findings.append({
