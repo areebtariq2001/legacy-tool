@@ -2560,6 +2560,54 @@ def _check_admin_auth(request: Request):
     provided_key = request.headers.get("x-admin-key", "")
     return hmac.compare_digest(provided_key, required_key)
 
+def _generate_incident_report():
+    with _security_log_lock:
+        events = list(_security_log)
+    if not events:
+        return {"report_generated_at": datetime.now().isoformat(), "total_events": 0, "summary": "No security events recorded since server start."}
+    _by_type = {}
+    _by_ip = {}
+    for e in events:
+        _by_type[e["type"]] = _by_type.get(e["type"], 0) + 1
+        _masked_ip = re.sub(r"\.\d+$", ".xxx", e.get("ip", "unknown"))
+        _by_ip[_masked_ip] = _by_ip.get(_masked_ip, 0) + 1
+    _top_ips = sorted(_by_ip.items(), key=lambda kv: -kv[1])[:5]
+    _integrity_ok, _integrity_msg = _verify_security_log_integrity()
+    _earliest = events[-1]["timestamp"]
+    _latest = events[0]["timestamp"]
+    _lines = [
+        f"Security Incident Report - generated {datetime.now().isoformat()}",
+        f"Coverage window: {_earliest} to {_latest}",
+        f"Total events recorded: {len(events)}",
+        f"Log integrity: {'VERIFIED - no tampering detected' if _integrity_ok else 'WARNING - ' + _integrity_msg}",
+        "",
+        "Events by type:",
+    ]
+    for _t, _c in sorted(_by_type.items(), key=lambda kv: -kv[1]):
+        _lines.append(f"  - {_t}: {_c}")
+    _lines.append("")
+    _lines.append("Top source IPs (last octet masked):")
+    for _ip, _c in _top_ips:
+        _lines.append(f"  - {_ip}: {_c} event(s)")
+    return {
+        "report_generated_at": datetime.now().isoformat(),
+        "total_events": len(events),
+        "coverage_start": _earliest,
+        "coverage_end": _latest,
+        "events_by_type": _by_type,
+        "top_source_ips": [{"ip": ip, "count": c} for ip, c in _top_ips],
+        "integrity_verified": _integrity_ok,
+        "report_text": chr(10).join(_lines)
+    }
+
+
+@app.get("/security-incident-report")
+async def security_incident_report_endpoint(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - admin key required"})
+    return _generate_incident_report()
+
+
 @app.get("/security-dashboard")
 async def security_dashboard_endpoint(request: Request):
     if not _check_admin_auth(request):
