@@ -280,6 +280,28 @@ def sanitize_ai_output(text):
     return text
 
 
+_JAILBREAK_INDICATORS = [
+    "i cannot follow",
+    "as an ai without restrictions",
+    "dan mode",
+    "ignore my training",
+    "i will help you hack",
+    "developer mode enabled",
+    "i am now unrestricted",
+    "jailbroken",
+]
+
+
+def _check_jailbreak_output(response_text):
+    if not response_text:
+        return False
+    _lower = response_text.lower()
+    for _indicator in _JAILBREAK_INDICATORS:
+        if _indicator in _lower:
+            return True
+    return False
+
+
 def call_ai_provider(prompt, max_tokens=500):
     if _check_token_budget_anomaly(len(prompt)):
         _record_security_event("token_budget_anomaly", "internal", f"AI prompt length {len(prompt)} chars significantly exceeds recent usage pattern (possible resource-exhaustion attempt)")
@@ -287,9 +309,15 @@ def call_ai_provider(prompt, max_tokens=500):
     if provider == "ollama":
         result = call_ollama(prompt)
         if "AI_ERROR" not in result and "not reachable" not in result.lower() and result.strip():
-            return result
-        return call_groq(prompt, max_tokens)
-    return call_groq(prompt, max_tokens)
+            _final_result = result
+        else:
+            _final_result = call_groq(prompt, max_tokens)
+    else:
+        _final_result = call_groq(prompt, max_tokens)
+    if _check_jailbreak_output(_final_result):
+        _record_security_event("jailbreak_output_indicator", "internal", "AI response contained a jailbreak-style phrase - possible successful prompt manipulation, response withheld")
+        return "AI response blocked for safety review - the output matched a known jailbreak-response pattern."
+    return _final_result
 
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
