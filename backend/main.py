@@ -3151,7 +3151,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
         return {"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"}
 
 class RepoRequest(BaseModel):
-    repo_url: str
+    repo_url: str = Field(..., max_length=500)
 
 @app.post("/scan-repo")
 async def scan_repo_endpoint(req: RepoRequest):
@@ -4710,8 +4710,8 @@ def get_approval_history():
 
 
 class AuthRequest(BaseModel):
-    email: str = ""
-    password: str = ""
+    email: str = Field(default="", max_length=255)
+    password: str = Field(default="", max_length=255)
 
 @app.post("/auth/register")
 async def auth_register_endpoint(req: AuthRequest):
@@ -4728,10 +4728,10 @@ async def auth_login_endpoint(req: AuthRequest):
     return result
 
 class ApprovalRequest(BaseModel):
-    filename: str = "unknown"
-    decision: str = "Approved"
-    reviewer_notes: str = ""
-    action_type: str = "migration"
+    filename: str = Field(default="unknown", max_length=500)
+    decision: str = Field(default="Approved", max_length=50)
+    reviewer_notes: str = Field(default="", max_length=5000)
+    action_type: str = Field(default="migration", max_length=50)
 
 @app.post("/save-approval")
 async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
@@ -5630,8 +5630,8 @@ async def migration_plan_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration plan generation failed safely: {e}"})
 
 class RegulatoryDeadlineRequest(BaseModel):
-    filename: str = ""
-    deadline_date: str = ""
+    filename: str = Field(default="", max_length=500)
+    deadline_date: str = Field(default="", max_length=50)
     daily_fine_estimate: float = 0
     migration_cost_usd: float = 0
 
@@ -5678,9 +5678,9 @@ async def regulatory_deadline_cost_endpoint(payload: RegulatoryDeadlineRequest):
         return JSONResponse(status_code=400, content={"error": f"Regulatory deadline calculation failed safely: {e}"})
 
 class TraceabilityQueryRequest(BaseModel):
-    question: str = ""
-    source: str = ""
-    filename: str = ""
+    question: str = Field(default="", max_length=2000)
+    source: str = Field(default="", max_length=50_000)
+    filename: str = Field(default="", max_length=500)
 
 @app.post("/traceability-query")
 async def traceability_query_endpoint(payload: TraceabilityQueryRequest):
@@ -5749,9 +5749,9 @@ async def compatibility_matrix_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Compatibility matrix failed: " + str(e)})
 
 class DataLineageRequest(BaseModel):
-    filename: str = ""
-    source: str = ""
-    field_name: str = ""
+    filename: str = Field(default="", max_length=500)
+    source: str = Field(default="", max_length=50_000)
+    field_name: str = Field(default="", max_length=500)
 
 def trace_data_lineage(source, field_name, filename):
     if not field_name or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", field_name):
@@ -9420,9 +9420,9 @@ async def github_issues_endpoint(payload: dict):
         return JSONResponse(status_code=400, content={"error": f"GitHub issues lookup failed safely: {e}"})
 
 class GitHubIssueFixRequest(BaseModel):
-    issue_title: str = ""
-    issue_body: str = ""
-    source: str = ""
+    issue_title: str = Field(default="", max_length=2000)
+    issue_body: str = Field(default="", max_length=20_000)
+    source: str = Field(default="", max_length=50_000)
 
 @app.post("/github-issue-fix")
 async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
