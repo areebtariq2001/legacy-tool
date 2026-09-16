@@ -2513,6 +2513,9 @@ function buildIssues(R) {
   if (mode === 'ai' && lang !== 'python') {
     issues.push({ sev: 'warning', title: 'AI Migrate selected but not available for this language', desc: 'AI Migrate is currently only available for Python. This file was migrated using Rule-Based migration instead, even though AI Migrate was selected.', tag: 'Migration', tagClass: 'tag-amber', file: null });
   }
+  if (R.migrate && R.migrate.source_truncated) {
+    issues.push({ sev: 'critical', title: 'File too large - only part of it was analyzed by AI', desc: 'This file exceeds the size limit for AI-powered processing, so only the first portion of the source was sent to the AI. The migrated output, confidence score, and any generated tests or documentation only reflect that truncated portion - the rest of the file was never seen by the AI and may contain unreviewed issues. Split the file into smaller pieces or use Rule-Based migration, which processes the entire file.', tag: 'Critical', tagClass: 'tag-red', file: null });
+  }
   if (R.migrate && Array.isArray(R.migrate.changes)) {
     R.migrate.changes.forEach(c => {
       if (typeof c === 'string' && c.startsWith('REVIEW NEEDED')) {
