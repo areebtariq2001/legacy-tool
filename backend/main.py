@@ -328,9 +328,44 @@ def _check_jailbreak_output(response_text):
     return False
 
 
+_daily_token_usage = {"date": "", "tokens": 0}
+_daily_token_usage_lock = threading.Lock()
+_api_key_age_warned_today = {"date": ""}
+
+
+def check_api_key_age():
+    key_created = os.environ.get("GROQ_KEY_CREATED_DATE", "")
+    if not key_created:
+        return
+    today = datetime.now().strftime("%Y-%m-%d")
+    if _api_key_age_warned_today["date"] == today:
+        return
+    try:
+        created = datetime.fromisoformat(key_created)
+        if (datetime.now() - created).days > 90:
+            _record_security_event("api_key_rotation_due", "internal", f"GROQ API key is {(datetime.now() - created).days} days old (>90) - consider rotating it")
+            _api_key_age_warned_today["date"] = today
+    except Exception:
+        pass
+
+
+def _track_daily_token_usage(estimated_tokens):
+    today = datetime.now().strftime("%Y-%m-%d")
+    with _daily_token_usage_lock:
+        if _daily_token_usage["date"] != today:
+            _daily_token_usage["date"] = today
+            _daily_token_usage["tokens"] = 0
+        _daily_token_usage["tokens"] += estimated_tokens
+        _current_total = _daily_token_usage["tokens"]
+    if _current_total > 1_000_000 and _current_total - estimated_tokens <= 1_000_000:
+        _record_security_event("high_daily_token_usage", "internal", f"Daily AI token usage crossed 1,000,000 today ({_current_total} estimated) - possible API-key abuse or unusually high legitimate demand")
+
+
 def call_ai_provider(prompt, max_tokens=500):
+    check_api_key_age()
     if _check_token_budget_anomaly(len(prompt)):
         _record_security_event("token_budget_anomaly", "internal", f"AI prompt length {len(prompt)} chars significantly exceeds recent usage pattern (possible resource-exhaustion attempt)")
+    _track_daily_token_usage(len(prompt) // 4 + max_tokens)
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
