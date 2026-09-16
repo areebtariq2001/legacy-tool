@@ -2323,15 +2323,18 @@ async def explain_endpoint(file: UploadFile = File(...)):
 
 @app.post("/generate-tests")
 async def generate_tests_endpoint(file: UploadFile = File(...)):
-    content = await file.read()
-    source, error = safe_read_file(content, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-    result = ai_generate_tests(source, detect_language(file.filename))
-    result["filename"] = file.filename
-    track_usage("generate-tests", file.filename)
-    write_audit_log("generate-tests", file.filename, "ok")
-    return result
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = ai_generate_tests(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("generate-tests", file.filename)
+        write_audit_log("generate-tests", file.filename, "ok")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Test generation failed safely: {e}"})
 
 def _hash_password(password, salt=None):
     if salt is None:
@@ -2368,7 +2371,7 @@ def register_user(email, password):
         _create_users_table_if_needed(cur)
         cur.execute("SELECT id FROM users WHERE email = %s", (email,))
         if cur.fetchone():
-            _hash_password(password)
+            _verify_password(password, _DUMMY_HASH_FOR_TIMING)
             return {"success": False, "error": "Registration could not be completed with the provided details. If you already have an account, try logging in instead."}
         pwd_hash = _hash_password(password)
         cur.execute("INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s)", (email, pwd_hash, datetime.now().isoformat()))
@@ -2383,17 +2386,19 @@ def register_user(email, password):
         conn.close()
 
 _failed_login_attempts = {}
+_login_attempts_lock = threading.Lock()
 
 def login_user(email, password):
     email = (email or "").strip().lower()
     _now = time.time()
-    if len(_failed_login_attempts) > 5000:
-        _stale = [e for e, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
-        for e in _stale:
-            _failed_login_attempts.pop(e, None)
-    _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
-    if len(_attempts) >= 5:
-        return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
+    with _login_attempts_lock:
+        if len(_failed_login_attempts) > 5000:
+            _stale = [e for e, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
+            for e in _stale:
+                _failed_login_attempts.pop(e, None)
+        _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
+        if len(_attempts) >= 5:
+            return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
     conn = _get_db_connection()
     if not conn:
         return {"success": False, "error": "Database not available - cannot log in right now"}
@@ -2409,14 +2414,17 @@ def login_user(email, password):
         row = cur.fetchone()
         if not row:
             _verify_password(password, _DUMMY_HASH_FOR_TIMING)
-            _attempts.append(_now)
-            _failed_login_attempts[email] = _attempts
+            with _login_attempts_lock:
+                _attempts.append(_now)
+                _failed_login_attempts[email] = _attempts
             return {"success": False, "error": "Invalid email or password"}
         if not _verify_password(password, row[1]):
-            _attempts.append(_now)
-            _failed_login_attempts[email] = _attempts
+            with _login_attempts_lock:
+                _attempts.append(_now)
+                _failed_login_attempts[email] = _attempts
             return {"success": False, "error": "Invalid email or password"}
-        _failed_login_attempts.pop(email, None)
+        with _login_attempts_lock:
+            _failed_login_attempts.pop(email, None)
         user_id = row[0]
         token = secrets.token_urlsafe(32)
         now = datetime.now()
@@ -2433,7 +2441,7 @@ def login_user(email, password):
 
 def _check_user_auth(request: Request):
     token = request.headers.get("x-session-token", "")
-    if not token:
+    if not token or len(token) > 200:
         return None
     conn = _get_db_connection()
     if not conn:
