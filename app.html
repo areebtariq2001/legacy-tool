@@ -2478,7 +2478,7 @@ function downloadJSON() {
     generated: new Date().toISOString(),
     confidence: document.getElementById('confPct').textContent,
     health_score: document.getElementById('healthNum').textContent,
-    issues: Array.from(document.querySelectorAll('#issueList .issue-title')).map(e =>e.textContent),
+    issues: Array.from(document.querySelectorAll('#issueList .issue')).map(e => ({ title: (e.querySelector('.issue-title')?.textContent || '').trim(), description: (e.querySelector('.issue-desc')?.textContent || '').trim() })),
     business_rules: Array.from(document.querySelectorAll('#rulesList >div')).map(e =>e.textContent.replace(/\s+/g, ' ').trim()),
     recommended_actions: Array.from(document.querySelectorAll('#suggestList >div')).map(e =>e.textContent.trim()),
     migration_impact: {
@@ -2722,7 +2722,7 @@ function downloadComplianceEvidence() {
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
-  const issuesArr = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e =>e.textContent.trim());
+  const issuesArr = Array.from(document.querySelectorAll('#issueList .issue')).map(e => { const t = (e.querySelector('.issue-title')?.textContent || '').trim(); const d = (e.querySelector('.issue-desc')?.textContent || '').trim(); return d ? (t + ' — ' + d) : t; });
   const rulesArr = Array.from(document.querySelectorAll('#rulesList >div')).map(e =>e.textContent.replace(/\s+/g, ' ').trim());
   const fixTime = document.getElementById('impact-time').textContent;
   const risk = document.getElementById('impact-risk').textContent;
@@ -2777,7 +2777,7 @@ function downloadReport() {
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
-  const issuesText = Array.from(document.querySelectorAll('#issueList .issue-title')).map(e => '- ' + e.textContent).join('\n');
+  const issuesText = Array.from(document.querySelectorAll('#issueList .issue')).map(e => { const t = (e.querySelector('.issue-title')?.textContent || '').trim(); const d = (e.querySelector('.issue-desc')?.textContent || '').trim(); return '- ' + (d ? (t + ' — ' + d) : t); }).join('\n');
   const rulesArr = Array.from(document.querySelectorAll('#rulesList >div'));
   const rulesText = rulesArr.map(e => '- ' + e.textContent.replace(/\s+/g, ' ').trim()).join('\n');
   const suggestText = Array.from(document.querySelectorAll('#suggestList >div')).map(e => '- ' + e.textContent.trim()).join('\n');
