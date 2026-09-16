@@ -2025,11 +2025,27 @@ def detect_language(filename):
 # ---------- ERROR HANDLING ----------
 MAX_FILE_SIZE = 500000
 
+_DANGEROUS_MAGIC_BYTES = [
+    (b"MZ", "Windows executable (.exe/.dll)"),
+    (b"\x7fELF", "Linux executable (ELF)"),
+    (b"\xca\xfe\xba\xbe", "Mach-O / Java class file"),
+    (b"PK\x03\x04", "ZIP archive (may contain nested executables)"),
+    (b"\x1f\x8b", "GZIP archive"),
+    (b"%PDF", "PDF document"),
+    (b"\x89PNG", "PNG image"),
+    (b"\xff\xd8\xff", "JPEG image"),
+    (b"GIF8", "GIF image"),
+]
+
+
 def safe_read_file(content_bytes, filename):
     if len(content_bytes) > MAX_FILE_SIZE:
         return None, f"File too large ({len(content_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes."
     if len(content_bytes) == 0:
         return None, "File is empty."
+    for _magic, _desc in _DANGEROUS_MAGIC_BYTES:
+        if content_bytes.startswith(_magic):
+            return None, f"File content does not match its extension (detected: {_desc}). Only plain text source code is accepted."
     try:
         source = content_bytes.decode("utf-8", errors="ignore")
     except Exception as e:
@@ -2445,8 +2461,14 @@ def login_user(email, password):
             for e in _stale:
                 _failed_login_attempts.pop(e, None)
         _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
-        if len(_attempts) >= 5:
+        _attempt_count = len(_attempts)
+        if _attempt_count >= 5:
             return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
+        if _attempt_count > 0:
+            _required_wait = {1: 2, 2: 5, 3: 15, 4: 60}.get(_attempt_count, 0)
+            _since_last = _now - _attempts[-1]
+            if _since_last < _required_wait:
+                return {"success": False, "error": f"Please wait {round(_required_wait - _since_last)} more second(s) before trying again."}
     conn = _get_db_connection()
     if not conn:
         return {"success": False, "error": "Database not available - cannot log in right now"}
