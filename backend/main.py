@@ -2328,10 +2328,11 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = ai_generate_tests(source, detect_language(file.filename))
+        _gt_lang = detect_language(file.filename)
+        result = ai_generate_tests(source, _gt_lang)
         result["filename"] = file.filename
         track_usage("generate-tests", file.filename)
-        write_audit_log("generate-tests", file.filename, "ok")
+        write_audit_log("generate-tests", file.filename, f"lang={_gt_lang}")
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Test generation failed safely: {e}"})
@@ -2358,7 +2359,7 @@ def _create_users_table_if_needed(cur):
 
 def register_user(email, password):
     email = (email or "").strip().lower()
-    if not email or "@" not in email:
+    if not email or not re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email):
         return {"success": False, "error": "Invalid email address"}
     if not password or len(password) < 8:
         return {"success": False, "error": "Password must be at least 8 characters"}
@@ -2376,6 +2377,7 @@ def register_user(email, password):
         pwd_hash = _hash_password(password)
         cur.execute("INSERT INTO users (email, password_hash, created_at) VALUES (%s, %s, %s)", (email, pwd_hash, datetime.now().isoformat()))
         conn.commit()
+        write_audit_log("register", email, "success")
         return {"success": True, "message": "Account created - you can now log in"}
     except Exception as e:
         write_audit_log("register-error", email, str(e))
@@ -2417,11 +2419,13 @@ def login_user(email, password):
             with _login_attempts_lock:
                 _attempts.append(_now)
                 _failed_login_attempts[email] = _attempts
+            write_audit_log("login-failed", email, "invalid credentials")
             return {"success": False, "error": "Invalid email or password"}
         if not _verify_password(password, row[1]):
             with _login_attempts_lock:
                 _attempts.append(_now)
                 _failed_login_attempts[email] = _attempts
+            write_audit_log("login-failed", email, "invalid credentials")
             return {"success": False, "error": "Invalid email or password"}
         with _login_attempts_lock:
             _failed_login_attempts.pop(email, None)
@@ -2431,6 +2435,7 @@ def login_user(email, password):
         expires = now + timedelta(days=7)
         cur.execute("INSERT INTO sessions (token, user_id, email, created_at, expires_at) VALUES (%s, %s, %s, %s, %s)", (token, user_id, email, now.isoformat(), expires.isoformat()))
         conn.commit()
+        write_audit_log("login", email, "success")
         return {"success": True, "token": token, "email": email}
     except Exception as e:
         return {"success": False, "error": f"Login failed: {e}"}
