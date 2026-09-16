@@ -141,7 +141,10 @@ async def cors_handler(request: Request, call_next):
     if any(_sig in _user_agent for _sig in _scanner_signatures):
         _record_security_event("scanner_signature_detected", client_ip, f"user-agent matched known scanner tool: {_user_agent[:100]}")
         return JSONResponse(status_code=403, content={"error": "Forbidden"}, headers={"Access-Control-Allow-Origin": allow_origin})
-    if not _check_rate_limit(client_ip):
+    _suspicious_ua_signatures = ["python-requests", "curl", "wget", "scrapy", "go-http-client"]
+    _is_suspicious_ua = (not _user_agent) or any(_sig in _user_agent for _sig in _suspicious_ua_signatures)
+    _rate_limit_max = 15 if _is_suspicious_ua else 60
+    if not _check_rate_limit(client_ip, max_requests=_rate_limit_max):
         return JSONResponse(
             content={"error": "Rate limit exceeded. Please slow down and try again shortly."},
             status_code=429,
