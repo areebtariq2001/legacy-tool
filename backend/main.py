@@ -168,6 +168,28 @@ def call_ollama(prompt):
     except Exception as e:
         return "Local AI (Ollama) not reachable from this server. This feature requires on-premise deployment where the backend and Ollama run on the same network. Error: " + str(e)
 
+_PROMPT_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions", re.IGNORECASE),
+    re.compile(r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions", re.IGNORECASE),
+    re.compile(r"^\s*(#|//|\*)?\s*system\s*:", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"you\s+are\s+now\s+(a|an)\b", re.IGNORECASE),
+    re.compile(r"new\s+instructions?\s*:", re.IGNORECASE),
+    re.compile(r"forget\s+(everything|all)\s+(you|above)", re.IGNORECASE),
+    re.compile(r"act\s+as\s+(if\s+you\s+are|a)\b.{0,30}(dan|jailbreak|unrestricted)", re.IGNORECASE),
+    re.compile(r"reveal\s+(your|the)\s+(system\s+)?prompt", re.IGNORECASE),
+    re.compile(r"---\s*end\s+code\s*---", re.IGNORECASE),
+]
+
+
+def is_likely_prompt_injection(text):
+    if not text:
+        return False
+    for pat in _PROMPT_INJECTION_PATTERNS:
+        if pat.search(text):
+            return True
+    return False
+
+
 def call_ai_provider(prompt, max_tokens=500):
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
@@ -964,6 +986,7 @@ def calculate_confidence(source, migrated, valid, vars_ok, verified):
 # ---------- AI ADVANCED MIGRATION ----------
 def ai_advanced_migrate(source, language):
     _delim_token = secrets.token_hex(6)
+    _injection_flagged = is_likely_prompt_injection(source)
     code_lines = [ln for ln in source.split("\n") if ln.strip() and not ln.strip().startswith("#")]
     if not code_lines:
         if language == "python":
@@ -1071,6 +1094,9 @@ def ai_advanced_migrate(source, language):
         output["experimental"] = True
         output["experimental_message"] = f"AI migration for {language.upper()} is experimental. Guardrails for {language.upper()} are planned. For reliable results, use the rule-based Migrate mode."
     output["reproducibility_note"] = "AI Migrate uses a language model configured for maximum determinism (temperature 0), but LLM outputs can still vary slightly between runs due to provider-side factors outside this application's control. For fully deterministic, byte-for-byte reproducible results suitable for audit trails, use the Rule-Based Migrate mode instead."
+    output["injection_attempt_flagged"] = _injection_flagged
+    if _injection_flagged:
+        write_audit_log("security-flag", "ai-advanced-migrate", "possible prompt injection pattern detected in source")
     return output
 
 # ---------- AI as QA ASSISTANT ----------
