@@ -3406,13 +3406,18 @@ function formatGenericResult(d, label) {
       if (typeof f === 'string') return '<div style="font-size:11px;color:#0f1115"> ' + f + '</div>';
       if (typeof f === 'object' && f !== null) {
         const fKeys = Object.keys(f);
-        const title = f.issue || f.title || f.name || 'Finding';
+        const title = f.issue || f.title || f.name || (f.function ? f.function + '()' : null) || 'Finding';
         const rest = fKeys.filter(k =>f[k] !== title);
         const _sevRaw = (f.severity || '').toLowerCase();
         const _sevColor = _sevRaw === 'critical' ? '#DC2626' : _sevRaw === 'high' ? '#EA580C' : _sevRaw === 'medium' ? '#CA8A04' : _sevRaw === 'low' ? '#16A34A' : _sevRaw === 'info' ? '#2563EB' : '#f59e0b';
         return '<div style="font-size:11px;color:#0f1115;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:3px solid ' + _sevColor + '">' +
           '<div style="font-weight:600;margin-bottom:3px"> ' + title + '</div>' +
-          rest.map(k => '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(String(f[k]))) + '</span></div>').join('') +
+          rest.map(k => {
+            if (k === 'issues' && Array.isArray(f[k])) {
+              return '<div style="font-size:10px;color:#64748b;margin-top:2px">' + f[k].map(iss => '<div style="margin-top:2px">• <span style="color:#4b5563">' + escapeHtml(String(iss)) + '</span></div>').join('') + '</div>';
+            }
+            return '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(String(f[k]))) + '</span></div>';
+          }).join('') +
         '</div>';
       }
       return '<div style="font-size:11px;color:#0f1115"> ' + JSON.stringify(f) + '</div>';
