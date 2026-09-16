@@ -150,11 +150,28 @@ def save_stats(stats):
     with _stats_lock:
         _in_memory_stats.update(stats)
 
+_NEVER_LOG_PATTERNS = [
+    re.compile(r"(sk_live|sk_test|AKIA|ghp_|xox[a-z]-)[A-Za-z0-9_\-]{10,}"),
+    re.compile(r"-----BEGIN (RSA |EC )?PRIVATE KEY-----"),
+    re.compile(r"(password|secret|token|api.?key)\s*[=:]\s*['\x22][^'\x22]{6,}['\x22]", re.IGNORECASE),
+]
+
+
+def safe_log_message(message):
+    if not message:
+        return message
+    message = str(message)
+    for _pat in _NEVER_LOG_PATTERNS:
+        message = _pat.sub("[SECRET_REDACTED]", message)
+    return message[:500]
+
+
 _audit_log_failure_count = 0
 
 
 def write_audit_log(action, filename, result_summary):
     global _audit_log_failure_count
+    result_summary = safe_log_message(result_summary)
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = _get_db_connection()
