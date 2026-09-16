@@ -3362,7 +3362,8 @@ function formatGenericResult(d, label) {
   if (typeof d !== 'object' || d === null) return '<div style="font-size:11px">' + JSON.stringify(d) + '</div>';
   const keys = Object.keys(d);
   let detectedKey = keys.find(k => /detected$/i.test(k) && typeof d[k] === 'boolean');
-  let findingsKey = keys.find(k => /findings|issues|results/i.test(k) && Array.isArray(d[k]));
+  let findingsKey = keys.find(k => Array.isArray(d[k]) && d[k].length > 0 && typeof d[k][0] === 'object' && d[k][0] !== null)
+                  || keys.find(k => /findings|issues|results/i.test(k) && Array.isArray(d[k]));
   let summaryKey = keys.find(k => /summary|verdict|message|recommendation/i.test(k) && typeof d[k] === 'string');
   let riskKey = keys.find(k => /^risk|risk_level|severity/i.test(k) && typeof d[k] === 'string');
   let confKey = keys.find(k => /confidence|score/i.test(k) && (typeof d[k] === 'number' || typeof d[k] === 'string'));
