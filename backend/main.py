@@ -219,7 +219,27 @@ def is_likely_prompt_injection(text):
     return False
 
 
+_AI_REQUEST_SIZE_HISTORY = []
+_AI_REQUEST_SIZE_LOCK = threading.Lock()
+
+
+def _check_token_budget_anomaly(prompt_len):
+    with _AI_REQUEST_SIZE_LOCK:
+        if len(_AI_REQUEST_SIZE_HISTORY) < 10:
+            _is_anomaly = False
+        else:
+            _sorted = sorted(_AI_REQUEST_SIZE_HISTORY)
+            _p95_idx = int(len(_sorted) * 0.95)
+            _p95_value = _sorted[min(_p95_idx, len(_sorted) - 1)]
+            _is_anomaly = prompt_len > max(_p95_value * 2, 20000)
+        _AI_REQUEST_SIZE_HISTORY.append(prompt_len)
+        del _AI_REQUEST_SIZE_HISTORY[:-500]
+    return _is_anomaly
+
+
 def call_ai_provider(prompt, max_tokens=500):
+    if _check_token_budget_anomaly(len(prompt)):
+        _record_security_event("token_budget_anomaly", "internal", f"AI prompt length {len(prompt)} chars significantly exceeds recent usage pattern (possible resource-exhaustion attempt)")
     provider = os.environ.get("AI_PROVIDER", "groq").lower()
     if provider == "ollama":
         result = call_ollama(prompt)
