@@ -32,8 +32,25 @@ _security_log_lock = threading.Lock()
 
 def _record_security_event(event_type, ip, detail):
     with _security_log_lock:
-        _security_log.insert(0, {"timestamp": datetime.now().isoformat(), "type": event_type, "ip": ip, "detail": detail})
+        _prev_hash = _security_log[0]["entry_hash"] if _security_log else "0" * 64
+        _timestamp = datetime.now().isoformat()
+        _entry_content = f"{_timestamp}|{event_type}|{ip}|{detail}|{_prev_hash}"
+        _entry_hash = hashlib.sha256(_entry_content.encode("utf-8")).hexdigest()
+        _security_log.insert(0, {"timestamp": _timestamp, "type": event_type, "ip": ip, "detail": detail, "prev_hash": _prev_hash, "entry_hash": _entry_hash})
         del _security_log[200:]
+
+
+def _verify_security_log_integrity():
+    with _security_log_lock:
+        _chronological = list(reversed(_security_log))
+        _expected_prev = "0" * 64
+        for _entry in _chronological:
+            _recomputed_content = f"{_entry['timestamp']}|{_entry['type']}|{_entry['ip']}|{_entry['detail']}|{_expected_prev}"
+            _recomputed_hash = hashlib.sha256(_recomputed_content.encode("utf-8")).hexdigest()
+            if _entry.get("prev_hash") != _expected_prev or _entry.get("entry_hash") != _recomputed_hash:
+                return False, f"Chain broken at entry timestamped {_entry['timestamp']}"
+            _expected_prev = _recomputed_hash
+        return True, "Chain intact - no tampering detected"
 
 
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
@@ -2549,11 +2566,14 @@ async def security_dashboard_endpoint(request: Request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized - admin key required"})
     with _security_log_lock:
         events = list(_security_log[:100])
+    _integrity_ok, _integrity_msg = _verify_security_log_integrity()
     return {
         "total_events_recorded": len(_security_log),
         "showing": len(events),
         "events": events,
-        "disclaimer": "Security event log is in-memory only and resets on server restart. This is a visibility aid, not a persistent audit system."
+        "integrity_verified": _integrity_ok,
+        "integrity_message": _integrity_msg,
+        "disclaimer": "Security event log is in-memory only and resets on server restart. This is a visibility aid, not a persistent audit system. Entries are hash-chained (each entry's hash includes the previous entry's hash) so any in-memory tampering with a historical entry would break the chain and be detectable via integrity_verified, though this does not protect against a full server restart wiping the log."
     }
 
 
