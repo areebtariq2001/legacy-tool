@@ -30,6 +30,23 @@ _security_log = []
 _security_log_lock = threading.Lock()
 
 
+_blocked_ips = {}
+_blocked_ips_lock = threading.Lock()
+_suspicious_event_counts = {}
+_AUTO_BLOCK_EVENT_TYPES = {"honeypot_triggered", "scanner_signature_detected", "jailbreak_output_indicator"}
+
+
+def _is_ip_blocked(ip):
+    with _blocked_ips_lock:
+        _expiry = _blocked_ips.get(ip)
+        if _expiry is None:
+            return False, None
+        if datetime.now() > _expiry:
+            del _blocked_ips[ip]
+            return False, None
+        return True, _expiry
+
+
 def _record_security_event(event_type, ip, detail):
     with _security_log_lock:
         _prev_hash = _security_log[0]["entry_hash"] if _security_log else "0" * 64
@@ -38,6 +55,12 @@ def _record_security_event(event_type, ip, detail):
         _entry_hash = hashlib.sha256(_entry_content.encode("utf-8")).hexdigest()
         _security_log.insert(0, {"timestamp": _timestamp, "type": event_type, "ip": ip, "detail": detail, "prev_hash": _prev_hash, "entry_hash": _entry_hash})
         del _security_log[200:]
+    if event_type in _AUTO_BLOCK_EVENT_TYPES and ip and ip != "internal":
+        with _blocked_ips_lock:
+            _suspicious_event_counts[ip] = _suspicious_event_counts.get(ip, 0) + 1
+            if _suspicious_event_counts[ip] >= 3:
+                _blocked_ips[ip] = datetime.now() + timedelta(hours=24)
+                _suspicious_event_counts[ip] = 0
 
 
 def _verify_security_log_integrity():
@@ -110,6 +133,9 @@ async def cors_handler(request: Request, call_next):
             }
         )
     client_ip = _get_client_ip(request)
+    _blocked, _block_expiry = _is_ip_blocked(client_ip)
+    if _blocked:
+        return JSONResponse(status_code=403, content={"error": "This IP has been temporarily blocked due to repeated suspicious activity."}, headers={"Access-Control-Allow-Origin": allow_origin})
     _user_agent = request.headers.get("user-agent", "").lower()
     _scanner_signatures = ["sqlmap", "nikto", "nmap", "masscan", "zgrab", "nuclei", "acunetix", "nessus"]
     if any(_sig in _user_agent for _sig in _scanner_signatures):
@@ -2152,6 +2178,8 @@ _DANGEROUS_MAGIC_BYTES = [
 
 
 def safe_read_file(content_bytes, filename):
+    if filename and re.search(r'[<>:"/\\|?*\x00-\x1f]', filename):
+        return None, "Filename contains invalid characters."
     if len(content_bytes) > MAX_FILE_SIZE:
         return None, f"File too large ({len(content_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes."
     if len(content_bytes) == 0:
