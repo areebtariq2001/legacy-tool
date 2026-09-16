@@ -106,7 +106,11 @@ def save_stats(stats):
     with _stats_lock:
         _in_memory_stats.update(stats)
 
+_audit_log_failure_count = 0
+
+
 def write_audit_log(action, filename, result_summary):
+    global _audit_log_failure_count
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = _get_db_connection()
@@ -127,7 +131,7 @@ def write_audit_log(action, filename, result_summary):
             _in_memory_audit_log.insert(0, {"timestamp": timestamp, "action": action, "file": filename, "result": result_summary})
             del _in_memory_audit_log[50:]
     except Exception:
-        pass
+        _audit_log_failure_count += 1
 
 def track_usage(action, filename):
     conn = _get_db_connection()
@@ -255,15 +259,15 @@ def get_why_explanations(original_source, language="python"):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "java":
         for keyword, reason in JAVA_WHY_RULES:
-            if keyword in original_source:
+            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "php":
         for keyword, reason in PHP_WHY_RULES:
-            if keyword in original_source:
+            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "cobol":
         for keyword, reason in COBOL_WHY_RULES:
-            if keyword.upper() in original_source.upper():
+            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source, re.IGNORECASE):
                 explanations.append({"change": keyword, "why": reason})
     return explanations
 
@@ -440,7 +444,7 @@ def calculate_tech_debt(source, filename=""):
             items.append({"issue": "Complexity-based review overhead (no specific legacy pattern found, but code complexity itself needs review time)", "occurrences": 1, "minutes_each": _overhead_minutes, "estimated_minutes": _overhead_minutes})
             total_minutes = max(total_minutes, MIN_MINUTES_IF_COMPLEX)
     except Exception as e:
-        print("Warning: complexity calculation failed in calculate_tech_debt: " + str(e))
+        print(f"Warning: complexity calculation failed in calculate_tech_debt: {e}")
     if debt_score == 0:
         debt_level = "Minimal debt"
     elif debt_score < 30:
