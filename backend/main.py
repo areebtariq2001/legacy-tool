@@ -110,6 +110,11 @@ async def cors_handler(request: Request, call_next):
             }
         )
     client_ip = _get_client_ip(request)
+    _user_agent = request.headers.get("user-agent", "").lower()
+    _scanner_signatures = ["sqlmap", "nikto", "nmap", "masscan", "zgrab", "nuclei", "acunetix", "nessus"]
+    if any(_sig in _user_agent for _sig in _scanner_signatures):
+        _record_security_event("scanner_signature_detected", client_ip, f"user-agent matched known scanner tool: {_user_agent[:100]}")
+        return JSONResponse(status_code=403, content={"error": "Forbidden"}, headers={"Access-Control-Allow-Origin": allow_origin})
     if not _check_rate_limit(client_ip):
         return JSONResponse(
             content={"error": "Rate limit exceeded. Please slow down and try again shortly."},
@@ -120,6 +125,16 @@ async def cors_handler(request: Request, call_next):
     response.headers["Access-Control-Allow-Origin"] = allow_origin
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
     response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if "server" in response.headers:
+        del response.headers["server"]
+    if "x-powered-by" in response.headers:
+        del response.headers["x-powered-by"]
     return response
 
 import threading
