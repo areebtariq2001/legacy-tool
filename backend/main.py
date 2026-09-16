@@ -1505,7 +1505,7 @@ def analyze_php(source):
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     for _compiled_pattern, msg in PHP_CHECKS_COMPILED:
-        if _compiled_pattern.search(source):
+        if _compiled_pattern.search(_source_no_comments):
             issues.append(msg)
     try:
         _sqli_result = scan_sql_injection(source, "file.php")
