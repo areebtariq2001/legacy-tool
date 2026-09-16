@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 import ast
 import re
 import os
+import threading
 import requests
 import json
 import hmac
@@ -25,12 +26,23 @@ except Exception:
 _rate_limit_store = {}
 import time
 
+_security_log = []
+_security_log_lock = threading.Lock()
+
+
+def _record_security_event(event_type, ip, detail):
+    with _security_log_lock:
+        _security_log.insert(0, {"timestamp": datetime.now().isoformat(), "type": event_type, "ip": ip, "detail": detail})
+        del _security_log[200:]
+
+
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     now = time.time()
     entry = _rate_limit_store.get(ip, [])
     entry = [t for t in entry if now - t < window_seconds]
     if len(entry) >= max_requests:
         _rate_limit_store[ip] = entry
+        _record_security_event("rate_limit_violation", ip, f"exceeded {max_requests} requests per {window_seconds}s")
         return False
     entry.append(now)
     _rate_limit_store[ip] = entry
@@ -2505,6 +2517,20 @@ def _check_admin_auth(request: Request):
         return False
     provided_key = request.headers.get("x-admin-key", "")
     return hmac.compare_digest(provided_key, required_key)
+
+@app.get("/security-dashboard")
+async def security_dashboard_endpoint(request: Request):
+    if not _check_admin_auth(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - admin key required"})
+    with _security_log_lock:
+        events = list(_security_log[:100])
+    return {
+        "total_events_recorded": len(_security_log),
+        "showing": len(events),
+        "events": events,
+        "disclaimer": "Security event log is in-memory only and resets on server restart. This is a visibility aid, not a persistent audit system."
+    }
+
 
 @app.get("/stats")
 def get_stats(request: Request):
