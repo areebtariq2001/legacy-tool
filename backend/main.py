@@ -237,6 +237,17 @@ def _check_token_budget_anomaly(prompt_len):
     return _is_anomaly
 
 
+def sanitize_ai_output(text):
+    if not text or not isinstance(text, str):
+        return text
+    text = re.sub(r"<script[^>]*>.*?</script>", "[removed: script tag]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<iframe[^>]*>.*?</iframe>", "[removed: iframe tag]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<(object|embed)[^>]*>.*?</\1>", "[removed: embedded object]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'on\w+\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
+    text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
+    return text
+
+
 def call_ai_provider(prompt, max_tokens=500):
     if _check_token_budget_anomaly(len(prompt)):
         _record_security_event("token_budget_anomaly", "internal", f"AI prompt length {len(prompt)} chars significantly exceeds recent usage pattern (possible resource-exhaustion attempt)")
@@ -2016,7 +2027,7 @@ def ai_suggest(source, language):
     result = call_ai_provider(prompt, max_tokens=1500)
     if result.startswith("AI_ERROR") or result.startswith("AI service error"):
         return {"suggestions": None, "error": result, "injection_attempt_flagged": _injection_flagged}
-    return {"suggestions": result, "injection_attempt_flagged": _injection_flagged}
+    return {"suggestions": sanitize_ai_output(result), "injection_attempt_flagged": _injection_flagged}
 
 def ai_explain(source, language):
     _injection_flagged = is_likely_prompt_injection(source)
@@ -2030,7 +2041,7 @@ def ai_explain(source, language):
     result = call_ai_provider(prompt, max_tokens=2000)
     if result.startswith("AI_ERROR") or result.startswith("AI service error"):
         return {"explanation": None, "error": result, "injection_attempt_flagged": _injection_flagged}
-    return {"explanation": result, "injection_attempt_flagged": _injection_flagged}
+    return {"explanation": sanitize_ai_output(result), "injection_attempt_flagged": _injection_flagged}
 
 def ai_generate_tests(source, language):
     _injection_flagged = is_likely_prompt_injection(source)
@@ -2044,7 +2055,7 @@ def ai_generate_tests(source, language):
     result = call_ai_provider(prompt, max_tokens=3000)
     if result.startswith("AI_ERROR") or result.startswith("AI service error"):
         return {"tests": None, "error": result, "injection_attempt_flagged": _injection_flagged}
-    return {"tests": result, "injection_attempt_flagged": _injection_flagged}
+    return {"tests": sanitize_ai_output(result), "injection_attempt_flagged": _injection_flagged}
 
 def detect_language(filename):
     if not filename or filename.startswith('.') or '.' not in filename:
@@ -3774,7 +3785,7 @@ def answer_code_question(source, question, filename):
         answer = f"Question answering is temporarily unavailable: {e}"
     if _injection_flagged:
         write_audit_log("security-flag", filename, "possible prompt injection pattern detected in question/source")
-    return {"question": question, "answer": answer, "qa_disclaimer": "AI-generated answer based on the uploaded file only. Always verify against the actual code and consult the original developers where possible.", "injection_attempt_flagged": _injection_flagged}
+    return {"question": question, "answer": sanitize_ai_output(answer), "qa_disclaimer": "AI-generated answer based on the uploaded file only. Always verify against the actual code and consult the original developers where possible.", "injection_attempt_flagged": _injection_flagged}
 
 def process_github_webhook(payload):
     try:
