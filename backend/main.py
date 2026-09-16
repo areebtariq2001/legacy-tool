@@ -2557,6 +2557,23 @@ async def security_dashboard_endpoint(request: Request):
     }
 
 
+_HONEYPOT_PATHS = ["/admin-login-old", "/wp-admin", "/wp-login.php", "/.env", "/phpmyadmin", "/admin.php", "/xmlrpc.php", "/.git/config", "/config.php.bak"]
+
+
+def _get_request_ip(request: Request):
+    return request.client.host if request.client else "unknown"
+
+
+async def _honeypot_handler(request: Request):
+    ip = _get_request_ip(request)
+    _record_security_event("honeypot_triggered", ip, f"probed known-attacker-scan path: {request.url.path}")
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
+for _hp_path in _HONEYPOT_PATHS:
+    app.add_api_route(_hp_path, _honeypot_handler, methods=["GET", "POST"])
+
+
 @app.get("/stats")
 def get_stats(request: Request):
     if not _check_admin_auth(request):
