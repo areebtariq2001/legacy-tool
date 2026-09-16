@@ -2493,7 +2493,7 @@ def get_audit_log(request: Request):
     with _stats_lock:
         all_entries = list(_in_memory_audit_log)
         recent = all_entries[:50]
-    recent_display = ["[" + e.get("timestamp","") + "] action=" + e.get("action","") + " | file=" + e.get("file","") + " | result=" + e.get("result","") if isinstance(e, dict) else str(e) for e in recent]
+    recent_display = [f"[{e.get('timestamp','')}] action={e.get('action','')} | file={e.get('file','')} | result={e.get('result','')}" if isinstance(e, dict) else str(e) for e in recent]
     return {"total_entries": len(all_entries), "recent": recent_display}
 
 @app.get("/audit-log-json")
@@ -2545,8 +2545,10 @@ def scan_sensitive_data(source):
     for pattern, label, severity in SENSITIVE_PATTERNS_COMPILED:
         count = 0
         line_nums = []
+        _sample_line = ""
         for i, ln in enumerate(source_lines):
-            if ln.strip().startswith(("#", "//")):
+            _stripped_ln = ln.strip()
+            if _stripped_ln.startswith(("#", "//", "/*", "*")):
                 continue
             if len(ln) > 2000:
                 continue
@@ -2554,7 +2556,7 @@ def scan_sensitive_data(source):
             if _m:
                 count += 1
                 line_nums.append(str(i+1))
-                if count == 1:
+                if not _sample_line:
                     _sample_line = re.sub(r'([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])', r'\1***REDACTED***\2', ln.strip()[:150])
         if count > 0:
             findings.append({
@@ -2566,10 +2568,13 @@ def scan_sensitive_data(source):
                 "total_lines_affected": len(line_nums),
                 "evidence": f"First occurrence at line {line_nums[0]}: {_sample_line}"
             })
-    high = sum(1 for f in findings if f["severity"] == "High")
+    critical = sum(1 for f in findings if f["severity"] == "Critical")
+    high = sum(1 for f in findings if f["severity"] in ("High", "Critical"))
     medium = sum(1 for f in findings if f["severity"] == "Medium")
     low = sum(1 for f in findings if f["severity"] == "Low")
-    if high > 3:
+    if critical > 0:
+        verdict = f"CRITICAL: {critical} critical-severity issue(s) found - do not migrate without review"
+    elif high > 3:
         verdict = f"CRITICAL: {high} high-severity issues found - do not migrate without review"
     elif high > 0:
         verdict = f"WARNING: {high} high-severity issue(s) found - review before migration"
@@ -2581,6 +2586,7 @@ def scan_sensitive_data(source):
         verdict = "No obvious sensitive data detected"
     return {
         "findings": findings,
+        "critical_count": critical,
         "high_count": high,
         "medium_count": medium,
         "low_count": low,
