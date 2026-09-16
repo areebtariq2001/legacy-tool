@@ -3009,6 +3009,9 @@ async def scan_repo_endpoint(req: RepoRequest):
                 skipped_files.append({"file": path, "reason": "Invalid path"})
                 continue
             raw_url = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + path
+            if urllib.parse.urlparse(raw_url).hostname != "raw.githubusercontent.com":
+                skipped_files.append({"file": path, "reason": "Invalid path (URL validation failed)"})
+                continue
             try:
                 fr = requests.get(raw_url, timeout=10)
                 if fr.status_code != 200:
