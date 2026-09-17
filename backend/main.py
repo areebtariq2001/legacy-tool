@@ -80,6 +80,7 @@ def _is_ip_blocked(ip):
 
 
 def _record_security_event(event_type, ip, detail):
+    detail = safe_log_message(detail)
     with _security_log_lock:
         _prev_hash = _security_log[0]["entry_hash"] if _security_log else "0" * 64
         _timestamp = datetime.now().isoformat()
