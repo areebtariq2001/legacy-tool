@@ -3452,8 +3452,7 @@ function renderValue(v) {
     return Object.entries(v).map(([a, b]) => {
       const num = typeof b === 'number';
       const color = num ? (b >= 70 ? '#22c55e' : b >= 40 ? '#f59e0b' : '#ef4444') : '#e2e8f0';
-      const displayVal = Array.isArray(b) ? (b.length ? b.join(', ') : '(none)') : String(b);
-      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(displayVal) + '</span></div>';
+      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(String(b)) + '</span></div>';
     }).join('');
   }
   return '<span style="color:#0f1115">' + escapeHtml(String(v)) + '</span>';
@@ -3698,6 +3697,14 @@ async function runAsk() {
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     document.getElementById('askLoad').classList.remove('show');
     document.getElementById('askBody').textContent = typeof d === 'string' ? d : (d.answer ?? d.result ?? d.output ?? JSON.stringify(d, null, 2));
+    const askBody = document.getElementById('askBody');
+    if (d && d.similar_files && d.similar_files.length > 0) {
+      const simHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #e5e8ee;font-size:10.5px;color:#64748b">' +
+        '<b>Similar to previously-analyzed files:</b><br>' +
+        d.similar_files.map(s => escapeHtml(s.filename) + ' (similarity: ' + Math.round(s.similarity * 100) + '%)').join('<br>') +
+        '</div>';
+      askBody.insertAdjacentHTML('afterend', simHtml);
+    }
     document.getElementById('askResult').classList.add('show');
   } catch (e) {
     document.getElementById('askLoad').classList.remove('show');
