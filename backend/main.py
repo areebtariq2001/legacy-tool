@@ -3111,6 +3111,85 @@ async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AI consistency check failed safely: " + str(e)})
 
 
+class MigrationCertificate:
+    def __init__(self):
+        self.certificates = {}
+        self._lock = threading.Lock()
+
+    def issue(self, filename, original_hash, migrated_hash, confidence, reviewer_email, approved):
+        with self._lock:
+            cert_id = hashlib.sha256(f"{filename}{original_hash}{migrated_hash}{datetime.now().isoformat()}".encode()).hexdigest()[:16].upper()
+            certificate = {
+                "certificate_id": f"STARBUILD-{cert_id}",
+                "issued_at": datetime.now().isoformat(),
+                "filename": filename,
+                "original_code_hash": original_hash,
+                "migrated_code_hash": migrated_hash,
+                "confidence_score": confidence,
+                "approved_by": reviewer_email,
+                "approval_status": "APPROVED" if approved else "REJECTED",
+                "blockchain_block": len(audit_blockchain.chain),
+                "chain_hash_at_issuance": audit_blockchain.chain[-1].hash,
+            }
+            cert_data = json.dumps(certificate, sort_keys=True)
+            certificate["certificate_signature"] = hashlib.sha256(cert_data.encode()).hexdigest()
+            self.certificates[cert_id] = certificate
+            try:
+                audit_blockchain.add_block(
+                    action="CERTIFICATE_ISSUED", filename=filename, user_email=reviewer_email, ip="system",
+                    result=f"cert={cert_id} confidence={confidence}% status={certificate['approval_status']}"
+                )
+            except Exception:
+                pass
+            return certificate
+
+    def verify(self, cert_id):
+        with self._lock:
+            cert = self.certificates.get(cert_id)
+        if not cert:
+            return {"valid": False, "reason": "Certificate not found"}
+        cert = dict(cert)
+        signature = cert.pop("certificate_signature", "")
+        expected = hashlib.sha256(json.dumps(cert, sort_keys=True).encode()).hexdigest()
+        cert["certificate_signature"] = signature
+        if not hmac.compare_digest(signature, expected):
+            return {"valid": False, "reason": "Certificate tampered!"}
+        chain_valid, _ = audit_blockchain.verify_chain()
+        return {
+            "valid": True,
+            "certificate": cert,
+            "blockchain_integrity": "VERIFIED" if chain_valid else "COMPROMISED",
+        }
+
+
+cert_manager = MigrationCertificate()
+
+
+@app.post("/issue-migration-certificate")
+async def issue_migration_certificate_endpoint(request: Request):
+    try:
+        _body = await request.json()
+        _filename = str(_body.get("filename", "unknown"))[:500]
+        _reviewer_notes = str(_body.get("reviewer_notes", ""))[:5000]
+        _decision = str(_body.get("decision", "Approved"))[:50]
+        _original_hash = hashlib.sha256(_filename.encode()).hexdigest()[:16]
+        _migrated_hash = hashlib.sha256(_reviewer_notes.encode()).hexdigest()[:16]
+        _approved = _decision.strip().lower() == "approved"
+        cert = cert_manager.issue(
+            filename=_filename, original_hash=_original_hash, migrated_hash=_migrated_hash,
+            confidence=100 if _approved else 0, reviewer_email="reviewer", approved=_approved
+        )
+        write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}")
+        return cert
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Certificate issuance failed: {str(e)}"})
+
+
+@app.get("/verify-migration-certificate/{cert_id}")
+async def verify_migration_certificate_endpoint(cert_id: str):
+    return cert_manager.verify(cert_id)
+
+
 @app.get("/blockchain-status")
 async def blockchain_status_endpoint(request: Request):
     if not _check_admin_auth(request):
