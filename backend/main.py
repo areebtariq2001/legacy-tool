@@ -3133,7 +3133,7 @@ class MigrationCertificate:
             }
             cert_data = json.dumps(certificate, sort_keys=True)
             certificate["certificate_signature"] = hashlib.sha256(cert_data.encode()).hexdigest()
-            self.certificates[cert_id] = certificate
+            self.certificates[certificate["certificate_id"]] = certificate
             try:
                 audit_blockchain.add_block(
                     action="CERTIFICATE_ISSUED", filename=filename, user_email=reviewer_email, ip="system",
@@ -3144,8 +3144,9 @@ class MigrationCertificate:
             return certificate
 
     def verify(self, cert_id):
+        _lookup_key = cert_id if cert_id.startswith("STARBUILD-") else f"STARBUILD-{cert_id}"
         with self._lock:
-            cert = self.certificates.get(cert_id)
+            cert = self.certificates.get(_lookup_key) or self.certificates.get(cert_id)
         if not cert:
             return {"valid": False, "reason": "Certificate not found"}
         cert = dict(cert)
