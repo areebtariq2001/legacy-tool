@@ -76,6 +76,26 @@ def _verify_security_log_integrity():
         return True, "Chain intact - no tampering detected"
 
 
+_token_rate_limit_store = {}
+
+
+def _check_rate_limit_keyed(store, key, max_requests=60, window_seconds=60):
+    now = time.time()
+    entry = store.get(key, [])
+    entry = [t for t in entry if now - t < window_seconds]
+    if len(entry) >= max_requests:
+        store[key] = entry
+        return False
+    entry.append(now)
+    store[key] = entry
+    if len(store) > 5000:
+        _cutoff = now - window_seconds
+        for _k in list(store.keys()):
+            if not store[_k] or max(store[_k]) < _cutoff:
+                del store[_k]
+    return True
+
+
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     now = time.time()
     entry = _rate_limit_store.get(ip, [])
@@ -150,6 +170,14 @@ async def cors_handler(request: Request, call_next):
             status_code=429,
             headers={"Access-Control-Allow-Origin": allow_origin}
         )
+    _session_token = request.headers.get("x-session-token", "")
+    if _session_token and len(_session_token) <= 200:
+        if not _check_rate_limit_keyed(_token_rate_limit_store, "tok:" + _session_token, max_requests=90, window_seconds=60):
+            return JSONResponse(
+                content={"error": "Rate limit exceeded for this session. Please slow down and try again shortly."},
+                status_code=429,
+                headers={"Access-Control-Allow-Origin": allow_origin}
+            )
     response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = allow_origin
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
