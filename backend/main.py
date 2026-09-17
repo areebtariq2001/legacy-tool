@@ -111,21 +111,35 @@ def _verify_security_log_integrity():
 _token_rate_limit_store = {}
 
 
+_check_rate_limit_keyed_lock = threading.Lock()
+
+
 def _check_rate_limit_keyed(store, key, max_requests=60, window_seconds=60):
     now = time.time()
-    entry = store.get(key, [])
-    entry = [t for t in entry if now - t < window_seconds]
-    if len(entry) >= max_requests:
+    with _check_rate_limit_keyed_lock:
+        entry = store.get(key, [])
+        entry = [t for t in entry if now - t < window_seconds]
+        if len(entry) >= max_requests:
+            store[key] = entry
+            return False
+        entry.append(now)
         store[key] = entry
-        return False
-    entry.append(now)
-    store[key] = entry
-    if len(store) > 5000:
-        _cutoff = now - window_seconds
-        for _k in list(store.keys()):
-            if not store[_k] or max(store[_k]) < _cutoff:
-                del store[_k]
-    return True
+        if len(store) > 5000:
+            _cutoff = now - window_seconds
+            for _k in list(store.keys()):
+                if not store[_k] or max(store[_k]) < _cutoff:
+                    del store[_k]
+        return True
+
+
+_WAF_HEADER_PATTERNS = [
+    re.compile(r"<script\b", re.IGNORECASE),
+    re.compile(r"javascript:", re.IGNORECASE),
+    re.compile(r"\.\./\.\./"),
+    re.compile(r"%2e%2e%2f", re.IGNORECASE),
+    re.compile(r"etc/passwd", re.IGNORECASE),
+    re.compile(r"[?&](cmd|exec|system)=[^&]*\b(rm|del|wget|curl|bash|sh|nc|ncat)\b", re.IGNORECASE),
+]
 
 
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
@@ -193,14 +207,6 @@ async def cors_handler(request: Request, call_next):
     if any(_sig in _user_agent for _sig in _scanner_signatures):
         _record_security_event("scanner_signature_detected", client_ip, f"user-agent matched known scanner tool: {_user_agent[:100]}")
         return JSONResponse(status_code=403, content={"error": "Forbidden"}, headers={"Access-Control-Allow-Origin": allow_origin})
-    _WAF_HEADER_PATTERNS = [
-        re.compile(r"<script\b", re.IGNORECASE),
-        re.compile(r"javascript:", re.IGNORECASE),
-        re.compile(r"\.\./\.\./"),
-        re.compile(r"%2e%2e%2f", re.IGNORECASE),
-        re.compile(r"etc/passwd", re.IGNORECASE),
-        re.compile(r"cmd=|exec=|system=", re.IGNORECASE),
-    ]
     _url_str = str(request.url)
     for _waf_pat in _WAF_HEADER_PATTERNS:
         if _waf_pat.search(_url_str):
