@@ -306,6 +306,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <input class="scan-input" id="repoUrl" placeholder="https://github.com/owner/repo">
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="scanRepo()">Scan</button>
                 <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="viewCommitHistory()" title="Shows recent commit activity and change frequency using the GitHub Commits API">History</button>
+                <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px" onclick="generateMigrationRoadmap()" title="Generates a phased (Phase 1-5) modernization roadmap from a repo scan - requires login">Roadmap</button>
               </div>
               <div style="font-size:10px;color:var(--t4);margin-top:4px">Scans up to 25 files (Python, Java, PHP, COBOL).</div>
               <div id="repoScanResult" style="display:none;margin-top:8px;font-family:monospace;font-size:10px;color:#4b5563;white-space:pre-wrap;background:#ffffff;border-radius:6px;padding:10px;max-height:200px;overflow-y:auto"></div>
@@ -878,6 +879,26 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             <input type="text" id="certVerifyId" placeholder="e.g. STARBUILD-89D1461A81D06DF8" style="width:100%;padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:11px;margin-bottom:6px" />
             <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px" onclick="runVerifyCertificate()">Verify</button>
             <div id="certVerifyResult" style="margin-top:8px;font-size:11px"></div>
+          </div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e8ee">
+            <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Cross-Language Migrate (uses uploaded file)</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <select id="crossLangFrom" style="flex:1;padding:6px;border:1px solid var(--bd);border-radius:6px;font-size:11px">
+                <option value="python">Python</option><option value="javascript">JavaScript</option><option value="php">PHP</option>
+              </select>
+              <select id="crossLangTo" style="flex:1;padding:6px;border:1px solid var(--bd);border-radius:6px;font-size:11px">
+                <option value="javascript">JavaScript</option><option value="python">Python</option><option value="php">PHP</option>
+              </select>
+            </div>
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px" onclick="runCrossLanguageMigrate()">Migrate Between Languages</button>
+            <div id="crossLangResult" style="margin-top:8px;font-size:11px;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+          </div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e8ee">
+            <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">GitHub Issue → AI Fix Suggestion (uses uploaded file)</div>
+            <input type="text" id="ghIssueTitle" placeholder="Issue title" style="width:100%;padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:11px;margin-bottom:6px" />
+            <textarea id="ghIssueBody" placeholder="Issue description..." style="width:100%;padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:11px;margin-bottom:6px;min-height:50px;resize:vertical"></textarea>
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px" onclick="runGithubIssueFix()">Suggest Fix</button>
+            <div id="ghIssueResult" style="margin-top:8px;font-size:11px;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
           </div>
         </div>
         <div>
@@ -3684,6 +3705,37 @@ function resetAll() {
   }
 }
 function setQ(q) { document.getElementById('askInput').value = q; }
+async function runCrossLanguageMigrate() {
+  const resultEl = document.getElementById('crossLangResult');
+  const source = (window.lastFileSnapshot && window.lastFileSnapshot.original) || '';
+  if (!source) { resultEl.textContent = 'Upload and analyze a file first.'; return; }
+  const from_lang = document.getElementById('crossLangFrom').value;
+  const to_lang = document.getElementById('crossLangTo').value;
+  if (from_lang === to_lang) { resultEl.textContent = 'Choose two different languages.'; return; }
+  resultEl.textContent = 'Migrating between languages...';
+  try {
+    const r = await fetch(BACKEND + '/cross-language-migrate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, from_lang, to_lang }) });
+    const d = await r.json();
+    resultEl.textContent = d.error ? ('Error: ' + d.error) : JSON.stringify(d, null, 2);
+  } catch (e) {
+    resultEl.textContent = 'Cross-language migration failed: ' + e.message;
+  }
+}
+async function runGithubIssueFix() {
+  const resultEl = document.getElementById('ghIssueResult');
+  const source = (window.lastFileSnapshot && window.lastFileSnapshot.original) || '';
+  const issue_title = document.getElementById('ghIssueTitle').value.trim();
+  const issue_body = document.getElementById('ghIssueBody').value.trim();
+  if (!issue_title) { resultEl.textContent = 'Enter an issue title first.'; return; }
+  resultEl.textContent = 'Generating fix suggestion...';
+  try {
+    const r = await fetch(BACKEND + '/github-issue-fix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issue_title, issue_body, source }) });
+    const d = await r.json();
+    resultEl.textContent = d.error ? ('Error: ' + d.error) : JSON.stringify(d, null, 2);
+  } catch (e) {
+    resultEl.textContent = 'GitHub issue fix suggestion failed: ' + e.message;
+  }
+}
 async function runVerifyCertificate() {
   const certId = document.getElementById('certVerifyId').value.trim();
   const resultEl = document.getElementById('certVerifyResult');
@@ -3756,6 +3808,23 @@ async function runAsk() {
   }
 }
 function copyEl(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
+async function generateMigrationRoadmap() {
+  const u = document.getElementById('repoUrl').value.trim();
+  if (!u) { alert('Enter a GitHub repo URL.'); return; }
+  if (!authToken) { alert('Please log in first - the migration roadmap feature requires authentication.'); return; }
+  const box = document.getElementById('repoScanResult');
+  box.style.display = 'block';
+  box.style.whiteSpace = 'pre-wrap';
+  box.textContent = 'Generating migration roadmap (this scans the repo first, then builds a phased plan)...';
+  try {
+    const r = await fetch(BACKEND + '/migration-roadmap', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': authToken }, body: JSON.stringify({ repo_url: u }) });
+    const d = await r.json();
+    if (d.error) { box.textContent = 'Error: ' + d.error; return; }
+    box.textContent = JSON.stringify(d, null, 2);
+  } catch (e) {
+    box.textContent = 'Roadmap generation failed: ' + e.message;
+  }
+}
 async function scanRepo() {
   const u = document.getElementById('repoUrl').value.trim();
   if (!u) { alert('Enter a GitHub repo URL.'); return; }
