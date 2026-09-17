@@ -3452,7 +3452,8 @@ function renderValue(v) {
     return Object.entries(v).map(([a, b]) => {
       const num = typeof b === 'number';
       const color = num ? (b >= 70 ? '#22c55e' : b >= 40 ? '#f59e0b' : '#ef4444') : '#e2e8f0';
-      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(String(b)) + '</span></div>';
+      const displayVal = Array.isArray(b) ? (b.length ? b.join(', ') : '(none)') : String(b);
+      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(displayVal) + '</span></div>';
     }).join('');
   }
   return '<span style="color:#0f1115">' + escapeHtml(String(v)) + '</span>';
