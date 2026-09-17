@@ -214,6 +214,10 @@ async def cors_handler(request: Request, call_next):
                     return JSONResponse(status_code=400, content={"error": "Bad request"}, headers={"Access-Control-Allow-Origin": allow_origin})
     _now_ts = time.time()
     with _anti_bot_lock:
+        if len(_anti_bot_patterns) > 5000:
+            _stale = [_ip for _ip, _ts in _anti_bot_patterns.items() if not any(_now_ts - _t < 10 for _t in _ts)]
+            for _ip in _stale:
+                _anti_bot_patterns.pop(_ip, None)
         _recent_bot_pattern = [t for t in _anti_bot_patterns.get(client_ip, []) if _now_ts - t < 10]
         _anti_bot_patterns[client_ip] = _recent_bot_pattern + [_now_ts]
         if len(_recent_bot_pattern) > 20:
