@@ -3007,6 +3007,23 @@ def verify_ai_output_consistency(source, language):
     }
 
 
+@app.post("/ai-consistency-check")
+async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        language = detect_language(file.filename)
+        result = verify_ai_output_consistency(source, language)
+        result["filename"] = file.filename
+        track_usage("ai-consistency-check", file.filename)
+        write_audit_log("ai-consistency-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AI consistency check failed safely: " + str(e)})
+
+
 @app.get("/security-dashboard")
 async def security_dashboard_endpoint(request: Request):
     if not _check_admin_auth(request):
