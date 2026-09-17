@@ -34,6 +34,36 @@ _blocked_ips = {}
 _blocked_ips_lock = threading.Lock()
 _anti_bot_patterns = {}
 _anti_bot_lock = threading.Lock()
+_endpoint_rate_store = {}
+_endpoint_rate_lock = threading.Lock()
+_ENDPOINT_SPECIFIC_LIMITS = {
+    "/ai-migrate": (5, 60),
+    "/scan-sensitive": (10, 60),
+    "/generate-tests": (5, 60),
+    "/login": (5, 300),
+    "/register": (3, 300),
+}
+
+
+def _check_endpoint_specific_limit(endpoint, identifier):
+    if endpoint not in _ENDPOINT_SPECIFIC_LIMITS:
+        return True
+    max_reqs, window = _ENDPOINT_SPECIFIC_LIMITS[endpoint]
+    key = endpoint + "|" + identifier
+    now = time.time()
+    with _endpoint_rate_lock:
+        entry = [t for t in _endpoint_rate_store.get(key, []) if now - t < window]
+        if len(entry) >= max_reqs:
+            _endpoint_rate_store[key] = entry
+            return False
+        entry.append(now)
+        _endpoint_rate_store[key] = entry
+        if len(_endpoint_rate_store) > 5000:
+            _cutoff = now - window
+            for _k in list(_endpoint_rate_store.keys()):
+                if not _endpoint_rate_store[_k] or max(_endpoint_rate_store[_k]) < _cutoff:
+                    del _endpoint_rate_store[_k]
+    return True
 _suspicious_event_counts = {}
 _AUTO_BLOCK_EVENT_TYPES = {"honeypot_triggered", "scanner_signature_detected", "jailbreak_output_indicator"}
 
@@ -206,6 +236,14 @@ async def cors_handler(request: Request, call_next):
                 status_code=429,
                 headers={"Access-Control-Allow-Origin": allow_origin}
             )
+    _path = request.url.path
+    _endpoint_identifier = ("token:" + _session_token) if _session_token else ("ip:" + client_ip)
+    if not _check_endpoint_specific_limit(_path, _endpoint_identifier):
+        return JSONResponse(
+            content={"error": "Rate limit exceeded for this specific action. Please slow down and try again shortly."},
+            status_code=429,
+            headers={"Access-Control-Allow-Origin": allow_origin, "Retry-After": "60"}
+        )
     response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = allow_origin
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
