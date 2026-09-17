@@ -8,6 +8,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StarSage — Enterprise Legacy Migration</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  if (typeof Chart === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>');
+  }
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -1039,7 +1044,19 @@ function initCharts() {
     }
   });
 }
-try { initCharts(); } catch (e) { console.error('Chart initialization failed (charts will be unavailable, but the app continues to work):', e); }
+try { initCharts(); } catch (e) {
+  console.error('Chart initialization failed (charts will be unavailable, but the app continues to work):', e);
+  ['healthChart', 'statusChart', 'trendChart'].forEach(id => {
+    const canvas = document.getElementById(id);
+    if (canvas && canvas.parentElement) {
+      const msg = document.createElement('div');
+      msg.textContent = 'Charts unavailable (a browser extension or network setting may be blocking the chart library)';
+      msg.style.cssText = 'font-size:10px;color:var(--t3);text-align:center;padding:12px 8px;line-height:1.4';
+      canvas.style.display = 'none';
+      canvas.parentElement.appendChild(msg);
+    }
+  });
+}
 updateAuthUI();
 async function checkBackendHealth() {
   document.getElementById('liveLabel').textContent = 'Checking backend...';
