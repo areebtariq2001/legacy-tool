@@ -1478,13 +1478,33 @@ def analyze_call_graph(source):
         if usage:
             lib_usage[lib] = usage
     entry_points = [f for f in defined_functions if all(f not in calls for calls in calls_map.values())]
+    _in_degree = {qn: 0 for qn in defined_functions}
+    for _caller, _callees in calls_map.items():
+        for _callee in _callees:
+            if _callee in _in_degree:
+                _in_degree[_callee] += 1
+    _CRITICAL_PATH_KEYWORDS = ("payment", "transaction", "transfer", "withdraw", "deposit", "auth", "login", "credit", "debit", "balance")
+    _high_centrality = []
+    for qn, _degree in sorted(_in_degree.items(), key=lambda kv: -kv[1]):
+        if _degree < 2:
+            continue
+        _bare_name = qn.split(".")[-1].lower()
+        _touches_critical_path = any(kw in _bare_name for kw in _CRITICAL_PATH_KEYWORDS)
+        _high_centrality.append({
+            "function": qn,
+            "called_by_count": _degree,
+            "touches_critical_path_keywords": _touches_critical_path,
+            "risk_note": f"Called by {_degree} other functions in this file - changes here have wide blast radius" + (" and the name suggests it touches sensitive financial/auth logic" if _touches_critical_path else "")
+        })
     return {
         "defined_functions": defined_functions,
         "calls_map": calls_map,
         "imports": imports,
         "lib_usage": lib_usage,
         "entry_points": entry_points,
-        "total_functions": len(defined_functions)
+        "total_functions": len(defined_functions),
+        "high_centrality_functions": _high_centrality[:10],
+        "centrality_disclaimer": "Centrality is counted within this single file's call graph only (how many other functions in the same file call into each function), not across the whole codebase. A high count means a function has many internal callers, so changes to it carry wider blast-radius risk within this file."
     }
 
 # ---------- KNOWLEDGE TRANSFER (KT) DOC GENERATOR ----------
