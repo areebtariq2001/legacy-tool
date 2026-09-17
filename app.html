@@ -679,6 +679,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost adv-check-btn" data-label="Service Boundaries" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/service-boundaries','Service Boundaries', this)">Service Boundaries</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Gen Tests" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/generate-tests','Gen Tests', this)">Gen Tests</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="AI Consistency" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/ai-consistency-check','AI Consistency Check', this)">AI Consistency</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Compat Matrix" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/compatibility-matrix','Compatibility Matrix', this)">Compat Matrix</button>
+                <button class="btn btn-ghost adv-check-btn" data-label="Shariah Report" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/shariah-board-report-check','Shariah Board Report', this)">Shariah Report</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Business Rules" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/extract-business-rules','Business Rules', this)">Business Rules (AI)</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Txn Flow" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/map-transaction-flow','Txn Flow', this)">Txn Flow</button>
                 <button class="btn btn-ghost adv-check-btn" data-label="Est. Cost" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/estimate-cost','Est. Cost', this)">Est. Cost</button>
@@ -871,6 +873,12 @@ textarea.ask-ta:focus{border-color:var(--blue)}
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:10px;padding:8px" onclick="runAsk()">Ask AI</button>
           <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:6px;padding:8px" onclick="runTraceabilityQuery()" title="Traces the specific function(s) and condition(s) triggered by a described scenario, referencing actual code paths">Trace Logic Path</button>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e8ee">
+            <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px">Verify Migration Certificate</div>
+            <input type="text" id="certVerifyId" placeholder="e.g. STARBUILD-89D1461A81D06DF8" style="width:100%;padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font-size:11px;margin-bottom:6px" />
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px" onclick="runVerifyCertificate()">Verify</button>
+            <div id="certVerifyResult" style="margin-top:8px;font-size:11px"></div>
+          </div>
         </div>
         <div>
           <div class="loading" id="askLoad"><div class="spinner"></div><div class="loading-txt">Thinking…</div></div>
@@ -2740,7 +2748,21 @@ async function doApprove() {
     sessionApproved++;
     document.getElementById('dash-approved').textContent = sessionApproved;
     logAuditEntry('APPROVED');
-    box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+    let _certHtml = '';
+    try {
+      const _certR = await fetch(BACKEND + '/issue-migration-certificate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: fname, reviewer_notes: 'Approved via main workflow', decision: 'Approved' })
+      });
+      if (_certR.ok) {
+        const _certData = await _certR.json();
+        if (_certData.certificate_id) {
+          _certHtml = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.08);font-size:11px">Certificate issued: <b>' + escapeHtml(_certData.certificate_id) + '</b></div>';
+        }
+      }
+    } catch (e3) { /* certificate issuance is a bonus, never block the approval flow on it */ }
+    box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>' + _certHtml;
   } catch (e) {
     box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Approval was NOT saved: network error - ' + e.message + '</div>';
   }
@@ -3662,6 +3684,26 @@ function resetAll() {
   }
 }
 function setQ(q) { document.getElementById('askInput').value = q; }
+async function runVerifyCertificate() {
+  const certId = document.getElementById('certVerifyId').value.trim();
+  const resultEl = document.getElementById('certVerifyResult');
+  if (!certId) { resultEl.innerHTML = '<span style="color:var(--red)">Enter a certificate ID first.</span>'; return; }
+  resultEl.innerHTML = '<span style="color:var(--t3)">Verifying...</span>';
+  try {
+    const cleanId = certId.replace(/^STARBUILD-/i, '');
+    const r = await fetch(BACKEND + '/verify-migration-certificate/' + encodeURIComponent(cleanId));
+    const d = await r.json();
+    if (d.valid) {
+      const cert = d.certificate || {};
+      resultEl.innerHTML = '<div style="color:var(--green);font-weight:700">✓ Valid Certificate</div>' +
+        '<div style="color:var(--t3);margin-top:4px">File: ' + escapeHtml(cert.filename || '') + '<br>Status: ' + escapeHtml(cert.approval_status || '') + '<br>Issued: ' + escapeHtml((cert.issued_at || '').replace('T', ' ').slice(0, 19)) + '<br>Blockchain: ' + escapeHtml(d.blockchain_integrity || '') + '</div>';
+    } else {
+      resultEl.innerHTML = '<div style="color:var(--red);font-weight:700">✗ ' + escapeHtml(d.reason || 'Invalid certificate') + '</div>';
+    }
+  } catch (e) {
+    resultEl.innerHTML = '<span style="color:var(--red)">Verification failed: ' + escapeHtml(e.message) + '</span>';
+  }
+}
 async function runTraceabilityQuery() {
   if (!files.length) { alert('Upload a file first.'); return; }
   const code = await files[0].text();
