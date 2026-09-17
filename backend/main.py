@@ -32,6 +32,8 @@ _security_log_lock = threading.Lock()
 
 _blocked_ips = {}
 _blocked_ips_lock = threading.Lock()
+_anti_bot_patterns = {}
+_anti_bot_lock = threading.Lock()
 _suspicious_event_counts = {}
 _AUTO_BLOCK_EVENT_TYPES = {"honeypot_triggered", "scanner_signature_detected", "jailbreak_output_indicator"}
 
@@ -180,6 +182,13 @@ async def cors_handler(request: Request, call_next):
                 if _waf_pat.search(_hv):
                     _record_security_event("waf_header_pattern_blocked", client_ip, f"malicious pattern in header {_hn}")
                     return JSONResponse(status_code=400, content={"error": "Bad request"}, headers={"Access-Control-Allow-Origin": allow_origin})
+    _now_ts = time.time()
+    with _anti_bot_lock:
+        _recent_bot_pattern = [t for t in _anti_bot_patterns.get(client_ip, []) if _now_ts - t < 10]
+        _anti_bot_patterns[client_ip] = _recent_bot_pattern + [_now_ts]
+        if len(_recent_bot_pattern) > 20:
+            _record_security_event("bot_pattern_detected", client_ip, f">20 requests in 10 seconds ({len(_recent_bot_pattern)} detected) - likely automated traffic")
+            return JSONResponse(status_code=429, content={"error": "Automated request pattern detected. Please slow down."}, headers={"Access-Control-Allow-Origin": allow_origin})
     _suspicious_ua_signatures = ["python-requests", "curl", "wget", "scrapy", "go-http-client"]
     _is_suspicious_ua = (not _user_agent) or any(_sig in _user_agent for _sig in _suspicious_ua_signatures)
     _rate_limit_max = 15 if _is_suspicious_ua else 60
