@@ -161,6 +161,25 @@ async def cors_handler(request: Request, call_next):
     if any(_sig in _user_agent for _sig in _scanner_signatures):
         _record_security_event("scanner_signature_detected", client_ip, f"user-agent matched known scanner tool: {_user_agent[:100]}")
         return JSONResponse(status_code=403, content={"error": "Forbidden"}, headers={"Access-Control-Allow-Origin": allow_origin})
+    _WAF_HEADER_PATTERNS = [
+        re.compile(r"<script\b", re.IGNORECASE),
+        re.compile(r"javascript:", re.IGNORECASE),
+        re.compile(r"\.\./\.\./"),
+        re.compile(r"%2e%2e%2f", re.IGNORECASE),
+        re.compile(r"etc/passwd", re.IGNORECASE),
+        re.compile(r"cmd=|exec=|system=", re.IGNORECASE),
+    ]
+    _url_str = str(request.url)
+    for _waf_pat in _WAF_HEADER_PATTERNS:
+        if _waf_pat.search(_url_str):
+            _record_security_event("waf_url_pattern_blocked", client_ip, f"malicious pattern in URL: {_url_str[:150]}")
+            return JSONResponse(status_code=400, content={"error": "Bad request"}, headers={"Access-Control-Allow-Origin": allow_origin})
+    for _hn, _hv in request.headers.items():
+        if _hn.lower() in ("user-agent", "referer", "x-forwarded-for"):
+            for _waf_pat in _WAF_HEADER_PATTERNS:
+                if _waf_pat.search(_hv):
+                    _record_security_event("waf_header_pattern_blocked", client_ip, f"malicious pattern in header {_hn}")
+                    return JSONResponse(status_code=400, content={"error": "Bad request"}, headers={"Access-Control-Allow-Origin": allow_origin})
     _suspicious_ua_signatures = ["python-requests", "curl", "wget", "scrapy", "go-http-client"]
     _is_suspicious_ua = (not _user_agent) or any(_sig in _user_agent for _sig in _suspicious_ua_signatures)
     _rate_limit_max = 15 if _is_suspicious_ua else 60
