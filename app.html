@@ -3507,7 +3507,8 @@ function formatGenericResult(d, label) {
       if (typeof f === 'string') return '<div style="font-size:11px;color:#0f1115"> ' + f + '</div>';
       if (typeof f === 'object' && f !== null) {
         const fKeys = Object.keys(f);
-        const title = f.issue || f.title || f.name || (f.function ? f.function + '()' : null) || 'Finding';
+        const _firstStringValue = () => { for (const k in f) { if (typeof f[k] === 'string' && f[k].trim()) return f[k]; } return null; };
+        const title = f.issue || f.title || f.name || (f.function ? f.function + '()' : null) || f.library || f.filename || _firstStringValue() || 'Finding';
         const rest = fKeys.filter(k =>f[k] !== title);
         const _sevRaw = (f.severity || '').toLowerCase();
         const _sevColor = _sevRaw === 'critical' ? '#DC2626' : _sevRaw === 'high' ? '#EA580C' : _sevRaw === 'medium' ? '#CA8A04' : _sevRaw === 'low' ? '#16A34A' : _sevRaw === 'info' ? '#2563EB' : '#f59e0b';
