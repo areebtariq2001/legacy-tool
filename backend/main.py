@@ -2461,7 +2461,7 @@ async def analyze(file: UploadFile = File(...)):
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         _lang = detect_language(file.filename)
         if _lang == "java":
-            result = analyze_java(source, file.filename)
+            result = analyze_java(source)
         elif _lang == "php":
             result = analyze_php(source)
         elif _lang == "cobol":
@@ -2692,7 +2692,7 @@ async def analyze_java_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content_bytes, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = analyze_java(source, file.filename)
+        result = analyze_java(source)
         result["filename"] = file.filename
         track_usage("analyze-java", file.filename)
         write_audit_log("analyze-java", file.filename, f"issues={len(result.get('issues', []))}")
