@@ -5228,18 +5228,21 @@ def save_living_documentation(filename, doc_content, doc_hash):
 
 def get_living_documentation_history(filename):
     conn = _get_db_connection()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT version, doc_content, created_at FROM docs_registry WHERE filename = %s ORDER BY version DESC", (filename,))
-            rows = cur.fetchall()
+    if not conn:
+        return []
+    cur = None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT version, doc_content, created_at FROM docs_registry WHERE filename = %s ORDER BY version DESC", (filename,))
+        rows = cur.fetchall()
+        return [{"version": r[0], "doc_content": r[1], "created_at": r[2]} for r in rows]
+    except Exception as e:
+        print("get_living_documentation_history failed: " + str(e))
+        return []
+    finally:
+        if cur:
             cur.close()
-            conn.close()
-            return [{"version": r[0], "doc_content": r[1], "created_at": r[2]} for r in rows]
-        except Exception as e:
-            print("get_living_documentation_history failed: " + str(e))
-            return []
-    return []
+        conn.close()
 
 def generate_living_documentation(source, filename):
     doc = generate_documentation(source, filename)
