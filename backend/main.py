@@ -5500,7 +5500,7 @@ async def migration_roadmap_endpoint(req: RepoRequest, request: Request):
     if not _user_email:
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to generate a migration roadmap"})
     try:
-        repo_result = await scan_repo_endpoint(req, request)
+        repo_result = await scan_repo_endpoint(req)
         result = generate_migration_roadmap(repo_result)
         return result
     except Exception as e:
