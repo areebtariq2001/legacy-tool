@@ -573,7 +573,7 @@ def call_ai_provider(prompt, max_tokens=500):
     if _check_jailbreak_output(_final_result):
         _record_security_event("jailbreak_output_indicator", "internal", "AI response contained a jailbreak-style phrase - possible successful prompt manipulation, response withheld")
         return "AI response blocked for safety review - the output matched a known jailbreak-response pattern."
-    return _final_result
+    return sanitize_ai_output(_final_result)
 
 def call_groq(prompt, max_tokens=500):
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
@@ -922,8 +922,15 @@ def assess_dependency_risk(source, filename="file.py"):
             imported = set()
     elif fname_lower.endswith(".java"):
         active_rules = JAVA_RISK_RULES
+        for _m in re.finditer(r"import\s+(?:static\s+)?([\w.]+)(?:\.\*)?\s*;", source):
+            _parts = _m.group(1).split(".")
+            imported.add(_parts[-1])
+            if len(_parts) > 1:
+                imported.add(_parts[0])
     elif fname_lower.endswith(".php"):
         active_rules = PHP_RISK_RULES
+        for _m in re.finditer(r"use\s+([\w\\]+)(?:\s+as\s+\w+)?\s*;", source):
+            imported.add(_m.group(1).split("\\")[-1])
     else:
         active_rules = RISK_RULES
     findings = []
