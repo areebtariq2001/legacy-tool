@@ -4437,7 +4437,9 @@ def process_github_webhook(payload):
                     _pr_files_url = "https://api.github.com/repos/" + repo_name + "/pulls/" + str(pr_number) + "/files"
                     _pr_resp = requests.get(_pr_files_url, timeout=10)
                     if _pr_resp.status_code == 200:
-                        for _pf in _pr_resp.json()[:20]:
+                        _all_pr_files = _pr_resp.json()
+                        _total_pr_files_detected = len(_all_pr_files)
+                        for _pf in _all_pr_files[:20]:
                             _fname = _pf.get("filename", "")
                             if _fname and ".." not in _fname and not _fname.startswith("/") and _fname.lower().endswith(_lang_exts):
                                 changed_files.add(_fname)
@@ -4465,7 +4467,9 @@ def process_github_webhook(payload):
         results = []
         _webhook_scan_start = time.time()
         _webhook_time_budget = 60
-        for file_path in list(changed_files)[:10]:
+        _changed_files_full = list(changed_files)
+        _files_to_scan = _changed_files_full[:10]
+        for file_path in _files_to_scan:
             if time.time() - _webhook_scan_start > _webhook_time_budget:
                 results.append({"file": file_path, "risk_level": "Skipped - time budget exceeded", "issues": 0})
                 continue
@@ -4512,7 +4516,7 @@ def process_github_webhook(payload):
             except Exception:
                 results.append({"file": file_path, "risk_level": "Scan error", "issues": 0})
         high_risk = len([r for r in results if r.get("risk_level") == "High"])
-        return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": len(results), "results": results, "webhook_summary": f"{len(results)} file(s) scanned from " + ("pull request" if _is_pr_event else "push") + f" by {pusher}; {high_risk} flagged high-risk", "webhook_disclaimer": "Automated scan triggered by a GitHub push or pull_request event, enabling continuous governance re-scanning on every PR, not just at cutover. Full CI/CD integration (auto-posting scan results as a PR comment or status check) requires GitHub App write-access setup and is on the roadmap."}
+        return {"repo": repo_name, "pusher": pusher, "ref": ref, "trigger_type": "pull_request" if _is_pr_event else "push", "files_scanned": len(results), "total_changed_files_detected": len(_changed_files_full), "files_not_scanned_this_run": max(0, len(_changed_files_full) - len(_files_to_scan)), "results": results, "webhook_summary": f"{len(results)} file(s) scanned from " + ("pull request" if _is_pr_event else "push") + f" by {pusher}; {high_risk} flagged high-risk", "webhook_disclaimer": "Automated scan triggered by a GitHub push or pull_request event, enabling continuous governance re-scanning on every PR, not just at cutover. Full CI/CD integration (auto-posting scan results as a PR comment or status check) requires GitHub App write-access setup and is on the roadmap."}
     except Exception as e:
         return {"error": "Webhook processing failed safely: " + str(e)}
 
@@ -6547,7 +6551,7 @@ def scan_entropy_secrets(source, filename):
                 findings.append({"line": i + 1, "entropy_score": round(entropy, 2), "known_pattern": known_type, "confidence": "High" if known_type else ("Medium" if entropy >= 4.5 else "Low"), "evidence": "Line " + str(i + 1) + ": " + redacted})
     findings_full = findings
     findings = findings_full[:30]
-    high_count = sum(1 for f in findings if f["confidence"] == "High")
+    high_count = sum(1 for f in findings_full if f["confidence"] == "High")
     _truncated1 = len(findings_full) > 30
     return {"scanned": True, "findings": findings, "total_findings": len(findings_full), "findings_truncated": _truncated1, "high_confidence_count": high_count, "summary": str(len(findings_full)) + " potential high-entropy secret(s) found" + (" (showing first 30)" if _truncated1 else "") + " - " + str(high_count) + " high-confidence.", "disclaimer": "Entropy-based scan flags random-looking strings (GitLeaks-style) that regex-only scans might miss - has more false positives (hashes, encoded data, UUIDs are also high-entropy). Always manually verify each finding."}
 
