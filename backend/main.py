@@ -8441,8 +8441,9 @@ def check_libor_sofr_migration(source, filename):
             continue
         if _libor_pattern.search(line):
             findings.append({"line": i + 1, "issue": "LIBOR reference found - LIBOR was discontinued by end-2023/mid-2023 depending on tenor and currency; interest-rate benchmarks should use SOFR (USD), SONIA (GBP), or the applicable local risk-free rate instead.", "severity": "Medium", "evidence": stripped[:100]})
-    findings = findings[:30]
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " LIBOR reference(s) found - review for migration to SOFR/risk-free-rate benchmarks." if findings else "No LIBOR references detected in this file.", "disclaimer": "Pattern-based textual detection of the word LIBOR in the source. Does not verify whether the reference is in active pricing logic, a comment, or dead code - a qualified treasury/legal analyst should confirm the migration status of any flagged usage."}
+    findings_full = findings
+    findings = findings_full[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings_full), "findings_shown": len(findings), "findings_truncated": len(findings_full) > 30, "summary": str(len(findings_full)) + " LIBOR reference(s) found - review for migration to SOFR/risk-free-rate benchmarks." if findings else "No LIBOR references detected in this file.", "disclaimer": "Pattern-based textual detection of the word LIBOR in the source. Does not verify whether the reference is in active pricing logic, a comment, or dead code - a qualified treasury/legal analyst should confirm the migration status of any flagged usage."}
 
 @app.post("/libor-sofr-migration-check")
 async def libor_sofr_migration_check_endpoint(file: UploadFile = File(...)):
@@ -8472,8 +8473,9 @@ def check_swift_mt_iso20022_migration(source, filename):
             continue
         if _swift_mt_pattern.search(line):
             findings.append({"line": i + 1, "issue": "Legacy SWIFT MT message-type reference found - the industry is migrating to ISO 20022 (MX/XML-based messages) for cross-border payments; consider planning migration for this message type.", "severity": "Low", "evidence": stripped[:100]})
-    findings = findings[:30]
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " legacy SWIFT MT reference(s) found - review for ISO 20022 migration." if findings else "No legacy SWIFT MT message-type references detected in this file.", "disclaimer": "Pattern-based textual detection of legacy SWIFT MT message-type codes (MT103, MT202, MT940, MT950) in the source. Does not verify actual message-format compliance - a qualified payments engineer should assess genuine ISO 20022 migration readiness."}
+    findings_full = findings
+    findings = findings_full[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings_full), "findings_shown": len(findings), "findings_truncated": len(findings_full) > 30, "summary": str(len(findings_full)) + " legacy SWIFT MT reference(s) found - review for ISO 20022 migration." if findings else "No legacy SWIFT MT message-type references detected in this file.", "disclaimer": "Pattern-based textual detection of legacy SWIFT MT message-type codes (MT103, MT202, MT940, MT950) in the source. Does not verify actual message-format compliance - a qualified payments engineer should assess genuine ISO 20022 migration readiness."}
 
 @app.post("/swift-iso20022-check")
 async def swift_iso20022_check_endpoint(file: UploadFile = File(...)):
@@ -9004,8 +9006,9 @@ def check_riba_flag(source, filename):
                 func_source = ast.get_source_segment(source, node) or ""
                 if _interest_pattern.search(func_source):
                     findings.append({"line": node.lineno, "issue": "RED FLAG FOR SHARIAH REVIEW (not a determination of non-compliance): This function (" + node.name + ") is named as an Islamic-banking/Shariah product but also references interest-rate-style terminology in its body. This textual co-occurrence does not itself prove Riba (interest) is present - many Islamic-finance profit-rate calculations are legitimately expressed using similar variable names - but it is exactly the kind of code a Shariah board/compliance officer should independently review.", "severity": "Medium", "evidence": node.name})
-    findings = findings[:30]
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " Islamic-finance function(s) with interest-rate-style terminology found - flagged for Shariah board review." if findings else "No interest-rate-style terminology found alongside Islamic-finance function names.", "disclaimer": "Pattern-based textual co-occurrence check only, not a Shariah-compliance ruling. This tool cannot determine whether Riba is genuinely present - only a qualified Shariah board can make that determination. Flagged functions require independent Shariah review, not automatic rejection."}
+    findings_full = findings
+    findings = findings_full[:30]
+    return {"checked": True, "findings": findings, "total_findings": len(findings_full), "findings_shown": len(findings), "findings_truncated": len(findings_full) > 30, "summary": str(len(findings_full)) + " Islamic-finance function(s) with interest-rate-style terminology found - flagged for Shariah board review." if findings else "No interest-rate-style terminology found alongside Islamic-finance function names.", "disclaimer": "Pattern-based textual co-occurrence check only, not a Shariah-compliance ruling. This tool cannot determine whether Riba is genuinely present - only a qualified Shariah board can make that determination. Flagged functions require independent Shariah review, not automatic rejection."}
 
 
 @app.post("/riba-flag-check")
@@ -9338,10 +9341,11 @@ def check_sbp_circular_reference(source, filename):
                 functions_found += 1
                 if not _circular_pattern.search(func_source):
                     findings.append({"function": node.name, "line": node.lineno, "issue": "STRUCTURAL CHECK - MISSING ELEMENT (not a regulatory compliance ruling): This SBP-compliance-enforcement function has no BPRD circular/prudential-regulation citation detected in code or comments - traceable regulatory citations help auditors verify which specific SBP requirement a control implements. No malicious pattern was found in this code - this is a recommendation to document which SBP circular/regulation this control satisfies. This tool cannot verify whether the code genuinely satisfies any specific regulation - only that a citation exists."})
-    findings = findings[:30]
+    findings_full = findings
+    findings = findings_full[:30]
     if functions_found == 0:
         return {"checked": True, "findings": [], "total_findings": 0, "summary": "No SBP-compliance-enforcement functions detected in this file.", "disclaimer": "Pattern-based structural check only - looks for BPRD-circular/regulation-citation text (including in comments) near compliance-enforcement functions. This tool cannot parse actual SBP regulatory documents or verify genuine regulatory compliance."}
-    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings), "summary": str(len(findings)) + " compliance function(s) with no SBP circular/regulation citation found.", "disclaimer": "Pattern-based structural check only - looks for BPRD-circular/regulation-citation text (including in comments) near compliance-enforcement functions. This does NOT parse or interpret actual SBP regulatory documents, and a PASS only means a citation-like string exists, not that the citation is accurate or the control genuinely satisfies that regulation. A qualified compliance officer must independently verify against current SBP circulars."}
+    return {"checked": True, "findings": findings, "functions_found": functions_found, "total_findings": len(findings_full), "findings_shown": len(findings), "findings_truncated": len(findings_full) > 30, "summary": str(len(findings_full)) + " compliance function(s) with no SBP circular/regulation citation found.", "disclaimer": "Pattern-based structural check only - looks for BPRD-circular/regulation-citation text (including in comments) near compliance-enforcement functions. This does NOT parse or interpret actual SBP regulatory documents, and a PASS only means a citation-like string exists, not that the citation is accurate or the control genuinely satisfies that regulation. A qualified compliance officer must independently verify against current SBP circulars."}
 
 
 @app.post("/sbp-circular-check")
