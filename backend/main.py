@@ -6541,9 +6541,11 @@ def scan_entropy_secrets(source, filename):
             if known_type or is_high_entropy:
                 redacted = candidate[:4] + "***REDACTED***" + candidate[-2:] if len(candidate) > 8 else "***REDACTED***"
                 findings.append({"line": i + 1, "entropy_score": round(entropy, 2), "known_pattern": known_type, "confidence": "High" if known_type else ("Medium" if entropy >= 4.5 else "Low"), "evidence": "Line " + str(i + 1) + ": " + redacted})
-    findings = findings[:30]
+    findings_full = findings
+    findings = findings_full[:30]
     high_count = sum(1 for f in findings if f["confidence"] == "High")
-    return {"scanned": True, "findings": findings, "total_findings": len(findings), "high_confidence_count": high_count, "summary": str(len(findings)) + " potential high-entropy secret(s) found - " + str(high_count) + " high-confidence.", "disclaimer": "Entropy-based scan flags random-looking strings (GitLeaks-style) that regex-only scans might miss - has more false positives (hashes, encoded data, UUIDs are also high-entropy). Always manually verify each finding."}
+    _truncated1 = len(findings_full) > 30
+    return {"scanned": True, "findings": findings, "total_findings": len(findings_full), "findings_truncated": _truncated1, "high_confidence_count": high_count, "summary": str(len(findings_full)) + " potential high-entropy secret(s) found" + (" (showing first 30)" if _truncated1 else "") + " - " + str(high_count) + " high-confidence.", "disclaimer": "Entropy-based scan flags random-looking strings (GitLeaks-style) that regex-only scans might miss - has more false positives (hashes, encoded data, UUIDs are also high-entropy). Always manually verify each finding."}
 
 @app.post("/entropy-secret-scan")
 async def entropy_secret_scan_endpoint(file: UploadFile = File(...)):
@@ -6643,9 +6645,11 @@ def scan_pci_dss_signals(source, filename):
             findings.append({"line": i + 1, "issue": "Possible unmasked full card number (PAN)", "severity": "High", "pci_requirement": "PCI-DSS Req 3.3 - PAN must be masked when displayed (max first 6 / last 4 digits visible)", "evidence": stripped[:100]})
         if re.search(r"(?i)http://[^\s\"\x27]*(?:pay|card|checkout|billing)", line):
             findings.append({"line": i + 1, "issue": "Unencrypted HTTP used for payment-related endpoint", "severity": "High", "pci_requirement": "PCI-DSS Req 4.1 - Strong cryptography (TLS) required for cardholder data transmission", "evidence": stripped[:100]})
-    findings = findings[:30]
+    findings_full = findings
+    findings = findings_full[:30]
     critical_count = sum(1 for f in findings if f["severity"] == "Critical")
-    return {"scanned": True, "findings": findings, "total_findings": len(findings), "critical_count": critical_count, "summary": str(len(findings)) + " potential PCI-DSS signal(s) found - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection only (CVV storage, unmasked PAN, unencrypted payment endpoints) - this is NOT a PCI-DSS compliance certification or formal assessment. A Qualified Security Assessor (QSA) must perform the actual PCI-DSS audit. False positives/negatives are possible."}
+    _truncated2 = len(findings_full) > 30
+    return {"scanned": True, "findings": findings, "total_findings": len(findings_full), "findings_truncated": _truncated2, "critical_count": critical_count, "summary": str(len(findings_full)) + " potential PCI-DSS signal(s) found" + (" (showing first 30)" if _truncated2 else "") + " - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection only (CVV storage, unmasked PAN, unencrypted payment endpoints) - this is NOT a PCI-DSS compliance certification or formal assessment. A Qualified Security Assessor (QSA) must perform the actual PCI-DSS audit. False positives/negatives are possible."}
 
 @app.post("/pci-dss-scan")
 async def pci_dss_scan_endpoint(file: UploadFile = File(...)):
