@@ -2955,6 +2955,7 @@ def login_user(email, password):
             _since_last = _now - _attempts[-1]
             if _since_last < _required_wait:
                 return {"success": False, "error": f"Please wait {round(_required_wait - _since_last)} more second(s) before trying again."}
+        _failed_login_attempts[email] = _attempts + [_now]
     conn = _get_db_connection()
     if not conn:
         return {"success": False, "error": "Database not available - cannot log in right now"}
@@ -2970,15 +2971,9 @@ def login_user(email, password):
         row = cur.fetchone()
         if not row:
             _verify_password(password, _DUMMY_HASH_FOR_TIMING)
-            with _login_attempts_lock:
-                _attempts.append(_now)
-                _failed_login_attempts[email] = _attempts
             write_audit_log("login-failed", email, "invalid credentials")
             return {"success": False, "error": "Invalid email or password"}
         if not _verify_password(password, row[1]):
-            with _login_attempts_lock:
-                _attempts.append(_now)
-                _failed_login_attempts[email] = _attempts
             write_audit_log("login-failed", email, "invalid credentials")
             return {"success": False, "error": "Invalid email or password"}
         with _login_attempts_lock:
