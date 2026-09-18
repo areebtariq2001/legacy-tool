@@ -1609,6 +1609,8 @@ def analyze_call_graph(source):
         "entry_points": entry_points,
         "total_functions": len(defined_functions),
         "high_centrality_functions": _high_centrality[:10],
+        "total_high_centrality_functions": len(_high_centrality),
+        "high_centrality_truncated": len(_high_centrality) > 10,
         "centrality_disclaimer": "Centrality is counted within this single file's call graph only (how many other functions in the same file call into each function), not across the whole codebase. A high count means a function has many internal callers, so changes to it carry wider blast-radius risk within this file."
     }
 
@@ -6785,8 +6787,10 @@ def check_data_localization(source, filename):
         for pattern, label in _foreign_region_patterns:
             if re.search(pattern, line):
                 findings.append({"line": i + 1, "issue": "Foreign cloud region reference detected (" + label + ")", "severity": "High", "evidence": line.strip()[:100], "note": "If this code stores or processes Pakistani customer data, verify this complies with SBP data localization requirements."})
-    findings = findings[:30]
-    return {"checked": True, "findings": findings, "total_findings": len(findings), "summary": str(len(findings)) + " potential foreign-region reference(s) found.", "disclaimer": "Pattern-based detection of cloud-provider region identifiers (AWS/Azure/GCP) that are outside Pakistan - Pakistan currently has no major public-cloud region, so any cloud region reference should be reviewed against your institution actual SBP data localization obligations. This does NOT determine actual data residency (data may be encrypted, anonymized, or exempt) - a compliance officer must make the final determination."}
+    findings_full = findings
+    findings = findings_full[:30]
+    _truncated_dl = len(findings_full) > 30
+    return {"checked": True, "findings": findings, "total_findings": len(findings_full), "findings_truncated": _truncated_dl, "summary": str(len(findings_full)) + " potential foreign-region reference(s) found" + (" (showing first 30)" if _truncated_dl else "") + ".", "disclaimer": "Pattern-based detection of cloud-provider region identifiers (AWS/Azure/GCP) that are outside Pakistan - Pakistan currently has no major public-cloud region, so any cloud region reference should be reviewed against your institution actual SBP data localization obligations. This does NOT determine actual data residency (data may be encrypted, anonymized, or exempt) - a compliance officer must make the final determination."}
 
 @app.post("/data-localization-check")
 async def data_localization_check_endpoint(file: UploadFile = File(...)):
@@ -7092,9 +7096,11 @@ def scan_jwt_oauth_security(source, filename):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret key", "severity": "High", "evidence": stripped[:100]})
         if re.search(r"(?i)\bjwt\w*(secret|key)\w*\s*=\s*[\"\x27][^\"\x27]{4,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret/key in a standalone variable assignment (not yet used in jwt.encode/decode, but hardcoding it here is still a risk once it is used)", "severity": "High", "evidence": stripped[:100]})
-    findings = findings[:30]
-    critical_count = sum(1 for f in findings if f["severity"] == "Critical")
-    return {"scanned": True, "findings": findings, "total_findings": len(findings), "critical_count": critical_count, "summary": str(len(findings)) + " potential JWT/OAuth security issue(s) found - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection for common JWT/OAuth misconfigurations (disabled signature verification, none algorithm, hardcoded secrets). Not a comprehensive API security audit - a qualified security engineer should review authentication flows in full."}
+    findings_full = findings
+    findings = findings_full[:30]
+    critical_count = sum(1 for f in findings_full if f["severity"] == "Critical")
+    _truncated_jwt = len(findings_full) > 30
+    return {"scanned": True, "findings": findings, "total_findings": len(findings_full), "findings_truncated": _truncated_jwt, "critical_count": critical_count, "summary": str(len(findings_full)) + " potential JWT/OAuth security issue(s) found" + (" (showing first 30)" if _truncated_jwt else "") + " - " + str(critical_count) + " critical.", "disclaimer": "Pattern-based technical signal detection for common JWT/OAuth misconfigurations (disabled signature verification, none algorithm, hardcoded secrets). Not a comprehensive API security audit - a qualified security engineer should review authentication flows in full."}
 
 @app.post("/jwt-oauth-security-scan")
 async def jwt_oauth_security_scan_endpoint(file: UploadFile = File(...)):
