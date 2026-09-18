@@ -25,6 +25,7 @@ except Exception:
 
 _rate_limit_store = {}
 import time
+import urllib.parse
 
 _security_log = []
 _security_log_lock = threading.Lock()
@@ -40,8 +41,8 @@ _ENDPOINT_SPECIFIC_LIMITS = {
     "/ai-migrate": (5, 60),
     "/scan-sensitive": (10, 60),
     "/generate-tests": (5, 60),
-    "/login": (5, 300),
-    "/register": (3, 300),
+    "/auth/login": (5, 300),
+    "/auth/register": (3, 300),
 }
 
 
