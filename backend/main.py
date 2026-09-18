@@ -143,22 +143,26 @@ _WAF_HEADER_PATTERNS = [
 ]
 
 
+_rate_limit_lock = threading.Lock()
+
+
 def _check_rate_limit(ip, max_requests=60, window_seconds=60):
     now = time.time()
-    entry = _rate_limit_store.get(ip, [])
-    entry = [t for t in entry if now - t < window_seconds]
-    if len(entry) >= max_requests:
+    with _rate_limit_lock:
+        entry = _rate_limit_store.get(ip, [])
+        entry = [t for t in entry if now - t < window_seconds]
+        if len(entry) >= max_requests:
+            _rate_limit_store[ip] = entry
+            _record_security_event("rate_limit_violation", ip, f"exceeded {max_requests} requests per {window_seconds}s")
+            return False
+        entry.append(now)
         _rate_limit_store[ip] = entry
-        _record_security_event("rate_limit_violation", ip, f"exceeded {max_requests} requests per {window_seconds}s")
-        return False
-    entry.append(now)
-    _rate_limit_store[ip] = entry
-    if len(_rate_limit_store) > 5000:
-        _cutoff = now - window_seconds
-        for _k in list(_rate_limit_store.keys()):
-            if not _rate_limit_store[_k] or max(_rate_limit_store[_k]) < _cutoff:
-                del _rate_limit_store[_k]
-    return True
+        if len(_rate_limit_store) > 5000:
+            _cutoff = now - window_seconds
+            for _k in list(_rate_limit_store.keys()):
+                if not _rate_limit_store[_k] or max(_rate_limit_store[_k]) < _cutoff:
+                    del _rate_limit_store[_k]
+        return True
 
 def _get_client_ip(request):
     # Security note: X-Forwarded-For is NOT used here for rate-limiting/security purposes.
