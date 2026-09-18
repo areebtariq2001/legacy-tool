@@ -3804,6 +3804,7 @@ async def scan_repo_endpoint(req: RepoRequest):
         py_files = [f for f in tree if f.get("path", "").lower().endswith(_lang_exts) and f.get("type") == "blob"]
         if not py_files:
             return JSONResponse(status_code=400, content={"error": "No supported files (.py, .java, .php, .cbl) found in this repo.", "repo": owner + "/" + repo})
+        py_files_full_count = len(py_files)
         py_files = py_files[:25]  # limit for free server
         file_reports = []
         skipped_files = []
@@ -3895,7 +3896,8 @@ async def scan_repo_endpoint(req: RepoRequest):
         result = {
             "repo": owner + "/" + repo,
             "files_scanned": len(file_reports),
-            "total_files_found": len(py_files),
+            "total_files_found": py_files_full_count,
+    "files_analyzed_this_scan": len(py_files),
             "skipped_files_count": len(skipped_files),
             "skipped_files": skipped_files,
             "total_issues": total_issues,
@@ -6584,14 +6586,16 @@ def parse_dependency_file(content_text, filename):
                 libs.extend((data.get(section) or {}).keys())
         except Exception:
             pass
-    return libs[:10]
+    return libs
 
 def scan_dependency_file_vulnerabilities(content_text, filename):
     if len(content_text.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "libraries": [], "summary": "File too large."}
-    libs = parse_dependency_file(content_text, filename)
-    if not libs:
+    libs_full = parse_dependency_file(content_text, filename)
+    if not libs_full:
         return {"checked": True, "libraries": [], "summary": "No recognizable dependencies found. Supported files: requirements.txt, package.json.", "disclaimer": "Checks NIST NVD for CVEs matching each parsed dependency name - limited to the first 10 entries to respect NVD rate limits."}
+    libs = libs_full[:10]
+    _dep_truncated = len(libs_full) > 10
     results = []
     for lib in libs:
         try:
@@ -6615,7 +6619,7 @@ def scan_dependency_file_vulnerabilities(content_text, filename):
                 results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup unavailable (status " + str(r.status_code) + ")"})
         except Exception as e:
             results.append({"library": lib, "total_matches": 0, "top_cves": [], "note": "NVD lookup failed: " + str(e)})
-    return {"checked": True, "libraries": results, "summary": str(len(libs)) + " dependenc" + ("y" if len(libs) == 1 else "ies") + " checked against NIST NVD.", "disclaimer": "Checks NIST NVD for CVEs matching each parsed dependency name by keyword - limited to the first 10 entries to respect NVD rate limits (no API key configured). Keyword matching may include false positives - always verify against actual CVE details and installed version before acting."}
+    return {"checked": True, "libraries": results, "total_dependencies_found": len(libs_full), "dependencies_checked_this_scan": len(libs), "dependencies_truncated": _dep_truncated, "summary": str(len(libs_full)) + " total dependenc" + ("y" if len(libs_full) == 1 else "ies") + " found" + (", checking first " + str(len(libs)) if _dep_truncated else "") + " against NIST NVD.", "disclaimer": "Checks NIST NVD for CVEs matching each parsed dependency name by keyword - limited to the first 10 entries to respect NVD rate limits (no API key configured). Keyword matching may include false positives - always verify against actual CVE details and installed version before acting."}
 
 @app.post("/dependency-file-scan")
 async def dependency_file_scan_endpoint(file: UploadFile = File(...)):
