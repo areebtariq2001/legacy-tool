@@ -500,7 +500,7 @@ def sanitize_ai_output(text):
     text = re.sub(r"<script[^>]*>.*?</script>", "[removed: script tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<iframe[^>]*>.*?</iframe>", "[removed: iframe tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<(object|embed)[^>]*>.*?</\1>", "[removed: embedded object]", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'on\w+\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
+    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
     text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
     return text
 
