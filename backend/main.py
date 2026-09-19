@@ -1416,7 +1416,7 @@ def ai_advanced_migrate(source, language):
     result = call_ai_provider(prompt, max_tokens=2000)
     if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
         rule_result = migrate_code(source) if language == "python" else (migrate_java(source) if language == "java" else {"migrated_code": source})
-        fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
+        fallback_output = {"migrated_code": rule_result["migrated_code"], "ai_powered": False, "valid": True, "validation_message": "AI service unavailable - used rule-based migration instead.", "verified": True, "verify_message": "Rule-based fallback used due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 40, "confidence_level": "Low confidence - AI failed, rule-based fallback used, manual review required", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source)}
         try:
             fallback_output.update(compare_complexity(source, rule_result["migrated_code"]))
         except Exception as e:
@@ -1453,8 +1453,8 @@ def ai_advanced_migrate(source, language):
                 output["verify_message"] = "Code compiles successfully (rule-based fallback used)."
                 output["vars_ok"] = True
                 output["var_message"] = "Rule-based migration preserves all names."
-                output["confidence_score"] = 95
-                output["confidence_level"] = "High confidence"
+                output["confidence_score"] = 40
+                output["confidence_level"] = "Low confidence - AI failed, rule-based fallback used, manual review required"
                 output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
                 output["fallback_used"] = True
         try:
@@ -1482,8 +1482,8 @@ def ai_advanced_migrate(source, language):
                 output["validation_message"] = "Output is valid Java syntax."
                 output["vars_ok"] = True
                 output["var_message"] = "Rule-based migration preserves all names."
-                output["confidence_score"] = 95
-                output["confidence_level"] = "High confidence"
+                output["confidence_score"] = 40
+                output["confidence_level"] = "Low confidence - AI failed, rule-based fallback used, manual review required"
                 output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
                 output["fallback_used"] = True
         output["note_java"] = "Java guardrails use syntax-level (AST) verification. Compile-level verification requires a full JDK and is planned for on-premise deployment."
@@ -2842,10 +2842,17 @@ def _verify_password(password, stored_hash):
 
 _DUMMY_HASH_FOR_TIMING = "0" * 32 + "$600000$" + hashlib.pbkdf2_hmac("sha256", b"dummy_password_for_timing", ("0" * 32).encode("utf-8"), 600000).hex()
 
+_users_table_initialized = False
+
+
 def _create_users_table_if_needed(cur):
+    global _users_table_initialized
+    if _users_table_initialized:
+        return
     cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TEXT)")
     cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, email TEXT, created_at TEXT, expires_at TEXT)")
     cur.execute("CREATE TABLE IF NOT EXISTS analyzed_files (id SERIAL PRIMARY KEY, filename TEXT, term_freq_json TEXT, source_excerpt TEXT, created_at TEXT)")
+    _users_table_initialized = True
 
 
 def _extract_term_frequencies(source, max_terms=100):
