@@ -3819,6 +3819,10 @@ class RepoRequest(BaseModel):
 
 @app.post("/scan-repo")
 async def scan_repo_endpoint(req: RepoRequest):
+    return await run_in_threadpool(_scan_repo_blocking, req)
+
+
+def _scan_repo_blocking(req: RepoRequest):
     try:
         url = req.repo_url.strip().rstrip("/")
         if not re.match(r"^https://github\.com/[\w\-\.]+/[\w\-\.]+$", url):
