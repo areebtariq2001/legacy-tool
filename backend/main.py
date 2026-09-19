@@ -6410,7 +6410,7 @@ async def traceability_query_endpoint(payload: TraceabilityQueryRequest):
 ---END QUESTION---
 
 Trace which specific function(s), condition(s), and line(s) in the source code above would be triggered by the scenario in the question. Be concrete - name actual function names and reference the specific if/elif conditions involved. If the code above does not contain logic relevant to this question, say so honestly rather than guessing. Keep your answer to 4-6 sentences.'''
-        result = call_ai_provider(prompt, max_tokens=600)
+        result = await run_in_threadpool(call_ai_provider, prompt, 600)
         if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
             return JSONResponse(status_code=400, content={"error": f"Traceability query failed: {result}"})
         track_usage("traceability-query", payload.filename or "unspecified")
@@ -10152,7 +10152,7 @@ async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
         issue_title = (payload.issue_title or "")[:500]
         issue_body = (payload.issue_body or "")[:10000]
         source = (payload.source or "")[:10000]
-        result = suggest_github_issue_fix(issue_title, issue_body, source)
+        result = await run_in_threadpool(suggest_github_issue_fix, issue_title, issue_body, source)
         track_usage("github-issue-fix", f"issue-{len(issue_title)}-chars")
         write_audit_log("github-issue-fix", f"issue-{len(issue_title)}-chars", "suggested")
         return result
