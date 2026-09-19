@@ -3018,7 +3018,8 @@ def login_user(email, password, ip="unknown"):
         write_audit_log("login", email, "success")
         return {"success": True, "token": token, "email": email}
     except Exception as e:
-        return {"success": False, "error": f"Login failed: {e}"}
+        write_audit_log("login-error", email, str(e))
+        return {"success": False, "error": "Login failed - please try again shortly"}
     finally:
         if cur:
             cur.close()
