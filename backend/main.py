@@ -992,7 +992,7 @@ def deep_verify_python(code):
     try:
         ast.parse(code)
     except SyntaxError as e:
-        return {"verified": False, "verify_message": f"Compilation failed: syntax error on line {e.lineno}. Code is not execution-ready."}
+        return {"verified": False, "verify_message": f"Syntax error on line {e.lineno} - code will not run. This checks syntax validity only, not runtime correctness (undefined names, missing imports, or logic errors are not detected)."}
     try:
         compile(code, "<migrated>", "exec")
     except Exception as e:
@@ -2918,7 +2918,7 @@ def find_similar_files(source, limit=3, exclude_filename=None):
                 continue
             _score = _cosine_similarity_termfreq(_query_freq, _tf)
             if _score > 0.1:
-                _scored.append({"filename": _fname, "similarity": round(_score, 3), "excerpt": _excerpt})
+                _scored.append({"filename": _fname, "similarity": round(_score, 3), "excerpt": _excerpt, "note": "Matched against all files previously analyzed by any user of this tool, not just your own uploads."})
         _scored.sort(key=lambda x: -x["similarity"])
         return _scored[:limit]
     except Exception:
@@ -5316,7 +5316,7 @@ async def db_debug_endpoint(request: Request):
         conn.close()
     return {"connected": _is_connected, "last_error": _LAST_DB_ERROR}
 
-def save_approval_decision(filename, decision, reviewer_notes, action_type):
+def save_approval_decision(filename, decision, reviewer_notes, action_type, approved_by=None):
     _allowed_decisions = {"approved", "rejected", "modified", "Approved", "Rejected", "Modified"}
     if decision not in _allowed_decisions:
         return {"log_saved": False, "error": "Invalid decision: " + str(decision), "filename": filename}
@@ -5329,7 +5329,8 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type):
         try:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
-            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp) VALUES (%s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"]))
+            cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
+            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp, approved_by) VALUES (%s, %s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"], approved_by or "anonymous"))
             conn.commit()
             entry["log_saved"] = True
             return entry
@@ -5435,7 +5436,7 @@ async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, 
     if req is not None:
         filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
     try:
-        result = save_approval_decision(filename, decision, reviewer_notes, action_type)
+        result = save_approval_decision(filename, decision, reviewer_notes, action_type, approved_by=_user_email)
         result["approved_by"] = _user_email
         return result
     except Exception as e:
