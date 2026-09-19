@@ -397,11 +397,13 @@ class StarBuildBlockchain:
 audit_blockchain = StarBuildBlockchain()
 
 
-def write_audit_log(action, filename, result_summary):
+def write_audit_log(action, filename, result_summary, user_email=None, ip=None):
     global _audit_log_failure_count
     result_summary = safe_log_message(result_summary)
+    _user_email = user_email or "anonymous"
+    _ip = ip or "unknown"
     try:
-        audit_blockchain.add_block(action, filename, "anonymous", "unknown", result_summary)
+        audit_blockchain.add_block(action, filename, _user_email, _ip, result_summary)
     except Exception:
         pass
     try:
@@ -411,7 +413,9 @@ def write_audit_log(action, filename, result_summary):
             cur = None
             try:
                 cur = conn.cursor()
-                cur.execute("INSERT INTO usage_log (action, filename, result_summary) VALUES (%s, %s, %s)", (action, filename, result_summary))
+                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
+                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
+                cur.execute("INSERT INTO usage_log (action, filename, result_summary, user_email, ip) VALUES (%s, %s, %s, %s, %s)", (action, filename, result_summary, _user_email, _ip))
                 conn.commit()
                 return
             except Exception:
@@ -421,7 +425,7 @@ def write_audit_log(action, filename, result_summary):
                     cur.close()
                 conn.close()
         with _stats_lock:
-            _in_memory_audit_log.insert(0, {"timestamp": timestamp, "action": action, "file": filename, "result": result_summary})
+            _in_memory_audit_log.insert(0, {"timestamp": timestamp, "action": action, "file": filename, "result": result_summary, "user_email": _user_email, "ip": _ip})
             del _in_memory_audit_log[50:]
     except Exception:
         _audit_log_failure_count += 1
@@ -3216,7 +3220,7 @@ async def issue_migration_certificate_endpoint(request: Request):
             filename=_filename, original_hash=_original_hash, migrated_hash=_migrated_hash,
             confidence=100 if _approved else 0, reviewer_email=_reviewer_email, approved=_approved
         )
-        write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}")
+        write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}", user_email=_reviewer_email)
         return cert
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Certificate issuance failed: {str(e)}"})
