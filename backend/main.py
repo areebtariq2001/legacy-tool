@@ -26,6 +26,7 @@ except Exception:
 _rate_limit_store = {}
 import time
 import urllib.parse
+from starlette.concurrency import run_in_threadpool
 
 _security_log = []
 _security_log_lock = threading.Lock()
@@ -2537,7 +2538,7 @@ async def ai_migrate_endpoint(file: UploadFile = File(...)):
         _ai_lang = detect_language(file.filename)
         if _ai_lang == "unknown":
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Unsupported file type for AI migration"})
-        result = ai_advanced_migrate(source, _ai_lang)
+        result = await run_in_threadpool(ai_advanced_migrate, source, _ai_lang)
         if _ai_lang == "python" and result.get("migrated_code"):
             try:
                 result.update(check_parity(source, result.get("migrated_code", "")))
