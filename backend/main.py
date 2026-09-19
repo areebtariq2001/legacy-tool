@@ -5398,7 +5398,7 @@ class AuthRequest(BaseModel):
 
 @app.post("/auth/register")
 async def auth_register_endpoint(req: AuthRequest):
-    result = register_user(req.email, req.password)
+    result = await run_in_threadpool(register_user, req.email, req.password)
     if not result.get("success"):
         return JSONResponse(status_code=400, content=result)
     return result
@@ -5427,7 +5427,7 @@ async def auth_logout_endpoint(request: Request):
 
 @app.post("/auth/login")
 async def auth_login_endpoint(req: AuthRequest, request: Request):
-    result = login_user(req.email, req.password, ip=_get_client_ip(request))
+    result = await run_in_threadpool(login_user, req.email, req.password, ip=_get_client_ip(request))
     if not result.get("success"):
         return JSONResponse(status_code=401, content=result)
     return result
@@ -5440,13 +5440,13 @@ class ApprovalRequest(BaseModel):
 
 @app.post("/save-approval")
 async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
-    _user_email = _check_user_auth(request)
+    _user_email = await run_in_threadpool(_check_user_auth, request)
     if not _user_email:
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to approve or reject migrations"})
     if req is not None:
         filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
     try:
-        result = save_approval_decision(filename, decision, reviewer_notes, action_type, approved_by=_user_email)
+        result = await run_in_threadpool(save_approval_decision, filename, decision, reviewer_notes, action_type, approved_by=_user_email)
         result["approved_by"] = _user_email
         return result
     except Exception as e:
