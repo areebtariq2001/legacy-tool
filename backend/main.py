@@ -253,7 +253,7 @@ async def cors_handler(request: Request, call_next):
                 headers={"Access-Control-Allow-Origin": allow_origin}
             )
     _path = request.url.path
-    _endpoint_identifier = ("token:" + _session_token) if _session_token else ("ip:" + client_ip)
+    _endpoint_identifier = "ip:" + client_ip  # always IP-based: an unvalidated client-supplied session-token would let an attacker bypass this limit simply by rotating the header value on each request
     if not _check_endpoint_specific_limit(_path, _endpoint_identifier):
         return JSONResponse(
             content={"error": "Rate limit exceeded for this specific action. Please slow down and try again shortly."},
@@ -709,7 +709,7 @@ DEBT_RULES = [
     (r'\bexcept\s+\w+\s*,', "old except syntax", 10),
     (r'\burllib2\b', "urllib2 (network)", 20),
     (r'\bcPickle\b', "cPickle", 10),
-    (r'\bStringIO\b', "StringIO", 10),
+    (r'(?:^|\n)\s*(?:import\s+StringIO\b|from\s+StringIO\s+import)', "StringIO (standalone module)", 10),
     (r'\bMySQLdb\b', "MySQLdb (database)", 60),
     (r'\bcommands\b', "commands module", 15),
     (r'\bxmlrpclib\b', "xmlrpclib", 20),
