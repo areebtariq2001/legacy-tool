@@ -2961,24 +2961,25 @@ def register_user(email, password):
 _failed_login_attempts = {}
 _login_attempts_lock = threading.Lock()
 
-def login_user(email, password):
+def login_user(email, password, ip="unknown"):
     email = (email or "").strip().lower()
     _now = time.time()
+    _lockout_key = email + "|" + ip
     with _login_attempts_lock:
         if len(_failed_login_attempts) > 5000:
-            _stale = [e for e, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
-            for e in _stale:
-                _failed_login_attempts.pop(e, None)
-        _attempts = [t for t in _failed_login_attempts.get(email, []) if _now - t < 900]
+            _stale = [k for k, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
+            for k in _stale:
+                _failed_login_attempts.pop(k, None)
+        _attempts = [t for t in _failed_login_attempts.get(_lockout_key, []) if _now - t < 900]
         _attempt_count = len(_attempts)
         if _attempt_count >= 5:
-            return {"success": False, "error": "Too many failed login attempts for this account. Please try again in 15 minutes."}
+            return {"success": False, "error": "Too many failed login attempts. Please try again in 15 minutes."}
         if _attempt_count > 0:
             _required_wait = {1: 2, 2: 5, 3: 15, 4: 60}.get(_attempt_count, 0)
             _since_last = _now - _attempts[-1]
             if _since_last < _required_wait:
                 return {"success": False, "error": f"Please wait {round(_required_wait - _since_last)} more second(s) before trying again."}
-        _failed_login_attempts[email] = _attempts + [_now]
+        _failed_login_attempts[_lockout_key] = _attempts + [_now]
     conn = _get_db_connection()
     if not conn:
         return {"success": False, "error": "Database not available - cannot log in right now"}
@@ -3000,7 +3001,7 @@ def login_user(email, password):
             write_audit_log("login-failed", email, "invalid credentials")
             return {"success": False, "error": "Invalid email or password"}
         with _login_attempts_lock:
-            _failed_login_attempts.pop(email, None)
+            _failed_login_attempts.pop(_lockout_key, None)
         user_id = row[0]
         token = secrets.token_urlsafe(32)
         now = datetime.now()
@@ -5416,8 +5417,8 @@ async def auth_logout_endpoint(request: Request):
         conn.close()
 
 @app.post("/auth/login")
-async def auth_login_endpoint(req: AuthRequest):
-    result = login_user(req.email, req.password)
+async def auth_login_endpoint(req: AuthRequest, request: Request):
+    result = login_user(req.email, req.password, ip=_get_client_ip(request))
     if not result.get("success"):
         return JSONResponse(status_code=401, content=result)
     return result
