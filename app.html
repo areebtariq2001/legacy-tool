@@ -1347,7 +1347,7 @@ async function runAnalysis() {
   pipeRun('migrate', 'Running ' + (mode === 'ai' ? 'AI' : 'rule-based') + ' migration…');
   const t2 = Date.now();
   try {
-    const langEp = { python: mode==='ai'?'/ai-migrate':'/migrate', java: '/migrate-java', php: '/migrate-php', cobol: '/migrate-cobol' };
+    const langEp = { python: mode==='ai'?'/ai-migrate':'/migrate', java: mode==='ai'?'/ai-migrate':'/migrate-java', php: mode==='ai'?'/ai-migrate':'/migrate-php', cobol: mode==='ai'?'/ai-migrate':'/migrate-cobol' };
     const ep = langEp[lang] || '/migrate';
     const fd2 = new FormData(); fd2.append('file', files[0]);
     const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
