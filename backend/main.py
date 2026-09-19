@@ -2807,21 +2807,30 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Test generation failed safely: {e}"})
 
-def _hash_password(password, salt=None):
+def _hash_password(password, salt=None, iterations=600000):
     if salt is None:
         salt = secrets.token_hex(16)
-    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200000).hex()
-    return salt + "$" + pwd_hash
+    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations).hex()
+    return salt + "$" + str(iterations) + "$" + pwd_hash
 
 def _verify_password(password, stored_hash):
     try:
-        salt, _ = stored_hash.split("$", 1)
+        parts = stored_hash.split("$")
+        if len(parts) == 3:
+            salt, iterations_str, expected_hash = parts
+            iterations = int(iterations_str)
+        elif len(parts) == 2:
+            salt, expected_hash = parts
+            iterations = 200000  # legacy format from before the iteration count was stored - preserved for backward compatibility with existing password hashes
+        else:
+            return False
     except Exception:
         return False
-    return hmac.compare_digest(_hash_password(password, salt), stored_hash)
+    computed_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations).hex()
+    return hmac.compare_digest(computed_hash, expected_hash)
 
 
-_DUMMY_HASH_FOR_TIMING = "0" * 32 + "$" + hashlib.pbkdf2_hmac("sha256", b"dummy_password_for_timing", ("0" * 32).encode("utf-8"), 200000).hex()
+_DUMMY_HASH_FOR_TIMING = "0" * 32 + "$600000$" + hashlib.pbkdf2_hmac("sha256", b"dummy_password_for_timing", ("0" * 32).encode("utf-8"), 600000).hex()
 
 def _create_users_table_if_needed(cur):
     cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TEXT)")
