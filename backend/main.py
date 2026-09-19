@@ -2779,7 +2779,7 @@ async def ai_suggest_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = ai_suggest(source, detect_language(file.filename))
+        result = await run_in_threadpool(ai_suggest, source, detect_language(file.filename))
         result["filename"] = file.filename
         track_usage("ai-suggest", file.filename)
         write_audit_log("ai-suggest", file.filename, "ok")
@@ -2794,7 +2794,7 @@ async def explain_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = ai_explain(source, detect_language(file.filename))
+        result = await run_in_threadpool(ai_explain, source, detect_language(file.filename))
         result["filename"] = file.filename
         track_usage("explain", file.filename)
         write_audit_log("explain", file.filename, "ok")
@@ -2810,7 +2810,7 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         _gt_lang = detect_language(file.filename)
-        result = ai_generate_tests(source, _gt_lang)
+        result = await run_in_threadpool(ai_generate_tests, source, _gt_lang)
         result["filename"] = file.filename
         track_usage("generate-tests", file.filename)
         write_audit_log("generate-tests", file.filename, f"lang={_gt_lang}")
