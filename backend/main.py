@@ -2630,7 +2630,7 @@ async def generate_docs_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = generate_documentation(source, file.filename)
+        result = await run_in_threadpool(generate_documentation, source, file.filename)
         track_usage("generate-docs", file.filename)
         write_audit_log("generate-docs", file.filename, "doc generated")
         return result
@@ -3149,7 +3149,7 @@ async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         language = detect_language(file.filename)
-        result = verify_ai_output_consistency(source, language)
+        result = await run_in_threadpool(verify_ai_output_consistency, source, language)
         result["filename"] = file.filename
         track_usage("ai-consistency-check", file.filename)
         write_audit_log("ai-consistency-check", file.filename, "checked")
