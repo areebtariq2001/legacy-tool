@@ -3022,6 +3022,9 @@ def _check_user_auth(request: Request):
             cur.close()
         conn.close()
 
+_CERT_SIGNING_KEY = os.environ.get("CERTIFICATE_SIGNING_KEY", "") or secrets.token_hex(32)
+
+
 def _check_admin_auth(request: Request):
     required_key = os.environ.get("ADMIN_API_KEY", "")
     if not required_key:
@@ -3148,7 +3151,7 @@ class MigrationCertificate:
                 "chain_hash_at_issuance": audit_blockchain.chain[-1].hash,
             }
             cert_data = json.dumps(certificate, sort_keys=True)
-            certificate["certificate_signature"] = hashlib.sha256(cert_data.encode()).hexdigest()
+            certificate["certificate_signature"] = hmac.new(_CERT_SIGNING_KEY.encode(), cert_data.encode(), hashlib.sha256).hexdigest()
             self.certificates[certificate["certificate_id"]] = certificate
             try:
                 audit_blockchain.add_block(
@@ -3167,7 +3170,7 @@ class MigrationCertificate:
             return {"valid": False, "reason": "Certificate not found"}
         cert = dict(cert)
         signature = cert.pop("certificate_signature", "")
-        expected = hashlib.sha256(json.dumps(cert, sort_keys=True).encode()).hexdigest()
+        expected = hmac.new(_CERT_SIGNING_KEY.encode(), json.dumps(cert, sort_keys=True).encode(), hashlib.sha256).hexdigest()
         cert["certificate_signature"] = signature
         if not hmac.compare_digest(signature, expected):
             return {"valid": False, "reason": "Certificate tampered!"}
@@ -3185,6 +3188,9 @@ cert_manager = MigrationCertificate()
 @app.post("/issue-migration-certificate")
 async def issue_migration_certificate_endpoint(request: Request):
     try:
+        _reviewer_email = _check_user_auth(request)
+        if not _reviewer_email:
+            return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to issue a migration certificate"})
         _body = await request.json()
         _filename = str(_body.get("filename", "unknown"))[:500]
         _reviewer_notes = str(_body.get("reviewer_notes", ""))[:5000]
@@ -3194,7 +3200,7 @@ async def issue_migration_certificate_endpoint(request: Request):
         _approved = _decision.strip().lower() == "approved"
         cert = cert_manager.issue(
             filename=_filename, original_hash=_original_hash, migrated_hash=_migrated_hash,
-            confidence=100 if _approved else 0, reviewer_email="reviewer", approved=_approved
+            confidence=100 if _approved else 0, reviewer_email=_reviewer_email, approved=_approved
         )
         write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}")
         return cert
