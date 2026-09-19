@@ -100,7 +100,13 @@ def _record_security_event(event_type, ip, detail):
 def _verify_security_log_integrity():
     with _security_log_lock:
         _chronological = list(reversed(_security_log))
-        _expected_prev = "0" * 64
+        # The log is capped at 200 entries (del _security_log[200:]) to bound memory,
+        # so after more than 200 events the oldest surviving entry's own prev_hash
+        # legitimately points to an older, now-discarded entry rather than the
+        # genesis "0"*64 value. Seed verification from that entry's own prev_hash
+        # instead of assuming "0"*64, so integrity is checked over the retained
+        # window rather than falsely flagging normal log rotation as tampering.
+        _expected_prev = _chronological[0]["prev_hash"] if _chronological else "0" * 64
         for _entry in _chronological:
             _recomputed_content = f"{_entry['timestamp']}|{_entry['type']}|{_entry['ip']}|{_entry['detail']}|{_expected_prev}"
             _recomputed_hash = hashlib.sha256(_recomputed_content.encode("utf-8")).hexdigest()
@@ -3920,7 +3926,7 @@ async def scan_repo_endpoint(req: RepoRequest):
             "file_dependencies_note": "Static, same-repo local-import relationships only (regex-based on import statements, no code execution). Does not resolve dynamic imports, aliasing, or cross-package structures.",
             "repo_business_domains": {k: _repo_rule_categories.count(k) for k in set(_repo_rule_categories)} if _repo_rule_categories else {},
             "repo_business_domains_note": "Aggregate count of business-rule categories detected across all scanned files in this repo (pattern-based, same detection used for single-file analysis).",
-            "disclaimer": "Scans Python files from a public GitHub repo within a 3-minute processing budget (free-tier limit, roughly 40-50 typical files). Each file is risk-assessed. Only Python files are currently supported - Java/PHP/COBOL repo-scanning is not yet available. For full/large repos, a paid server and deeper analysis are planned."
+            "disclaimer": "Scans Python files from a public GitHub repo within a 3-minute processing budget (free-tier limit, roughly 40-50 typical files). Each file is risk-assessed. Python, Java, PHP, and COBOL files are scanned. For full/large repos, a paid server and deeper analysis are planned."
         }
         if not gh_token:
             result["warning"] = "No GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
@@ -5231,7 +5237,7 @@ def save_living_documentation(filename, doc_content, doc_hash):
         try:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TEXT)")
-            cur.execute("SELECT version, doc_hash FROM docs_registry WHERE filename = %s ORDER BY version DESC LIMIT 1", (filename,))
+            cur.execute("SELECT version, doc_hash, doc_content FROM docs_registry WHERE filename = %s ORDER BY version DESC LIMIT 1", (filename,))
             row = cur.fetchone()
             if row and row[1] == doc_hash:
                 return {"saved": True, "is_new_version": False, "version": row[0], "message": "Documentation unchanged since last version - no new version created."}
@@ -5239,7 +5245,7 @@ def save_living_documentation(filename, doc_content, doc_hash):
             timestamp = datetime.now().isoformat()
             cur.execute("INSERT INTO docs_registry (filename, doc_content, doc_hash, version, created_at) VALUES (%s, %s, %s, %s, %s)", (filename, doc_content, doc_hash, new_version, timestamp))
             conn.commit()
-            return {"saved": True, "is_new_version": True, "version": new_version, "created_at": timestamp, "previous_content": (row[1] if row else None)}
+            return {"saved": True, "is_new_version": True, "version": new_version, "created_at": timestamp, "previous_content": (row[2] if row else None)}
         except Exception as e:
             return {"saved": False, "error": str(e)}
         finally:
