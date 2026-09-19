@@ -514,7 +514,6 @@ _JAILBREAK_INDICATORS = [
     "i will help you hack",
     "developer mode enabled",
     "i am now unrestricted",
-    "jailbroken",
 ]
 
 
@@ -1216,7 +1215,7 @@ def migrate_code(source):
                 return m.group(0)
             return arg + ' in ' + var
         _before_haskey = migrated
-        migrated = re.sub(r'(\w+)\.has_key\(([^)]+)\)', _safe_haskey_sub, migrated)
+        migrated = re.sub(r'((?:\w+\.)*\w+)\.has_key\(([^)]+)\)', _safe_haskey_sub, migrated)
         if migrated != _before_haskey:
             changes.append("has_key() -> in operator")
         if re.search(r'(\w+)\.has_key\([^)]*[()][^)]*\)', _before_haskey):
@@ -9740,7 +9739,7 @@ def get_codebase_history(repo_url, file_path=""):
     if not m:
         return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
     owner, repo = m.group(1), m.group(2)
-    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo):
+    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo) or ".." in owner or ".." in repo:
         return {"error": "Invalid owner or repo name in the URL - only letters, numbers, dots, hyphens, and underscores are allowed."}
     if file_path and not re.match(r"^[\w.\-/]+$", file_path):
         return {"error": "Invalid file path - contains disallowed characters."}
@@ -10038,7 +10037,7 @@ def fetch_github_issues(repo_url):
     if not m:
         return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
     owner, repo = m.group(1), m.group(2)
-    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo):
+    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo) or ".." in owner or ".." in repo:
         return {"error": "Invalid owner or repo name in the URL - only letters, numbers, dots, hyphens, and underscores are allowed."}
     gh_token = os.environ.get("GITHUB_TOKEN", "")
     gh_headers = {"Authorization": f"token {gh_token}"} if gh_token else {}
