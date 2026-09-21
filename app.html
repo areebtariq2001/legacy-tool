@@ -1353,14 +1353,16 @@ async function runAnalysis() {
     const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
     if (!r.ok) throw new Error(R.migrate?.error || ('Server error ' + r.status));
-    const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? (mode === 'rule' ? 95 : null);
+    const _ruleModeDefaultConf1 = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
+    const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? _ruleModeDefaultConf1;
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
     const reviewNeededCount = allChanges.filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
-    const _adjustedConf = conf != null ? Math.max(40, conf - (reviewNeededCount * 8)) : null;
+    const _adjustedConf = conf != null ? Math.max(0, conf - (reviewNeededCount * 8)) : null;
     const confStr = _adjustedConf != null ? Math.round(_adjustedConf) + '%' : 'N/A';
-    const migLabel = lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
+    const _aiFellBack = mode === 'ai' && R.migrate?.fallback_used === true;
+    const migLabel = _aiFellBack ? 'AI Unavailable - Used Rule-Based Fallback' : lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
     const ccNote = document.getElementById('changeCountNote');
     if (ccNote) {
       ccNote.style.display = 'block';
@@ -1402,7 +1404,7 @@ async function runAnalysis() {
       }
       checklist.innerHTML = checklistHtml;
     }
-    pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge b-blue" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
+    pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge ' + (_aiFellBack ? 'b-amber' : 'b-blue') + '" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
     const _validity = R.migrate.migration_validity;
     const _approvalTextEl = document.querySelector('#approvalBox .approval-text');
     const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
@@ -1473,8 +1475,9 @@ function renderResults(R, original, fname, totalMs) {
   extraServicesFromModules = [];
   document.getElementById('results').classList.add('show');
   const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
-  const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? (mode === 'rule' ? 95 : null);
-  const conf = baseConf != null ? Math.max(40, baseConf - (reviewNeededCountForConf * 8)) : null;
+  const _ruleModeDefaultConf = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
+  const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? _ruleModeDefaultConf;
+  const conf = baseConf != null ? Math.max(0, baseConf - (reviewNeededCountForConf * 8)) : null;
   const confPct = conf != null ? Math.round(conf) : null;
   const cColor = confPct == null ? '#64748b' : confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
   document.getElementById('confFill').style.width = (confPct ?? 0) + '%';
@@ -1541,8 +1544,9 @@ function renderResults(R, original, fname, totalMs) {
     ? Math.round((window.lastComplianceFoundCount / window.lastComplianceTotalCount) * 100)
     : (critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5)));
   renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct);
-  const roiFixHours = estimateFixHours(critCount, warnCount);
-  const roiTotalDebt = Math.round(roiFixHours * 50);
+  const _hasRealDebtCost = R.debtCost && typeof R.debtCost.debt_hours === 'number' && typeof R.debtCost.debt_cost_usd === 'number';
+  const roiFixHours = _hasRealDebtCost ? R.debtCost.debt_hours : estimateFixHours(critCount, warnCount);
+  const roiTotalDebt = _hasRealDebtCost ? Math.round(R.debtCost.debt_cost_usd) : Math.round(roiFixHours * 50);
   const roiBreachCost = critCount >= 1 ? Math.round(roiTotalDebt * 8) : 0;
   const roiDebtEl = document.getElementById('roi-debt');
   if (roiDebtEl) {
@@ -1574,8 +1578,8 @@ function renderResults(R, original, fname, totalMs) {
   addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
 
   // Migration Impact panel - derived from real analysis data
-  const fixHours = estimateFixHours(critCount, warnCount);
-  const fixCostMid = fixHours * 50;
+  const fixHours = _hasRealDebtCost ? R.debtCost.debt_hours : estimateFixHours(critCount, warnCount);
+  const fixCostMid = _hasRealDebtCost ? R.debtCost.debt_cost_usd : fixHours * 50;
   const fixCostLow = Math.round(fixCostMid * 0.8);
   const fixCostHigh = Math.round(fixCostMid * 1.3);
   const fixCost = '$' + fixCostLow + '–$' + fixCostHigh;
@@ -2808,6 +2812,7 @@ async function doReject() {
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
 function copyMigrated() { navigator.clipboard.writeText(migrated); }
 function downloadMigrationCertificate() {
+  const R = window.lastFileSnapshot?.R || {};
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
@@ -2863,6 +2868,7 @@ function downloadMigrationCertificate() {
   else { alert('Please allow pop-ups to view the Migration Certificate.'); }
 }
 function downloadComplianceEvidence() {
+  const R = window.lastFileSnapshot?.R || {};
   const fname = files.length ? files[0].name : 'unknown';
   const conf = document.getElementById('confPct').textContent;
   const health = document.getElementById('healthNum').textContent;
@@ -3162,6 +3168,7 @@ function _detectMonacoLanguage() {
   return 'plaintext';
 }
 function openMonacoDiffViewer() {
+  const R = window.lastFileSnapshot?.R || {};
   if (!R || !R.migrate) { alert('Run migration first.'); return; }
   const originalCode = window.lastFileSnapshot?.original || '';
   const migratedCode = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? '';
