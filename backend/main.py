@@ -1147,6 +1147,21 @@ def analyze_code(source):
         issues.insert(0, "Could not fully parse with Python's AST (likely Python 2-only syntax) - showing pattern-based findings below; function/class detection may be incomplete.")
     return {"functions": functions, "classes": classes, "imports": imports, "issues": issues, "ast_parse_failed": parse_failed}
 
+def _split_inline_comment(_line):
+    _in_str = False
+    _str_ch = None
+    for _ci, _ch in enumerate(_line):
+        if _in_str:
+            if _ch == _str_ch:
+                _in_str = False
+        elif _ch in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _ch
+        elif _ch == "#" and not _in_str:
+            return _line[:_ci], _line[_ci:]
+    return _line, ""
+
+
 def migrate_code(source):
     changes = []
     migrated = source
@@ -1172,19 +1187,6 @@ def migrate_code(source):
         (r'\bimport\s+sha\b', 'import hashlib', "import sha -> import hashlib (sha module removed in Python 3)"),
         (r'\bsha\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.sha1((\1).encode() if isinstance((\1), str) else (\1))', "sha.new(x) -> hashlib.sha1() requires bytes, not str - wrapped with .encode() for the common string case"),
     ]
-    def _split_inline_comment(_line):
-        _in_str = False
-        _str_ch = None
-        for _ci, _ch in enumerate(_line):
-            if _in_str:
-                if _ch == _str_ch:
-                    _in_str = False
-            elif _ch in (chr(34), chr(39)):
-                _in_str = True
-                _str_ch = _ch
-            elif _ch == "#" and not _in_str:
-                return _line[:_ci], _line[_ci:]
-        return _line, ""
 
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
@@ -1786,19 +1788,6 @@ def migrate_php(source):
     if re.search(curly_brace_pattern, migrated):
         migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
         changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
-    def _split_inline_comment(_line):
-        _in_str = False
-        _str_ch = None
-        for _ci, _ch in enumerate(_line):
-            if _in_str:
-                if _ch == _str_ch:
-                    _in_str = False
-            elif _ch in (chr(34), chr(39)):
-                _in_str = True
-                _str_ch = _ch
-            elif _ch == "#" and not _in_str:
-                return _line[:_ci], _line[_ci:]
-        return _line, ""
 
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
@@ -1917,19 +1906,6 @@ def migrate_java(source):
         (r'\bimport javax\.xml\.bind\.', 'import jakarta.xml.bind.', "javax.xml.bind -> jakarta.xml.bind (JAXB, Jakarta EE 9+ namespace)"),
         (r'\bimport javax\.ejb\.', 'import jakarta.ejb.', "javax.ejb -> jakarta.ejb (Jakarta EE 9+ namespace)"),
     ]
-    def _split_inline_comment(_line):
-        _in_str = False
-        _str_ch = None
-        for _ci, _ch in enumerate(_line):
-            if _in_str:
-                if _ch == _str_ch:
-                    _in_str = False
-            elif _ch in (chr(34), chr(39)):
-                _in_str = True
-                _str_ch = _ch
-            elif _ch == "#" and not _in_str:
-                return _line[:_ci], _line[_ci:]
-        return _line, ""
 
     for pattern, repl, label in rules:
         _mig_lines = migrated.split(chr(10))
