@@ -357,27 +357,42 @@ class StarBuildBlockchain:
     def __init__(self):
         self.chain = []
         self._lock = threading.Lock()
+        self._next_index = 0
+        self._total_blocks_created = 0
         self._create_genesis_block()
 
     def _create_genesis_block(self):
-        genesis = AuditBlock(0, time.time(), "GENESIS", "system", "system", "0.0.0.0", "StarBuild Audit Chain Initialized", "0" * 64)
+        genesis = AuditBlock(self._next_index, time.time(), "GENESIS", "system", "system", "0.0.0.0", "StarBuild Audit Chain Initialized", "0" * 64)
         genesis.mine(difficulty=2)
         self.chain.append(genesis)
+        self._next_index += 1
+        self._total_blocks_created += 1
 
     def add_block(self, action, filename, user_email, ip, result):
         with self._lock:
             prev_block = self.chain[-1]
-            new_block = AuditBlock(len(self.chain), time.time(), action, filename, user_email, ip, str(result)[:200], prev_block.hash)
+            new_block = AuditBlock(self._next_index, time.time(), action, filename, user_email, ip, str(result)[:200], prev_block.hash)
             new_block.mine(difficulty=2)
             self.chain.append(new_block)
+            self._next_index += 1
+            self._total_blocks_created += 1
             del self.chain[:-2000]
             return new_block
 
     def verify_chain(self):
+        _difficulty_prefix = "00"
+        if len(self.chain) > 0:
+            _first = self.chain[0]
+            if _first.hash != _first.compute_hash():
+                return False, _first.index
+            if not _first.hash.startswith(_difficulty_prefix):
+                return False, _first.index
         for i in range(1, len(self.chain)):
             current = self.chain[i]
             previous = self.chain[i - 1]
             if current.hash != current.compute_hash():
+                return False, current.index
+            if not current.hash.startswith(_difficulty_prefix):
                 return False, current.index
             if current.previous_hash != previous.hash:
                 return False, current.index
@@ -1150,7 +1165,14 @@ def analyze_code(source):
 def _split_inline_comment(_line):
     _in_str = False
     _str_ch = None
+    _escaped = False
     for _ci, _ch in enumerate(_line):
+        if _escaped:
+            _escaped = False
+            continue
+        if _in_str and _ch == "\\":
+            _escaped = True
+            continue
         if _in_str:
             if _ch == _str_ch:
                 _in_str = False
