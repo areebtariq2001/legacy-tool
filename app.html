@@ -812,7 +812,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <span style="font-size:10px;font-family:var(--mono);color:var(--t1)" id="impact-files">0</span>
               </div>
             </div>
-            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Quick estimate based on detected issue count, assuming a $50/hr blended rate. This is a rough planning signal - the "Est. Cost" advanced check gives a more detailed estimate based on actual code size and complexity.</div>
+            <div style="font-size:9px;color:var(--t4);margin-top:8px;padding-top:6px;border-top:1px solid var(--b1)">Quick estimate based on detected issue count and a blended dev rate (uses the actual backend-calculated rate for your region when available). This is a rough planning signal - the "Est. Cost" advanced check gives a more detailed estimate based on actual code size and complexity.</div>
           </div>
         </div>
       </div>
@@ -951,7 +951,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <div><div style="font-size:17px;font-weight:700;letter-spacing:-.4px;margin-bottom:3px">ROI & Technical Debt</div><div style="font-size:12px;color:var(--t3)">Quantify tech debt in dollars. Show leadership the real cost of legacy code.</div></div>
       <div class="g4">
         <div class="stat" style="--al:var(--red)"><div class="stat-val" style="color:var(--red)" id="roi-debt" title="Run an analysis to see this">—</div><div class="stat-lbl">Total Debt</div><div class="stat-sub">Upload to calculate</div></div>
-        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="roi-hours" title="Run an analysis to see this">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At $50/hr dev rate</div></div>
+        <div class="stat" style="--al:var(--amber)"><div class="stat-val" style="color:var(--amber)" id="roi-hours" title="Run an analysis to see this">—</div><div class="stat-lbl">Fix Hours</div><div class="stat-sub">At team's dev rate</div></div>
         <div class="stat" style="--al:var(--green)"><div class="stat-val" style="color:var(--green)" id="roi-breach" title="Run an analysis to see this">—</div><div class="stat-lbl">Breach Risk Cost</div><div class="stat-sub">Security gap exposure</div></div>
         <div class="stat" style="--al:var(--purple)"><div class="stat-val" style="color:var(--purple)" id="roi-score" title="Run an analysis to see this">—</div><div class="stat-lbl">Debt Score</div><div class="stat-sub">1–100 scale</div></div>
       </div>
@@ -1387,19 +1387,6 @@ async function runAnalysis() {
           return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? ' ' : '✓ ') + text + '</div>';
         }).join('');
       const _secRaw = R.security;
-      const _secTextForCategorize = _secRaw ? (typeof _secRaw === 'string' ? _secRaw : (_secRaw.result ?? _secRaw.output ?? JSON.stringify(_secRaw))).toLowerCase() : '';
-      const _notFixedItems = [];
-      if (_secTextForCategorize.includes('sql injection')) _notFixedItems.push('SQL Injection — string-built query left unchanged, requires parameterized-query fix');
-      if (_secTextForCategorize.includes('command injection')) _notFixedItems.push('Command Injection — shell command concatenation left unchanged, requires validated subprocess call');
-      if (_secTextForCategorize.includes('hardcoded') && _secTextForCategorize.includes('password')) _notFixedItems.push('Hardcoded Credentials — left in place, requires manual move to a secrets manager or environment variable');
-      if (_secTextForCategorize.includes('weak cryptography') || _secTextForCategorize.includes('md5') || _secTextForCategorize.includes('sha1')) _notFixedItems.push('Weak Cryptography (MD5/SHA1) — syntax made Python-3-compatible, but the weak algorithm itself was not replaced');
-      if (_notFixedItems.length > 0) {
-        checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
-          _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0"> ' + t + '</div>').join('');
-      }
-      const _autoFixedCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
-      const _totalTransformItems = _autoFixedCount + _notFixedItems.length;
-      window.lastTransformConfidence = _totalTransformItems > 0 ? Math.round((_autoFixedCount / _totalTransformItems) * 100) : null;
       const _whyExp = R.migrate && Array.isArray(R.migrate.why_explanations) ? R.migrate.why_explanations : [];
       if (_whyExp.length > 0) {
         checklistHtml += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Why This Matters</div>' +
@@ -1477,6 +1464,23 @@ function renderResults(R, original, fname, totalMs) {
   window.lastFileSnapshot = { R, original, fname, totalMs, fileObj: files[0] };
   extraServicesFromModules = [];
   document.getElementById('results').classList.add('show');
+  {
+    const _secRaw2 = R.security;
+    const _secTextForCategorize = _secRaw2 ? (typeof _secRaw2 === 'string' ? _secRaw2 : (_secRaw2.result ?? _secRaw2.output ?? JSON.stringify(_secRaw2))).toLowerCase() : '';
+    const _notFixedItems = [];
+    if (_secTextForCategorize.includes('sql injection')) _notFixedItems.push('SQL Injection — string-built query left unchanged, requires parameterized-query fix');
+    if (_secTextForCategorize.includes('command injection')) _notFixedItems.push('Command Injection — shell command concatenation left unchanged, requires validated subprocess call');
+    if (_secTextForCategorize.includes('hardcoded') && _secTextForCategorize.includes('password')) _notFixedItems.push('Hardcoded Credentials — left in place, requires manual move to a secrets manager or environment variable');
+    if (_secTextForCategorize.includes('weak cryptography') || _secTextForCategorize.includes('md5') || _secTextForCategorize.includes('sha1')) _notFixedItems.push('Weak Cryptography (MD5/SHA1) — syntax made Python-3-compatible, but the weak algorithm itself was not replaced');
+    const _checklistEl = document.getElementById('changesChecklist');
+    if (_notFixedItems.length > 0 && _checklistEl) {
+      _checklistEl.innerHTML += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
+        _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0"> ' + t + '</div>').join('');
+    }
+    const _autoFixedCount2 = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
+    const _totalTransformItems2 = _autoFixedCount2 + _notFixedItems.length;
+    window.lastTransformConfidence = _totalTransformItems2 > 0 ? Math.round((_autoFixedCount2 / _totalTransformItems2) * 100) : null;
+  }
   const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
   const _ruleModeDefaultConf = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
   const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? _ruleModeDefaultConf;
@@ -1609,7 +1613,7 @@ function renderResults(R, original, fname, totalMs) {
   detectCopybooks(original);
   detectBusinessRules(original);
   generateSuggestions(issues, critCount, warnCount);
-  renderExecSummary(critCount, warnCount, confPct, estimateFixHours(critCount, warnCount), R, fname);
+  renderExecSummary(critCount, warnCount, confPct, fixHours, R, fname);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function generateSuggestions(issues, critCount, warnCount) {
@@ -2719,8 +2723,14 @@ function buildIssues(R) {
     if (t.includes('comment') || t.includes('documentation')) issues.push({ sev: 'info', title: 'Missing documentation', desc: 'Low comment density detected. Adding docstrings and inline comments will improve maintainability.', tag: 'Quality', tagClass: 'tag-blue', file: null });
   }
   if (!R.security && !R.analyze && !R.debt) issues.push({ sev: 'info', title: 'Analysis incomplete', desc: 'Some checks failed or were skipped. Enable all checks and re-run for a full report.', tag: 'Info', tagClass: 'tag-blue', file: null });
-  if (issues.length === 0) issues.push({ sev: 'ok', title: 'No major issues detected', desc: 'Code looks clean. Migration is ready to approve.', tag: 'Clean', tagClass: 'tag-green', file: null });
-  return issues;
+  const _seenTitles = new Set();
+  const _dedupedIssues = issues.filter(iss => {
+    if (_seenTitles.has(iss.title)) return false;
+    _seenTitles.add(iss.title);
+    return true;
+  });
+  if (_dedupedIssues.length === 0) _dedupedIssues.push({ sev: 'ok', title: 'No major issues detected', desc: 'Code looks clean. Migration is ready to approve.', tag: 'Clean', tagClass: 'tag-green', file: null });
+  return _dedupedIssues;
 }
 function setProg(id, pct) {
   document.getElementById('pg-' + id).style.width = pct + '%';
