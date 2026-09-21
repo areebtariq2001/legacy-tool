@@ -245,7 +245,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
       <span class="tb-cur" id="topbar-title">Modernize Code</span>
     </div>
     <div class="tb-right">
-      <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree where the code is AST-parsable; files with legacy syntax that can't be parsed fall back to pattern-based analysis (clearly labeled in results).">AST-Verified*</span>
+      <span class="badge b-blue" title="Rule-based migrations are validated by parsing the output's syntax tree where the code is AST-parsable; files with legacy syntax that can't be parsed fall back to pattern-based analysis (clearly labeled in results). This applies specifically to Rule-Based migration output - the tool's broader security/debt analysis uses pattern-based scanning (see badge below).">AST-Verified (Rule-Based Migration)*</span>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" id="authBtn" onclick="openAuthModal()">Log In</button>
       <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px">Settings</button>
     </div>
@@ -1296,6 +1296,9 @@ async function runAnalysisOrBatch() {
     const pct = Math.round(((i) / allFiles.length) * 100);
     progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + allFiles[i].name + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
     files = [allFiles[i]];
+    const _batchExt = allFiles[i].name.split('.').pop().toLowerCase();
+    const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
+    if (_batchExtMap[_batchExt]) lang = _batchExtMap[_batchExt];
     await runAnalysis();
   }
   progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Completed ' + allFiles.length + ' files. See Repository Summary below.</div>';
@@ -1973,7 +1976,15 @@ function detectBusinessRules(code) {
   const list = document.getElementById('rulesList');
   if (found.length === 0) {
     window.lastRulesAvgConfidence = null;
+    window.lastBusinessRules = [];
+    list.innerHTML = '';
     card.style.display = 'none';
+    lastUniqueServices = [];
+    extraServicesFromModules = [];
+    const _mCard = document.getElementById('microserviceCard');
+    const _mList = document.getElementById('microserviceList');
+    if (_mCard) _mCard.style.display = 'none';
+    if (_mList) _mList.innerHTML = '';
     return;
   }
   window.lastRulesAvgConfidence = Math.round(found.reduce((sum, r) =>sum + (r.conf || 0), 0) / found.length);
@@ -2125,25 +2136,35 @@ function detectDatabaseIntelligence(code) {
   const list = document.getElementById('dbIntelList');
   const tables = new Set();
   const crud = { Create: 0, Read: 0, Update: 0, Delete: 0 };
+  // Strip single-line comments before scanning for SQL keywords, so ordinary
+  // prose in comments (e.g. "select items from the list") can't be mistaken
+  // for a real query - this does not touch string literals, since genuine
+  // embedded SQL queries (cursor.execute("SELECT ... FROM ...")) live there.
+  const _codeNoComments = code.split('\n').map(ln => {
+    const hashIdx = ln.indexOf('#');
+    const slashIdx = ln.indexOf('//');
+    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
+    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
+  }).join('\n');
   const tableRegexes = [
-    /FROM\s+([A-Za-z_][\w]*)(?!\s+import\b)/gi,
+    /\bSELECT\b[\s\S]{0,300}?\bFROM\s+([A-Za-z_][\w]*)(?!\s+import\b)/gi,
     /INSERT\s+INTO\s+([A-Za-z_][\w]*)/gi,
     /UPDATE\s+([A-Za-z_][\w]*)\s+SET/gi,
     /DELETE\s+FROM\s+([A-Za-z_][\w]*)(?!\s+import\b)/gi,
   ];
-  tableRegexes.forEach(rx => { let m; while ((m = rx.exec(code)) !== null) { tables.add(m[1].toUpperCase()); } });
+  tableRegexes.forEach(rx => { let m; while ((m = rx.exec(_codeNoComments)) !== null) { tables.add(m[1].toUpperCase()); } });
   const _nonTableTokens = new Set(['DATETIME', 'DATACLASSES', 'TYPING', 'COLLECTIONS', 'FUNCTOOLS', 'ITERTOOLS', 'PATHLIB', 'IMPORTLIB', 'UNITTEST', 'MULTIPROCESSING', 'CONCURRENT', 'ABC', 'ENUM', 'IO', 'OS', 'SYS', 'RE', 'JSON', 'MATH', 'RANDOM', 'STRING', 'LOGGING', 'ARGPARSE', 'SUBPROCESS', 'THREADING', 'SOCKET', 'HASHLIB', 'BASE64', 'UUID', 'DECIMAL', 'COPY', 'WARNINGS']);
   _nonTableTokens.forEach(t => tables.delete(t));
-  crud.Read = (code.match(/SELECT\s+/gi) || []).length;
-  crud.Create = (code.match(/INSERT\s+INTO/gi) || []).length;
-  crud.Update = (code.match(/UPDATE\s+\w+\s+SET/gi) || []).length;
-  crud.Delete = (code.match(/DELETE\s+FROM/gi) || []).length;
-  const execSql = (code.match(/EXEC\s+SQL/gi) || []).length;
+  crud.Read = (_codeNoComments.match(/SELECT\s+/gi) || []).length;
+  crud.Create = (_codeNoComments.match(/INSERT\s+INTO/gi) || []).length;
+  crud.Update = (_codeNoComments.match(/UPDATE\s+\w+\s+SET/gi) || []).length;
+  crud.Delete = (_codeNoComments.match(/DELETE\s+FROM/gi) || []).length;
+  const execSql = (_codeNoComments.match(/EXEC\s+SQL/gi) || []).length;
   const totalOps = crud.Create + crud.Read + crud.Update + crud.Delete;
   const joins = [];
   const joinRx = /FROM\s+([A-Za-z_][\w]*)[^;]*?JOIN\s+([A-Za-z_][\w]*)/gi;
   let jm;
-  while ((jm = joinRx.exec(code)) !== null) { joins.push([jm[1].toUpperCase(), jm[2].toUpperCase()]); }
+  while ((jm = joinRx.exec(_codeNoComments)) !== null) { joins.push([jm[1].toUpperCase(), jm[2].toUpperCase()]); }
   if (tables.size === 0 && totalOps === 0 && execSql === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   let html = '';
