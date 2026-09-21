@@ -2462,9 +2462,22 @@ def safe_read_file(content_bytes, filename):
         if content_bytes.startswith(_magic):
             return None, f"File content does not match its extension (detected: {_desc}). Only plain text source code is accepted."
     try:
-        source = content_bytes.decode("utf-8", errors="ignore")
+        source = content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        # Not valid UTF-8 - likely a legacy-encoded file (e.g. Latin-1/CP1252 COBOL
+        # source, common on older mainframe systems). Latin-1 can decode any byte
+        # sequence without loss (unlike errors="ignore", which silently deletes
+        # invalid bytes and can corrupt string literals, comments, or code).
+        try:
+            source = content_bytes.decode("latin-1")
+        except Exception as e:
+            return None, f"Could not read file (encoding issue): {str(e)}"
     except Exception as e:
         return None, f"Could not read file (encoding issue): {str(e)}"
+    if source.startswith("\ufeff"):
+        source = source[1:]  # strip a leading UTF-8 byte-order-mark, which otherwise
+        # shows up as a stray character before the first real line of code and can
+        # confuse language/syntax detection that expects the file to start cleanly
     sample = source[:2000]
     printable = sum(1 for c in sample if c.isprintable() or c in "\n\r\t ")
     if len(sample) > 0 and printable / len(sample) < 0.65:
