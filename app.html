@@ -1336,6 +1336,21 @@ async function runAnalysis() {
   document.getElementById('results').classList.remove('show');
   stepIds.forEach(pipeWait);
   const R = {};
+  // Explicitly clear all per-file result panels before starting a new analysis,
+  // so a panel with nothing to show for THIS file doesn't keep displaying the
+  // previous file's stale content (which downstream summary/graph code would
+  // then incorrectly attribute to the current file).
+  ['txnFlowList', 'knowledgeGraphList', 'dbIntelList', 'bankingList', 'changesChecklist'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  const _dbIntelCardEl = document.getElementById('dbIntelCard');
+  if (_dbIntelCardEl) _dbIntelCardEl.style.display = 'none';
+  const _changesChecklistEl = document.getElementById('changesChecklist');
+  if (_changesChecklistEl) _changesChecklistEl.style.display = 'none';
+  const _ccNoteEl = document.getElementById('changeCountNote');
+  if (_ccNoteEl) _ccNoteEl.style.display = 'none';
+  window.lastTransformConfidence = null;
   pipeRun('analyze', 'Parsing code structure, imports, functions…');
   const t1 = Date.now();
   try {
@@ -1543,9 +1558,9 @@ function renderResults(R, original, fname, totalMs) {
       </div>
     </div>
   `).join('');
-  const secScore = critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15);
+  const secScore = R.security == null ? null : (critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15));
   const migScore = confPct;
-  const debtScore = R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80;
+  const debtScore = R.debt == null ? null : (R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80);
   detectCompliance(original);
   const compScore = (window.lastComplianceTotalCount > 0)
     ? Math.round((window.lastComplianceFoundCount / window.lastComplianceTotalCount) * 100)
@@ -1572,8 +1587,10 @@ function renderResults(R, original, fname, totalMs) {
     healthChart.update();
   }
   const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList >div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
-  const healthNoteText = critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  const _scanIncomplete = (checks.has('security') && R.security == null) || (checks.has('debt') && R.debt == null);
+  const healthNoteText = _scanIncomplete ? 'Scan Incomplete — one or more requested checks did not complete (possibly rate-limited). Results below may be missing data; re-run before trusting this verdict.' : critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
+  if (_scanIncomplete) { document.getElementById('healthNote').style.color = '#d97706'; document.getElementById('healthNote').style.fontWeight = '700'; }
   document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
   document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
   setProg('security', secScore);
@@ -2022,6 +2039,7 @@ function renderTransactionFlow(rules) {
   `).join('');
 }
 function riskLabel(score) {
+  if (score == null) return { label: 'N/A', color: '#94a3b8' };
   if (score >= 75) return { label: 'LOW', color: '#22c55e' };
   if (score >= 50) return { label: 'MEDIUM', color: '#f59e0b' };
   return { label: 'HIGH', color: '#ef4444' };
@@ -2733,8 +2751,8 @@ function buildIssues(R) {
   return _dedupedIssues;
 }
 function setProg(id, pct) {
-  document.getElementById('pg-' + id).style.width = pct + '%';
-  document.getElementById('pv-' + id).textContent = pct + '%';
+  document.getElementById('pg-' + id).style.width = (pct == null ? 0 : pct) + '%';
+  document.getElementById('pv-' + id).textContent = pct == null ? 'N/A' : pct + '%';
 }
 function addHistory(fname, conf, issues, time) {
   if (trendChart) {
