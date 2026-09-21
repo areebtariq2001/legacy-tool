@@ -430,6 +430,7 @@ def write_audit_log(action, filename, result_summary, user_email=None, ip=None):
             cur = None
             try:
                 cur = conn.cursor()
+                cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
                 cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
                 cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
                 cur.execute("INSERT INTO usage_log (action, filename, result_summary, user_email, ip) VALUES (%s, %s, %s, %s, %s)", (action, filename, result_summary, _user_email, _ip))
