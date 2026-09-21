@@ -3849,11 +3849,10 @@ def _scan_repo_blocking(req: RepoRequest):
         skipped_files = []
         total_issues = 0
         _repo_rule_categories = []
-        import time as _time_mod
-        _scan_start_time = _time_mod.time()
+        _scan_start_time = time.time()
         _time_budget_seconds = 180
         for f in py_files:
-            if _time_mod.time() - _scan_start_time > _time_budget_seconds:
+            if time.time() - _scan_start_time > _time_budget_seconds:
                 skipped_files.append({"file": f.get("path", ""), "reason": "Skipped - scan time budget exceeded"})
                 continue
             path = f.get("path", "")
