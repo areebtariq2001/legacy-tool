@@ -1096,30 +1096,30 @@ def analyze_code(source):
         class_matches = re.findall(r"^\s*class\s+(\w+)", source, re.MULTILINE)
         classes.extend(class_matches)
     py_issue_checks = [
-        ('xrange', "xrange() found - use range()"),
-        ('raw_input', "raw_input() found - use input()"),
-        ('has_key', "dict.has_key() found - use 'in' operator"),
-        ('iteritems', "iteritems() found - use items()"),
-        ('itervalues', "itervalues() found - use values()"),
-        ('iterkeys', "iterkeys() found - use keys()"),
-        ('unicode(', "unicode() found - use str()"),
-        ('basestring', "basestring found - use str"),
-        ('urllib2', "urllib2 found - use urllib.request"),
-        ('commands.getoutput', "commands module found - use subprocess"),
-        ('itertools.izip', "izip found - use built-in zip()"),
-        ('itertools.imap', "imap found - use built-in map()"),
-        ('itertools.ifilter', "ifilter found - use built-in filter()"),
-        ('.sort(cmp=', "sort(cmp=...) found - use key= instead"),
-        ('<>', "<> operator found - use !="),
-        ('apply(', "apply() found - use func(*args)"),
-        ('execfile(', "execfile() found - use exec(open(...).read())"),
-        ('reduce(', "reduce() found - import from functools"),
-        ('StringIO', "StringIO found - use io.StringIO"),
-        ('cPickle', "cPickle found - use pickle"),
-        ('__cmp__', "__cmp__ found - use rich comparison methods"),
+        (r'\bxrange\b', "xrange() found - use range()"),
+        (r'\braw_input\b', "raw_input() found - use input()"),
+        (r'\bhas_key\b', "dict.has_key() found - use 'in' operator"),
+        (r'\biteritems\b', "iteritems() found - use items()"),
+        (r'\bitervalues\b', "itervalues() found - use values()"),
+        (r'\biterkeys\b', "iterkeys() found - use keys()"),
+        (r'\bunicode\(', "unicode() found - use str()"),
+        (r'\bbasestring\b', "basestring found - use str"),
+        (r'\burllib2\b', "urllib2 found - use urllib.request"),
+        (r'\bcommands\.getoutput\b', "commands module found - use subprocess"),
+        (r'\bitertools\.izip\b', "izip found - use built-in zip()"),
+        (r'\bitertools\.imap\b', "imap found - use built-in map()"),
+        (r'\bitertools\.ifilter\b', "ifilter found - use built-in filter()"),
+        (r'\.sort\(cmp=', "sort(cmp=...) found - use key= instead"),
+        (r'<>', "<> operator found - use !="),
+        (r'\bapply\(', "apply() found - use func(*args)"),
+        (r'\bexecfile\(', "execfile() found - use exec(open(...).read())"),
+        (r'\breduce\(', "reduce() found - import from functools"),
+        (r'\bStringIO\b', "StringIO found - use io.StringIO"),
+        (r'\bcPickle\b', "cPickle found - use pickle"),
+        (r'__cmp__', "__cmp__ found - use rich comparison methods"),
     ]
     for pattern, msg in py_issue_checks:
-        if pattern in source:
+        if re.search(pattern, source):
             issues.append(msg)
     if re.search(r'\bprint\s+[^(]', source):
         issues.append("print statement found - use print()")
@@ -4561,7 +4561,7 @@ def process_github_webhook(payload):
 
 def check_regulatory_framework(source, filename, framework="SBP"):
     _rf = re
-    frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(data.?localiz|pakistan|on.?prem|in.?country)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|(?<![a-zA-Z])car(?![a-zA-Z]))", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|\\bpan\\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(access.?log|audit.?log|audit.?trail|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
+    frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(data.?localiz|pakistan|on.?prem|in.?country)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|(?<![a-zA-Z])car(?![a-zA-Z]))", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|\bpan\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(access.?log|audit.?log|audit.?trail|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
     _used_fallback = framework not in frameworks
     fw = frameworks.get(framework, frameworks["SBP"])
     results = []
