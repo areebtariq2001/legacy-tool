@@ -1197,6 +1197,28 @@ def _split_inline_comment(_line):
     return _line, ""
 
 
+def _split_inline_comment_cstyle(_line):
+    _in_str = False
+    _str_ch = None
+    _escaped = False
+    for _ci, _ch in enumerate(_line):
+        if _escaped:
+            _escaped = False
+            continue
+        if _in_str and _ch == "\\":
+            _escaped = True
+            continue
+        if _in_str:
+            if _ch == _str_ch:
+                _in_str = False
+        elif _ch in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _ch
+        elif _ch == "/" and _ci + 1 < len(_line) and _line[_ci + 1] == "/" and not _in_str:
+            return _line[:_ci], _line[_ci:]
+    return _line, ""
+
+
 def migrate_code(source):
     changes = []
     migrated = source
@@ -1231,7 +1253,13 @@ def migrate_code(source):
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
             _code_part, _comment_part = _split_inline_comment(_mline)
-            _new_code_part = re.sub(pattern, repl, _code_part)
+            _str_literals = []
+            def _mask_str(m):
+                _str_literals.append(m.group(0))
+                return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
+            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"', _mask_str, _code_part)
+            _new_masked_code_part = re.sub(pattern, repl, _masked_code_part)
+            _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _new_masked_code_part)
             _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
@@ -1831,8 +1859,14 @@ def migrate_php(source):
             _mline_stripped = _mline.lstrip()
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
-            _code_part, _comment_part = _split_inline_comment(_mline)
-            _new_code_part = re.sub(pattern, repl, _code_part)
+            _code_part, _comment_part = _split_inline_comment_php(_mline)
+            _str_literals = []
+            def _mask_str(m):
+                _str_literals.append(m.group(0))
+                return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
+            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', _mask_str, _code_part)
+            _new_masked_code_part = re.sub(pattern, repl, _masked_code_part)
+            _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _new_masked_code_part)
             _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
@@ -1856,8 +1890,10 @@ def migrate_php(source):
         (r'\bereg_replace\(', "ereg_replace() found - preg_replace() is the replacement, but you must manually wrap your pattern in delimiters (e.g. \"/pattern/\") - the pattern syntax is not identical."),
         (r'\bsplit\(', "split() found - if the first argument is a regex pattern, use preg_split() (not explode(), which only handles a literal string, not a regex)."),
     ]
+    _migrated_no_comments_php = re.sub(r'/\*.*?\*/', '', migrated, flags=re.DOTALL)
+    _migrated_no_comments_php = chr(10).join(_split_inline_comment_php(_l)[0] for _l in _migrated_no_comments_php.split(chr(10)))
     for pattern, msg in review_rules:
-        if re.search(pattern, migrated):
+        if re.search(pattern, _migrated_no_comments_php):
             changes.append(f"REVIEW NEEDED: {msg}")
     if re.search(r'var\s+\$(\w+)', migrated):
         migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
@@ -1923,6 +1959,30 @@ def analyze_java(source):
     all_methods = list(dict.fromkeys(methods))
     return {"issues": issues, "classes": list(dict.fromkeys(classes)), "methods": all_methods[:20], "total_methods": len(all_methods), "methods_truncated": len(all_methods) > 20, "imports": list(dict.fromkeys(imports)), "java_summary": f"{len(classes)} class(es), {len(methods)} method(s), {len(imports)} import(s), {len(issues)} legacy pattern(s) found"}
 
+def _split_inline_comment_php(_line):
+    _in_str = False
+    _str_ch = None
+    _escaped = False
+    for _ci, _ch in enumerate(_line):
+        if _escaped:
+            _escaped = False
+            continue
+        if _in_str and _ch == "\\":
+            _escaped = True
+            continue
+        if _in_str:
+            if _ch == _str_ch:
+                _in_str = False
+        elif _ch in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _ch
+        elif _ch == "#" and not _in_str:
+            return _line[:_ci], _line[_ci:]
+        elif _ch == "/" and _ci + 1 < len(_line) and _line[_ci + 1] == "/" and not _in_str:
+            return _line[:_ci], _line[_ci:]
+    return _line, ""
+
+
 def migrate_java(source):
     changes = []
     migrated = source
@@ -1949,8 +2009,14 @@ def migrate_java(source):
             _mline_stripped = _mline.lstrip()
             if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
                 continue
-            _code_part, _comment_part = _split_inline_comment(_mline)
-            _new_code_part = re.sub(pattern, repl, _code_part)
+            _code_part, _comment_part = _split_inline_comment_cstyle(_mline)
+            _str_literals = []
+            def _mask_str(m):
+                _str_literals.append(m.group(0))
+                return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
+            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', _mask_str, _code_part)
+            _new_masked_code_part = re.sub(pattern, repl, _masked_code_part)
+            _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _new_masked_code_part)
             _new_line = _new_code_part + _comment_part
             if _new_line != _mline:
                 _mig_lines[_li] = _new_line
@@ -1969,8 +2035,10 @@ def migrate_java(source):
         (r'@EJB\b', "@EJB found - @Autowired (Spring) is usually a safe replacement for simple field injection, but review if this @EJB reference relies on JNDI lookup semantics that differ from Spring's dependency injection."),
         (r'@Resource\b', "@Resource found - this can be either simple field injection OR a JNDI lookup (e.g. for a DataSource). @Autowired only covers the injection case - JNDI-looked-up resources need explicit Spring bean configuration instead."),
     ]
+    _migrated_no_comments = re.sub(r'/\*.*?\*/', '', migrated, flags=re.DOTALL)
+    _migrated_no_comments = chr(10).join(_split_inline_comment_cstyle(_l)[0] for _l in _migrated_no_comments.split(chr(10)))
     for pattern, msg in review_rules:
-        if re.search(pattern, migrated):
+        if re.search(pattern, _migrated_no_comments):
             changes.append(f"REVIEW NEEDED: {msg}")
     check = validate_java(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "java")}
