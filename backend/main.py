@@ -252,14 +252,12 @@ async def cors_handler(request: Request, call_next):
             status_code=429,
             headers={"Access-Control-Allow-Origin": allow_origin}
         )
-    _session_token = request.headers.get("x-session-token", "")
-    if _session_token and len(_session_token) <= 200:
-        if not _check_rate_limit_keyed(_token_rate_limit_store, "tok:" + _session_token, max_requests=90, window_seconds=60):
-            return JSONResponse(
-                content={"error": "Rate limit exceeded for this session. Please slow down and try again shortly."},
-                status_code=429,
-                headers={"Access-Control-Allow-Origin": allow_origin}
-            )
+    # NOTE: an earlier per-session-token rate limit here (keyed on the client-supplied
+    # x-session-token header) has been removed - a client-controlled value can never be
+    # a trustworthy rate-limiting key, since an attacker can simply send a fresh token
+    # value on every request to reset their own limit, making that check pure security
+    # theater. The IP-based global limit above and the IP-based per-endpoint limit below
+    # are the checks that actually can't be bypassed by the client.
     _path = request.url.path
     _endpoint_identifier = "ip:" + client_ip  # always IP-based: an unvalidated client-supplied session-token would let an attacker bypass this limit simply by rotating the header value on each request
     if not _check_endpoint_specific_limit(_path, _endpoint_identifier):
@@ -303,6 +301,9 @@ _NEVER_LOG_PATTERNS = [
     re.compile(r"(password|secret|token|api.?key)\s*[=:]\s*['\x22][^'\x22]{6,}['\x22]", re.IGNORECASE),
     re.compile(r"://[^:/@\s]+:[^@/\s]+@[^\s/]+"),  # DB/service connection strings embedding credentials (e.g. postgresql://user:pass@host)
     re.compile(r"Bearer\s+[A-Za-z0-9\-_.]{10,}", re.IGNORECASE),  # HTTP Authorization: Bearer <token> headers
+    re.compile(r"gsk_[A-Za-z0-9]{10,}"),  # Groq API keys - this app's own AI provider
+    re.compile(r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{5,}"),  # JWT tokens (header.payload.signature, base64url)
+    re.compile(r"(password|secret|token|api.?key)\s*[=:]\s*[A-Za-z0-9_\-]{6,}", re.IGNORECASE),  # unquoted key=value (e.g. query-string style api_key=abc123), in addition to the quoted-value pattern above
 ]
 
 
@@ -361,6 +362,10 @@ class StarBuildBlockchain:
         self._lock = threading.Lock()
         self._next_index = 0
         self._total_blocks_created = 0
+        self._head_hash = None  # tracks the hash of the most-recently-added block, independent of
+        # the chain list itself, so verify_chain can detect if the most recent block(s) were
+        # deleted from the chain - a truncated-but-otherwise-internally-consistent chain would
+        # otherwise report as fully valid, since nothing else checks against an external anchor
         self._create_genesis_block()
 
     def _create_genesis_block(self):
@@ -369,6 +374,7 @@ class StarBuildBlockchain:
         self.chain.append(genesis)
         self._next_index += 1
         self._total_blocks_created += 1
+        self._head_hash = genesis.hash
 
     def add_block(self, action, filename, user_email, ip, result):
         with self._lock:
@@ -378,6 +384,7 @@ class StarBuildBlockchain:
             self.chain.append(new_block)
             self._next_index += 1
             self._total_blocks_created += 1
+            self._head_hash = new_block.hash
             del self.chain[:-2000]
             return new_block
 
@@ -398,6 +405,8 @@ class StarBuildBlockchain:
                 return False, current.index
             if current.previous_hash != previous.hash:
                 return False, current.index
+        if self._head_hash is not None and len(self.chain) > 0 and self.chain[-1].hash != self._head_hash:
+            return False, "chain truncated - most recent block(s) missing (head hash mismatch)"
         return True, None
 
     def get_summary(self):
@@ -5448,9 +5457,9 @@ def get_approval_history():
         cur = None
         try:
             cur = conn.cursor()
-            cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp FROM approval_log ORDER BY id DESC")
+            cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log ORDER BY id DESC")
             rows = cur.fetchall()
-            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4]} for r in rows]
+            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4], "approved_by": r[5]} for r in rows]
         except Exception as e:
             print("get_approval_history DB read failed: " + str(e))
         finally:
