@@ -1346,7 +1346,7 @@ async function runAnalysis() {
   // so a panel with nothing to show for THIS file doesn't keep displaying the
   // previous file's stale content (which downstream summary/graph code would
   // then incorrectly attribute to the current file).
-  ['txnFlowList', 'knowledgeGraphList', 'dbIntelList', 'bankingList', 'changesChecklist', 'capabilityList'].forEach(id => {
+  ['txnFlowList', 'knowledgeGraphList', 'dbIntelList', 'bankingList', 'changesChecklist', 'capabilityList', 'insuranceList', 'paymentList', 'complianceList', 'domainList', 'regComplianceList', 'batchJobsList'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
@@ -2718,7 +2718,13 @@ function buildIssues(R) {
         const dashIdx = msg.indexOf(' - ');
         const derivedTitle = dashIdx > 0 ? msg.substring(0, dashIdx).trim() : msg.substring(0, 70).trim();
         const isRuntimeCritical = msg.toUpperCase().includes('CRITICAL:') || msg.toUpperCase().includes('CRITICAL ');
-        issues.push({ sev: isRuntimeCritical ? 'critical' : 'warning', title: derivedTitle, desc: msg, tag: isRuntimeCritical ? 'Critical' : 'Migration', tagClass: isRuntimeCritical ? 'tag-red' : 'tag-amber', file: null });
+        const msgLower = msg.toLowerCase();
+        let _reviewTopic = null;
+        if (msgLower.includes('vector')) _reviewTopic = 'legacy_vector';
+        else if (msgLower.includes('hashtable')) _reviewTopic = 'legacy_hashtable';
+        else if (msgLower.includes('enumeration')) _reviewTopic = 'legacy_enumeration';
+        else if (msgLower.includes('stringbuffer')) _reviewTopic = 'legacy_stringbuffer';
+        issues.push({ sev: isRuntimeCritical ? 'critical' : 'warning', title: derivedTitle, desc: msg, tag: isRuntimeCritical ? 'Critical' : 'Migration', tagClass: isRuntimeCritical ? 'tag-red' : 'tag-amber', file: null, topic: _reviewTopic });
       }
     });
   }
@@ -2729,7 +2735,7 @@ function buildIssues(R) {
       R.analyze.issues.forEach(iss => {
         const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
         const lower = issText.toLowerCase();
-        const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk');
+        const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk') || lower.includes('eval(') || lower.includes('exec(') || lower.includes('eval/exec') || lower.includes('dangerous eval');
         const isRuntimeCritical = issText.toUpperCase().includes('CRITICAL:') || issText.toUpperCase().includes('CRITICAL ');
         const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
         if (alreadyCoveredElsewhere) return;
@@ -2738,6 +2744,10 @@ function buildIssues(R) {
         else if (lower.includes('sql') && lower.includes('inject')) _topic = 'sql_injection';
         else if (lower.includes('md5') || lower.includes('sha1') || lower.includes('rc4') || (lower.includes('weak') && lower.includes('crypt'))) _topic = 'weak_crypto';
         else if (lower.includes('api') && (lower.includes('key') || lower.includes('secret'))) _topic = 'api_key_secret';
+        else if (lower.includes('vector')) _topic = 'legacy_vector';
+        else if (lower.includes('hashtable')) _topic = 'legacy_hashtable';
+        else if (lower.includes('enumeration')) _topic = 'legacy_enumeration';
+        else if (lower.includes('stringbuffer')) _topic = 'legacy_stringbuffer';
         issues.push({
           sev: (isSecurity || isRuntimeCritical) ? 'critical' : 'warning',
           title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
