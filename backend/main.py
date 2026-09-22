@@ -212,6 +212,28 @@ async def cors_handler(request: Request, call_next):
                 "Access-Control-Max-Age": "86400",
             }
         )
+    # Reject oversized requests BEFORE any endpoint reads the body into memory/disk.
+    # Every upload endpoint's own MAX_FILE_SIZE (500,000 bytes) check runs only after
+    # `await file.read()` has already fully received and buffered the request body -
+    # so without this pre-check here, a client could send an arbitrarily large upload
+    # (megabytes to gigabytes) and it would be fully received before being rejected,
+    # wasting memory/disk/CPU on every single oversized request. This uses the
+    # Content-Length header, which is sent by browsers and standard HTTP clients for
+    # any non-chunked request (file uploads via <form>/fetch always set it); it is a
+    # best-effort guard, not a substitute for the per-endpoint checks, since a client
+    # using chunked transfer-encoding with no Content-Length header would bypass it -
+    # but it closes the common case with zero cost (no body read required).
+    _content_length = request.headers.get("content-length")
+    if _content_length:
+        try:
+            if int(_content_length) > 2_000_000:
+                return JSONResponse(
+                    status_code=413,
+                    content={"error": "Request body too large. Maximum accepted size is 2,000,000 bytes."},
+                    headers={"Access-Control-Allow-Origin": allow_origin},
+                )
+        except ValueError:
+            pass
     client_ip = _get_client_ip(request)
     _blocked, _block_expiry = _is_ip_blocked(client_ip)
     if _blocked:
@@ -3276,6 +3298,20 @@ class MigrationCertificate:
             }
             cert_data = json.dumps(certificate, sort_keys=True)
             certificate["certificate_signature"] = hmac.new(_CERT_SIGNING_KEY.encode(), cert_data.encode(), hashlib.sha256).hexdigest()
+            certificate["persistence_disclaimer"] = (
+                "This certificate is stored in-memory only on this server process, like the blockchain "
+                "audit log - it does NOT persist to the database. If the server restarts (redeploy, crash, "
+                "or a platform cold-start after idle), looking up this certificate_id via "
+                "/verify-migration-certificate will return 'Certificate not found', even though nothing was "
+                "tampered with. Retain this full certificate object as your durable compliance record; do not "
+                "rely on the certificate_id alone being re-verifiable later."
+                + ("" if os.environ.get("CERTIFICATE_SIGNING_KEY") else
+                   " Additionally, CERTIFICATE_SIGNING_KEY is not set in this server's environment, so the "
+                   "signing key itself is regenerated randomly on every server start - this means even a "
+                   "custom persistence layer added later would report 'Certificate tampered!' for genuine, "
+                   "unaltered certificates issued before a restart, unless CERTIFICATE_SIGNING_KEY is set to "
+                   "a fixed value.")
+            )
             self.certificates[certificate["certificate_id"]] = certificate
             try:
                 audit_blockchain.add_block(
@@ -3291,11 +3327,20 @@ class MigrationCertificate:
         with self._lock:
             cert = self.certificates.get(_lookup_key) or self.certificates.get(cert_id)
         if not cert:
-            return {"valid": False, "reason": "Certificate not found"}
+            return {
+                "valid": False,
+                "reason": "Certificate not found",
+                "note": "Either this ID is invalid, or this certificate was issued before the server's last "
+                        "restart - certificates are stored in-memory only and do not survive a restart "
+                        "(redeploy, crash, or cold-start).",
+            }
         cert = dict(cert)
         signature = cert.pop("certificate_signature", "")
+        _disclaimer = cert.pop("persistence_disclaimer", None)
         expected = hmac.new(_CERT_SIGNING_KEY.encode(), json.dumps(cert, sort_keys=True).encode(), hashlib.sha256).hexdigest()
         cert["certificate_signature"] = signature
+        if _disclaimer is not None:
+            cert["persistence_disclaimer"] = _disclaimer
         if not hmac.compare_digest(signature, expected):
             return {"valid": False, "reason": "Certificate tampered!"}
         chain_valid, _ = audit_blockchain.verify_chain()
