@@ -1279,6 +1279,9 @@ async function runAnalysisOrBatch() {
   const diffNote = document.getElementById('batchDiffNote');
   if (files.length <= 1) { if (diffNote) diffNote.style.display = 'none'; await runAnalysis(); return; }
   const allFiles = [...files];
+  window._isBatchRun = true;
+  window._batchTotalFixHours = 0;
+  window._batchTotalFixCost = 0;
   const btn = document.getElementById('runBtn');
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -1305,6 +1308,9 @@ async function runAnalysisOrBatch() {
   files = allFiles;
   renderChips();
   document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
+  document.getElementById('impact-time').textContent = window._batchTotalFixHours.toFixed(1) + ' hrs (batch total)';
+  document.getElementById('impact-cost').textContent = '$' + Math.round(window._batchTotalFixHours * 15 * 0.8) + '–$' + Math.round(window._batchTotalFixHours * 15 * 1.3) + ' (batch total)';
+  window._isBatchRun = false;
   if (diffNote) diffNote.style.display = 'block';
   document.getElementById('pipeline').style.display = '';
   btn.disabled = false;
@@ -1507,7 +1513,7 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('confPct').style.color = cColor;
   if (confPct != null) {
-    document.getElementById('confPct').title = 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 40%';
+    document.getElementById('confPct').title = 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 0%';
   }
   document.getElementById('sv-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
@@ -1609,8 +1615,12 @@ function renderResults(R, original, fname, totalMs) {
   const fixCost = '$' + fixCostLow + '–$' + fixCostHigh;
   const riskLevel = critCount >= 1 ? 'High' : warnCount >= 1 ? 'Medium' : 'Low';
   const riskColor = riskLevel === 'High' ? 'b-red' : riskLevel === 'Medium' ? 'b-amber' : 'b-green';
-  document.getElementById('impact-time').textContent = fixHours.toFixed(1) + ' hrs';
-  document.getElementById('impact-cost').textContent = fixCost;
+  if (window._isBatchRun) {
+    window._batchTotalFixHours = (window._batchTotalFixHours || 0) + fixHours;
+  } else {
+    document.getElementById('impact-time').textContent = fixHours.toFixed(1) + ' hrs';
+    document.getElementById('impact-cost').textContent = fixCost;
+  }
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
@@ -2175,7 +2185,7 @@ function detectDatabaseIntelligence(code) {
     /DELETE\s+FROM\s+([A-Za-z_][\w]*)(?!\s+import\b)/gi,
   ];
   tableRegexes.forEach(rx => { let m; while ((m = rx.exec(_codeNoComments)) !== null) { tables.add(m[1].toUpperCase()); } });
-  const _nonTableTokens = new Set(['DATETIME', 'DATACLASSES', 'TYPING', 'COLLECTIONS', 'FUNCTOOLS', 'ITERTOOLS', 'PATHLIB', 'IMPORTLIB', 'UNITTEST', 'MULTIPROCESSING', 'CONCURRENT', 'ABC', 'ENUM', 'IO', 'OS', 'SYS', 'RE', 'JSON', 'MATH', 'RANDOM', 'STRING', 'LOGGING', 'ARGPARSE', 'SUBPROCESS', 'THREADING', 'SOCKET', 'HASHLIB', 'BASE64', 'UUID', 'DECIMAL', 'COPY', 'WARNINGS']);
+  const _nonTableTokens = new Set(['DATETIME', 'DATACLASSES', 'TYPING', 'COLLECTIONS', 'FUNCTOOLS', 'ITERTOOLS', 'PATHLIB', 'IMPORTLIB', 'UNITTEST', 'MULTIPROCESSING', 'CONCURRENT', 'ABC', 'ENUM', 'IO', 'OS', 'SYS', 'RE', 'JSON', 'MATH', 'RANDOM', 'STRING', 'LOGGING', 'ARGPARSE', 'SUBPROCESS', 'THREADING', 'SOCKET', 'HASHLIB', 'BASE64', 'UUID', 'DECIMAL', 'COPY', 'WARNINGS', 'THE', 'A', 'AN', 'THIS', 'THAT', 'THESE', 'THOSE', 'MENU', 'LIST', 'OPTION', 'OPTIONS', 'INVENTORY', 'ITEM', 'ITEMS', 'SCRATCH', 'MEMORY', 'DISK', 'FILE', 'CACHE']);
   _nonTableTokens.forEach(t => tables.delete(t));
   crud.Read = (_codeNoComments.match(/SELECT\s+/gi) || []).length;
   crud.Create = (_codeNoComments.match(/INSERT\s+INTO/gi) || []).length;
@@ -2675,7 +2685,18 @@ function downloadJSON() {
 }
 function buildIssues(R) {
   const issues = [];
-  const getText = d =>typeof d === 'string' ? d : (d?.result ?? d?.output ?? JSON.stringify(d ?? ''));
+  const getText = d => {
+    if (typeof d === 'string') return d;
+    if (d?.result != null) return d.result;
+    if (d?.output != null) return d.output;
+    if (d == null) return '';
+    // Fallback: stringify the whole object, but strip filename fields first - the
+    // filename is a red herring for keyword-matching (a file literally named
+    // secrets_manager.py would otherwise trigger a false "secret exposed" match
+    // purely from its own name, regardless of what the scan actually found).
+    const _clean = JSON.parse(JSON.stringify(d, (k, v) => k === 'filename' ? undefined : v));
+    return JSON.stringify(_clean);
+  };
   const near = (text, a, b, window) => {
     const w = window || 60;
     let idx = text.indexOf(a);
@@ -2687,9 +2708,6 @@ function buildIssues(R) {
     }
     return false;
   };
-  if (mode === 'ai' && lang !== 'python') {
-    issues.push({ sev: 'warning', title: 'AI Migrate selected but not available for this language', desc: 'AI Migrate is currently only available for Python. This file was migrated using Rule-Based migration instead, even though AI Migrate was selected.', tag: 'Migration', tagClass: 'tag-amber', file: null });
-  }
   if (R.migrate && R.migrate.source_truncated) {
     issues.push({ sev: 'critical', title: 'File too large - only part of it was analyzed by AI', desc: 'This file exceeds the size limit for AI-powered processing, so only the first portion of the source was sent to the AI. The migrated output, confidence score, and any generated tests or documentation only reflect that truncated portion - the rest of the file was never seen by the AI and may contain unreviewed issues. Split the file into smaller pieces or use Rule-Based migration, which processes the entire file.', tag: 'Critical', tagClass: 'tag-red', file: null });
   }
@@ -2715,23 +2733,29 @@ function buildIssues(R) {
         const isRuntimeCritical = issText.toUpperCase().includes('CRITICAL:') || issText.toUpperCase().includes('CRITICAL ');
         const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
         if (alreadyCoveredElsewhere) return;
+        let _topic = null;
+        if (lower.includes('password') && lower.includes('hardcod')) _topic = 'hardcoded_password';
+        else if (lower.includes('sql') && lower.includes('inject')) _topic = 'sql_injection';
+        else if (lower.includes('md5') || lower.includes('sha1') || lower.includes('rc4') || (lower.includes('weak') && lower.includes('crypt'))) _topic = 'weak_crypto';
+        else if (lower.includes('api') && (lower.includes('key') || lower.includes('secret'))) _topic = 'api_key_secret';
         issues.push({
           sev: (isSecurity || isRuntimeCritical) ? 'critical' : 'warning',
           title: issText.length > 70 ? issText.substring(0, 70) + '…' : issText,
           desc: issText,
           tag: isSecurity ? 'Critical · Security' : (isRuntimeCritical ? 'Critical' : 'Migration'),
           tagClass: (isSecurity || isRuntimeCritical) ? 'tag-red' : 'tag-amber',
-          file: null
+          file: null,
+          topic: _topic
         });
       });
     }
   }
   if (R.security) {
     const t = getText(R.security).toLowerCase();
-    if (near(t, 'password', 'hardcoded') || near(t, 'password', 'hardcode')) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null });
-    if (near(t, 'sql', 'injection') || near(t, 'sql', 'concatenat')) issues.push({ sev: 'critical', title: 'SQL injection vulnerability', desc: 'String concatenation used in SQL queries. Use parameterized queries or an ORM instead.', tag: 'Critical', tagClass: 'tag-red', file: null });
-    if (t.includes('md5') || t.includes('sha1') || t.includes('rc4') || t.includes('des')) issues.push({ sev: 'warning', title: 'Weak cryptography algorithm', desc: 'MD5, SHA1, RC4 or DES detected. Upgrade to SHA-256, AES-256, or bcrypt for passwords.', tag: 'Security', tagClass: 'tag-amber', file: null });
-    if (t.includes('api_key') || t.includes('apikey') || t.includes('secret')) issues.push({ sev: 'critical', title: 'API key or secret exposed', desc: 'Hardcoded API keys or secrets found in source code. Move to environment variables immediately.', tag: 'Critical', tagClass: 'tag-red', file: null });
+    if (near(t, 'password', 'hardcoded') || near(t, 'password', 'hardcode')) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'hardcoded_password' });
+    if (near(t, 'sql', 'injection') || near(t, 'sql', 'concatenat')) issues.push({ sev: 'critical', title: 'SQL injection vulnerability', desc: 'String concatenation used in SQL queries. Use parameterized queries or an ORM instead.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'sql_injection' });
+    if (t.includes('md5') || t.includes('sha1') || t.includes('rc4') || t.includes('des')) issues.push({ sev: 'warning', title: 'Weak cryptography algorithm', desc: 'MD5, SHA1, RC4 or DES detected. Upgrade to SHA-256, AES-256, or bcrypt for passwords.', tag: 'Security', tagClass: 'tag-amber', file: null, topic: 'weak_crypto' });
+    if (t.includes('api_key') || t.includes('apikey') || t.includes('secret')) issues.push({ sev: 'critical', title: 'API key or secret exposed', desc: 'Hardcoded API keys or secrets found in source code. Move to environment variables immediately.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'api_key_secret' });
     if (t.includes('no issues') || t.includes('no vulnerabilit') || t.includes('clean')) issues.push({ sev: 'ok', title: 'No security vulnerabilities detected', desc: 'Security scan passed — no hardcoded secrets, SQL injection, or weak crypto found.', tag: 'Clean', tagClass: 'tag-green', file: null });
   }
   if (R.debt) {
@@ -2742,9 +2766,12 @@ function buildIssues(R) {
   }
   if (!R.security && !R.analyze && !R.debt) issues.push({ sev: 'info', title: 'Analysis incomplete', desc: 'Some checks failed or were skipped. Enable all checks and re-run for a full report.', tag: 'Info', tagClass: 'tag-blue', file: null });
   const _seenTitles = new Set();
+  const _seenTopics = new Set();
   const _dedupedIssues = issues.filter(iss => {
     if (_seenTitles.has(iss.title)) return false;
+    if (iss.topic && _seenTopics.has(iss.topic)) return false;
     _seenTitles.add(iss.title);
+    if (iss.topic) _seenTopics.add(iss.topic);
     return true;
   });
   if (_dedupedIssues.length === 0) _dedupedIssues.push({ sev: 'ok', title: 'No major issues detected', desc: 'Code looks clean. Migration is ready to approve.', tag: 'Clean', tagClass: 'tag-green', file: null });
