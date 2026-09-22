@@ -1340,7 +1340,7 @@ async function runAnalysis() {
   // so a panel with nothing to show for THIS file doesn't keep displaying the
   // previous file's stale content (which downstream summary/graph code would
   // then incorrectly attribute to the current file).
-  ['txnFlowList', 'knowledgeGraphList', 'dbIntelList', 'bankingList', 'changesChecklist'].forEach(id => {
+  ['txnFlowList', 'knowledgeGraphList', 'dbIntelList', 'bankingList', 'changesChecklist', 'capabilityList'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
