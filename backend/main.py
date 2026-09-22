@@ -465,6 +465,7 @@ def track_usage(action, filename):
         cur = None
         try:
             cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
             cur.execute("INSERT INTO usage_log (action, filename, result_summary) VALUES (%s, %s, %s)", (action, filename, "tracked"))
             conn.commit()
         except Exception:
@@ -2670,14 +2671,17 @@ async def download(file: UploadFile = File(...)):
     lang = detect_language(file.filename)
     if lang == "unknown":
         return Response(content=b"Unsupported file type. Supported extensions: .py, .java, .php/.php3/.php5/.phtml, .cbl/.cob/.cobol", media_type='text/plain', status_code=400)
-    if lang == "java":
-        result = migrate_java(source)
-    elif lang == "php":
-        result = migrate_php(source)
-    elif lang == "cobol":
-        result = migrate_cobol(source, file.filename)
-    else:
-        result = migrate_code(source)
+    try:
+        if lang == "java":
+            result = migrate_java(source)
+        elif lang == "php":
+            result = migrate_php(source)
+        elif lang == "cobol":
+            result = migrate_cobol(source, file.filename)
+        else:
+            result = migrate_code(source)
+    except Exception as e:
+        return Response(content=f"Migration failed safely: {e}".encode('utf-8'), media_type='text/plain', status_code=500)
     migrated = result.get("migrated_code", "")
     _validity = result.get("migration_validity")
     if _validity and _validity.get("migration_ready") is False:
