@@ -713,7 +713,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <div class="conf-pct" id="confPct" style="color:var(--green)">0%</div>
               </div>
               <div id="changesChecklist" style="display:none;margin-bottom:12px"></div>
-              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:2px solid #3b82f6">ℹ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong>auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
+              <div style="font-size:9px;color:#64748b;margin-bottom:10px;padding:8px 10px;background:#f1f4f8;border-radius:6px;border-left:2px solid #3b82f6">ℹ Rule-Based migration only auto-fixes changes with a single, unambiguous correct answer (e.g. renamed API calls, deprecated syntax). Security-sensitive items like hardcoded credentials, command-injection risk, or SQL string-concatenation are intentionally <strong>not</strong> auto-rewritten — the correct fix depends on your environment (which secrets manager, which parameterization library) and a wrong automatic guess could break production code. These are flagged in Issues &amp; Recommendations for a human to fix deliberately.</div>
               <div class="diff-wrap">
                 <div class="diff-pane">
                   <div class="diff-head old">Original Source</div>
@@ -1543,7 +1543,7 @@ async function runAnalysis() {
     const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
     let _cryptoWarningHtml = '';
     if (_weakCryptoChange) {
-      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#fef6ea;border:1px solid #fde8c0;border-radius:6px;font-size:11px"><strong style="color:#d97706">Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#4b5563">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong>replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code>or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
+      _cryptoWarningHtml = '<div style="margin-top:8px;padding:8px;background:#fef6ea;border:1px solid #fde8c0;border-radius:6px;font-size:11px"><strong style="color:#d97706">Compatibility Fixed, Security Not Fixed</strong><br><span style="color:#4b5563">This migration made the weak hashing call Python-3-compatible (syntax fix), but did <strong>not</strong> replace the weak algorithm itself. MD5/SHA1 remain cryptographically broken for security-sensitive use (passwords, tokens). Recommended: use <code>hashlib.sha256</code> or a dedicated password-hashing function (e.g. bcrypt/argon2) for anything security-sensitive.</span></div>';
     }
     if (_validity && _validity.migration_ready === false && _approvalTextEl) {
       const _issueLines = [];
@@ -1789,15 +1789,19 @@ function renderResults(R, original, fname, totalMs) {
   detectInsurance(_codeOnly);
   detectMainframeAssets(_codeOnly);
   detectRegulatoryCompliance(_codeOnly, R);
-  updateRepositorySummary(fname);
-  renderCapabilityMap();
-  window.lastAnalyzedSourceForKG = original;
-  renderKnowledgeGraph(fname);
   detectDatabaseIntelligence(_codeOnly);
   detectBankingDomains(_codeOnly);
   detectCallGraph(original);
   detectCopybooks(original);
   detectBusinessRules(_codeOnly);
+  // Summaries read the detectors' output from the DOM, so they must run after ALL detectors.
+  // They used to run first, so the Repository Summary recorded 0 DB tables and the previous
+  // file's business rules/services/copybooks, and the capability map / knowledge graph showed
+  // the previous file's domains and tables.
+  updateRepositorySummary(fname);
+  renderCapabilityMap();
+  window.lastAnalyzedSourceForKG = original;
+  renderKnowledgeGraph(fname);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, fixHours, R, fname);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2933,24 +2937,39 @@ function buildIssues(R) {
     const t = getText(R.security).toLowerCase();
     if (near(t, 'password', 'hardcoded') || near(t, 'password', 'hardcode')) issues.push({ sev: 'critical', title: 'Hardcoded password detected', desc: 'Storing passwords in source code is a critical security vulnerability. Use environment variables or a secrets manager.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'hardcoded_password' });
     if (near(t, 'sql', 'injection') || near(t, 'sql', 'concatenat')) issues.push({ sev: 'critical', title: 'SQL injection vulnerability', desc: 'String concatenation used in SQL queries. Use parameterized queries or an ORM instead.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'sql_injection' });
-    if (t.includes('md5') || t.includes('sha1') || t.includes('rc4') || t.includes('des')) issues.push({ sev: 'warning', title: 'Weak cryptography algorithm', desc: 'MD5, SHA1, RC4 or DES detected. Upgrade to SHA-256, AES-256, or bcrypt for passwords.', tag: 'Security', tagClass: 'tag-amber', file: null, topic: 'weak_crypto' });
+    if (/\b(md5|sha1|rc4|des)\b/.test(t)) issues.push({ sev: 'warning', title: 'Weak cryptography algorithm', desc: 'MD5, SHA1, RC4 or DES detected. Upgrade to SHA-256, AES-256, or bcrypt for passwords.', tag: 'Security', tagClass: 'tag-amber', file: null, topic: 'weak_crypto' });
     if (t.includes('api_key') || t.includes('apikey') || t.includes('secret')) issues.push({ sev: 'critical', title: 'API key or secret exposed', desc: 'Hardcoded API keys or secrets found in source code. Move to environment variables immediately.', tag: 'Critical', tagClass: 'tag-red', file: null, topic: 'api_key_secret' });
     if (t.includes('no issues') || t.includes('no vulnerabilit') || t.includes('clean')) issues.push({ sev: 'ok', title: 'No security vulnerabilities detected', desc: 'Security scan passed — no hardcoded secrets, SQL injection, or weak crypto found.', tag: 'Clean', tagClass: 'tag-green', file: null });
   }
   if (R.debt) {
     const t = getText(R.debt).toLowerCase();
-    if (t.includes('complex') || t.includes('long function') || t.includes('too long')) issues.push({ sev: 'warning', title: 'High code complexity detected', desc: 'Functions with high cyclomatic complexity found. Consider refactoring into smaller, focused functions.', tag: 'Debt', tagClass: 'tag-amber', file: null });
+    // Use the structured complexity level: the old text test matched the word "complex" in
+    // "complexity_score"/"Low complexity", so every file (even x = 1) got this warning.
+    const _cxLevel = (R.debt && typeof R.debt === 'object') ? String(R.debt.complexity_level || '') : '';
+    const _highCx = _cxLevel ? /^(high|very high) complexity/i.test(_cxLevel) : (t.includes('high complexity') || t.includes('long function') || t.includes('too long'));
+    if (_highCx) issues.push({ sev: 'warning', title: 'High code complexity detected', desc: 'Functions with high cyclomatic complexity found. Consider refactoring into smaller, focused functions.', tag: 'Debt', tagClass: 'tag-amber', file: null });
     if (t.includes('duplicate') || t.includes('repetition')) issues.push({ sev: 'warning', title: 'Code duplication detected', desc: 'Duplicate code blocks found. Extract shared logic into reusable functions or modules.', tag: 'Debt', tagClass: 'tag-amber', file: null });
     if (t.includes('comment') || t.includes('documentation')) issues.push({ sev: 'info', title: 'Missing documentation', desc: 'Low comment density detected. Adding docstrings and inline comments will improve maintainability.', tag: 'Quality', tagClass: 'tag-blue', file: null });
   }
   if (!R.security && !R.analyze && !R.debt) issues.push({ sev: 'info', title: 'Analysis incomplete', desc: 'Some checks failed or were skipped. Enable all checks and re-run for a full report.', tag: 'Info', tagClass: 'tag-blue', file: null });
   const _seenTitles = new Set();
   const _seenTopics = new Set();
+  // Topic de-duplication must never hide a line-specific finding. Previously the first issue of
+  // a topic won, so a generic "Raw Statement ... SQL injection" hid "SQL injection risk (line 10)".
+  // Now: issues that name lines are all kept (unless identical lines); a generic, line-less issue
+  // is dropped when a line-specific issue of the same topic exists.
+  const _lineSig = iss => { const m = String(iss.desc || iss.title || '').match(/\blines?(?:\(s\))?\s*:?\s*(\d[\d,\s]*)/i) || String(iss.desc || '').match(/\((\d+) lines: ([\d,\s]+)\)/); return m ? m[m.length - 1].replace(/\s+/g, '') : ''; };
+  const _topicsWithLines = new Set(issues.filter(i => i.topic && _lineSig(i)).map(i => i.topic));
   const _dedupedIssues = issues.filter(iss => {
     if (_seenTitles.has(iss.title)) return false;
-    if (iss.topic && _seenTopics.has(iss.topic)) return false;
+    if (iss.topic) {
+      const sig = _lineSig(iss);
+      if (!sig && _topicsWithLines.has(iss.topic)) return false;
+      const key = iss.topic + '|' + sig;
+      if (_seenTopics.has(key)) return false;
+      _seenTopics.add(key);
+    }
     _seenTitles.add(iss.title);
-    if (iss.topic) _seenTopics.add(iss.topic);
     return true;
   });
   if (_dedupedIssues.length === 0) _dedupedIssues.push({ sev: 'ok', title: 'No major issues detected', desc: 'Code looks clean. Migration is ready to approve.', tag: 'Clean', tagClass: 'tag-green', file: null });
@@ -3122,7 +3141,7 @@ function downloadMigrationCertificate() {
     <div class="check-row"><span>Business Rules Preserved</span><span>${rulesCount} rule(s) tracked</span></div>
   </div>
   <div class="cert-footer">
-    This certificate summarizes automated findings from StarSage's static analysis and (where applicable) safe symbolic behavioral verification — it is <b>not</b>a legal or regulatory certification, and does not replace a qualified human reviewer's sign-off. "PASS" indicates no blocking automated finding was detected at generation time, not a guarantee of correctness.
+    This certificate summarizes automated findings from StarSage's static analysis and (where applicable) safe symbolic behavioral verification — it is <b>not</b> a legal or regulatory certification, and does not replace a qualified human reviewer's sign-off. "PASS" indicates no blocking automated finding was detected at generation time, not a guarantee of correctness.
   </div>
 </div>
 </body></html>`;
