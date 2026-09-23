@@ -2919,7 +2919,9 @@ function buildIssues(R) {
   }
   if (R.analyze) {
     const t = getText(R.analyze).toLowerCase();
-    if (t.includes('legacy') || t.includes('deprecated')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
+    // Generic catch-all: only when no specific migration finding already names the pattern
+    // (otherwise the same Vector/Hashtable/... was counted twice).
+    if ((t.includes('legacy') || t.includes('deprecated')) && !issues.some(i => i.tag === 'Migration')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (Array.isArray(R.analyze.issues)) {
       // Issues come from analysing the ORIGINAL file. When the migrate step also reports the
       // same analyzer's findings on the MIGRATED code (remaining_issues), an issue that no longer
@@ -2936,8 +2938,9 @@ function buildIssues(R) {
         const lower = issText.toLowerCase();
         const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk') || lower.includes('eval(') || lower.includes('exec(') || lower.includes('eval/exec') || lower.includes('dangerous eval');
         const isRuntimeCritical = issText.toUpperCase().includes('CRITICAL:') || issText.toUpperCase().includes('CRITICAL ');
-        const alreadyCoveredElsewhere = lower.includes('mysql_') || lower.startsWith('ereg(') || lower.includes('deprecated mysql');
-        if (alreadyCoveredElsewhere) return;
+        // (A former skip here hid the analyzer's "mysql_* removed - will not run" CRITICAL, so
+        // mysql_* only ever showed as migration warnings while ereg() showed as both. Duplicates
+        // are now merged below instead, keeping the most severe entry.)
         let _topic = null;
         if (lower.includes('password') && lower.includes('hardcod')) _topic = 'hardcoded_password';
         else if (lower.includes('sql') && lower.includes('inject')) _topic = 'sql_injection';
@@ -2978,6 +2981,31 @@ function buildIssues(R) {
     if (t.includes('comment') || t.includes('documentation')) issues.push({ sev: 'info', title: 'Missing documentation', desc: 'Low comment density detected. Adding docstrings and inline comments will improve maintainability.', tag: 'Quality', tagClass: 'tag-blue', file: null });
   }
   if (!R.security && !R.analyze && !R.debt) issues.push({ sev: 'info', title: 'Analysis incomplete', desc: 'Some checks failed or were skipped. Enable all checks and re-run for a full report.', tag: 'Info', tagClass: 'tag-blue', file: null });
+  // Merge a migration "REVIEW NEEDED: foo() found" warning into the analyzer's
+  // "CRITICAL (will not run): foo() ... removed" issue for the same function (or the same
+  // family, e.g. mysql_* covers mysql_connect()), so one problem is counted once, at the
+  // correct severity, with the migration guidance kept in its description.
+  {
+    const _fnOf = t => { const m = String(t).match(/\b([a-z_][a-z0-9_]*)(\*)?\(\)/i); return m ? { name: m[1].toLowerCase(), family: !!m[2] || /_\*/.test(String(t)) } : null; };
+    const _crit = issues.filter(i => i.sev === 'critical' && /will not run/i.test(i.desc || ''));
+    for (let k = issues.length - 1; k >= 0; k--) {
+      const it = issues[k];
+      if (it.sev !== 'warning' || it.tag !== 'Migration') continue;
+      const f = _fnOf(it.title);
+      if (!f) continue;
+      const target = _crit.find(c => {
+        const d = String(c.desc);
+        const fam = d.match(/\b([a-z][a-z0-9]*)_\*/i);           // "mysql_* functions ..."
+        if (fam && f.name.startsWith(fam[1].toLowerCase() + '_')) return true;
+        const fn = d.match(/\b([a-z_][a-z0-9_]*)\(\)/i);         // "ereg() was ..."
+        return !!(fn && fn[1].toLowerCase() === f.name);
+      });
+      if (target) {
+        target.desc += ' \u2014 Migration note: ' + it.desc;
+        issues.splice(k, 1);
+      }
+    }
+  }
   const _seenTitles = new Set();
   const _seenTopics = new Set();
   // Topic de-duplication must never hide a line-specific finding. Previously the first issue of
