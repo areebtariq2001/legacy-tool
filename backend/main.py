@@ -2883,6 +2883,25 @@ async def analyze(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Analysis failed safely: {str(e)}"})
 
+def _attach_remaining_issues(result, lang):
+    """Run the same analyzer on the MIGRATED code, so the UI can tell which issues the
+    migration already fixed. Critical counts and the verdict used to come only from the
+    original source, so e.g. split() stayed "CRITICAL (will not run)" after being converted
+    to explode()."""
+    try:
+        _mc = result.get("migrated_code")
+        if not isinstance(_mc, str) or not _mc.strip():
+            return result
+        if lang == "python":
+            result["remaining_issues"] = analyze_code(_mc).get("issues", [])
+        elif lang == "java":
+            result["remaining_issues"] = analyze_java(_mc).get("issues", [])
+        elif lang == "php":
+            result["remaining_issues"] = analyze_php(_mc).get("issues", [])
+    except Exception:
+        pass
+    return result
+
 @app.post("/migrate")
 async def migrate(file: UploadFile = File(...)):
     try:
@@ -2892,11 +2911,11 @@ async def migrate(file: UploadFile = File(...)):
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
         _mig_lang = detect_language(file.filename)
         if _mig_lang == "python":
-            result = migrate_code(source)
+            result = _attach_remaining_issues(migrate_code(source), "python")
         elif _mig_lang == "java":
-            result = migrate_java(source)
+            result = _attach_remaining_issues(migrate_java(source), "java")
         elif _mig_lang == "php":
-            result = migrate_php(source)
+            result = _attach_remaining_issues(migrate_php(source), "php")
         elif _mig_lang == "cobol":
             result = migrate_cobol(source, file.filename)
         else:
@@ -3085,7 +3104,7 @@ async def migrate_php_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content_bytes, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = migrate_php(source)
+        result = _attach_remaining_issues(migrate_php(source), "php")
         result["filename"] = file.filename
         track_usage("migrate-php", file.filename)
         write_audit_log("migrate-php", file.filename, f"changes={len(result.get('changes', []))}")
@@ -3115,7 +3134,7 @@ async def migrate_java_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content_bytes, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        result = migrate_java(source)
+        result = _attach_remaining_issues(migrate_java(source), "java")
         result["filename"] = file.filename
         track_usage("migrate-java", file.filename)
         write_audit_log("migrate-java", file.filename, f"changes={len(result.get('changes', []))}")
