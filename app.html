@@ -1475,6 +1475,7 @@ async function runAnalysis() {
   const _ccNoteEl = document.getElementById('changeCountNote');
   if (_ccNoteEl) _ccNoteEl.style.display = 'none';
   window.lastTransformConfidence = null;
+  resetApprovalBox();
   pipeRun('analyze', 'Parsing code structure, imports, functions…');
   const t1 = Date.now();
   try {
@@ -3007,6 +3008,21 @@ function addHistory(fname, conf, issues, time) {
   else hEl.innerHTML = item + hEl.innerHTML;
 }
 let auditLog = [];
+// Approve/Reject used to replace the whole #approvalBox on success, wiping the Download
+// Report / Certificate / Evidence / JSON buttons, and the box was never restored - so the
+// NEXT file showed a stale "Migration approved" and could not be approved or rejected.
+// Now: the message goes into #approvalStatusMsg, only Approve/Reject are disabled, and every
+// new analysis resets the box.
+function setDecisionButtonsEnabled(enabled) {
+  document.querySelectorAll('#approvalBox button').forEach(b => {
+    if (/^(Approve|Reject)$/.test(b.textContent.trim())) { b.disabled = !enabled; b.style.opacity = enabled ? '' : '0.5'; }
+  });
+}
+function resetApprovalBox() {
+  const statusMsg = document.getElementById('approvalStatusMsg');
+  if (statusMsg) statusMsg.innerHTML = '';
+  setDecisionButtonsEnabled(true);
+}
 function logAuditEntry(action) {
   const fname = files.length ? files[0].name : 'unknown';
   auditLog.push({ timestamp: new Date().toISOString(), file: fname, action: action, confidence: document.getElementById('confPct').textContent, criticalIssues: document.getElementById('sv-critical').textContent });
@@ -3014,8 +3030,10 @@ function logAuditEntry(action) {
 function downloadAuditLog() {
   if (auditLog.length === 0) { alert('No audit entries yet. Approve or reject a migration first.'); return; }
   const csvRows = ['Timestamp,File,Action,Confidence,Critical Issues'];
-  const csvSafe = (v) => '"' + String(v).replace(/"/g, '""') + '"';
-  auditLog.forEach(e => { csvRows.push([e.timestamp, csvSafe(e.file), e.action, e.confidence, e.criticalIssues].join(',')); });
+  // Quote every field and neutralise spreadsheet formulas: a file named "=1+1.py" (or starting
+  // with + - @ tab CR) would otherwise be executed as a formula when the CSV is opened in Excel.
+  const csvSafe = (v) => { let t = String(v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+  auditLog.forEach(e => { csvRows.push([e.timestamp, e.file, e.action, e.confidence, e.criticalIssues].map(csvSafe).join(',')); });
   const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3046,7 +3064,7 @@ async function doApprove() {
       // whole approvalBox here would also wipe out its action buttons (Approve/Reject/Download
       // Report/Compliance Evidence Export/Migration Certificate/Export JSON/Modify) permanently,
       // leaving no way to retry (e.g. after logging in) without re-running the whole analysis.
-      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: ' + _errMsg + '</div>';
+      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: ' + escapeHtml(_errMsg) + '</div>';
       return;
     }
     sessionApproved++;
@@ -3054,10 +3072,18 @@ async function doApprove() {
     logAuditEntry('APPROVED');
     let _certHtml = '';
     try {
+      // Send the session token (the endpoint requires login - without it every certificate
+      // request got 401 and no certificate was ever issued from this workflow) plus SHA-256
+      // hashes of the actual original and migrated code and the real confidence, so the
+      // certificate is bound to this code instead of to the file name.
+      const _sha256 = async (txt) => { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(txt || ''))); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; } };
+      const _confNum = parseInt(document.getElementById('confPct').textContent, 10);
+      const _certHeaders = { 'Content-Type': 'application/json' };
+      if (authToken) _certHeaders['x-session-token'] = authToken;
       const _certR = await fetch(BACKEND + '/issue-migration-certificate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: fname, reviewer_notes: 'Approved via main workflow', decision: 'Approved' })
+        headers: _certHeaders,
+        body: JSON.stringify({ filename: fname, reviewer_notes: 'Approved via main workflow', decision: 'Approved', original_sha256: await _sha256(_snap.original), migrated_sha256: await _sha256(migrated), confidence: isNaN(_confNum) ? null : _confNum })
       });
       if (_certR.ok) {
         const _certData = await _certR.json();
@@ -3066,9 +3092,10 @@ async function doApprove() {
         }
       }
     } catch (e3) { /* certificate issuance is a bonus, never block the approval flow on it */ }
-    box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>' + _certHtml;
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600;margin-top:8px">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>' + _certHtml;
+    setDecisionButtonsEnabled(false);
   } catch (e) {
-    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: network error - ' + e.message + '</div>';
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: network error - ' + escapeHtml(e.message) + '</div>';
   }
 }
 async function doReject() {
@@ -3082,13 +3109,14 @@ async function doReject() {
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
       // Same fix as doApprove() above - error goes into the dedicated status element so the
       // action buttons (including Approve/Reject themselves) are never wiped out.
-      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: ' + _errMsg + '</div>';
+      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: ' + escapeHtml(_errMsg) + '</div>';
       return;
     }
     logAuditEntry('REJECTED');
-    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
+    setDecisionButtonsEnabled(false);
   } catch (e) {
-    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: network error - ' + e.message + '</div>';
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: network error - ' + escapeHtml(e.message) + '</div>';
   }
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
