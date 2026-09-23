@@ -3966,6 +3966,11 @@ def scan_sensitive_data(source):
                 line_nums.append(str(i+1))
                 if not _sample_line:
                     _sample_line = re.sub(r'([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])', r'\1***REDACTED***\2', ln.strip()[:150])
+                    # Credential findings: redact EVERY string literal on the line. The pattern above
+                    # only covers `= "..."` / `: "..."`, so a password passed as a function argument
+                    # (mysql_connect("host", "root", "secret")) was echoed back in clear text.
+                    if re.search(r"(?i)password|passwd|pwd|secret|api.?key|token|credential|private.?key", label):
+                        _sample_line = re.sub(r'([\"\x27])(?:(?!\1).)*\1', lambda _m: _m.group(1) + "***REDACTED***" + _m.group(1), _sample_line)
         if count > 0:
             findings.append({
                 "issue": label,
