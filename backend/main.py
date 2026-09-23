@@ -6701,13 +6701,19 @@ def _is_ast_safe_for_restricted_eval(node):
             return False
     return True
 
-def _restricted_call_function(func_source, func_name, args_dict):
-    tree = ast.parse(func_source)
-    target_func = None
-    for n in ast.walk(tree):
-        if isinstance(n, ast.FunctionDef) and n.name == func_name:
-            target_func = n
-            break
+def _function_nodes(source):
+    """name -> first FunctionDef node (same pick as ast.walk order), parsed ONCE per file."""
+    nodes = {}
+    for n in ast.walk(ast.parse(source)):
+        if isinstance(n, ast.FunctionDef):
+            nodes.setdefault(n.name, n)
+    return nodes
+
+def _restricted_call_function(func_source, func_name, args_dict, _nodes=None):
+    # _nodes: optional pre-parsed map from _function_nodes(). Without it every call re-parsed
+    # the WHOLE file, so behavioral checking was O(functions x inputs x file size): a 90 KB
+    # file with 300 functions took ~77 s.
+    target_func = (_nodes if _nodes is not None else _function_nodes(func_source)).get(func_name)
     if target_func is None:
         return None, "Function not found"
     if not _is_ast_safe_for_restricted_eval(target_func):
@@ -6750,6 +6756,11 @@ def calculate_behavioral_confidence(original_source, migrated_source, filename):
         orig_funcs = [n.name for n in ast.walk(orig_tree) if isinstance(n, ast.FunctionDef)]
     except Exception:
         return {"behavioral_status": "Not Tested", "behavioral_summary": "Could not parse original source (may have legacy Python 2 syntax) - migrate it first, then check behavioral confidence.", "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution) on simple pure functions - not a full test suite."}
+    try:
+        _orig_nodes = _function_nodes(original_source)
+        _mig_nodes = _function_nodes(migrated_source)
+    except Exception:
+        return {"behavioral_status": "Not Tested", "behavioral_summary": "Could not parse the migrated source - fix its syntax first, then check behavior.", "behavioral_disclaimer": "Uses safe, restricted symbolic evaluation (no code execution)."}
     verified = []
     skipped = []
     for fn in orig_funcs:
@@ -6758,11 +6769,11 @@ def calculate_behavioral_confidence(original_source, migrated_source, filename):
         cases_checked = 0
         reason = None
         for inputs in test_inputs:
-            orig_result, orig_err = _restricted_call_function(original_source, fn, inputs)
+            orig_result, orig_err = _restricted_call_function(original_source, fn, inputs, _orig_nodes)
             if orig_err:
                 reason = orig_err
                 break
-            mig_result, mig_err = _restricted_call_function(migrated_source, fn, inputs)
+            mig_result, mig_err = _restricted_call_function(migrated_source, fn, inputs, _mig_nodes)
             if mig_err:
                 reason = mig_err
                 break
