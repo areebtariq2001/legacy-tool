@@ -3675,7 +3675,7 @@ async function runComplianceSuite(endpoint, buttonLabel, btnEl) {
   try {
     const fd = new FormData();
     fd.append('file', files[0]);
-    const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
+    const r = await fetchRetry(BACKEND + endpoint, { method: 'POST', body: fd });
     const d = await r.json();
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
@@ -3722,7 +3722,7 @@ async function runPakistanBankingSuite(btnEl) {
   try {
     const fd = new FormData();
     fd.append('file', files[0]);
-    const r = await fetch(BACKEND + '/pakistan-banking-suite', { method: 'POST', body: fd });
+    const r = await fetchRetry(BACKEND + '/pakistan-banking-suite', { method: 'POST', body: fd });
     const d = await r.json();
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
@@ -3802,7 +3802,7 @@ async function runGenericScan(endpoint, label, btnEl) {
   document.querySelectorAll('.adv-check-btn').forEach(b => { if (b !== btnEl) b.classList.remove('adv-active'); });
   try {
     const fd = new FormData(); fd.append('file', files[0]);
-    const r = await fetch(BACKEND + endpoint, { method: 'POST', body: fd });
+    const r = await fetchRetry(BACKEND + endpoint, { method: 'POST', body: fd });
     const d = await r.json();
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
@@ -3939,25 +3939,28 @@ function exportDepGraphPNG() {
   };
   img.src = url;
 }
+function fmtVal(v) {
+  return (v === null || v === undefined) ? '\u2014' : String(v);
+}
 function renderValue(v) {
   if (Array.isArray(v)) {
     return v.length
       ? '<div style="display:flex;flex-direction:column;gap:3px">' +
         v.map(x => '<div style="font-size:11px;color:#0f1115">• ' +
-          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) =>escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : String(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
+          (x && typeof x === 'object' ? Object.entries(x).map(([a, b]) =>escapeHtml(a + ': ' + (Array.isArray(b) ? (b.length ? b.join(', ') : 'None') : fmtVal(b)))).join(' · ') : escapeHtml(String(x))) + '</div>').join('') + '</div>'
       : '<span style="color:#4b5563">None</span>';
   }
   if (v && typeof v === 'object') {
     return Object.entries(v).map(([a, b]) => {
       const num = typeof b === 'number';
-      const color = num ? (b >= 70 ? '#22c55e' : b >= 40 ? '#f59e0b' : '#ef4444') : '#e2e8f0';
-      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(String(b)) + '</span></div>';
+      const color = num ? (b >= 70 ? '#22c55e' : b >= 40 ? '#f59e0b' : '#ef4444') : '#0f1115';  // was #e2e8f0: near-invisible on the white card
+      return '<div style="font-size:11px;margin:2px 0"><span style="color:#64748b">' + escapeHtml(a) + ':</span> <span style="color:' + color + '">' + escapeHtml(fmtVal(b)) + '</span></div>';
     }).join('');
   }
-  return '<span style="color:#0f1115">' + escapeHtml(String(v)) + '</span>';
+  return '<span style="color:#0f1115">' + escapeHtml(fmtVal(v)) + '</span>';
 }
 function formatGenericResult(d, label) {
-  if (typeof d === 'string') return '<div style="font-size:11px">' + d + '</div>';
+  if (typeof d === 'string') return '<div style="font-size:11px">' + escapeHtml(d) + '</div>';
   if (typeof d !== 'object' || d === null) return '<div style="font-size:11px">' + JSON.stringify(d) + '</div>';
   const keys = Object.keys(d);
   let detectedKey = keys.find(k => /detected$/i.test(k) && typeof d[k] === 'boolean');
@@ -3996,14 +3999,14 @@ function formatGenericResult(d, label) {
   const statusIcon = isPositive === null ? 'ℹ' : isPositive ? '' : '';
   const statusText = isPositive === null ? 'Result' : isPositive ? 'Low Risk' : (riskKey ? d[riskKey] + ' Risk' : 'Findings Detected');
   let html = '<div style="display:flex;flex-direction:column;gap:10px">';
-  html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + statusText + '</span>' + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + d[confKey] + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">' + statusIcon + ' <span>' + escapeHtml(statusText) + '</span>' + (confKey ? ' <span style="font-size:9px;color:#64748b">(' + escapeHtml(fmtVal(d[confKey])) + (typeof d[confKey] === 'number' && d[confKey] <= 100 ? '%' : '') + ')</span>' : '') + '</div>';
   if (findingsKey) {
     html += '<div style="font-size:11px;color:#64748b;font-weight:600">Findings</div>';
     if (d[findingsKey].length === 0) {
       html += '<div style="font-size:11px;color:#4b5563"> ' + (summaryKey && d[summaryKey] ? escapeHtml(d[summaryKey]) : 'No issues found by this check.') + '</div>';
     } else {
       html += '<div style="display:flex;flex-direction:column;gap:6px">' + d[findingsKey].map(f => {
-      if (typeof f === 'string') return '<div style="font-size:11px;color:#0f1115"> ' + f + '</div>';
+      if (typeof f === 'string') return '<div style="font-size:11px;color:#0f1115"> ' + escapeHtml(f) + '</div>';
       if (typeof f === 'object' && f !== null) {
         const fKeys = Object.keys(f);
         const _firstStringValue = () => { for (const k in f) { if (typeof f[k] === 'string' && f[k].trim()) return f[k]; } return null; };
@@ -4012,21 +4015,21 @@ function formatGenericResult(d, label) {
         const _sevRaw = (f.severity || '').toLowerCase();
         const _sevColor = _sevRaw === 'critical' ? '#DC2626' : _sevRaw === 'high' ? '#EA580C' : _sevRaw === 'medium' ? '#CA8A04' : _sevRaw === 'low' ? '#16A34A' : _sevRaw === 'info' ? '#2563EB' : '#f59e0b';
         return '<div style="font-size:11px;color:#0f1115;padding:6px 8px;background:#f1f4f8;border-radius:5px;border-left:3px solid ' + _sevColor + '">' +
-          '<div style="font-weight:600;margin-bottom:3px"> ' + title + '</div>' +
+          '<div style="font-weight:600;margin-bottom:3px"> ' + escapeHtml(title) + '</div>' +
           rest.map(k => {
             if (k === 'issues' && Array.isArray(f[k])) {
               return '<div style="font-size:10px;color:#64748b;margin-top:2px">' + f[k].map(iss => '<div style="margin-top:2px">• <span style="color:#4b5563">' + escapeHtml(String(iss)) + '</span></div>').join('') + '</div>';
             }
-            return '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(String(f[k]))) + '</span></div>';
+            return '<div style="font-size:10px;color:#64748b">' + k.replace(/_/g,' ') + ': <span style="color:#4b5563">' + (Array.isArray(f[k]) || (f[k] && typeof f[k] === 'object') ? renderValue(f[k]) : escapeHtml(fmtVal(f[k]))) + '</span></div>';
           }).join('') +
         '</div>';
       }
-      return '<div style="font-size:11px;color:#0f1115"> ' + JSON.stringify(f) + '</div>';
+      return '<div style="font-size:11px;color:#0f1115"> ' + escapeHtml(JSON.stringify(f)) + '</div>';
     }).join('') + '</div>';
     }
   }
   if (summaryKey) {
-    html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:4px">Summary</div><div style="font-size:11.5px;color:#0f1115">' + d[summaryKey] + '</div>';
+    html += '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:4px">Summary</div><div style="font-size:11.5px;color:#0f1115">' + escapeHtml(d[summaryKey]) + '</div>';
   }
   if (d.dna_dimensions && typeof d.dna_dimensions === 'object') {
     let _dnaHeader = '<div style="font-size:11px;color:#64748b;font-weight:600;margin-top:8px">Dimension Breakdown</div>';
