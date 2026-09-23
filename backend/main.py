@@ -3585,7 +3585,7 @@ class MigrationCertificate:
             try:
                 audit_blockchain.add_block(
                     action="CERTIFICATE_ISSUED", filename=filename, user_email=reviewer_email, ip="system",
-                    result=f"cert={cert_id} confidence={confidence}% status={certificate['approval_status']}"
+                    result=f"cert={cert_id} confidence={confidence if confidence is not None else 'n/a'}% status={certificate['approval_status']}"
                 )
             except Exception:
                 pass
@@ -3633,13 +3633,29 @@ async def issue_migration_certificate_endpoint(request: Request):
         _filename = str(_body.get("filename", "unknown"))[:500]
         _reviewer_notes = str(_body.get("reviewer_notes", ""))[:5000]
         _decision = str(_body.get("decision", "Approved"))[:50]
-        _original_hash = hashlib.sha256(_filename.encode()).hexdigest()[:16]
-        _migrated_hash = hashlib.sha256(_reviewer_notes.encode()).hexdigest()[:16]
+        # The certificate's "original_code_hash"/"migrated_code_hash" used to be hashes of the
+        # FILENAME and the REVIEWER NOTES, and confidence was hard-coded to 100 for every approval,
+        # so the certificate did not bind to any code and overstated confidence. Now the client
+        # sends SHA-256 hashes of the actual original and migrated code plus the real confidence;
+        # if they are missing, the certificate says so instead of making a false claim.
+        _hex64 = re.compile(r"^[0-9a-f]{64}$")
+        _orig_in = str(_body.get("original_sha256", "")).strip().lower()
+        _mig_in = str(_body.get("migrated_sha256", "")).strip().lower()
+        _original_hash = _orig_in if _hex64.match(_orig_in) else None
+        _migrated_hash = _mig_in if _hex64.match(_mig_in) else None
+        _conf_in = _body.get("confidence")
+        try:
+            _confidence = max(0, min(100, int(round(float(_conf_in))))) if _conf_in is not None and str(_conf_in).strip() != "" else None
+        except (TypeError, ValueError):
+            _confidence = None
         _approved = _decision.strip().lower() == "approved"
         cert = cert_manager.issue(
             filename=_filename, original_hash=_original_hash, migrated_hash=_migrated_hash,
-            confidence=100 if _approved else 0, reviewer_email=_reviewer_email, approved=_approved
+            confidence=_confidence, reviewer_email=_reviewer_email, approved=_approved
         )
+        if _original_hash is None or _migrated_hash is None:
+            cert = dict(cert)  # copy: the stored, signed certificate must not be modified after signing
+            cert["code_binding_note"] = "Code hashes were not supplied when this certificate was issued, so it is NOT bound to specific code content."
         write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}", user_email=_reviewer_email)
         return cert
     except Exception as e:
