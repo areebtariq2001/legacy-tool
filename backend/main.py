@@ -5995,9 +5995,10 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type, appr
     _allowed_decisions = {"approved", "rejected", "modified", "Approved", "Rejected", "Modified"}
     if decision not in _allowed_decisions:
         return {"log_saved": False, "error": "Invalid decision: " + str(decision), "filename": filename}
+    decision = decision.capitalize()  # one canonical form; the UI sends "approved"/"rejected"
     if reviewer_notes and len(reviewer_notes) > 5000:
         reviewer_notes = reviewer_notes[:5000] + " [... truncated ...]"
-    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat()}
+    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat(), "approved_by": approved_by}
     conn = _get_db_connection()
     if conn:
         cur = None
@@ -6039,13 +6040,19 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type, appr
         entry["log_error"] = str(e)
     return entry
 
-def get_approval_history():
+def get_approval_history(user_email=None, limit=500):
+    """Approval decisions, newest first. With user_email, only that reviewer's own decisions:
+    any registered user used to receive EVERY user's file names, notes and email addresses
+    (registration is open), and the query had no LIMIT."""
     conn = _get_db_connection()
     if conn:
         cur = None
         try:
             cur = conn.cursor()
-            cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log ORDER BY id DESC")
+            if user_email is not None:
+                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log WHERE approved_by = %s ORDER BY id DESC LIMIT %s", (user_email, limit))
+            else:
+                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log ORDER BY id DESC LIMIT %s", (limit,))
             rows = cur.fetchall()
             return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4], "approved_by": r[5]} for r in rows]
         except Exception as e:
@@ -6056,7 +6063,10 @@ def get_approval_history():
             conn.close()
     try:
         with open("approval_log.json", "r") as f:
-            return json.load(f)
+            _entries = json.load(f)
+        if user_email is not None:
+            _entries = [e for e in _entries if isinstance(e, dict) and e.get("approved_by") == user_email]
+        return _entries[-limit:][::-1] if isinstance(_entries, list) else []
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
@@ -6127,8 +6137,9 @@ async def approval_history_endpoint(request: Request):
     if not _user_email:
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to view approval history"})
     try:
-        history = get_approval_history()
-        return {"approval_history": history, "total_decisions": len(history)}
+        _is_admin = _check_admin_auth(request)
+        history = await run_in_threadpool(get_approval_history, None if _is_admin else _user_email)
+        return {"approval_history": history, "total_decisions": len(history), "scope": "all reviewers (admin)" if _is_admin else "your decisions only"}
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Could not load approval history: {e}"})
 
@@ -6176,13 +6187,15 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code quality check failed safely: {e}"})
 
-def get_migration_dashboard():
-    history = get_approval_history()
+def get_migration_dashboard(user_email=None):
+    history = get_approval_history(user_email)
     total = len(history)
     if total == 0:
         return {"total_reviewed": 0, "dashboard_summary": "No approval decisions logged yet.", "by_decision": {}, "recent_activity": []}
-    approved = len([h for h in history if h.get("decision") == "Approved"])
-    rejected = len([h for h in history if h.get("decision") == "Rejected"])
+    # case-insensitive: rows saved before the decision was normalised are lowercase
+    # ("approved"), so these counts were always 0 for decisions made from the UI.
+    approved = len([h for h in history if (h.get("decision") or "").lower() == "approved"])
+    rejected = len([h for h in history if (h.get("decision") or "").lower() == "rejected"])
     needs_mod = len([h for h in history if "modif" in (h.get("decision") or "").lower()])
     approval_rate = round((approved / total) * 100, 1) if total > 0 else 0
     action_types = {}
@@ -6205,7 +6218,9 @@ async def migration_dashboard_endpoint(request: Request):
     if not _user_email:
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to view the dashboard"})
     try:
-        result = get_migration_dashboard()
+        _is_admin = _check_admin_auth(request)
+        result = await run_in_threadpool(get_migration_dashboard, None if _is_admin else _user_email)
+        result["scope"] = "all reviewers (admin)" if _is_admin else "your decisions only"
         return result
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Dashboard load failed safely: {e}"})
