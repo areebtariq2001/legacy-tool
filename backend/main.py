@@ -1183,8 +1183,9 @@ def analyze_code(source):
         issues.append("old except syntax found - use 'except X as e'")
     try:
         _sqli_result = scan_sql_injection(source, "file.py")
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])
+        _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
+        if _sqli_grouped:
+            issues.append(_sqli_grouped)
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
@@ -1336,7 +1337,7 @@ def migrate_code(source):
     except Exception:
         pass
     if not _source_already_py3:
-        _div_lines = [str(_i + 1) for _i, _ln in enumerate(migrated.split(chr(10))) if re.search(r'[\w\)\]]\s*/\s*[\w\(]', _ln) and '//' not in _ln and not _ln.strip().startswith('#')]
+        _div_lines = [str(_n) for _n in _division_operator_lines(migrated)]  # Bug 12: real '/' operators only, never text in comments/docstrings
         if _div_lines:
             changes.append("REVIEW NEEDED: Division (/) found on line(s) " + ", ".join(_div_lines) + " - Python 2 used floor division on integers, Python 3 uses true division. Verify this calculation still produces the intended result, especially for financial/numeric logic.")
     _validity = {"syntax_valid": True, "syntax_error": None, "broken_py3_imports": []}
@@ -1840,8 +1841,9 @@ def analyze_php(source):
             issues.append(msg)
     try:
         _sqli_result = scan_sql_injection(source, "file.php")
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
+        _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
+        if _sqli_grouped:
+            issues.append(_sqli_grouped)
     except Exception:
         issues.append("SQL injection sub-check could not complete - review manually for string-built queries")
     try:
@@ -1983,8 +1985,9 @@ def analyze_java(source):
         issues.append("Hardcoded password/credential found - move to environment variable")
     try:
         _sqli_result = scan_sql_injection(source, "file.java")
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
+        _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
+        if _sqli_grouped:
+            issues.append(_sqli_grouped)
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
@@ -2151,8 +2154,9 @@ def analyze_cobol(source, filename="file.cbl"):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
         _sqli_result = scan_sql_injection(source, filename)
-        for _sqli_issue in _sqli_result.get("sqli_issues", []):
-            issues.append(f"SQL injection risk (line {_sqli_issue['line']}): {_sqli_issue['issue']}")
+        _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
+        if _sqli_grouped:
+            issues.append(_sqli_grouped)
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
@@ -3540,6 +3544,121 @@ def get_audit_log_json(request: Request):
             entries.append({"raw": str(e)})
     return {"audit_ready": True, "total_entries": len(entries), "entries": entries[:100]}
 
+import io as _io_mod
+import tokenize as _tokenize_mod
+import token as _token_mod
+
+def _python_tokens(source):
+    """Tokenize source as Python; returns a token list or None if it is not tokenizable."""
+    try:
+        return list(_tokenize_mod.generate_tokens(_io_mod.StringIO(source).readline))
+    except Exception:
+        return None
+
+_TRIPLE_QUOTED_RE = re.compile(r'("""|\'\'\')(.*?)\1', re.S)
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.S)
+
+def _blank_comments_and_docstrings(source):
+    """Return the source lines with comments and docstrings replaced by spaces.
+
+    Line numbers are preserved. Used so keyword detectors only look at real code:
+    a docstring saying "No AML/KYC screening call anywhere" must never count as
+    evidence that AML/KYC logic exists (Bug 11). Python sources are handled with
+    the tokenizer; anything it cannot tokenize falls back to line-level stripping
+    of #, //, /* */ comments and triple-quoted blocks."""
+    lines = source.split(chr(10))
+    toks = _python_tokens(source)
+    if toks is not None:
+        out = [list(l) for l in lines]
+
+        def _blank(start, end):
+            (sr, sc), (er, ec) = start, end
+            for r in range(sr, er + 1):
+                if r - 1 >= len(out):
+                    break
+                row = out[r - 1]
+                a = sc if r == sr else 0
+                b = ec if r == er else len(row)
+                for k in range(a, min(b, len(row))):
+                    row[k] = " "
+
+        _skip = (_tokenize_mod.NL, _tokenize_mod.COMMENT, _tokenize_mod.ENCODING)
+        _sig = [t for t in toks if t.type not in _skip]
+        for t in toks:
+            if t.type == _tokenize_mod.COMMENT:
+                _blank(t.start, t.end)
+        for k, t in enumerate(_sig):
+            if t.type != _tokenize_mod.STRING:
+                continue
+            prev = _sig[k - 1] if k > 0 else None
+            nxt = _sig[k + 1] if k + 1 < len(_sig) else None
+            starts_stmt = prev is None or prev.type in (_tokenize_mod.NEWLINE, _tokenize_mod.INDENT, _tokenize_mod.DEDENT)
+            ends_stmt = nxt is None or nxt.type in (_tokenize_mod.NEWLINE, _tokenize_mod.ENDMARKER)
+            if starts_stmt and ends_stmt:
+                _blank(t.start, t.end)
+        return ["".join(r) for r in out]
+    _spaces = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    text = _BLOCK_COMMENT_RE.sub(_spaces, source)
+    text = _TRIPLE_QUOTED_RE.sub(_spaces, text)
+    res = []
+    for ln in text.split(chr(10)):
+        st = ln.strip()
+        is_cobol_comment = len(ln) > 6 and ln[6:7] == "*" and (ln[:6].strip() == "" or ln[:6].strip().isdigit())
+        if st.startswith(("#", "//", "*")) or is_cobol_comment:
+            res.append(" " * len(ln))
+        else:
+            res.append(ln)
+    return res
+
+def _division_operator_lines(code):
+    """Line numbers holding a real '/' or '/=' operator (Bug 12). Uses the Python
+    tokenizer so slashes inside comments, docstrings and strings ("AML/KYC",
+    "Python 2/legacy") are never counted."""
+    toks = _python_tokens(code)
+    if toks is None:
+        blanked = _blank_comments_and_docstrings(code)
+        blanked = [re.sub(r"(\"[^\"]*\"|'[^']*')", '""', l) for l in blanked]
+        return [i + 1 for i, l in enumerate(blanked) if re.search(r"[\w\)\]]\s*/(?!/)\s*[\w\(]", l)]
+    rows = set()
+    for t in toks:
+        if t.type == _tokenize_mod.OP and t.exact_type in (_token_mod.SLASH, _token_mod.SLASHEQUAL):
+            rows.add(t.start[0])
+    return sorted(rows)
+
+def _grouped_sqli_issue(sqli_issues):
+    """One issue line naming every SQL-injection line (Bug 14). The UI shows one card
+    per issue topic, so separate per-line issues collapsed into a single card that
+    showed only the first line; now that card lists all of them."""
+    if not sqli_issues:
+        return None
+    _lines = sorted({int(i["line"]) for i in sqli_issues})
+    _kinds = list(dict.fromkeys(i["issue"] for i in sqli_issues))
+    _where = ("line " + str(_lines[0])) if len(_lines) == 1 else (str(len(_lines)) + " lines: " + ", ".join(str(l) for l in _lines))
+    _tail = (" - fix ALL " + str(len(_lines)) + " locations with parameterized queries") if len(_lines) > 1 else ""
+    return "SQL injection risk (" + _where + "): " + "; ".join(_kinds) + _tail
+
+_CNIC_LITERAL_RE = re.compile(r"[\"\x27][^\"\x27]*\b\d{5}-?\d{7}-?\d\b[^\"\x27]*[\"\x27]")
+_CNIC_NAME_RE = re.compile(r"(?i)\b\w*(cnic|nic_?no|national_?id)\w*\b")
+_OUTPUT_CALL_RE = re.compile(r"(?i)(\.write\s*\(|\bwritelines\s*\(|\bprint\b|\blog(?:ger|ging)?\.(?:debug|info|warning|warn|error|critical|exception)\s*\(|\bSystem\.out\.print|\becho\b|\berror_log\s*\(|\bfile_put_contents\s*\(|\bfprintf\s*\()")
+
+def _cnic_exposure_findings(source):
+    """Bug 13: hardcoded CNIC literals and CNIC values written to logs/files/stdout."""
+    code_lines = _blank_comments_and_docstrings(source)
+    hard, logged = [], []
+    for i, ln in enumerate(code_lines):
+        if not ln.strip() or len(ln) > 2000:
+            continue
+        if _CNIC_LITERAL_RE.search(ln):
+            hard.append(str(i + 1))
+        if _OUTPUT_CALL_RE.search(ln) and (_CNIC_NAME_RE.search(ln) or _CNIC_LITERAL_RE.search(ln)):
+            logged.append(str(i + 1))
+    findings = []
+    if hard:
+        findings.append({"issue": "Hardcoded CNIC (Pakistan national ID number) in source code - PII must not be stored in code", "severity": "Critical", "occurrences": len(hard), "lines": ", ".join(hard[:10]), "lines_truncated": len(hard) > 10, "total_lines_affected": len(hard), "evidence": f"First occurrence at line {hard[0]} (value redacted)"})
+    if logged:
+        findings.append({"issue": "CRITICAL: CNIC written in plaintext to a log/file/console output - mask or remove it before writing (PII exposure)", "severity": "Critical", "occurrences": len(logged), "lines": ", ".join(logged[:10]), "lines_truncated": len(logged) > 10, "total_lines_affected": len(logged), "evidence": f"First occurrence at line {logged[0]}"})
+    return findings
+
 SENSITIVE_PATTERNS = [
     (r"(?i)\b[A-Za-z0-9_]*api[_-]?key[A-Za-z0-9_]*\s*=\s*[\x27\x22](sk_live_|sk_test_|pk_live_|AKIA|ghp_|gho_|xox[a-z]-|AIza)[A-Za-z0-9_\-]{6,}[\x27\x22]", "Hardcoded live/production API key detected", "Critical"),
     (r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b", "Possible credit card number (Visa/Mastercard/Amex/Discover pattern)", "High"),
@@ -3598,6 +3717,10 @@ def scan_sensitive_data(source):
                 "total_lines_affected": len(line_nums),
                 "evidence": f"First occurrence at line {line_nums[0]}: {_sample_line}"
             })
+    try:
+        findings.extend(_cnic_exposure_findings(source))  # Bug 13
+    except Exception:
+        pass
     critical = sum(1 for f in findings if f["severity"] == "Critical")
     high = sum(1 for f in findings if f["severity"] in ("High", "Critical"))
     medium = sum(1 for f in findings if f["severity"] == "Medium")
@@ -3641,7 +3764,7 @@ async def scan_sensitive_endpoint(file: UploadFile = File(...)):
         return {"filename": file.filename, "error": f"Scan failed safely: {str(e)}"}
 
 BANKING_PATTERNS = [
-    (r"(?i)\b(interest|rate\s*of\s*interest|roi|compound|simple\s*interest)\b", "Interest calculation", "Verify rounding and precision rules after migration."),
+    (r"(?i)(?<![a-z])(interest|rate\s*of\s*interest|roi|compound|simple\s*interest)(?![a-z])", "Interest calculation", "Verify rounding and precision rules after migration."),
     (r"(?i)\b(balance|min[_\s]?balance|available[_\s]?balance|overdraft)\b", "Account balance logic", "Confirm balance checks and limits behave identically."),
     (r"(?i)\b(debit|credit)\b", "CORE debit/credit logic - HIGH IMPACT", "This code touches core debit/credit transaction logic. Any change here is high-impact and must be reviewed and tested with extra care to guarantee zero-error migration."),
     (r"(?i)\b(transaction|txn|transfer|deposit|withdraw)\b", "Transaction handling", "Ensure transaction integrity and logging are preserved."),
@@ -3659,7 +3782,7 @@ BANKING_PATTERNS_COMPILED = [(re.compile(p), label, note) for p, label, note in 
 
 def detect_banking_patterns(source):
     findings = []
-    source_lines = source.split(chr(10))
+    source_lines = _blank_comments_and_docstrings(source)  # Bug 11: comments/docstrings are not evidence of logic
     for pattern, label, note in BANKING_PATTERNS_COMPILED:
         count = 0
         line_nums = []
@@ -3936,11 +4059,13 @@ AML_KYC_PATTERNS = [
     (r"(?i)\b(dormant[_\s]?account|inactive[_\s]?account)\b", "Dormant account logic", "AML", "Dormant-account rules often have compliance implications."),
 ]
 
-AML_KYC_PATTERNS_COMPILED = [(re.compile(p), label, cat, note) for p, label, cat, note in AML_KYC_PATTERNS]
+# Treat "_" as a word boundary so real code identifiers (check_aml, AML_THRESHOLD, kyc_verified)
+# are detected; with comments/docstrings now excluded (Bug 11), identifiers are the evidence.
+AML_KYC_PATTERNS_COMPILED = [(re.compile(p.replace(r"\b", r"(?:(?<![A-Za-z0-9])(?=[A-Za-z0-9])|(?<=[A-Za-z0-9])(?![A-Za-z0-9]))")), label, cat, note) for p, label, cat, note in AML_KYC_PATTERNS]
 
 def extract_aml_kyc(source):
     findings = []
-    source_lines = source.split(chr(10))
+    source_lines = _blank_comments_and_docstrings(source)  # Bug 11: comments/docstrings are not evidence of logic
     for pattern, label, category, note in AML_KYC_PATTERNS_COMPILED:
         count = 0
         line_nums = []
