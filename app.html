@@ -742,6 +742,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                 <button class="btn btn-ghost" style="font-size:11px" onclick="doModify()">Modify</button>
                 <button class="btn btn-success" style="font-size:11px" onclick="doApprove()">Approve</button>
               </div>
+              <div id="approvalStatusMsg"></div>
             </div>
           </div>
         </div>
@@ -2848,12 +2849,17 @@ async function doApprove() {
   }
   const fname = files.length ? files[0].name : 'unknown';
   const box = document.getElementById('approvalBox');
+  const statusMsg = document.getElementById('approvalStatusMsg');
   try {
     const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
-      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Approval was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      // Write the error into a dedicated status element, not box.innerHTML - overwriting the
+      // whole approvalBox here would also wipe out its action buttons (Approve/Reject/Download
+      // Report/Compliance Evidence Export/Migration Certificate/Export JSON/Modify) permanently,
+      // leaving no way to retry (e.g. after logging in) without re-running the whole analysis.
+      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: ' + _errMsg + '</div>';
       return;
     }
     sessionApproved++;
@@ -2875,24 +2881,27 @@ async function doApprove() {
     } catch (e3) { /* certificate issuance is a bonus, never block the approval flow on it */ }
     box.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600">Migration approved and logged to audit trail (' + auditLog.length + ' entries this session).</div>' + _certHtml;
   } catch (e) {
-    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Approval was NOT saved: network error - ' + e.message + '</div>';
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Approval was NOT saved: network error - ' + e.message + '</div>';
   }
 }
 async function doReject() {
   const fname = files.length ? files[0].name : 'unknown';
   const box = document.getElementById('approvalBox');
+  const statusMsg = document.getElementById('approvalStatusMsg');
   try {
     const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
-      box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Rejection was NOT saved: ' + _errMsg + (_r.status === 401 ? ' — please log in first.' : '') + '</div>';
+      // Same fix as doApprove() above - error goes into the dedicated status element so the
+      // action buttons (including Approve/Reject themselves) are never wiped out.
+      if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: ' + _errMsg + '</div>';
       return;
     }
     logAuditEntry('REJECTED');
     box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Migration rejected and logged to audit trail (' + auditLog.length + ' entries this session).</div>';
   } catch (e) {
-    box.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600">Rejection was NOT saved: network error - ' + e.message + '</div>';
+    if (statusMsg) statusMsg.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">Rejection was NOT saved: network error - ' + e.message + '</div>';
   }
 }
 function doModify() { alert('Open the migrated result in your editor, make changes, then re-upload and approve.'); }
