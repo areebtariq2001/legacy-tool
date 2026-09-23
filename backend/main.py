@@ -2003,8 +2003,23 @@ def migrate_php(source):
         (r'\bereg\(', "ereg() found - preg_match() is the replacement, but you must manually wrap your pattern in delimiters (e.g. \"/pattern/\") - the pattern syntax is not identical."),
         (r'\beregi_replace\(', "eregi_replace() found - preg_replace() is the replacement, but you must manually wrap your pattern in delimiters and add the /i flag."),
         (r'\bereg_replace\(', "ereg_replace() found - preg_replace() is the replacement, but you must manually wrap your pattern in delimiters (e.g. \"/pattern/\") - the pattern syntax is not identical."),
-        (r'\bsplit\(', "split() found - if the first argument is a regex pattern, use preg_split() (not explode(), which only handles a literal string, not a regex)."),
+        (r'(?<![\w>$:])split\(', "split() found - if the first argument is a regex pattern, use preg_split() (not explode(), which only handles a literal string, not a regex)."),
     ]
+    # split() was removed in PHP 7 (fatal "Call to undefined function"). When its pattern is a
+    # plain literal with no regex metacharacters, explode() with the same delimiter gives the
+    # identical result, so convert it; regex patterns still get the REVIEW NEEDED note below.
+    _split_lit_re = re.compile(r'(?<![\w>$:])split\(\s*(["\'])([^"\'\\.^$|?*+()\[\]{}]+)\1\s*,')
+    _split_lines = migrated.split(chr(10))
+    _split_changed = False
+    for _si, _sline in enumerate(_split_lines):
+        _scode, _scomment = _split_inline_comment_php(_sline)
+        _snew = _split_lit_re.sub(lambda m: "explode(" + m.group(1) + m.group(2) + m.group(1) + ",", _scode)
+        if _snew != _scode:
+            _split_lines[_si] = _snew + _scomment
+            _split_changed = True
+    if _split_changed:
+        migrated = chr(10).join(_split_lines)
+        changes.append("split() with a literal delimiter -> explode() (split() was removed in PHP 7)")
     _migrated_no_comments_php = re.sub(r'/\*.*?\*/', '', migrated, flags=re.DOTALL)
     _migrated_no_comments_php = chr(10).join(_split_inline_comment_php(_l)[0] for _l in _migrated_no_comments_php.split(chr(10)))
     for pattern, msg in review_rules:
@@ -5788,9 +5803,9 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
         source, error = safe_read_file(content, file.filename)
         if error:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
-        migration_result = ai_advanced_migrate(source, detect_language(file.filename))
-        migrated_code = migration_result.get("migrated_code", source)
-        sandbox_result = run_sandboxed_migration_test(migrated_code, file.filename)
+        # Sandboxed execution is disabled, so do not spend an AI migration call (Groq quota,
+        # latency, no per-endpoint rate limit here) only to throw its result away.
+        sandbox_result = run_sandboxed_migration_test(source, file.filename)
         sandbox_result["filename"] = file.filename
         track_usage("sandbox-test", file.filename)
         return sandbox_result
@@ -6499,6 +6514,35 @@ def analyze_regulation_impact(source, filename):
             })
     return {"affected_regulations": affected, "total_regulations_affected": len(affected), "regulation_summary": f"{len(affected)} regulation area(s) potentially affected by this code" if affected else "No obvious regulation-relevant patterns detected in this file", "regulation_disclaimer": "Heuristic pattern-based detection of code related to common regulatory areas (AML, KYC, PCI-DSS-style, GDPR-style, etc.). This is NOT a compliance certification or legal assessment - always consult your compliance/legal team for actual regulatory obligations."}
 
+_RESTRICTED_MAX_INT_BITS = 4096      # ~1200 decimal digits - far beyond any real financial value
+_RESTRICTED_MAX_SEQ_LEN = 100000
+
+def _restricted_size_guard(op, left, right):
+    """Refuse operations whose RESULT would be huge, before computing it. Without this,
+    a function like `return x ** 50000000` or `return 9 ** 10 ** 8` in an uploaded file
+    pinned the CPU indefinitely (and, since the endpoint ran on the event loop, froze
+    the whole server for every user)."""
+    def _bits(v):
+        if isinstance(v, bool):
+            return 1
+        if isinstance(v, int):
+            return max(1, abs(v).bit_length())
+        return None
+    lb, rb = _bits(left), _bits(right)
+    if isinstance(op, ast.Pow):
+        if isinstance(right, (int, float)) and not isinstance(right, bool) and abs(right) > 10000:
+            raise ValueError("Exponent too large for safe evaluation")
+        if lb is not None and isinstance(right, int) and lb * max(0, right) > _RESTRICTED_MAX_INT_BITS:
+            raise ValueError("Result too large for safe evaluation")
+    if isinstance(op, ast.Mult):
+        for seq, n in ((left, right), (right, left)):
+            if isinstance(seq, (str, bytes, list, tuple)) and isinstance(n, int) and len(seq) * max(0, n) > _RESTRICTED_MAX_SEQ_LEN:
+                raise ValueError("Sequence repetition too large for safe evaluation")
+        if lb is not None and rb is not None and lb + rb > _RESTRICTED_MAX_INT_BITS:
+            raise ValueError("Result too large for safe evaluation")
+    if isinstance(op, ast.Add) and isinstance(left, (str, bytes, list, tuple)) and isinstance(right, type(left)) and len(left) + len(right) > _RESTRICTED_MAX_SEQ_LEN:
+        raise ValueError("Sequence too large for safe evaluation")
+
 def _safe_eval_restricted(node, variables):
     if isinstance(node, ast.Constant):
         return node.value
@@ -6509,6 +6553,7 @@ def _safe_eval_restricted(node, variables):
     if isinstance(node, ast.BinOp):
         left = _safe_eval_restricted(node.left, variables)
         right = _safe_eval_restricted(node.right, variables)
+        _restricted_size_guard(node.op, left, right)
         if isinstance(node.op, ast.Add): return left + right
         if isinstance(node.op, ast.Sub): return left - right
         if isinstance(node.op, ast.Mult): return left * right
@@ -6928,7 +6973,8 @@ async def behavioral_confidence_endpoint(original_file: UploadFile = File(...), 
         migrated_source, error2 = safe_read_file(mig_content, migrated_file.filename)
         if error1 or error2:
             return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": error1 or error2})
-        result = calculate_behavioral_confidence(original_source, migrated_source, original_file.filename)
+        # CPU-bound: run off the event loop so one slow file can never stall other requests.
+        result = await run_in_threadpool(calculate_behavioral_confidence, original_source, migrated_source, original_file.filename)
         result["filename"] = original_file.filename
         track_usage("behavioral-confidence", original_file.filename)
         write_audit_log("behavioral-confidence", original_file.filename, f"status={result.get('behavioral_status', 'unknown')}")
