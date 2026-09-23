@@ -999,6 +999,7 @@ async function submitAuth() {
   const password = document.getElementById('authPassword').value;
   const errEl = document.getElementById('authError');
   errEl.style.display = 'none';
+  errEl.style.color = '';  // was left green after "Account created", so later errors looked like success
   try {
     const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
     const r = await fetch(BACKEND + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -1026,12 +1027,26 @@ async function submitAuth() {
     errEl.style.display = 'block';
   }
 }
-function doLogout() {
+function clearLocalSession() {
   authToken = null;
   authEmail = null;
-  localStorage.removeItem('sessionToken');
-  localStorage.removeItem('sessionEmail');
+  try { localStorage.removeItem('sessionToken'); localStorage.removeItem('sessionEmail'); } catch (e) {}
   updateAuthUI();
+}
+function doLogout() {
+  // Invalidate the session on the server too. Logout used to only forget the token in this
+  // browser, so the token itself stayed valid on the server until it expired.
+  const _tok = authToken;
+  if (_tok) {
+    try { fetch(BACKEND + '/auth/logout', { method: 'POST', headers: { 'x-session-token': _tok }, keepalive: true }).catch(() => {}); } catch (e) {}
+  }
+  clearLocalSession();
+}
+// A 401 means the stored session is expired/invalid: stop showing the user as logged in.
+function handleExpiredSession(statusEl, what) {
+  clearLocalSession();
+  if (statusEl) statusEl.innerHTML = '<div style="color:var(--red);font-size:12px;font-weight:600;margin-top:8px">' + escapeHtml(what) + ' was NOT saved: your session has expired or you are not logged in. Please log in and try again.</div>';
+  openAuthModal();
 }
 // Bug 11: keyword detectors (AML/KYC, business rules, payments, regulatory signals...) must
 // only look at real code. A docstring line "- No AML/KYC screening call anywhere" was being
@@ -3057,6 +3072,7 @@ async function doApprove() {
   const statusMsg = document.getElementById('approvalStatusMsg');
   try {
     const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    if (_r.status === 401) { handleExpiredSession(statusMsg, 'Approval'); return; }
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
@@ -3104,6 +3120,7 @@ async function doReject() {
   const statusMsg = document.getElementById('approvalStatusMsg');
   try {
     const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    if (_r.status === 401) { handleExpiredSession(statusMsg, 'Rejection'); return; }
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
       try { const _errData = await _r.json(); if (_errData.error) _errMsg = _errData.error; } catch (e2) {}
