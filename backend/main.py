@@ -1917,9 +1917,31 @@ def migrate_php(source):
     for pattern, msg in review_rules:
         if re.search(pattern, _migrated_no_comments_php):
             changes.append(f"REVIEW NEEDED: {msg}")
-    if re.search(r'var\s+\$(\w+)', migrated):
-        migrated = re.sub(r'var\s+\$(\w+)', r'public $\1', migrated)
-        changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
+    _var_public_pattern = r'var\s+\$(\w+)'
+    if re.search(_var_public_pattern, migrated):
+        # Same string-literal-masking treatment as the `rules` loop above - this substitution
+        # was previously applied directly to the whole `migrated` text, outside that masking
+        # pipeline, so it could rewrite the literal text "var $foo" inside a PHP string (e.g.
+        # $s = "var $name is old style";) into "public $name is old style" - corrupting string
+        # content exactly like the bug already fixed for the other rules in this function.
+        _var_mig_lines = migrated.split(chr(10))
+        _var_changed = False
+        for _vi, _vline in enumerate(_var_mig_lines):
+            _vcode_part, _vcomment_part = _split_inline_comment_php(_vline)
+            _var_str_literals = []
+            def _mask_var_str(m):
+                _var_str_literals.append(m.group(0))
+                return "\x00STRLIT" + str(len(_var_str_literals) - 1) + "\x00"
+            _var_masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', _mask_var_str, _vcode_part)
+            _var_new_masked_code_part = re.sub(_var_public_pattern, r'public $\1', _var_masked_code_part)
+            _var_new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _var_str_literals[int(m.group(1))], _var_new_masked_code_part)
+            _var_new_line = _var_new_code_part + _vcomment_part
+            if _var_new_line != _vline:
+                _var_mig_lines[_vi] = _var_new_line
+                _var_changed = True
+        if _var_changed:
+            migrated = chr(10).join(_var_mig_lines)
+            changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
     check = validate_php(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php")}
 
