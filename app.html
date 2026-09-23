@@ -1396,6 +1396,7 @@ async function runAnalysisOrBatch() {
   const allFiles = [...files];
   window._isBatchRun = true;
   window._batchSkipped = [];
+  window._batchRoi = { debt: 0, hours: 0, breach: 0, scores: [] };
   window._batchTotalFixHours = 0;
   window._batchTotalFixCost = 0;
   const btn = document.getElementById('runBtn');
@@ -1428,6 +1429,15 @@ async function runAnalysisOrBatch() {
   document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
   document.getElementById('impact-time').textContent = window._batchTotalFixHours.toFixed(1) + ' hrs (batch total)';
   document.getElementById('impact-cost').textContent = '$' + Math.round(window._batchTotalFixHours * 15 * 0.8) + '–$' + Math.round(window._batchTotalFixHours * 15 * 1.3) + ' (batch total)';
+  {
+    const _b = window._batchRoi;
+    if (_b && document.getElementById('roi-debt')) {
+      document.getElementById('roi-debt').textContent = '$' + Math.round(_b.debt).toLocaleString() + ' (batch total)';
+      document.getElementById('roi-hours').textContent = _b.hours.toFixed(1) + ' (batch total)';
+      document.getElementById('roi-breach').textContent = '$' + Math.round(_b.breach).toLocaleString() + ' (batch total)';
+      document.getElementById('roi-score').textContent = _b.scores.length ? Math.round(_b.scores.reduce((a, c) => a + c, 0) / _b.scores.length) + ' (avg of ' + _b.scores.length + ' files)' : 'N/A';
+    }
+  }
   window._isBatchRun = false;
   if (diffNote) diffNote.style.display = 'block';
   document.getElementById('pipeline').style.display = '';
@@ -1700,11 +1710,14 @@ function renderResults(R, original, fname, totalMs) {
     });
   }
   renderDiffHighlighted('diffOld', original, migrated, false, reviewLineNums, secretLineNums);
+  // Bug 11: every detector - including the Business Rule Detail panel - sees code only, not
+  // comments/docstrings (the detail panel used to be built from the raw source).
+  const _codeOnly = stripNonCode(original, fname);
   if (lang === 'cobol') {
-    renderBusinessRuleSpec(original, lang);
+    renderBusinessRuleSpec(_codeOnly, lang);
   } else {
     renderDiffHighlighted('diffNew', migrated, original, true, reviewLineNums, secretLineNums);
-    renderBusinessRuleSpec(original, lang);
+    renderBusinessRuleSpec(_codeOnly, lang);
   }
   const issues = buildIssues(R);
   const critCount = issues.filter(i =>i.sev === 'critical').length;
@@ -1729,7 +1742,6 @@ function renderResults(R, original, fname, totalMs) {
   const secScore = R.security == null ? null : (critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15));
   const migScore = confPct;
   const debtScore = R.debt == null ? null : (R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80);
-  const _codeOnly = stripNonCode(original, fname); // Bug 11: detectors see code, not comments/docstrings
   detectCompliance(_codeOnly);
   const compScore = (window.lastComplianceTotalCount > 0)
     ? Math.round((window.lastComplianceFoundCount / window.lastComplianceTotalCount) * 100)
@@ -1740,7 +1752,13 @@ function renderResults(R, original, fname, totalMs) {
   const roiTotalDebt = Math.round(_effort.costMid);
   const roiBreachCost = critCount >= 1 ? Math.round(roiTotalDebt * 8) : 0;
   const roiDebtEl = document.getElementById('roi-debt');
-  if (roiDebtEl) {
+  if (window._isBatchRun) {
+    // Batch: accumulate like the Migration Impact panel does; totals are written once the
+    // batch finishes (per-file writes left the ROI tab showing only the LAST file).
+    const _b = window._batchRoi = window._batchRoi || { debt: 0, hours: 0, breach: 0, scores: [] };
+    _b.debt += roiTotalDebt; _b.hours += roiFixHours; _b.breach += roiBreachCost;
+    if (typeof debtScore === 'number') _b.scores.push(debtScore);
+  } else if (roiDebtEl) {
     roiDebtEl.textContent = '$' + roiTotalDebt;
     document.getElementById('roi-hours').textContent = roiFixHours.toFixed(1);
     document.getElementById('roi-breach').textContent = critCount >= 1 ? '$' + roiBreachCost.toLocaleString() : '$0';
