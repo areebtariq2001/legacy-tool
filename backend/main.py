@@ -262,17 +262,21 @@ async def cors_handler(request: Request, call_next):
                 _anti_bot_patterns.pop(_ip, None)
         _recent_bot_pattern = [t for t in _anti_bot_patterns.get(client_ip, []) if _now_ts - t < 10]
         _anti_bot_patterns[client_ip] = _recent_bot_pattern + [_now_ts]
-        if len(_recent_bot_pattern) > 20:
-            _record_security_event("bot_pattern_detected", client_ip, f">20 requests in 10 seconds ({len(_recent_bot_pattern)} detected) - likely automated traffic")
-            return JSONResponse(status_code=429, content={"error": "Automated request pattern detected. Please slow down."}, headers={"Access-Control-Allow-Origin": allow_origin})
+        # Bug 8: one UI analysis sends ~6 pipeline requests in 1-2 s, so the old limit of 20
+        # per 10 s blocked the 4th quick re-run (or the 4th file of a batch) and the UI showed
+        # partial results as if complete - same file, different scores. 40 per 10 s still stops
+        # scripted floods; the per-minute and per-endpoint limits below are unchanged in kind.
+        if len(_recent_bot_pattern) > 40:
+            _record_security_event("bot_pattern_detected", client_ip, f">40 requests in 10 seconds ({len(_recent_bot_pattern)} detected) - likely automated traffic")
+            return JSONResponse(status_code=429, content={"error": "Automated request pattern detected. Please slow down."}, headers={"Access-Control-Allow-Origin": allow_origin, "Retry-After": "10", "Access-Control-Expose-Headers": "Retry-After"})
     _suspicious_ua_signatures = ["python-requests", "curl", "wget", "scrapy", "go-http-client"]
     _is_suspicious_ua = (not _user_agent) or any(_sig in _user_agent for _sig in _suspicious_ua_signatures)
-    _rate_limit_max = 15 if _is_suspicious_ua else 60
+    _rate_limit_max = 15 if _is_suspicious_ua else 120  # Bug 8: 60/min allowed only ~10 full analyses per minute (6 requests each), so batch scans silently lost steps
     if not _check_rate_limit(client_ip, max_requests=_rate_limit_max):
         return JSONResponse(
             content={"error": "Rate limit exceeded. Please slow down and try again shortly."},
             status_code=429,
-            headers={"Access-Control-Allow-Origin": allow_origin}
+            headers={"Access-Control-Allow-Origin": allow_origin, "Retry-After": "20", "Access-Control-Expose-Headers": "Retry-After"}
         )
     # NOTE: an earlier per-session-token rate limit here (keyed on the client-supplied
     # x-session-token header) has been removed - a client-controlled value can never be
@@ -286,7 +290,7 @@ async def cors_handler(request: Request, call_next):
         return JSONResponse(
             content={"error": "Rate limit exceeded for this specific action. Please slow down and try again shortly."},
             status_code=429,
-            headers={"Access-Control-Allow-Origin": allow_origin, "Retry-After": "60"}
+            headers={"Access-Control-Allow-Origin": allow_origin, "Retry-After": "60", "Access-Control-Expose-Headers": "Retry-After"}
         )
     response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = allow_origin
@@ -2609,9 +2613,24 @@ def safe_read_file(content_bytes, filename):
     return source, None
 
 # ---------- ENDPOINTS ----------
+# Identifies exactly which build of the rule engine produced a result. Render sets
+# RENDER_GIT_COMMIT automatically on every deploy. The frontend stamps this on every
+# report, so two scans of the same file can be compared: same file hash + same engine
+# version + same settings must give identical results; if the engine version differs,
+# differing results come from a code change, not run-to-run randomness.
+ENGINE_VERSION = (os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or "dev")[:12]
+
+def _stamp_result(result, content):
+    # Bug 8: identifies exactly what produced a result. Same input_sha256 + same
+    # engine_version must give identical output; a changed engine_version explains
+    # differences between two scans of an unchanged file.
+    result["engine_version"] = ENGINE_VERSION
+    result["input_sha256"] = hashlib.sha256(content).hexdigest()[:16]
+    return result
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0", "ai_provider": os.environ.get("AI_PROVIDER", "groq")}
+    return {"status": "ok", "version": "1.0", "engine_version": ENGINE_VERSION, "ai_provider": os.environ.get("AI_PROVIDER", "groq")}
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -2630,6 +2649,7 @@ async def analyze(file: UploadFile = File(...)):
         else:
             result = analyze_code(source)
         result["filename"] = file.filename
+        _stamp_result(result, content)
         track_usage("analyze", file.filename)
         write_audit_log("analyze", file.filename, f"issues={len(result.get('issues', []))}")
         try:
@@ -2659,6 +2679,7 @@ async def migrate(file: UploadFile = File(...)):
         else:
             return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration not supported for file type: {_mig_lang}"})
         result["filename"] = file.filename
+        _stamp_result(result, content)
         track_usage("migrate", file.filename)
         write_audit_log("migrate", file.filename, f"changes={len(result.get('changes', []))}")
         return result
@@ -4526,7 +4547,23 @@ def scan_sql_injection(source, filename):
     cobol_exec_sql = _sq.search(r"(?is)EXEC\s+SQL.*?WHERE.*?=\s*['\"][^'\"]+['\"].*?END-EXEC", source)
     if cobol_exec_sql:
         issues.append({"line": source[:cobol_exec_sql.start()].count(chr(10))+1, "code": cobol_exec_sql.group()[:120].replace(chr(10), " "), "issue": "COBOL embedded SQL (EXEC SQL) with hardcoded literal in WHERE clause - use a host variable instead", "severity": "High"})
-    fstring_pattern = _sq.compile(r"(?i)f[\"\x27].*(SELECT|INSERT|UPDATE|DELETE|WHERE).*\{")
+    # Keywords must appear in real SQL statement shape, not as ordinary English words.
+    # Previously a bare substring test meant a log line like
+    # logger.info(f"balance updated for {acc}") was reported as SQL injection
+    # ("UPDATED" contains "UPDATE"), inflating the Critical count.
+    _sql_shape = {
+        "EXECUTE": _sq.compile(r"(?i)\bexecute\w*\s*\("),
+        "SELECT": _sq.compile(r"(?i)\bSELECT\s+\*|\bSELECT\b.+\bFROM\b"),
+        "INSERT": _sq.compile(r"(?i)\bINSERT\s+INTO\b"),
+        "UPDATE": _sq.compile(r"(?i)\bUPDATE\s+(?:[\w.`\[\]\"]+\s+SET\b|[\"\x27]\s*[+.%])"),
+        "DELETE": _sq.compile(r"(?i)\bDELETE\s+FROM\b"),
+        "WHERE": _sq.compile(r"(?i)\bWHERE\s+[\w.`\[\]]+\s*(?:=|<|>|!=|\bLIKE\b|\bIN\b)"),
+    }
+    _fstring_start = _sq.compile(r"(?i)\bf[\"\x27]")
+    def _fstring_sql(line):
+        if "{" not in line or not _fstring_start.search(line):
+            return False
+        return any(_sql_shape[k].search(line) for k in ("SELECT", "INSERT", "UPDATE", "DELETE", "WHERE"))
     def _extract_tainted_var(line):
         m = _sq.search(r"['\"]\s*[%+]\s*([a-zA-Z_][\w\.\[\]]*)(?!['\"])", line)
         if m:
@@ -4545,13 +4582,13 @@ def scan_sql_injection(source, filename):
         for kw, danger, msg in checks:
             if danger in _dangers_reported_this_line:
                 continue
-            if kw.upper() in up and danger in line:
+            if _sql_shape[kw.upper()].search(line) and danger in line:
                 _dangers_reported_this_line.add(danger)
                 _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
                 _tainted = _extract_tainted_var(line)
                 issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
                 _matched_this_line = True
-        if not _matched_this_line and fstring_pattern.search(line):
+        if not _matched_this_line and _fstring_sql(line):
             _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
             _tainted = _extract_tainted_var(line)
             issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
@@ -7223,7 +7260,7 @@ async def unusual_hours_check_endpoint(file: UploadFile = File(...)):
 
 def run_pakistan_banking_suite(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"suite_run": False, "checks": [], "summary": "File too large."}
+        return {"suite_run": False, "checks": [], "passed_count": 0, "total_count": 0, "applicable_count": 0, "not_applicable_count": 0, "error_count": 0, "summary": "Not run - file too large."}
     checks = []
     try:
         pci = scan_pci_dss_signals(source, filename)
@@ -9308,7 +9345,7 @@ async def riba_flag_check_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Riba flag check failed safely: " + str(e)})
 def run_pci_dss_scorecard(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"suite_run": False, "checks": [], "summary": "File too large."}
+        return {"suite_run": False, "checks": [], "passed_count": 0, "total_count": 0, "applicable_count": 0, "not_applicable_count": 0, "error_count": 0, "summary": "Not run - file too large."}
     checks = []
     try:
         pci = scan_pci_dss_signals(source, filename)
@@ -9511,7 +9548,7 @@ async def aaoifi_check_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AAOIFI check failed safely: " + str(e)})
 def run_islamic_banking_suite(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"suite_run": False, "checks": [], "summary": "File too large."}
+        return {"suite_run": False, "checks": [], "passed_count": 0, "total_count": 0, "applicable_count": 0, "not_applicable_count": 0, "error_count": 0, "summary": "Not run - file too large."}
     checks = []
     try:
         riba = check_riba_flag(source, filename)
@@ -10067,9 +10104,44 @@ async def codebase_history_endpoint(payload: dict):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Codebase history lookup failed safely: {e}"})
 
+_SECURITY_ISSUE_TERMS = ("sql injection", "command injection", "injection risk", "hardcoded", "password",
+                         "secret", "api key", "api_key", "md5", "sha1", "weak", "eval(", "exec(", "eval/exec")
+
+def _open_issue_remediation(source, filename):
+    """Bug 9: remediation time for issues the analyzer reports as still open.
+
+    calculate_tech_debt only prices legacy-syntax patterns, so a file with an open SQL
+    injection but no legacy syntax was estimated at 0.0 h / $0 next to a "Not Safe -
+    Critical Review Required" verdict. Each open issue now sets a floor: 2 h per
+    security/critical issue, 1 h per other issue (same weights the UI uses)."""
+    _lang = detect_language(filename)
+    try:
+        if _lang == "java":
+            _res = analyze_java(source)
+        elif _lang == "php":
+            _res = analyze_php(source)
+        elif _lang == "cobol":
+            _res = analyze_cobol(source, filename)
+        else:
+            _res = analyze_code(source)
+    except Exception:
+        return {"critical": 0, "other": 0, "hours": 0.0}
+    _crit = _other = 0
+    for _iss in _res.get("issues", []) or []:
+        _t = (_iss if isinstance(_iss, str) else json.dumps(_iss, default=str)).lower()
+        if any(_term in _t for _term in _SECURITY_ISSUE_TERMS) or "critical" in _t:
+            _crit += 1
+        else:
+            _other += 1
+    return {"critical": _crit, "other": _other, "hours": float(_crit * 2 + _other * 1)}
+
 def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=None):
     debt = calculate_tech_debt(source, filename)
-    hours = debt.get("estimated_hours", 0)
+    legacy_hours = debt.get("estimated_hours", 0) or 0
+    _open = _open_issue_remediation(source, filename)
+    # Larger of the two, not the sum: many "other" issues are the same legacy patterns
+    # that legacy_hours already prices, so adding them would double-count.
+    hours = round(max(legacy_hours, _open["hours"]), 1)
     _region_norm = (region or "pakistan").strip().lower()
     _allowed_regions = {"pakistan", "us", "custom"}
     if _region_norm not in _allowed_regions:
@@ -10081,7 +10153,7 @@ def calculate_tech_debt_cost(source, filename, region="pakistan", custom_rate=No
     region = _region_norm
     total_cost = round(hours * hourly_rate, 2)
     days = round(hours / 8.0, 1)
-    return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": f"${total_cost} estimated cost to fix ({hours} hours, ~{days} working days at ${hourly_rate}/hr)" if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
+    return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "legacy_debt_hours": legacy_hours, "open_issue_hours": _open["hours"], "open_critical_issues": _open["critical"], "open_other_issues": _open["other"], "estimate_basis": f"Larger of legacy-pattern debt ({legacy_hours} h) and open-issue remediation ({_open['critical']} critical x 2 h + {_open['other']} other x 1 h = {_open['hours']} h), at ${hourly_rate}/h.", "debt_cost_summary": f"${total_cost} estimated cost to fix ({hours} hours, ~{days} working days at ${hourly_rate}/hr)" if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
 
 @app.post("/tech-debt-cost")
 async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):
@@ -10382,184 +10454,3 @@ async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
 @app.get("/")
 def root():
     return {"message": "StarSage Legacy Migration API", "status": "running", "docs": "/docs", "health": "/health"}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
