@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field
 import ast
+import keyword
 import re
 import os
 import threading
@@ -1265,6 +1266,8 @@ def migrate_code(source):
         (r'\bexecfile\(([^)]+)\)', r'exec(open(\1).read())', "execfile() -> exec(open().read())"),
         (r'\bapply\((\w+),\s*([^)]+)\)', r'\1(*\2)', "apply() -> func(*args)"),
         (r'\s<>\s', ' != ', "<> -> !="),
+        (r'(?<![\w.])(0[xX][0-9a-fA-F]+|\d+)[lL]\b', r'\1', "long literal suffix L removed (10L -> 10)"),
+        (r'(?<![\w.])0([0-7]+)\b(?!\.)', r'0o\1', "old octal literal -> 0o prefix (0777 -> 0o777)"),
         (r'\bStringIO\.StringIO\b', 'io.StringIO', "StringIO -> io.StringIO"),
         (r'\bimport\s+md5\b', 'import hashlib', "import md5 -> import hashlib (md5 module removed in Python 3)"),
         (r'\bmd5\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.md5((\1).encode() if isinstance((\1), str) else (\1))', "md5.new(x) -> hashlib.md5() requires bytes, not str - wrapped with .encode() for the common string case"),
@@ -1284,7 +1287,7 @@ def migrate_code(source):
             def _mask_str(m):
                 _str_literals.append(m.group(0))
                 return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
-            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"', _mask_str, _code_part)
+            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\x27(?:[^\x27\\]|\\.)*\x27', _mask_str, _code_part)
             _new_masked_code_part = re.sub(pattern, repl, _masked_code_part)
             _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _new_masked_code_part)
             _new_line = _new_code_part + _comment_part
@@ -1294,9 +1297,56 @@ def migrate_code(source):
         if _changed_this_rule:
             migrated = chr(10).join(_mig_lines)
             changes.append(label)
+    def _split_top_level_commas(_expr):
+        _parts, _depth, _cur, _q = [], 0, "", None
+        for _ch in _expr:
+            if _q:
+                _cur += _ch
+                if _ch == _q:
+                    _q = None
+                continue
+            if _ch in ("'", '"'):
+                _q = _ch
+            elif _ch in "([{":
+                _depth += 1
+            elif _ch in ")]}":
+                _depth -= 1
+            elif _ch == "," and _depth == 0:
+                _parts.append(_cur)
+                _cur = ""
+                continue
+            _cur += _ch
+        _parts.append(_cur)
+        return _parts
+    def _print_call(_body):
+        # Python 2 print statement body -> Python 3 print() call.
+        # "print >>f, a" -> print(a, file=f); trailing comma -> end=" " (no newline, as in Py2).
+        _body = _body.rstrip()
+        _file = None
+        if _body.startswith(">>"):
+            _bits = _split_top_level_commas(_body[2:])
+            _file = _bits[0].strip()
+            _body = ",".join(_bits[1:]).strip()
+        _trailing = _body.endswith(",")
+        if _trailing:
+            _body = _body[:-1].rstrip()
+        _args = [_a.strip() for _a in _split_top_level_commas(_body)] if _body else []
+        if _trailing:
+            _args.append('end=" "')
+        if _file:
+            _args.append(f"file={_file}")
+        return "print(" + ", ".join(_args) + ")"
     new_lines = []
+    _print_semantic_notes = set()
     for line in migrated.split('\n'):
-        m = re.match(r'^(\s*)print\s+(?!\()(.+)$', line)
+        _bare = re.match(r'^(\s*)print\s*(#.*)?$', line)
+        m = re.match(r'^(\s*)print\s+(?!\()(?![=.\[])(.+)$', line)
+        if _bare:
+            new_lines.append(f"{_bare.group(1)}print()" + (f"  {_bare.group(2)}" if _bare.group(2) else ""))
+            _print_semantic_notes.add("bare print statement -> print() (prints an empty line, as in Python 2)")
+            if "print statement -> print()" not in changes:
+                changes.append("print statement -> print()")
+            continue
         if m:
             indent = m.group(1)
             rest = m.group(2)
@@ -1304,14 +1354,35 @@ def migrate_code(source):
             if _cm and _cm.group(1).strip():
                 code_part = _cm.group(1).rstrip()
                 comment_part = _cm.group(2)
-                new_lines.append(f'{indent}print({code_part})  {comment_part}')
             else:
-                new_lines.append(f'{indent}print({rest.rstrip()})')
+                code_part, comment_part = rest.rstrip(), ""
+            if code_part.startswith(">>"):
+                _print_semantic_notes.add("print >>file, x -> print(x, file=file)")
+            if code_part.endswith(","):
+                _print_semantic_notes.add("print x, (trailing comma) -> print(x, end=\" \") - Python 2 suppressed the newline")
+            new_lines.append(f'{indent}{_print_call(code_part)}' + (f"  {comment_part}" if comment_part else ""))
             if "print statement -> print()" not in changes:
                 changes.append("print statement -> print()")
         else:
             new_lines.append(line)
+    changes.extend(sorted(_print_semantic_notes))
     migrated = '\n'.join(new_lines)
+    # raise E, V -> raise E(V); 3-argument raise needs a human (traceback semantics)
+    _raise_lines = []
+    _raise_changed = False
+    for _rl in migrated.split('\n'):
+        _rm = re.match(r'^(\s*)raise\s+([\w.]+)\s*,\s*(.+?)\s*(#.*)?$', _rl)
+        if _rm:
+            _rparts = _split_top_level_commas(_rm.group(3))
+            if len(_rparts) == 1 and not _rm.group(3).lstrip().startswith("("):
+                _raise_lines.append(f"{_rm.group(1)}raise {_rm.group(2)}({_rm.group(3).strip()})" + (f"  {_rm.group(4)}" if _rm.group(4) else ""))
+                _raise_changed = True
+                continue
+            changes.append(f"REVIEW NEEDED: '{_rl.strip()}' - Python 2 raise with a tuple value or a traceback argument has no safe automatic rewrite; convert manually (e.g. raise E(*args).with_traceback(tb)).")
+        _raise_lines.append(_rl)
+    if _raise_changed:
+        migrated = '\n'.join(_raise_lines)
+        changes.append("raise E, V -> raise E(V)")
     if re.search(r'(\w+)\.has_key\(([^)]+)\)', migrated):
         def _safe_haskey_sub(m):
             var, arg = m.group(1), m.group(2)
@@ -1322,7 +1393,7 @@ def migrate_code(source):
         migrated = re.sub(r'((?:\w+\.)*\w+)\.has_key\(([^)]+)\)', _safe_haskey_sub, migrated)
         if migrated != _before_haskey:
             changes.append("has_key() -> in operator")
-        if re.search(r'(\w+)\.has_key\([^)]*[()][^)]*\)', _before_haskey):
+        if re.search(r'(\w+)\.has_key\([^()\n]*\(', _before_haskey):
             changes.append("REVIEW NEEDED: has_key() with nested parentheses detected - NOT auto-converted (could produce incorrect logic), please convert manually: replace x.has_key(EXPR) with EXPR in x")
     if re.search(r'except\s+(\w+)\s*,\s*(\w+)', migrated):
         migrated = re.sub(r'except\s+(\w+)\s*,\s*(\w+)', r'except \1 as \2', migrated)
@@ -2183,6 +2254,29 @@ def migrate_cobol(source, filename="file.cbl"):
     _group_stack = []
     _skipped_types = {}
     if_depth = 0
+    # Paragraph support: every COBOL paragraph becomes a Python function that declares the
+    # WORKING-STORAGE variables global, PERFORM becomes a call, and main() runs the paragraphs
+    # in source order (COBOL fall-through) until STOP RUN. Previously PERFORM X was left as a
+    # TODO, later paragraphs became dead code after "return", PERFORM X UNTIL called a function
+    # that was never defined, and assignments inside main() shadowed the module variables -
+    # output that passed the syntax check but crashed with UnboundLocalError/NameError.
+    _ws_vars = []
+    _paragraphs = []
+    _performed = []
+    _COBOL_SINGLE_WORD_STMTS = {"EXIT", "GOBACK", "CONTINUE", "ELSE", "END-IF", "END-EVALUATE", "END-PERFORM", "NEXT", "STOP"}
+    def _para_fn(_name):
+        _n = _name.replace("-", "_").lower()
+        if not _n.isidentifier() or keyword.iskeyword(_n) or _n in ("main", "print", "range", "int", "str"):
+            _n = "para_" + _n
+        return _n
+    def _open_para(_name):
+        _fn = _para_fn(_name)
+        _paragraphs.append((_name, _fn))
+        out_lines.append("")
+        out_lines.append(f"def {_fn}():")
+        if _ws_vars:
+            out_lines.append("    global " + ", ".join(dict.fromkeys(_ws_vars)))
+        return _fn
     def cur_indent():
         return "    " * (1 + if_depth) if in_procedure else "    " * if_depth
     eval_subject_stack = []
@@ -2235,13 +2329,23 @@ def migrate_cobol(source, filename="file.cbl"):
             in_working_storage = True
             continue
         if "PROCEDURE DIVISION" in upper:
-            changes.append("PROCEDURE DIVISION -> Python function")
+            changes.append("PROCEDURE DIVISION -> Python functions (one per paragraph)")
             out_lines.append("")
-            out_lines.append("def main():")
+            out_lines.append("class _StopRun(Exception):")
+            out_lines.append("    \"\"\"Raised by STOP RUN / GOBACK to end the whole program, as in COBOL.\"\"\"")
             in_working_storage = False
             in_procedure = True
             _group_stack = []
             continue
+        if in_procedure:
+            _para_m = re.match(r"^([A-Za-z0-9][\w-]*)(?:\s+SECTION)?\s*\.$", line, re.IGNORECASE)
+            if _para_m and _para_m.group(1).upper() not in _COBOL_SINGLE_WORD_STMTS:
+                if_depth = 0
+                _fn_name = _open_para(_para_m.group(1))
+                changes.append(f"Paragraph {_para_m.group(1)} -> def {_fn_name}()")
+                continue
+            if not _paragraphs:
+                _open_para("PROCEDURE-START")
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
             out_lines.append(f"# Condition name: {_cond_name_m.group(1).replace('-', '_')} VALUE {_cond_name_m.group(2) or '(unspecified)'} - COBOL level-88 condition names have no direct Python equivalent; consider a helper function or comparison at the point of use.")
@@ -2268,6 +2372,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{var_name} = {val_map.get(val_clean.upper(), val_clean)}")
             else:
                 out_lines.append(f"{var_name} = None")
+            _ws_vars.append(var_name)
             _nest_info = f" (level {level_num}, nested under {current_group_01})" if _level_num_int != 1 and current_group_01 else ""
             changes.append(f"Variable {var_m.group(2)} declared{_nest_info}")
             continue
@@ -2329,9 +2434,13 @@ def migrate_cobol(source, filename="file.cbl"):
             if not is_literal:
                 changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
-        if upper.startswith("STOP RUN"):
+        if upper.startswith("STOP RUN") or upper.rstrip(".").strip() in ("GOBACK", "EXIT PROGRAM"):
+            out_lines.append(f"{cur_indent()}raise _StopRun()")
+            changes.append(f"{upper.rstrip('.').strip()} -> end program (raise _StopRun)")
+            continue
+        if upper.rstrip(".").strip() == "EXIT":
             out_lines.append(f"{cur_indent()}return")
-            changes.append("STOP RUN -> return")
+            changes.append("EXIT -> return (end of paragraph)")
             continue
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m:
@@ -2360,7 +2469,8 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
         if perform_m:
-            para_name = perform_m.group(1).replace("-", "_").lower()
+            para_name = _para_fn(perform_m.group(1))
+            _performed.append(perform_m.group(1))
             cond_raw = perform_m.group(2)
             test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, re.IGNORECASE)
             if test_after_m:
@@ -2392,6 +2502,26 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}while not ({cond}):")
                 out_lines.append(f"{cur_indent()}    {para_name}()")
             changes.append("PERFORM UNTIL -> while loop")
+            continue
+        _perf_times_m = re.match(r"^PERFORM\s+([\w-]+)\s+([\w-]+)\s+TIMES\.?$", line, re.IGNORECASE)
+        if _perf_times_m and _perf_times_m.group(1).upper() not in ("UNTIL", "VARYING"):
+            _times = _perf_times_m.group(2)
+            _times_py = _times if _times.isdigit() else _times.replace("-", "_")
+            out_lines.append(f"{cur_indent()}for _ in range(int({_times_py})):")
+            out_lines.append(f"{cur_indent()}    {_para_fn(_perf_times_m.group(1))}()")
+            _performed.append(_perf_times_m.group(1))
+            changes.append("PERFORM ... TIMES -> for loop")
+            continue
+        _perf_m = re.match(r"^PERFORM\s+([\w-]+)(?:\s+(?:THRU|THROUGH)\s+([\w-]+))?\s*\.?$", line, re.IGNORECASE)
+        if _perf_m and _perf_m.group(1).upper() not in ("UNTIL", "VARYING", "WITH", "TEST"):
+            if _perf_m.group(2):
+                out_lines.append(f"{cur_indent()}__PERFORM_THRU__ {_perf_m.group(1)} {_perf_m.group(2)}")
+                _performed.extend([_perf_m.group(1), _perf_m.group(2)])
+                changes.append(f"PERFORM {_perf_m.group(1)} THRU {_perf_m.group(2)} -> sequential paragraph calls")
+            else:
+                out_lines.append(f"{cur_indent()}{_para_fn(_perf_m.group(1))}()")
+                _performed.append(_perf_m.group(1))
+                changes.append("PERFORM -> function call")
             continue
         if upper.startswith("EVALUATE "):
             eval_subject_stack.append(_cobol_hyphen_fix(line[9:].rstrip(".").strip()))
@@ -2498,6 +2628,56 @@ def migrate_cobol(source, filename="file.cbl"):
         _skip_summary = ", ".join(f"{v} {k}" for k, v in _skipped_types.items())
         changes.append(f"REVIEW NEEDED: {sum(_skipped_types.values())} statement(s) could not be auto-converted and are marked '# TODO' - manual conversion required: {_skip_summary}")
     if in_procedure:
+        _known = {n.upper(): fn for n, fn in _paragraphs}
+        _order = [n.upper() for n, _ in _paragraphs]
+        _resolved = []
+        for _ol in out_lines:
+            _thru = re.match(r"^(\s*)__PERFORM_THRU__ (\S+) (\S+)$", _ol)
+            if _thru:
+                _a, _b = _thru.group(2).upper(), _thru.group(3).upper()
+                if _a in _known and _b in _known and _order.index(_a) <= _order.index(_b):
+                    _calls = [_known[n] + "()" for n in _order[_order.index(_a):_order.index(_b) + 1]]
+                else:
+                    _calls = [_para_fn(_thru.group(2)) + "()", _para_fn(_thru.group(3)) + "()"]
+                _resolved.append(_thru.group(1) + "; ".join(_calls))
+            else:
+                _resolved.append(_ol)
+        out_lines = _resolved
+        _final = []
+        _i = 0
+        while _i < len(out_lines):
+            _ol = out_lines[_i]
+            _final.append(_ol)
+            if _ol.startswith("def ") and _ol.endswith("():"):
+                _j = _i + 1
+                while _j < len(out_lines) and out_lines[_j].startswith("    global "):
+                    _final.append(out_lines[_j])
+                    _j += 1
+                _k, _has_body = _j, False
+                while _k < len(out_lines) and (out_lines[_k].startswith("    ") or out_lines[_k].strip() == ""):
+                    if out_lines[_k].strip() and not out_lines[_k].lstrip().startswith("#"):
+                        _has_body = True
+                        break
+                    _k += 1
+                if not _has_body:
+                    _final.append("    pass")
+                _i = _j
+                continue
+            _i += 1
+        out_lines = _final
+        _missing = sorted({p for p in _performed if p.upper() not in _known})
+        for _mp in _missing:
+            changes.append(f"REVIEW NEEDED: PERFORM {_mp} - no paragraph named {_mp} was found in this file (it may be in a copybook or another program); the generated call {_para_fn(_mp)}() will fail until it is defined.")
+        out_lines.append("")
+        out_lines.append("def main():")
+        out_lines.append("    # COBOL runs paragraphs top to bottom (fall-through) until STOP RUN.")
+        out_lines.append("    try:")
+        for _n, _fn in _paragraphs:
+            out_lines.append(f"        {_fn}()")
+        if not _paragraphs:
+            out_lines.append("        pass")
+        out_lines.append("    except _StopRun:")
+        out_lines.append("        pass")
         out_lines.append("")
         out_lines.append("if __name__ == '__main__':")
         out_lines.append("    main()")
@@ -3663,6 +3843,8 @@ SENSITIVE_PATTERNS = [
     (r"(?i)\b[A-Za-z0-9_]*api[_-]?key[A-Za-z0-9_]*\s*=\s*[\x27\x22](sk_live_|sk_test_|pk_live_|AKIA|ghp_|gho_|xox[a-z]-|AIza)[A-Za-z0-9_\-]{6,}[\x27\x22]", "Hardcoded live/production API key detected", "Critical"),
     (r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b", "Possible credit card number (Visa/Mastercard/Amex/Discover pattern)", "High"),
     (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded password (COBOL VALUE clause)", "High"), (r"(?i)MOVE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)", "High"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username (COBOL VALUE clause)", "Medium"),
+    (r"(?i)\b(?:mysql_connect|mysqli_connect|mysql_pconnect|pg_connect|new\s+mysqli)\s*\(\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]+[\x27\x22]", "Hardcoded password in database connection call", "High"),
+    (r"(?i)\b(?:DriverManager\.getConnection|new\s+PDO)\s*\([^,()]+,\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]+[\x27\x22]", "Hardcoded password in database connection call", "High"),
     (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
     (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", "Hardcoded IP address", "Medium"),
     (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
@@ -4701,7 +4883,6 @@ def scan_sql_injection(source, filename):
             return m2.group(1).strip()
         return None
     for i, line in enumerate(lines):
-        up = line.upper()
         _matched_this_line = False
         _dangers_reported_this_line = set()
         for kw, danger, msg in checks:
