@@ -1395,6 +1395,7 @@ async function runAnalysisOrBatch() {
   if (files.length <= 1) { if (diffNote) diffNote.style.display = 'none'; await runAnalysis(); return; }
   const allFiles = [...files];
   window._isBatchRun = true;
+  window._batchSkipped = [];
   window._batchTotalFixHours = 0;
   window._batchTotalFixCost = 0;
   const btn = document.getElementById('runBtn');
@@ -1419,7 +1420,9 @@ async function runAnalysisOrBatch() {
     if (_batchExtMap[_batchExt]) lang = _batchExtMap[_batchExt];
     await runAnalysis();
   }
-  progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Completed ' + allFiles.length + ' files. See Repository Summary below.</div>';
+  const _skipped = window._batchSkipped || [];
+  progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Analyzed ' + (allFiles.length - _skipped.length) + ' of ' + allFiles.length + ' files. See Repository Summary below.</div>' +
+    (_skipped.length ? '<div style="font-size:11px;color:#d97706;margin-top:4px">Skipped ' + _skipped.length + ': ' + _skipped.map(x => escapeHtml(x.name) + ' (' + escapeHtml(x.reason) + ')').join(', ') + '</div>' : '');
   files = allFiles;
   renderChips();
   document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
@@ -1463,6 +1466,13 @@ async function runAnalysis() {
   const code = await files[0].text();
   const fname = files[0].name;
   if (!code || !code.trim()) {
+    if (window._isBatchRun) {
+      // A blocking alert() here froze "Analyze All N Files" until someone clicked OK, and the
+      // file then vanished without a trace. In a batch, record it as skipped and move on.
+      (window._batchSkipped = window._batchSkipped || []).push({ name: fname, reason: 'empty file' });
+      addSkippedHistory(fname, 'Skipped (empty file)');
+      return;
+    }
     alert('This file is empty. Please upload a file that contains code.');
     return;
   }
@@ -2897,6 +2907,12 @@ function buildIssues(R) {
     }
     return false;
   };
+  if (R.migrate && R.migrate.injection_attempt_flagged === true) {
+    // The backend flags text in the uploaded file that tries to instruct the AI ("ignore all
+    // previous instructions..."). This was only ever shown by the Security Center self-test,
+    // never for the user's own AI-mode run, so manipulated AI output could be approved unseen.
+    issues.push({ sev: 'critical', title: 'Possible prompt-injection text in this file', desc: 'This file contains text that looks like instructions aimed at the AI (e.g. "ignore previous instructions"). The AI was told to ignore such text, but review the AI-migrated output and any AI verdicts for this file manually before approving.', tag: 'Critical \u00b7 Security', tagClass: 'tag-red', file: null, topic: 'prompt_injection' });
+  }
   if (R.migrate && R.migrate.source_truncated) {
     issues.push({ sev: 'critical', title: 'File too large - only part of it was analyzed by AI', desc: 'This file exceeds the size limit for AI-powered processing, so only the first portion of the source was sent to the AI. The migrated output, confidence score, and any generated tests or documentation only reflect that truncated portion - the rest of the file was never seen by the AI and may contain unreviewed issues. Split the file into smaller pieces or use Rule-Based migration, which processes the entire file.', tag: 'Critical', tagClass: 'tag-red', file: null });
   }
@@ -3055,6 +3071,23 @@ function addHistory(fname, conf, issues, time) {
         <div style="font-size:9px;color:var(--t4);margin-top:1px">${new Date().toLocaleTimeString()} · ${time} · ${issues} issues</div>
       </div>
       <span class="badge b-blue" style="font-size:9px">${confDisplay}${conf == null ? '' : '%'}</span>
+    </div>
+  `;
+  if (hEl.querySelector('.empty')) hEl.innerHTML = item;
+  else hEl.innerHTML = item + hEl.innerHTML;
+}
+// Batch runs must never block or silently drop a file: record skipped files in Run History.
+function addSkippedHistory(fname, reason) {
+  const hEl = document.getElementById('runHistory');
+  if (!hEl) return;
+  const item = `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--t4);flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(fname)}</div>
+        <div style="font-size:9px;color:var(--t4);margin-top:1px">${new Date().toLocaleTimeString()} · ${escapeHtml(reason)}</div>
+      </div>
+      <span class="badge" style="font-size:9px;background:var(--s3);color:var(--t3);border:1px solid var(--b2)">Skipped</span>
     </div>
   `;
   if (hEl.querySelector('.empty')) hEl.innerHTML = item;
