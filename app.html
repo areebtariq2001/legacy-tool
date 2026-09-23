@@ -2921,8 +2921,18 @@ function buildIssues(R) {
     const t = getText(R.analyze).toLowerCase();
     if (t.includes('legacy') || t.includes('deprecated')) issues.push({ sev: 'warning', title: 'Deprecated patterns found', desc: 'Code contains patterns that are deprecated in modern versions.', tag: 'Migration', tagClass: 'tag-amber', file: null });
     if (Array.isArray(R.analyze.issues)) {
+      // Issues come from analysing the ORIGINAL file. When the migrate step also reports the
+      // same analyzer's findings on the MIGRATED code (remaining_issues), an issue that no longer
+      // appears there was fixed by the migration: show it as fixed and keep it out of the
+      // critical/warning counts and the verdict (split() -> explode() used to stay "CRITICAL").
+      const _normIssue = t => String(t).toLowerCase().replace(/\((?:\d+\s+)?lines?(?:\(s\))?\s*:?[^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+      const _remaining = (R.migrate && Array.isArray(R.migrate.remaining_issues)) ? new Set(R.migrate.remaining_issues.map(x => _normIssue(typeof x === 'string' ? x : JSON.stringify(x)))) : null;
       R.analyze.issues.forEach(iss => {
         const issText = typeof iss === 'string' ? iss : JSON.stringify(iss);
+        if (_remaining && !_remaining.has(_normIssue(issText))) {
+          issues.push({ sev: 'ok', title: '\u2713 Fixed by migration: ' + (issText.length > 55 ? issText.substring(0, 55) + '\u2026' : issText), desc: issText + ' \u2014 no longer present in the migrated code, so it is not counted as an open issue.', tag: 'Fixed', tagClass: 'tag-green', file: null, topic: null });
+          return;
+        }
         const lower = issText.toLowerCase();
         const isSecurity = lower.includes('sql injection') || lower.includes('command injection') || lower.includes('hardcoded') || lower.includes('password') || lower.includes('secret') || lower.includes('api key') || lower.includes('api_key') || lower.includes('md5') || lower.includes('sha1') || lower.includes('weak') || lower.includes('injection risk') || lower.includes('eval(') || lower.includes('exec(') || lower.includes('eval/exec') || lower.includes('dangerous eval');
         const isRuntimeCritical = issText.toUpperCase().includes('CRITICAL:') || issText.toUpperCase().includes('CRITICAL ');
