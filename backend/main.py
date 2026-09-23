@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field
 import ast
-import keyword
+import keyword as _py_keyword
 import re
 import os
 import threading
@@ -468,9 +468,7 @@ def write_audit_log(action, filename, result_summary, user_email=None, ip=None):
             cur = None
             try:
                 cur = conn.cursor()
-                cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
-                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
-                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
+                _ensure_usage_log_schema(cur)
                 cur.execute("INSERT INTO usage_log (action, filename, result_summary, user_email, ip) VALUES (%s, %s, %s, %s, %s)", (action, filename, result_summary, _user_email, _ip))
                 conn.commit()
                 return
@@ -486,13 +484,31 @@ def write_audit_log(action, filename, result_summary, user_email=None, ip=None):
     except Exception:
         _audit_log_failure_count += 1
 
+_usage_log_schema_ready = False
+_approval_log_schema_ready = False
+_docs_registry_schema_ready = False
+_schema_lock = threading.Lock()
+
+def _ensure_usage_log_schema(cur):
+    """Create/upgrade usage_log once per process (Bug 4). Callers commit afterwards."""
+    global _usage_log_schema_ready
+    if _usage_log_schema_ready:
+        return
+    with _schema_lock:
+        if _usage_log_schema_ready:
+            return
+        cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
+        cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
+        cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
+        _usage_log_schema_ready = True
+
 def track_usage(action, filename):
     conn = _get_db_connection()
     if conn:
         cur = None
         try:
             cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
+            _ensure_usage_log_schema(cur)
             cur.execute("INSERT INTO usage_log (action, filename, result_summary) VALUES (%s, %s, %s)", (action, filename, "tracked"))
             conn.commit()
         except Exception:
@@ -1275,8 +1291,8 @@ def migrate_code(source):
         (r'\bsha\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.sha1((\1).encode() if isinstance((\1), str) else (\1))', "sha.new(x) -> hashlib.sha1() requires bytes, not str - wrapped with .encode() for the common string case"),
     ]
 
+    _mig_lines = migrated.split(chr(10))  # Bug 6: split once for all rules, join once after
     for pattern, repl, label in rules:
-        _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
             _mline_stripped = _mline.lstrip()
@@ -1295,8 +1311,8 @@ def migrate_code(source):
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
         if _changed_this_rule:
-            migrated = chr(10).join(_mig_lines)
             changes.append(label)
+    migrated = chr(10).join(_mig_lines)
     def _split_top_level_commas(_expr):
         _parts, _depth, _cur, _q = [], 0, "", None
         for _ch in _expr:
@@ -1951,8 +1967,8 @@ def migrate_php(source):
         migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
         changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
 
+    _mig_lines = migrated.split(chr(10))  # Bug 6: split once for all rules, join once after
     for pattern, repl, label in rules:
-        _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
             _mline_stripped = _mline.lstrip()
@@ -1971,8 +1987,8 @@ def migrate_php(source):
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
         if _changed_this_rule:
-            migrated = chr(10).join(_mig_lines)
             changes.append(label)
+    migrated = chr(10).join(_mig_lines)
     review_rules = [
         (r'\bmysql_connect\b', "mysql_connect() found - migrating to mysqli requires restructuring to pass a connection object as the first argument to every mysqli_* call (mysqli_query($conn, $sql), not just renaming functions)."),
         (r'\bmysql_query\b', "mysql_query() found - mysqli_query() requires a connection parameter as the first argument (mysqli_query($conn, $sql)) which cannot be safely auto-inserted."),
@@ -2124,8 +2140,8 @@ def migrate_java(source):
         (r'\bimport javax\.ejb\.', 'import jakarta.ejb.', "javax.ejb -> jakarta.ejb (Jakarta EE 9+ namespace)"),
     ]
 
+    _mig_lines = migrated.split(chr(10))  # Bug 6: split once for all rules, join once after
     for pattern, repl, label in rules:
-        _mig_lines = migrated.split(chr(10))
         _changed_this_rule = False
         for _li, _mline in enumerate(_mig_lines):
             _mline_stripped = _mline.lstrip()
@@ -2144,8 +2160,8 @@ def migrate_java(source):
                 _mig_lines[_li] = _new_line
                 _changed_this_rule = True
         if _changed_this_rule:
-            migrated = chr(10).join(_mig_lines)
             changes.append(label)
+    migrated = chr(10).join(_mig_lines)
     review_rules = [
         (r'\bStringBuffer\b', "StringBuffer found - StringBuilder is the modern replacement, but StringBuffer is thread-safe and StringBuilder is NOT. Only switch if this code is genuinely single-threaded."),
         (r'import\s+java\.util\.Vector\b|\bnew\s+Vector\s*[<(]', "Vector found - ArrayList is the modern replacement, but Vector is synchronized (thread-safe) and ArrayList is NOT. Review for concurrent access before switching, or use Collections.synchronizedList()."),
@@ -2266,7 +2282,7 @@ def migrate_cobol(source, filename="file.cbl"):
     _COBOL_SINGLE_WORD_STMTS = {"EXIT", "GOBACK", "CONTINUE", "ELSE", "END-IF", "END-EVALUATE", "END-PERFORM", "NEXT", "STOP"}
     def _para_fn(_name):
         _n = _name.replace("-", "_").lower()
-        if not _n.isidentifier() or keyword.iskeyword(_n) or _n in ("main", "print", "range", "int", "str"):
+        if not _n.isidentifier() or _py_keyword.iskeyword(_n) or _n in ("main", "print", "range", "int", "str"):
             _n = "para_" + _n
         return _n
     def _open_para(_name):
@@ -3943,7 +3959,7 @@ async def scan_sensitive_endpoint(file: UploadFile = File(...)):
         write_audit_log("scan-sensitive", file.filename, f"findings={result.get('total_findings', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Scan failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Scan failed safely: {str(e)}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 BANKING_PATTERNS = [
     (r"(?i)(?<![a-z])(interest|rate\s*of\s*interest|roi|compound|simple\s*interest)(?![a-z])", "Interest calculation", "Verify rounding and precision rules after migration."),
@@ -4015,7 +4031,7 @@ async def banking_patterns_endpoint(file: UploadFile = File(...)):
         write_audit_log("banking-patterns", file.filename, f"patterns={result.get('total_findings', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Banking scan failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Banking scan failed safely: {str(e)}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 def generate_dockerfile(filename, language):
     lang = re.sub(r"[\r\n]", " ", str(language or "python"))[:30].strip().lower()
@@ -4225,7 +4241,7 @@ async def scan_crypto_endpoint(file: UploadFile = File(...)):
         write_audit_log("scan-crypto", file.filename, "findings=" + str(result.get("total_findings", 0)))
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Crypto scan failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Crypto scan failed safely: {str(e)}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 AML_KYC_PATTERNS = [
     (r"(?i)\b(suspicious|fraud|blacklist|watchlist|sanction)\b", "Suspicious activity / watchlist check", "AML", "Verify with AML compliance team - suspicious-activity logic must match current regulations."),
@@ -4303,7 +4319,7 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
         write_audit_log("extract-aml-kyc", file.filename, f"findings={result.get('total_findings', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 class RepoRequest(BaseModel):
     repo_url: str = Field(..., max_length=500)
@@ -5364,7 +5380,7 @@ async def ai_native_endpoint(file: UploadFile = File(...)):
         write_audit_log("ai-native-readiness", file.filename, f"score={result.get('ai_native_score', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"AI-native check failed safely: {e}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AI-native check failed safely: {e}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/predict-risk")
 async def predict_risk_endpoint(file: UploadFile = File(...)):
@@ -5379,7 +5395,7 @@ async def predict_risk_endpoint(file: UploadFile = File(...)):
         write_audit_log("predict-risk", file.filename, f"risk={result.get('migration_risk', 0)}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"Risk prediction failed safely: {e}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Risk prediction failed safely: {e}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/cicd-recommendations")
 async def cicd_endpoint(file: UploadFile = File(...)):
@@ -5394,7 +5410,7 @@ async def cicd_endpoint(file: UploadFile = File(...)):
         write_audit_log("cicd-recommendations", file.filename, f"recs={len(result.get('cicd_recommendations', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"CI/CD recommendations failed safely: {e}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"CI/CD recommendations failed safely: {e}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/analyze-db-schema")
 async def db_schema_endpoint(file: UploadFile = File(...)):
@@ -5409,7 +5425,7 @@ async def db_schema_endpoint(file: UploadFile = File(...)):
         write_audit_log("analyze-db-schema", file.filename, f"tables={len(result.get('tables', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"DB schema analysis failed safely: {e}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"DB schema analysis failed safely: {e}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/map-api-dependencies")
 async def api_deps_endpoint(file: UploadFile = File(...)):
@@ -5424,7 +5440,7 @@ async def api_deps_endpoint(file: UploadFile = File(...)):
         write_audit_log("map-api-dependencies", file.filename, f"libs={len(result.get('http_libraries', []))}")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": f"API dependency mapping failed safely: {e}"}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"API dependency mapping failed safely: {e}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/generate-architecture")
 async def architecture_endpoint(file: UploadFile = File(...)):
@@ -5528,7 +5544,7 @@ async def rules_engine_endpoint(file: UploadFile = File(...)):
         track_usage("discover-rules", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Rule discovery failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Rule discovery failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/scan-sqli")
 async def sqli_endpoint(file: UploadFile = File(...)):
@@ -5542,7 +5558,7 @@ async def sqli_endpoint(file: UploadFile = File(...)):
         track_usage("scan-sqli", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "SQL injection scan failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "SQL injection scan failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/detect-pii")
 async def pii_endpoint(file: UploadFile = File(...)):
@@ -5556,7 +5572,7 @@ async def pii_endpoint(file: UploadFile = File(...)):
         track_usage("detect-pii", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "PII detection failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "PII detection failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/estimate-cost")
 async def cost_endpoint(file: UploadFile = File(...)):
@@ -5633,7 +5649,7 @@ async def regional_compliance_endpoint(file: UploadFile = File(...), region: str
         write_audit_log("regional-compliance", file.filename, "region=" + region)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Regional compliance mapping failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Regional compliance mapping failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 @app.post("/vendor-lockin")
 async def vendor_lockin_endpoint(file: UploadFile = File(...)):
@@ -5748,7 +5764,7 @@ async def sandbox_test_endpoint(file: UploadFile = File(...)):
         track_usage("sandbox-test", file.filename)
         return sandbox_result
     except Exception as e:
-        return {"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Sandbox test failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 _LAST_DB_ERROR = ""
 def save_living_documentation(filename, doc_content, doc_hash):
@@ -5759,7 +5775,10 @@ def save_living_documentation(filename, doc_content, doc_hash):
         cur = None
         try:
             cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TEXT)")
+            global _docs_registry_schema_ready
+            if not _docs_registry_schema_ready:
+                cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TEXT)")
+                _docs_registry_schema_ready = True  # Bug 4: DDL once per process
             cur.execute("SELECT version, doc_hash, doc_content FROM docs_registry WHERE filename = %s ORDER BY version DESC LIMIT 1", (filename,))
             row = cur.fetchone()
             if row and row[1] == doc_hash:
@@ -5901,8 +5920,12 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type, appr
         cur = None
         try:
             cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
-            cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
+            global _approval_log_schema_ready
+            if not _approval_log_schema_ready:
+                with _schema_lock:
+                    cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
+                    cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
+                    _approval_log_schema_ready = True  # Bug 4: DDL once per process
             cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp, approved_by) VALUES (%s, %s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"], approved_by or "anonymous"))
             conn.commit()
             entry["log_saved"] = True
@@ -6244,7 +6267,7 @@ async def refactor_endpoint(file: UploadFile = File(...)):
         track_usage("refactor-suggest", file.filename)
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Refactoring suggestion failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Refactoring suggestion failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 _PLATFORM_CHECKS_COMPILED = [(re.compile(p), n, note, sev) for p, n, note, sev in [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file execution", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High"), (r"Runtime\.getRuntime\(\)\.exec\s*\(", "Runtime.exec() call", "OS-level shell command execution - may not work identically across cloud/container OS variants", "Medium"), (r"winsound", "Windows-only library", "Windows-specific audio library - has no cloud/Linux equivalent", "High"), (r"ProcessBuilder\s*\(\s*[\x22\x27](cmd|powershell)", "Windows shell invocation (ProcessBuilder)", "cmd/powershell call - unavailable on Linux-based platforms", "High")]]
 def check_platform_compatibility(source, filename):
@@ -10680,7 +10703,7 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
         write_audit_log("living-docs", file.filename, "generated")
         return result
     except Exception as e:
-        return {"filename": file.filename, "error": "Living documentation generation failed safely: " + str(e)}
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Living documentation generation failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
 def fetch_github_issues(repo_url):
     m = re.search(r"github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", repo_url.strip())
