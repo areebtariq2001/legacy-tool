@@ -1291,27 +1291,35 @@ def migrate_code(source):
         (r'\bsha\.new\(([^()]*(?:\([^()]*\)[^()]*)*)\)', r'hashlib.sha1((\1).encode() if isinstance((\1), str) else (\1))', "sha.new(x) -> hashlib.sha1() requires bytes, not str - wrapped with .encode() for the common string case"),
     ]
 
-    _mig_lines = migrated.split(chr(10))  # Bug 6: split once for all rules, join once after
-    for pattern, repl, label in rules:
-        _changed_this_rule = False
-        for _li, _mline in enumerate(_mig_lines):
-            _mline_stripped = _mline.lstrip()
-            if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
-                continue
-            _code_part, _comment_part = _split_inline_comment(_mline)
-            _str_literals = []
-            def _mask_str(m):
-                _str_literals.append(m.group(0))
-                return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
-            _masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\x27(?:[^\x27\\]|\\.)*\x27', _mask_str, _code_part)
-            _new_masked_code_part = re.sub(pattern, repl, _masked_code_part)
-            _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _new_masked_code_part)
-            _new_line = _new_code_part + _comment_part
-            if _new_line != _mline:
-                _mig_lines[_li] = _new_line
-                _changed_this_rule = True
-        if _changed_this_rule:
-            changes.append(label)
+    # Each line is split into code/comment and has its string literals masked ONCE, then every
+    # rule is applied in order to the masked code, then literals are restored once. Same result
+    # as masking per rule (rules never create or touch the placeholders), but 22x less work -
+    # a 480 KB file of quotes took ~3.5 s before.
+    _mig_lines = migrated.split(chr(10))
+    _compiled_rules = [(re.compile(p), r, l) for p, r, l in rules]
+    _rules_changed = set()
+    for _li, _mline in enumerate(_mig_lines):
+        _mline_stripped = _mline.lstrip()
+        if _mline_stripped.startswith("#") or _mline_stripped.startswith("//") or _mline_stripped.startswith("/*") or _mline_stripped.startswith("*"):
+            continue
+        _code_part, _comment_part = _split_inline_comment(_mline)
+        _str_literals = []
+        def _mask_str(m):
+            _str_literals.append(m.group(0))
+            return "\x00STRLIT" + str(len(_str_literals) - 1) + "\x00"
+        _masked = re.sub(r'"(?:[^"\\]|\\.)*"|\x27(?:[^\x27\\]|\\.)*\x27', _mask_str, _code_part)
+        for _ri, (_cpat, _repl, _label) in enumerate(_compiled_rules):
+            _after = _cpat.sub(_repl, _masked)
+            if _after != _masked:
+                _rules_changed.add(_ri)
+                _masked = _after
+        _new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _str_literals[int(m.group(1))], _masked) if _str_literals else _masked
+        _new_line = _new_code_part + _comment_part
+        if _new_line != _mline:
+            _mig_lines[_li] = _new_line
+    for _ri, (_cpat, _repl, _label) in enumerate(_compiled_rules):
+        if _ri in _rules_changed:
+            changes.append(_label)
     migrated = chr(10).join(_mig_lines)
     def _split_top_level_commas(_expr):
         _parts, _depth, _cur, _q = [], 0, "", None
@@ -1399,17 +1407,17 @@ def migrate_code(source):
     if _raise_changed:
         migrated = '\n'.join(_raise_lines)
         changes.append("raise E, V -> raise E(V)")
-    if re.search(r'(\w+)\.has_key\(([^)]+)\)', migrated):
+    if re.search(r'(?<!\w)(\w+)\.has_key\(([^()\n]+)\)', migrated):  # (?<!\w): linear, was quadratic on long identifier runs
         def _safe_haskey_sub(m):
             var, arg = m.group(1), m.group(2)
             if '(' in arg or ')' in arg:
                 return m.group(0)
             return arg + ' in ' + var
         _before_haskey = migrated
-        migrated = re.sub(r'((?:\w+\.)*\w+)\.has_key\(([^)]+)\)', _safe_haskey_sub, migrated)
+        migrated = re.sub(r'(?<![\w.])((?:\w+\.)*\w+)\.has_key\(([^()\n]+)\)', _safe_haskey_sub, migrated)
         if migrated != _before_haskey:
             changes.append("has_key() -> in operator")
-        if re.search(r'(\w+)\.has_key\([^()\n]*\(', _before_haskey):
+        if re.search(r'(?<!\w)(\w+)\.has_key\([^()\n]*\(', _before_haskey):
             changes.append("REVIEW NEEDED: has_key() with nested parentheses detected - NOT auto-converted (could produce incorrect logic), please convert manually: replace x.has_key(EXPR) with EXPR in x")
     if re.search(r'except\s+(\w+)\s*,\s*(\w+)', migrated):
         migrated = re.sub(r'except\s+(\w+)\s*,\s*(\w+)', r'except \1 as \2', migrated)
@@ -4905,6 +4913,19 @@ def detect_pii(source, filename):
     types_found = list(dict.fromkeys([f["type"] for f in findings]))
     return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": f"{len(findings)} potential PII/sensitive data exposure(s) found across {len(types_found)} type(s)" if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded. Actual sensitive values are redacted in this report."}
 
+class _SelectShape:
+    """SELECT ... FROM check in linear time. The single regex \bSELECT\b.+\bFROM\b
+    backtracked quadratically on a long line with many SELECTs and no FROM (a 480 KB
+    line took minutes). Find SELECT first, then look for FROM only after it."""
+    _star = re.compile(r"(?i)\bSELECT\s+\*")
+    _sel = re.compile(r"(?i)\bSELECT\b")
+    _from = re.compile(r"(?i)\bFROM\b")
+    def search(self, line):
+        if self._star.search(line):
+            return True
+        m = self._sel.search(line)
+        return bool(m and self._from.search(line, m.end()))
+
 def scan_sql_injection(source, filename):
     _sq = re
     lines = source.split(chr(10))
@@ -4921,7 +4942,7 @@ def scan_sql_injection(source, filename):
     # ("UPDATED" contains "UPDATE"), inflating the Critical count.
     _sql_shape = {
         "EXECUTE": _sq.compile(r"(?i)\bexecute\w*\s*\("),
-        "SELECT": _sq.compile(r"(?i)\bSELECT\s+\*|\bSELECT\b.+\bFROM\b"),
+        "SELECT": _SelectShape(),
         "INSERT": _sq.compile(r"(?i)\bINSERT\s+INTO\b"),
         "UPDATE": _sq.compile(r"(?i)\bUPDATE\s+(?:[\w.`\[\]\"]+\s+SET\b|[\"\x27]\s*[+.%])"),
         "DELETE": _sq.compile(r"(?i)\bDELETE\s+FROM\b"),
