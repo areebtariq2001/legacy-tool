@@ -1499,8 +1499,11 @@ function renderResults(R, original, fname, totalMs) {
       _checklistEl.innerHTML += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
         _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0"> ' + t + '</div>').join('');
     }
-    const _autoFixedCount2 = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
-    const _totalTransformItems2 = _autoFixedCount2 + _notFixedItems.length;
+    // Transformation % = auto-applied fixes / (auto-applied + flagged for manual review + security items not auto-fixed).
+    // "REVIEW NEEDED" entries were NOT applied, so they count in the denominator only, never as fixed.
+    const _allChanges2 = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
+    const _autoFixedCount2 = _allChanges2.filter(c => !(typeof c === 'string' && c.startsWith('REVIEW NEEDED'))).length;
+    const _totalTransformItems2 = _allChanges2.length + _notFixedItems.length;
     window.lastTransformConfidence = _totalTransformItems2 > 0 ? Math.round((_autoFixedCount2 / _totalTransformItems2) * 100) : null;
   }
   const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
