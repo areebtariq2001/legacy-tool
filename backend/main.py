@@ -3916,12 +3916,35 @@ def _cnic_exposure_findings(source):
         findings.append({"issue": "CRITICAL: CNIC written in plaintext to a log/file/console output - mask or remove it before writing (PII exposure)", "severity": "Critical", "occurrences": len(logged), "lines": ", ".join(logged[:10]), "lines_truncated": len(logged) > 10, "total_lines_affected": len(logged), "evidence": f"First occurrence at line {logged[0]}"})
     return findings
 
+_INLINE_SECRET_RES = [
+    # key=value / key: value secrets inside strings, DSNs and URLs: password=abc, pwd=abc, token: abc
+    (re.compile(r"(?i)\b(password|passwd|pwd|secret|token|api_?key|access_?key)(\s*[=:]\s*)(?![\"'\s]|\*\*\*)[^\s;\"'&,)]+"), lambda m: m.group(1) + m.group(2) + "***REDACTED***"),
+    # credentials embedded in a URL: scheme://user:pass@host
+    (re.compile(r"(?i)([a-z][a-z0-9+.\-]*://[^/\s:@\"']+:)[^/\s@\"']+(@)"), lambda m: m.group(1) + "***REDACTED***" + m.group(2)),
+    # bearer tokens
+    (re.compile(r"(?i)(\bBearer\s+)[A-Za-z0-9\-._~+/]+=*"), lambda m: m.group(1) + "***REDACTED***"),
+]
+
+def _redact_inline_secrets(text):
+    """Applied to EVERY evidence/code snippet a scanner returns. Each finding used to redact
+    only its own kind of value, so e.g. a "Hardcoded IP address" finding echoed the DSN
+    password on the same line (password=... host=10.0.0.5)."""
+    if not text:
+        return text
+    for _rx, _fn in _INLINE_SECRET_RES:
+        text = _rx.sub(_fn, text)
+    return text
+
 SENSITIVE_PATTERNS = [
     (r"(?i)\b[A-Za-z0-9_]*api[_-]?key[A-Za-z0-9_]*\s*=\s*[\x27\x22](sk_live_|sk_test_|pk_live_|AKIA|ghp_|gho_|xox[a-z]-|AIza)[A-Za-z0-9_\-]{6,}[\x27\x22]", "Hardcoded live/production API key detected", "Critical"),
     (r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b", "Possible credit card number (Visa/Mastercard/Amex/Discover pattern)", "High"),
     (r"(?i)(password|passwd|pwd)\s*=\s*[\x27\x22][^\x27\x22]{3,}[\x27\x22]", "Hardcoded password", "High"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded password (COBOL VALUE clause)", "High"), (r"(?i)MOVE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)", "High"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username (COBOL VALUE clause)", "Medium"),
     (r"(?i)\b(?:mysql_connect|mysqli_connect|mysql_pconnect|pg_connect|new\s+mysqli)\s*\(\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]+[\x27\x22]", "Hardcoded password in database connection call", "High"),
     (r"(?i)\b(?:DriverManager\.getConnection|new\s+PDO)\s*\([^,()]+,\s*[\x27\x22][^\x27\x22]*[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]+[\x27\x22]", "Hardcoded password in database connection call", "High"),
+    (r"(?i)[\x27\x22][^\x27\x22]*\b(?:password|passwd|pwd)=[^\s;\x27\x22&]{3,}", "Hardcoded password in connection string", "High"),
+    (r"(?i)[a-z][a-z0-9+.\-]*://[^/\s:@\x27\x22]+:[^/\s@\x27\x22]{3,}@", "Hardcoded credentials in URL (user:password@host)", "High"),
+    (r"(?i)[\x27\x22]Bearer\s+[A-Za-z0-9\-._~+/]{8,}=*[\x27\x22]", "Hardcoded bearer token", "High"),
+    (r"(?i)\bauth\s*=\s*\(\s*[\x27\x22][^\x27\x22]+[\x27\x22]\s*,\s*[\x27\x22][^\x27\x22]+[\x27\x22]\s*\)", "Hardcoded password in HTTP basic auth", "High"),
     (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\x27\x22][^\x27\x22]{2,}[\x27\x22]", "Hardcoded username", "Medium"),
     (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", "Hardcoded IP address", "Medium"),
     (r"(?i)\b(api[_-]?key|secret|token)\s*=\s*[\x27\x22][^\x27\x22]{8,}[\x27\x22]", "Hardcoded API key/secret", "High"),
@@ -3969,6 +3992,7 @@ def scan_sensitive_data(source):
                     # Credential findings: redact EVERY string literal on the line. The pattern above
                     # only covers `= "..."` / `: "..."`, so a password passed as a function argument
                     # (mysql_connect("host", "root", "secret")) was echoed back in clear text.
+                    _sample_line = _redact_inline_secrets(_sample_line)
                     if re.search(r"(?i)password|passwd|pwd|secret|api.?key|token|credential|private.?key", label):
                         _sample_line = re.sub(r'([\"\x27])(?:(?!\1).)*\1', lambda _m: _m.group(1) + "***REDACTED***" + _m.group(1), _sample_line)
         if count > 0:
@@ -4879,7 +4903,7 @@ def audit_key_management(source, filename):
         for pat, label, sev in checks:
             if _km.search(pat, line):
                 _redacted = _km.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:150])
-                findings.append({"line": i+1, "issue": label, "severity": sev, "code": _redacted})
+                findings.append({"line": i+1, "issue": label, "severity": sev, "code": _redact_inline_secrets(_redacted)})
     has_rotation = bool(_km.search(r"(?i)(rotate|rotation|key_expiry|expire|renew).{0,20}key", source))
     return {"km_clean": len(findings) == 0, "km_findings": findings, "km_rotation_found": has_rotation, "km_summary": f"{len(findings)} key management issue(s) found - secrets should never be hardcoded" if findings else "No hardcoded keys or secrets detected", "km_rotation_note": "Key rotation logic detected - good practice" if has_rotation else "No key rotation logic found - keys should be rotated periodically", "km_disclaimer": "Detects hardcoded encryption keys, secrets, and credentials. Hardcoded keys are a serious security risk - use a secrets manager (e.g. vault, environment variables) and rotate keys regularly. Actual secret values are redacted in this report."}
 
@@ -4948,7 +4972,7 @@ def detect_pii(source, filename):
         for pat, label in pii_patterns:
             if _re9.search(pat, line):
                 _redacted = _re9.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:150])
-                _redacted = _re9.sub(pat, "***REDACTED***", _redacted)
+                _redacted = _redact_inline_secrets(_re9.sub(pat, "***REDACTED***", _redacted))
                 findings.append({"line": i+1, "type": label, "code": _redacted, "evidence": "Line " + str(i+1) + " (" + label + "): " + _redacted})
     types_found = list(dict.fromkeys([f["type"] for f in findings]))
     return {"pii_clean": len(findings) == 0, "pii_findings": findings, "pii_types": types_found, "pii_summary": f"{len(findings)} potential PII/sensitive data exposure(s) found across {len(types_found)} type(s)" if findings else "No obvious PII or hardcoded secrets detected in this file", "pii_disclaimer": "Detects personal data (CNIC, cards, emails, phones) and hardcoded secrets. Pattern-based - may include false positives. Sensitive data should be encrypted, masked, or stored securely, never hardcoded. Actual sensitive values are redacted in this report."}
@@ -5012,12 +5036,12 @@ def scan_sql_injection(source, filename):
                 continue
             if _sql_shape[kw.upper()].search(line) and danger in line:
                 _dangers_reported_this_line.add(danger)
-                _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
+                _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
                 _tainted = _extract_tainted_var(line)
                 issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
                 _matched_this_line = True
         if not _matched_this_line and _fstring_sql(line):
-            _redacted = _sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150])
+            _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
             _tainted = _extract_tainted_var(line)
             issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries. 'likely_source_variable' is a best-effort guess from the matched line, not a verified data-flow trace across the file."}
@@ -6472,7 +6496,7 @@ def suggest_config_migration(source, filename):
     for pat, issue, suggestion in hardcoded_patterns:
         for i, line in enumerate(lines):
             if pat.search(line):
-                _redacted = re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:100])
+                _redacted = _redact_inline_secrets(re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:100]))
                 findings.append({"issue": issue, "line": i+1, "suggestion": suggestion, "code": _redacted})
     env_template_lines = []
     for f in findings:
