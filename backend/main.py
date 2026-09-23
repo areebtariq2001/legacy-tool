@@ -3824,7 +3824,10 @@ def _blank_comments_and_docstrings(source):
     the tokenizer; anything it cannot tokenize falls back to line-level stripping
     of #, //, /* */ comments and triple-quoted blocks."""
     lines = source.split(chr(10))
-    toks = _python_tokens(source)
+    # Java/PHP also "tokenize" as Python (// becomes floor division), which silently left their
+    # // comments in place - so "// no AML screening" still counted as AML logic. Only take
+    # the tokenizer path for Python-looking sources.
+    toks = _python_tokens(source) if _looks_like_python(source) else None
     if toks is not None:
         out = [list(l) for l in lines]
 
@@ -3853,7 +3856,15 @@ def _blank_comments_and_docstrings(source):
             ends_stmt = nxt is None or nxt.type in (_tokenize_mod.NEWLINE, _tokenize_mod.ENDMARKER)
             if starts_stmt and ends_stmt:
                 _blank(t.start, t.end)
+                # keep a "" placeholder so the blanked text is still valid Python
+                # (a function whose body is only a docstring would otherwise be empty)
+                _row = out[t.start[0] - 1]
+                if t.start[1] + 1 < len(_row):
+                    _row[t.start[1]] = '"'
+                    _row[t.start[1] + 1] = '"'
         return ["".join(r) for r in out]
+    if not _looks_like_python(source):
+        return _blank_c_style_comments(source)
     _spaces = lambda m: re.sub(r"[^\n]", " ", m.group(0))
     text = _BLOCK_COMMENT_RE.sub(_spaces, source)
     text = _TRIPLE_QUOTED_RE.sub(_spaces, text)
@@ -3866,6 +3877,75 @@ def _blank_comments_and_docstrings(source):
         else:
             res.append(ln)
     return res
+
+def _looks_like_python(source):
+    if "<?php" in source[:5000]:
+        return False
+    _lines = [l for l in source.split(chr(10))[:400] if l.strip()]
+    if not _lines:
+        return True
+    if re.search(r"(?m)^\s*(package\s+[\w.]+\s*;|import\s+[\w.*]+\s*;|(public|private|protected)\s+(static\s+)?[\w<>\[\]]+\s+\w+\s*[({=;])", source[:20000]):
+        return False
+    _c_like = sum(1 for l in _lines if l.rstrip().endswith((";", "{", "}")))
+    if _c_like / len(_lines) > 0.3:
+        return False
+    # COBOL: fixed-format divisions
+    if re.search(r"(?mi)^\s*\d{0,6}\s*(IDENTIFICATION|PROCEDURE)\s+DIVISION", source[:20000]):
+        return False
+    return True
+
+def _blank_c_style_comments(source):
+    """Java/PHP/COBOL: blank // ... , /* ... */ , PHP # ... and COBOL * comment lines,
+    never touching text inside '...' or "..." strings. Line/column positions are kept."""
+    out = []
+    in_block = False
+    for ln in source.split(chr(10)):
+        is_cobol_comment = len(ln) > 6 and ln[6:7] in ("*", "/") and (ln[:6].strip() == "" or ln[:6].strip().isdigit())
+        if is_cobol_comment and not in_block:
+            out.append(" " * len(ln))
+            continue
+        buf = list(ln)
+        i, q = 0, None
+        while i < len(ln):
+            ch = ln[i]
+            if in_block:
+                if ln.startswith("*/", i):
+                    buf[i] = buf[i + 1] = " "
+                    in_block = False
+                    i += 2
+                    continue
+                buf[i] = " "
+                i += 1
+                continue
+            if q:
+                if ch == "\\":
+                    i += 2
+                    continue
+                if ch == q:
+                    q = None
+                i += 1
+                continue
+            if ch in ("'", '"'):
+                q = ch
+            elif ln.startswith("/*", i):
+                in_block = True
+                buf[i] = buf[i + 1] = " "
+                i += 2
+                continue
+            elif ln.startswith("//", i) or ch == "#":
+                for k in range(i, len(ln)):
+                    buf[k] = " "
+                break
+            i += 1
+        out.append("".join(buf))
+    return out
+
+def _code_only_source(source):
+    """Source with comments/docstrings blanked (line numbers kept) for keyword-presence checks."""
+    try:
+        return chr(10).join(_blank_comments_and_docstrings(source))
+    except Exception:
+        return source
 
 def _division_operator_lines(code):
     """Line numbers holding a real '/' or '/=' operator (Bug 12). Uses the Python
@@ -4411,6 +4491,38 @@ async def aml_kyc_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AML/KYC scan failed safely: {str(e)}"})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
 
+def _repo_file_assessment(source, path):
+    """(issue_count, risk_level, critical_count) for one repo file, the same way for every
+    language. Python files used to be rated only by dependency risk (a file with SQL injection
+    and a hardcoded CNIC came out "Low risk, 0 issues"), and other languages only by issue
+    COUNT (five style warnings = High, one SQL injection = Medium)."""
+    _p = path.lower()
+    if _p.endswith(".py"):
+        _issues = analyze_code(source).get("issues", [])
+    elif _p.endswith(".java"):
+        _issues = analyze_java(source).get("issues", [])
+    elif _p.endswith(".php"):
+        _issues = analyze_php(source).get("issues", [])
+    else:
+        _issues = analyze_cobol(source, path).get("issues", [])
+    _issues = [i if isinstance(i, str) else json.dumps(i, default=str) for i in _issues]
+    _critical = [i for i in _issues if any(t in i.lower() for t in _SECURITY_ISSUE_TERMS) or "critical" in i.lower()]
+    _dep_level = None
+    if _p.endswith(".py"):
+        try:
+            _dep = assess_dependency_risk(source)
+            _dep_level = _dep.get("overall_risk")
+            _issues = _issues + ["dependency: " + str(x) for x in range(int(_dep.get("total_issues", 0) or 0))]
+        except Exception:
+            pass
+    if _critical or _dep_level == "High":
+        _level = "High"
+    elif _issues or _dep_level == "Medium":
+        _level = "Medium"
+    else:
+        _level = "Low"
+    return len(_issues), _level, len(_critical)
+
 class _CappedResponse:
     def __init__(self, status_code, text, too_large):
         self.status_code = status_code
@@ -4496,25 +4608,10 @@ def _scan_repo_blocking(req: RepoRequest):
                     skipped_files.append({"file": path, "reason": "File too large (over 200KB)"})
                     continue
                 _plower = path.lower()
-                if _plower.endswith(".py"):
-                    risk = assess_dependency_risk(source)
-                    issues = risk.get("total_issues", 0)
-                    risk_level = risk.get("overall_risk", "Unknown")
-                elif _plower.endswith(".java"):
-                    _r = analyze_java(source)
-                    issues = len(_r.get("issues", []))
-                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                elif _plower.endswith(".php"):
-                    _r = analyze_php(source)
-                    issues = len(_r.get("issues", []))
-                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                elif _plower.endswith((".cbl", ".cob", ".cpy")):
-                    _r = analyze_cobol(source)
-                    issues = len(_r.get("issues", []))
-                    risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                else:
+                if not _plower.endswith((".py", ".java", ".php", ".cbl", ".cob", ".cpy")):
                     skipped_files.append({"file": path, "reason": "Unsupported file type"})
                     continue
+                issues, risk_level, _critical_n = _repo_file_assessment(source, path)
                 total_issues += issues
                 try:
                     _rules_result = discover_business_rules_engine(source, path)
@@ -4864,6 +4961,7 @@ def predict_migration_risk(source, filename):
     }
 
 def detect_fraud_gaps(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     _fr = re
     src_l = source.lower()
     gaps = []
@@ -5021,6 +5119,9 @@ def scan_sql_injection(source, filename):
         m = _sq.search(r"['\"]\s*[%+]\s*([a-zA-Z_][\w\.\[\]]*)(?!['\"])", line)
         if m:
             return m.group(1).strip()
+        m = _sq.search(r"['\"]\s*\.\s*(\$[a-zA-Z_]\w*(?:\[[^\]]*\])?)", line)  # PHP: "..." . $id
+        if m:
+            return m.group(1).strip()
         m = _sq.search(r"[%+]\s*([a-zA-Z_][\w\.\[\]]*)(?!['\"])", line)
         if m:
             return m.group(1).strip()
@@ -5047,6 +5148,7 @@ def scan_sql_injection(source, filename):
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries. 'likely_source_variable' is a best-effort guess from the matched line, not a verified data-flow trace across the file."}
 
 def score_zero_trust(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     _zt = re
     checks = []
     c1 = bool(_zt.search(r"(?i)(authenticate|verify_token|check_auth|require_login)", source)); checks.append(("Authentication on requests", c1))
@@ -5169,10 +5271,9 @@ def process_github_webhook(payload):
                 if resp.status_code == 200:
                     source = resp.text
                     _plower = file_path.lower()
+                    issues, risk_level, _crit_n = _repo_file_assessment(source, file_path)  # same rating as repo scan
+                    compliance_status = None
                     if _plower.endswith(".py"):
-                        risk = assess_dependency_risk(source)
-                        risk_level = risk.get("overall_risk", "Unknown")
-                        issues = risk.get("total_issues", 0)
                         try:
                             _gov_suite = run_pakistan_banking_suite(source, file_path)
                             if _gov_suite.get("suite_run"):
@@ -5185,18 +5286,6 @@ def process_github_webhook(payload):
                                 compliance_status = None
                         except Exception:
                             compliance_status = None
-                    elif _plower.endswith(".java"):
-                        _r = analyze_java(source)
-                        issues = len(_r.get("issues", []))
-                        risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                    elif _plower.endswith(".php"):
-                        _r = analyze_php(source)
-                        issues = len(_r.get("issues", []))
-                        risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
-                    else:
-                        _r = analyze_cobol(source)
-                        issues = len(_r.get("issues", []))
-                        risk_level = "High" if issues >= 5 else ("Medium" if issues >= 1 else "Low")
                     _result_entry = {"file": file_path, "risk_level": risk_level, "issues": issues}
                     if _plower.endswith(".py") and compliance_status:
                         _result_entry["compliance_status"] = compliance_status
@@ -5211,6 +5300,7 @@ def process_github_webhook(payload):
         return {"error": "Webhook processing failed safely: " + str(e)}
 
 def check_regulatory_framework(source, filename, framework="SBP"):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     _rf = re
     frameworks = {"SBP": {"name": "SBP Prudential Regulations", "checks": [("AML/KYC verification", r"(?i)(kyc|customer.?due.?diligence|cdd|aml)", "SBP AML/CFT Regulations require documented KYC."), ("Transaction limits", r"(?i)(daily.?limit|transaction.?limit|max.?amount)", "SBP Digital Banking guidelines require transaction limits."), ("Fraud monitoring", r"(?i)(fraud|suspicious|flag|anomaly)", "SBP requires fraud-detection controls."), ("Data localization", r"(?i)(data.?localiz|pakistan|on.?prem|in.?country)", "SBP requires customer data to stay within Pakistan.")]}, "Basel III": {"name": "Basel III Capital & Risk Framework", "checks": [("Capital adequacy logic", r"(?i)(capital.?adequacy|risk.?weight|(?<![a-zA-Z])car(?![a-zA-Z]))", "Basel III requires capital adequacy ratio tracking."), ("Risk categorization", r"(?i)(risk.?category|risk.?level|risk.?score)", "Basel III requires clear risk categorization."), ("Liquidity checks", r"(?i)(liquidity|lcr|nsfr)", "Basel III liquidity coverage ratio logic should be identifiable.")]}, "PCI-DSS": {"name": "PCI Data Security Standard", "checks": [("Card data encryption", r"(?i)(encrypt|aes|tls)", "PCI-DSS requires cardholder data encryption."), ("No plaintext card storage", r"(?i)(card.?number|cvv|\bpan\b)", "PCI-DSS prohibits storing full card numbers/CVV in plaintext."), ("Access logging", r"(?i)(access.?log|audit.?log|audit.?trail|track_usage)", "PCI-DSS requires access logging.")]}, "GDPR": {"name": "General Data Protection Regulation", "checks": [("Personal data handling", r"(?i)(personal.?data|pii|email|phone|address)", "GDPR requires lawful basis for personal data."), ("Right to erasure support", r"(?i)(delete|erase|remove.?user|gdpr)", "GDPR Article 17 requires ability to delete user data."), ("Consent tracking", r"(?i)(consent|opt.?in|opt.?out)", "GDPR requires documented user consent.")]}}
     _used_fallback = framework not in frameworks
@@ -5290,6 +5380,7 @@ def generate_rollback_plan(source, filename):
     return {"rollback_steps": steps, "rollback_summary": f"{len(steps)}-step rollback plan generated{_suffix}", "rollback_disclaimer": "A general rollback plan based on this code. Adapt to your infrastructure and always test rollback procedures before a real migration."}
 
 def map_transaction_flow(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     _re5 = re
     flows = []
     TXN_FLOW_PATTERNS_COMPILED = {"Deposit": re.compile(r"(?i)\b(deposit|add_funds|add_money)\b"), "Withdrawal": re.compile(r"(?i)\b(withdraw|withdrawal)\b"), "Transfer": re.compile(r"(?i)\b(transfer|send_money|remit)\b"), "Payment": re.compile(r"(?i)\b(payment|make_payment|process_payment)\b"), "Balance Check": re.compile(r"(?i)\b(balance|get_balance|check_balance)\b"), "Interest": re.compile(r"(?i)\b(interest|apr|apy|compound.?interest|simple.?interest|accrual)\b"), "Loan": re.compile(r"(?i)\b(loan|emi|installment)\b"), "Account": re.compile(r"(?i)\b(account_number|acct_no|customer_id|acc_no)\b")}
@@ -5369,6 +5460,7 @@ def _get_func_body(source, fname, filename=""):
     return rest[:2000]
 
 def generate_executive_report(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     _re2 = re
     lines = [l for l in source.split(chr(10)) if l.strip()]
     _is_python_file = not (filename.lower().endswith((".php", ".java", ".cbl", ".cob")))
@@ -6583,6 +6675,7 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
 def analyze_regulation_impact(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"affected_regulations": [], "regulation_summary": "File too large for regulation-impact analysis", "regulation_disclaimer": "Skipped - file exceeds size limit."}
     lines = source.split(chr(10))
@@ -7374,6 +7467,11 @@ def scan_entropy_secrets(source, filename):
                 if candidate.startswith(prefix):
                     known_type = label
                     break
+            # Plain identifiers / dict keys / dotted names ("kyc_failure_rate", "os.path.join")
+            # are words joined by _ . - with no digits: not secrets. Known token prefixes are
+            # still checked above regardless.
+            if not known_type and re.fullmatch(r"[A-Za-z]+(?:[_.\-][A-Za-z]+)+", candidate):
+                continue
             entropy = _calculate_shannon_entropy(candidate)
             entropy_threshold = 4.0 if len(candidate) >= 20 else 3.5
             is_high_entropy = entropy >= entropy_threshold
@@ -9295,6 +9393,7 @@ async def libor_sofr_migration_check_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"filename": file.filename, "error": "LIBOR SOFR migration check failed safely: " + str(e)})
 def check_swift_mt_iso20022_migration(source, filename):
+    source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
     if not filename.lower().endswith(".py"):
@@ -10434,7 +10533,7 @@ def calculate_migration_roi(source, filename):
         risk_level = risk.get("overall_risk", "Unknown")
     except Exception:
         risk_level = "Unknown"
-    security_hits = len(re.findall(r"(?i)\b(eval|exec)\s*\(|\b(md5|sha1)\b|\bpassword\s*=\s*[\"\x27]|verify\s*=\s*False|shell\s*=\s*True", source))
+    security_hits = len(re.findall(r"(?i)\b(eval|exec)\s*\(|\b(md5|sha1)\b|\bpassword\s*=\s*[\"\x27]|verify\s*=\s*False|shell\s*=\s*True", _code_only_source(source)))  # not comments
     breach_risk_cost_3yr = 0
     if risk_level == "High" or security_hits >= 3:
         breach_risk_cost_3yr = 15000
