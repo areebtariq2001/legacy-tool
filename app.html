@@ -489,7 +489,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
               <div style="font-size:9px;color:#64748b;margin-top:8px">Reference roadmap based on detected findings - a standard modernization sequence, not customized line-by-line to this codebase.</div>
             </div>
             <div class="card" id="regComplianceCard" style="display:none">
-              <div class="card-head">Compliance Readiness <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Pattern-based detection - not a compliance certification</span></div>
+              <div class="card-head">Regulatory Signals Detected <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">Keywords found in the code - not checks passed, not a certification</span></div>
+              <div id="regComplianceNote" style="font-size:10px;color:#64748b;margin-bottom:8px"></div>
               <div id="regComplianceList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
             <div class="card" id="batchJobsCard" style="display:none">
@@ -542,7 +543,8 @@ textarea.ask-ta:focus{border-color:var(--blue)}
             </div>
             <div class="card">
               <div class="card-head" id="advTitle">Advanced Checks <span class="card-head-a" style="text-transform:none;font-weight:400;color:#64748b">All backend capabilities · results may vary by check</span></div>
-              <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">Run Pakistan Banking Compliance Suite (8 checks in 1 click)</button>
+              <button class="btn" style="width:100%;justify-content:center;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;font-weight:700;font-size:12px" onclick="runPakistanBankingSuite(this)">Run Pakistan Banking Compliance Suite (runs 8 core checks)</button>
+              <div id="advCoverage" style="font-size:10px;color:#64748b;margin:-8px 0 12px;line-height:1.5"></div>
 
               <details style="margin-bottom:8px;border:1px solid #e5e8ee;border-radius:6px;overflow:hidden"><summary style="font-size:11px;color:#1d4ed8;font-weight:700;padding:7px 10px;cursor:pointer;background:#f8fafc;list-style:none;display:flex;align-items:center;justify-content:space-between"><span>Analysis</span></summary><div style="padding:8px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
                 <button class="btn btn-ghost adv-check-btn" data-label="Call Graph" title="Currently supports Python files only" style="padding:7px 4px;font-size:10px" onclick="runGenericScan('/call-graph','Call Graph', this)">Call Graph</button>
@@ -774,7 +776,7 @@ textarea.ask-ta:focus{border-color:var(--blue)}
                   <span class="prog-val" id="pv-debt" title="Run an analysis to see this">—</span>
                 </div>
                 <div class="prog">
-                  <span class="prog-lbl" style="color:var(--purple)">Compliance Readiness</span>
+                  <span class="prog-lbl" style="color:var(--purple)" title="Share of 9 financial-crime control patterns (AML, KYC, sanctions, PEP, ...) found in the code">Compliance Coverage</span>
                   <div class="prog-bar"><div class="prog-fill" id="pg-compliance" style="background:var(--purple);width:0%"></div></div>
                   <span class="prog-val" id="pv-compliance" title="Run an analysis to see this">—</span>
                 </div>
@@ -1031,6 +1033,53 @@ function doLogout() {
   localStorage.removeItem('sessionEmail');
   updateAuthUI();
 }
+// Bug 11: keyword detectors (AML/KYC, business rules, payments, regulatory signals...) must
+// only look at real code. A docstring line "- No AML/KYC screening call anywhere" was being
+// reported as "✓ AML Rules 87%". Returns the source with comments and docstrings replaced by
+// spaces (newlines kept, so line numbers stay correct); ordinary string literals are kept,
+// because SQL and log text inside them are real evidence.
+function stripNonCode(code, fname) {
+  const ext = String(fname || '').toLowerCase().split('.').pop();
+  const lng = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' }[ext] || lang;
+  const blank = s => s.replace(/[^\n]/g, ' ');
+  if (lng === 'cobol') {
+    return code.split('\n').map(l => (l.length > 6 && (l[6] === '*' || l[6] === '/')) || /^\s*\*>/.test(l) ? blank(l) : l.replace(/\*>.*$/, m => blank(m))).join('\n');
+  }
+  const py = lng === 'python';
+  let out = '', i = 0;
+  const n = code.length;
+  let lineStart = true; // only whitespace seen since the last newline
+  while (i < n) {
+    const c = code[i];
+    if (c === '\n') { out += c; i++; lineStart = true; continue; }
+    if (py && (code.startsWith('"""', i) || code.startsWith("'''", i))) {
+      const q = code.substr(i, 3);
+      const end = code.indexOf(q, i + 3);
+      const stop = end === -1 ? n : end + 3;
+      const chunk = code.slice(i, stop);
+      const rest = code.slice(stop, code.indexOf('\n', stop) === -1 ? n : code.indexOf('\n', stop));
+      const isDocstring = lineStart && /^\s*(#.*)?$/.test(rest);
+      out += isDocstring ? blank(chunk) : chunk;
+      i = stop; lineStart = false; continue;
+    }
+    if (c === '"' || c === "'" || (!py && c === '`')) {
+      let j = i + 1;
+      while (j < n && code[j] !== c && code[j] !== '\n') { if (code[j] === '\\') j++; j++; }
+      out += code.slice(i, Math.min(j + 1, n)); i = Math.min(j + 1, n); lineStart = false; continue;
+    }
+    if ((py || lng === 'php') && c === '#' || (!py && c === '/' && code[i + 1] === '/')) {
+      const e = code.indexOf('\n', i); const stop = e === -1 ? n : e;
+      out += blank(code.slice(i, stop)); i = stop; continue;
+    }
+    if (!py && c === '/' && code[i + 1] === '*') {
+      const e = code.indexOf('*/', i + 2); const stop = e === -1 ? n : e + 2;
+      out += blank(code.slice(i, stop)); i = stop; continue;
+    }
+    if (c !== ' ' && c !== '\t' && c !== '\r') lineStart = false;
+    out += c; i++;
+  }
+  return out;
+}
 function isCommentLine(trimmedLine) {
   return trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*/');
 }
@@ -1039,6 +1088,56 @@ function isBarePropertyDeclaration(trimmedLine) {
 }
 function estimateFixHours(critCount, warnCount) {
   return (critCount * 2 + warnCount * 1) || 0.5;
+}
+const FRONTEND_BUILD = '2026-09-23.1';
+let _engineVersionCache = null;
+async function buildScanFingerprint(code) {
+  let fileHash = 'unavailable';
+  try {
+    if (window.crypto && crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+      fileHash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    }
+  } catch (e) { /* hashing is informational only */ }
+  if (_engineVersionCache == null) {
+    try {
+      const r = await fetch(BACKEND + '/health');
+      const d = await r.json();
+      _engineVersionCache = d.engine_version || d.version || 'unknown';
+    } catch (e) { _engineVersionCache = null; }
+  }
+  const engine = _engineVersionCache || 'unknown';
+  const checksList = Array.from(checks).sort().join('+') || 'none';
+  const fp = { file_sha256: fileHash, engine_version: engine, ui_build: FRONTEND_BUILD, mode, checks: checksList };
+  fp.text = 'Scan fingerprint: file ' + fileHash + ' · engine ' + engine + ' · UI ' + FRONTEND_BUILD + ' · mode ' + mode + ' · checks ' + checksList + (mode === 'ai' ? ' · AI mode output can vary between runs; use Rule-Based for reproducible results' : '');
+  return fp;
+}
+// True when a rule-based (non-COBOL) migration ran cleanly and changed nothing at all.
+function isNoChangeMigration(mig) {
+  if (!mig || lang === 'cobol' || mode === 'ai') return false;
+  if (!Array.isArray(mig.changes) || mig.changes.length > 0) return false;
+  return !(mig.migration_validity && mig.migration_validity.syntax_valid === false);
+}
+// Bug 9: effort/cost must be wired to the open issue list. The backend /tech-debt-cost figure
+// only counts legacy-syntax patterns, so on its own it reported 0.0 hrs / $0 while a Critical
+// SQL injection was still open. Each open issue now sets a floor (2 h per Critical, 1 h per
+// Warning); the estimate is the larger of that floor and the legacy-pattern debt figure (a max,
+// not a sum, because many warnings are the same legacy patterns the debt figure already prices).
+function computeEffortEstimate(R, critCount, warnCount) {
+  const hasReal = R.debtCost && typeof R.debtCost.debt_hours === 'number' && typeof R.debtCost.debt_cost_usd === 'number';
+  const floorHours = critCount * 2 + warnCount * 1;
+  const floorText = critCount + ' critical × 2 h + ' + warnCount + ' warning × 1 h = ' + floorHours.toFixed(1) + ' h';
+  if (!hasReal) {
+    const h = estimateFixHours(critCount, warnCount);
+    return { hours: h, costMid: h * 50, basis: 'Open-issue estimate: ' + floorText + ' (minimum 0.5 h), at $50/h.' };
+  }
+  const rate = (typeof R.debtCost.hourly_rate_used === 'number' && R.debtCost.hourly_rate_used > 0) ? R.debtCost.hourly_rate_used : 15;
+  const legacyHours = R.debtCost.debt_hours;
+  const useFloor = floorHours > legacyHours;
+  const hours = Math.max(legacyHours, floorHours, 0.5);
+  const costMid = useFloor || hours !== legacyHours ? hours * rate : R.debtCost.debt_cost_usd;
+  return { hours, costMid,
+    basis: 'Larger of legacy-pattern debt (' + legacyHours.toFixed(1) + ' h) and open-issue floor (' + floorText + '), at $' + rate + '/h.' };
 }
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1318,6 +1417,18 @@ async function runAnalysisOrBatch() {
   btn.textContent = originalText;
   document.getElementById('repoSummaryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+// Bug 8: the backend answers HTTP 429 when requests arrive too fast (>20 in 10 s per IP, or
+// >60/min). One analysis sends ~7 requests, so a quick re-run or a batch scan used to lose
+// whole pipeline steps and silently show different scores for the same file. Retry 429s with
+// backoff so the result is complete; if it still fails, the run is flagged Incomplete.
+async function fetchRetry(url, opts, attempt = 0) {
+  const r = await fetch(url, opts);
+  if (r.status !== 429 || attempt >= 3) return r;
+  const ra = parseFloat(r.headers.get('Retry-After'));
+  const waitMs = Math.min(15000, (isFinite(ra) && ra > 0 ? ra * 1000 : 0) || [4000, 8000, 12000][attempt]);
+  await new Promise(res => setTimeout(res, waitMs));
+  return fetchRetry(url, opts, attempt + 1);
+}
 async function runAnalysis() {
   if (!files.length) return;
   if (window._analysisInProgress) return;
@@ -1332,6 +1443,8 @@ async function runAnalysis() {
     b.classList.remove('adv-active');
     b.innerHTML = b.dataset.originalHtml;
   });
+  window._suiteRanForFile = false;
+  updateAdvCoverage();
   const code = await files[0].text();
   const fname = files[0].name;
   if (!code || !code.trim()) {
@@ -1339,6 +1452,10 @@ async function runAnalysis() {
     return;
   }
   const t0 = Date.now();
+  // Bug 8: stamp every run with what produced it. Same file hash + engine + UI build + mode +
+  // checks => results must be identical. If any of these differ between two runs, that
+  // (not randomness) explains differing numbers.
+  window.lastScanFingerprint = await buildScanFingerprint(code);
   document.getElementById('pipeline').classList.add('show');
   document.getElementById('results').classList.remove('show');
   stepIds.forEach(pipeWait);
@@ -1364,7 +1481,7 @@ async function runAnalysis() {
     const analyzeEp = { python: '/analyze', java: '/analyze-java', php: '/analyze-php', cobol: '/analyze-cobol' };
     const aep = analyzeEp[lang] || '/analyze';
     const fd1 = new FormData(); fd1.append('file', files[0]);
-    const r = await fetch(BACKEND + aep, { method: 'POST', body: fd1 });
+    const r = await fetchRetry(BACKEND + aep, { method: 'POST', body: fd1 });
     R.analyze = await r.json();
     if (!r.ok) throw new Error(R.analyze?.error || ('Server error ' + r.status));
     pipeDone('analyze', 'Structure analyzed', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t1)/1000).toFixed(1)+'s');
@@ -1375,7 +1492,7 @@ async function runAnalysis() {
     const langEp = { python: mode==='ai'?'/ai-migrate':'/migrate', java: mode==='ai'?'/ai-migrate':'/migrate-java', php: mode==='ai'?'/ai-migrate':'/migrate-php', cobol: mode==='ai'?'/ai-migrate':'/migrate-cobol' };
     const ep = langEp[lang] || '/migrate';
     const fd2 = new FormData(); fd2.append('file', files[0]);
-    const r = await fetch(BACKEND + ep, { method: 'POST', body: fd2 });
+    const r = await fetchRetry(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
     if (!r.ok) throw new Error(R.migrate?.error || ('Server error ' + r.status));
     const _ruleModeDefaultConf1 = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
@@ -1385,9 +1502,13 @@ async function runAnalysis() {
     const reviewNeededCount = allChanges.filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
     const _adjustedConf = conf != null ? Math.max(0, conf - (reviewNeededCount * 8)) : null;
-    const confStr = _adjustedConf != null ? Math.round(_adjustedConf) + '%' : 'N/A';
     const _aiFellBack = mode === 'ai' && R.migrate?.fallback_used === true;
-    const migLabel = _aiFellBack ? 'AI Unavailable - Used Rule-Based Fallback' : lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : autoAppliedCount === 0 ? 'Migration Ready (no changes needed)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
+    // Bug 3: when the migration produced zero changes, there is no produced migration to be
+    // "confident" in - show the plain finding instead of a precision-looking percentage.
+    const _noChangesNeeded = isNoChangeMigration(R.migrate);
+    const confStr = _noChangesNeeded ? 'No changes' : (_adjustedConf != null ? Math.round(_adjustedConf) + '%' : 'N/A');
+    const _confWord = lang === 'cobol' ? 'Specification Confidence' : 'Migration Confidence';
+    const migLabel = _aiFellBack ? 'AI Unavailable - Used Rule-Based Fallback' : lang === 'cobol' ? 'Specification Ready (Business Rules Extracted)' : _noChangesNeeded ? 'No changes needed - code already compatible (migrated output is identical to the original)' : autoAppliedCount === 0 ? 'Manual review needed (no automatic changes applied)' : autoAppliedCount <= 2 ? 'Migration Ready (compatibility fix)' : 'Migration Ready (modernization)';
     const ccNote = document.getElementById('changeCountNote');
     if (ccNote) {
       ccNote.style.display = 'block';
@@ -1416,7 +1537,7 @@ async function runAnalysis() {
       }
       checklist.innerHTML = checklistHtml;
     }
-    pipeDone('migrate', migLabel + ' · Specification Confidence: ' + confStr, '<span class="badge ' + (_aiFellBack ? 'b-amber' : 'b-blue') + '" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
+    pipeDone('migrate', _noChangesNeeded ? migLabel : migLabel + ' · ' + _confWord + ': ' + confStr,'<span class="badge ' + (_aiFellBack ? 'b-amber' : 'b-blue') + '" style="font-size:9px">' + confStr + '</span>', ((Date.now()-t2)/1000).toFixed(1)+'s');
     const _validity = R.migrate.migration_validity;
     const _approvalTextEl = document.querySelector('#approvalBox .approval-text');
     const _weakCryptoChange = (R.migrate.changes || []).find(c => /md5|sha1|hashlib/i.test(c));
@@ -1439,7 +1560,7 @@ async function runAnalysis() {
           const fdBeh = new FormData();
           fdBeh.append('original_file', files[0]);
           fdBeh.append('migrated_file', new Blob([_migCodeForBehavioral], { type: 'text/plain' }), 'migrated.py');
-          const rBeh = await fetch(BACKEND + '/behavioral-confidence', { method: 'POST', body: fdBeh });
+          const rBeh = await fetchRetry(BACKEND + '/behavioral-confidence', { method: 'POST', body: fdBeh });
           R.behavioral = await rBeh.json();
         }
       } catch (e) { R.behavioral = null; }
@@ -1450,7 +1571,7 @@ async function runAnalysis() {
     const t3 = Date.now();
     try {
       const fd3 = new FormData(); fd3.append('file', files[0]);
-      const r = await fetch(BACKEND + '/scan-sensitive', { method: 'POST', body: fd3 });
+      const r = await fetchRetry(BACKEND + '/scan-sensitive', { method: 'POST', body: fd3 });
       R.security = await r.json();
       if (!r.ok) throw new Error(R.security?.error || ('Server error ' + r.status));
       pipeDone('security', 'Security scan complete', '<span class="badge b-green" style="font-size:9px">Done</span>', ((Date.now()-t3)/1000).toFixed(1)+'s');
@@ -1463,13 +1584,14 @@ async function runAnalysis() {
     const t4 = Date.now();
     try {
       const fd4 = new FormData(); fd4.append('file', files[0]);
-      const r = await fetch(BACKEND + '/tech-debt', { method: 'POST', body: fd4 });
+      const r = await fetchRetry(BACKEND + '/tech-debt', { method: 'POST', body: fd4 });
       R.debt = await r.json();
       if (!r.ok) throw new Error(R.debt?.error || ('Server error ' + r.status));
       try {
         const fd4b = new FormData(); fd4b.append('file', files[0]);
-        const rc = await fetch(BACKEND + '/tech-debt-cost', { method: 'POST', body: fd4b });
+        const rc = await fetchRetry(BACKEND + '/tech-debt-cost', { method: 'POST', body: fd4b });
         R.debtCost = await rc.json();
+        if (!rc.ok) R.debtCost = null;
       } catch (e2) { R.debtCost = null; }
       pipeDone('debt', 'Debt analysis complete', '<span class="badge b-amber" style="font-size:9px">Done</span>', ((Date.now()-t4)/1000).toFixed(1)+'s');
     } catch (e) { pipeErr('debt', e.message); R.debt = null; }
@@ -1499,27 +1621,37 @@ function renderResults(R, original, fname, totalMs) {
       _checklistEl.innerHTML += '<div style="font-size:10px;color:#64748b;font-weight:600;margin-top:10px;margin-bottom:6px">Not Auto-Fixed (Security — Requires Deliberate Human Decision)</div>' +
         _notFixedItems.map(t => '<div style="font-size:11px;color:#ef4444;padding:3px 0"> ' + t + '</div>').join('');
     }
-    // Transformation % = auto-applied fixes / (auto-applied + flagged for manual review + security items not auto-fixed).
-    // "REVIEW NEEDED" entries were NOT applied, so they count in the denominator only, never as fixed.
-    const _allChanges2 = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
-    const _autoFixedCount2 = _allChanges2.filter(c => !(typeof c === 'string' && c.startsWith('REVIEW NEEDED'))).length;
-    const _totalTransformItems2 = _allChanges2.length + _notFixedItems.length;
-    window.lastTransformConfidence = _totalTransformItems2 > 0 ? Math.round((_autoFixedCount2 / _totalTransformItems2) * 100) : null;
+    // Bug 10: Transformation % = auto-applied fixes / (auto-applied + flagged for manual review
+    // + security items left untouched). "REVIEW NEEDED" entries were NOT applied, so they count
+    // in the denominator only. N/A when there was nothing to transform.
+    const _migChanges2 = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
+    const _reviewCount2 = _migChanges2.filter(c => typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
+    const _autoFixedCount2 = _migChanges2.length - _reviewCount2;
+    const _totalTransformItems2 = _migChanges2.length + _notFixedItems.length;
+    // If the migration produced no changes at all there was nothing to transform: N/A, not 0%
+    // (security items alone are not migration work and are listed separately).
+    window.lastTransformConfidence = (_migChanges2.length > 0 && _totalTransformItems2 > 0) ? Math.round((_autoFixedCount2 / _totalTransformItems2) * 100) : null;
+    window.lastTransformCounts = { auto: _autoFixedCount2, review: _reviewCount2, notFixed: _notFixedItems.length };
   }
   const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
   const _ruleModeDefaultConf = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
   const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? _ruleModeDefaultConf;
   const conf = baseConf != null ? Math.max(0, baseConf - (reviewNeededCountForConf * 8)) : null;
-  const confPct = conf != null ? Math.round(conf) : null;
+  const _noChangesNeeded = isNoChangeMigration(R.migrate);
+  window.lastNoChangesNeeded = _noChangesNeeded;
+  window.lastConfBreakdown = baseConf != null ? { base: Math.round(baseConf), review: reviewNeededCountForConf } : null;
+  // Bug 3: no percentage when the migration changed nothing - there is nothing to be confident in.
+  const confPct = (!_noChangesNeeded && conf != null) ? Math.round(conf) : null;
   const cColor = confPct == null ? '#64748b' : confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
   document.getElementById('confFill').style.width = (confPct ?? 0) + '%';
   document.getElementById('confFill').style.background = cColor;
-  document.getElementById('confPct').textContent = confPct != null ? confPct + '%' : 'N/A';
+  document.getElementById('confPct').textContent = _noChangesNeeded ? 'No changes needed' : (confPct != null ? confPct + '%' : 'N/A');
   document.getElementById('confPct').style.color = cColor;
+  document.getElementById('confPct').title = _noChangesNeeded ? 'The rule-based migration found nothing to convert: the migrated output is identical to the original and passes a syntax check. No confidence percentage is shown because no migration was produced.' : '';
   if (confPct != null) {
     document.getElementById('confPct').title = 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 0%';
   }
-  document.getElementById('sv-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
+  document.getElementById('sv-conf').textContent = _noChangesNeeded ? 'No changes' : (confPct != null ? confPct + '%' : 'N/A');
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
   const reviewLineNums = new Set();
   if (R.migrate && Array.isArray(R.migrate.changes)) {
@@ -1571,14 +1703,15 @@ function renderResults(R, original, fname, totalMs) {
   const secScore = R.security == null ? null : (critCount === 0 ? 88 : Math.max(20, 88 - critCount * 15));
   const migScore = confPct;
   const debtScore = R.debt == null ? null : (R.debt?.debt_score != null ? (100 - R.debt.debt_score) : 80);
-  detectCompliance(original);
+  const _codeOnly = stripNonCode(original, fname); // Bug 11: detectors see code, not comments/docstrings
+  detectCompliance(_codeOnly);
   const compScore = (window.lastComplianceTotalCount > 0)
     ? Math.round((window.lastComplianceFoundCount / window.lastComplianceTotalCount) * 100)
     : (critCount === 0 && warnCount === 0 ? 90 : Math.max(30, 90 - (critCount * 20) - (warnCount * 5)));
   renderRiskEngine(critCount, warnCount, secScore, debtScore, compScore, confPct);
-  const _hasRealDebtCost = R.debtCost && typeof R.debtCost.debt_hours === 'number' && typeof R.debtCost.debt_cost_usd === 'number';
-  const roiFixHours = _hasRealDebtCost ? R.debtCost.debt_hours : estimateFixHours(critCount, warnCount);
-  const roiTotalDebt = _hasRealDebtCost ? Math.round(R.debtCost.debt_cost_usd) : Math.round(roiFixHours * 50);
+  const _effort = computeEffortEstimate(R, critCount, warnCount);
+  const roiFixHours = _effort.hours;
+  const roiTotalDebt = Math.round(_effort.costMid);
   const roiBreachCost = critCount >= 1 ? Math.round(roiTotalDebt * 8) : 0;
   const roiDebtEl = document.getElementById('roi-debt');
   if (roiDebtEl) {
@@ -1597,23 +1730,43 @@ function renderResults(R, original, fname, totalMs) {
     healthChart.update();
   }
   const mediumOrWorseRisks = Array.from(document.querySelectorAll('#riskEngineList >div')).filter(d => { const t = d.textContent; return t.includes('MEDIUM') || t.includes('HIGH'); }).length;
-  const _scanIncomplete = (checks.has('security') && R.security == null) || (checks.has('debt') && R.debt == null);
-  const healthNoteText = _scanIncomplete ? 'Scan Incomplete — one or more requested checks did not complete (possibly rate-limited). Results below may be missing data; re-run before trusting this verdict.' : critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
+  // Bug 8: any failed request (e.g. HTTP 429 rate limit) silently removed findings and changed
+  // every score derived from them, so a re-run could look like different results for the same
+  // file. Treat every pipeline step as required and flag the run as incomplete if one failed.
+  const _missingSteps = [];
+  if (R.analyze == null) _missingSteps.push('analysis');
+  if (R.migrate == null) _missingSteps.push('migration');
+  if (checks.has('security') && R.security == null) _missingSteps.push('security scan');
+  if (checks.has('debt') && R.debt == null) _missingSteps.push('tech-debt');
+  if (checks.has('debt') && R.debt != null && R.debtCost == null) _missingSteps.push('cost estimate');
+  const _scanIncomplete = _missingSteps.length > 0;
+  window.lastScanIncomplete = _scanIncomplete ? _missingSteps : null;
+  if (window.lastScanFingerprint) window.lastScanFingerprint.text = window.lastScanFingerprint.text.replace(/ · INCOMPLETE.*$/, '') + (_scanIncomplete ? ' · INCOMPLETE (failed: ' + _missingSteps.join(', ') + ')' : '');
+  const healthNoteText = _scanIncomplete ? 'Scan Incomplete — ' + _missingSteps.join(', ') + ' did not complete (possibly rate-limited). Scores below are missing data and will differ from a complete run; wait a minute and re-run before trusting them.' : critCount >= 1 ? 'Not Safe — Critical Review Required. Critical issue(s) unresolved in migrated code.' : mediumOrWorseRisks >= 3 ? 'Migration Possible — Human Review Recommended (' + mediumOrWorseRisks + ' of 6 risk dimensions flagged medium or higher).' : overall >= 70 ? 'Migration Safe — minor modernization work recommended before production deployment.' : overall >= 50 ? 'Moderate issues — review before migrating.' : 'High risk — address issues first.';
   document.getElementById('healthNote').textContent = healthNoteText;
-  if (_scanIncomplete) { document.getElementById('healthNote').style.color = '#d97706'; document.getElementById('healthNote').style.fontWeight = '700'; }
-  document.getElementById('healthNote').style.color = critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
-  document.getElementById('healthNote').style.fontWeight = critCount >= 1 ? '700' : '400';
+  document.getElementById('healthNote').style.color = _scanIncomplete ? '#d97706' : critCount >= 1 ? '#ef4444' : mediumOrWorseRisks >= 3 ? '#f59e0b' : '#64748b';
+  document.getElementById('healthNote').style.fontWeight = (_scanIncomplete || critCount >= 1) ? '700' : '400';
   setProg('security', secScore);
   setProg('migration', migScore);
   setProg('debt', debtScore);
   setProg('compliance', compScore);
+  {
+    // Bug 5: make the dashboard score's basis visible, so it can't be read as contradicting
+    // the "Regulatory Signals Detected" card (which lists keywords found, not checks passed).
+    const _pvc = document.getElementById('pv-compliance');
+    if (_pvc && window.lastComplianceTotalCount > 0) {
+      _pvc.textContent = compScore + '% (' + window.lastComplianceFoundCount + '/' + window.lastComplianceTotalCount + ')';
+      _pvc.title = window.lastComplianceFoundCount + ' of ' + window.lastComplianceTotalCount + ' financial-crime control patterns found in the code (AML, KYC, suspicious-transaction flagging, daily limits, monitoring, fraud, sanctions, high-risk customers, PEP). Pattern-based coverage, not a certification.';
+    }
+  }
   document.getElementById('dash-conf').textContent = confPct != null ? confPct + '%' : 'N/A';
   document.getElementById('dash-issues').textContent = critCount + warnCount;
   addHistory(fname, confPct, critCount + warnCount, (totalMs / 1000).toFixed(1) + 's');
 
   // Migration Impact panel - derived from real analysis data
-  const fixHours = _hasRealDebtCost ? R.debtCost.debt_hours : estimateFixHours(critCount, warnCount);
-  const fixCostMid = _hasRealDebtCost ? R.debtCost.debt_cost_usd : fixHours * 50;
+  const fixHours = _effort.hours;
+  const fixCostMid = _effort.costMid;
+  window.lastEffortBasis = _effort.basis;
   const fixCostLow = Math.round(fixCostMid * 0.8);
   const fixCostHigh = Math.round(fixCostMid * 1.3);
   const fixCost = '$' + fixCostLow + '–$' + fixCostHigh;
@@ -1624,25 +1777,27 @@ function renderResults(R, original, fname, totalMs) {
   } else {
     document.getElementById('impact-time').textContent = fixHours.toFixed(1) + ' hrs';
     document.getElementById('impact-cost').textContent = fixCost;
+    document.getElementById('impact-time').title = _effort.basis;
+    document.getElementById('impact-cost').title = _effort.basis;
   }
   document.getElementById('impact-risk').textContent = riskLevel;
   document.getElementById('impact-risk').className = 'badge ' + riskColor;
   document.getElementById('impact-files').textContent = files.length;
-  detectBatchJobs(original);
-  detectBankingModules(original);
-  detectPaymentSystems(original);
-  detectInsurance(original);
-  detectMainframeAssets(original);
-  detectRegulatoryCompliance(original, R);
+  detectBatchJobs(_codeOnly);
+  detectBankingModules(_codeOnly);
+  detectPaymentSystems(_codeOnly);
+  detectInsurance(_codeOnly);
+  detectMainframeAssets(_codeOnly);
+  detectRegulatoryCompliance(_codeOnly, R);
   updateRepositorySummary(fname);
   renderCapabilityMap();
   window.lastAnalyzedSourceForKG = original;
   renderKnowledgeGraph(fname);
-  detectDatabaseIntelligence(original);
-  detectBankingDomains(original);
+  detectDatabaseIntelligence(_codeOnly);
+  detectBankingDomains(_codeOnly);
   detectCallGraph(original);
   detectCopybooks(original);
-  detectBusinessRules(original);
+  detectBusinessRules(_codeOnly);
   generateSuggestions(issues, critCount, warnCount);
   renderExecSummary(critCount, warnCount, confPct, fixHours, R, fname);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2241,7 +2396,7 @@ function detectRegulatoryCompliance(code, R) {
   if (lower.includes('kyc')) items.push({ label: 'KYC', ok: true });
   if (lower.includes('pci') || lower.includes('card_number') || lower.includes('cardnumber')) items.push({ label: 'PCI-DSS Relevant Data', ok: !secText.includes('weak') });
   if (lower.includes('gdpr') || lower.includes('personal_data') || lower.includes('pii')) items.push({ label: 'GDPR', ok: true });
-  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logging Pattern Detected', ok: true });
+  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logging', ok: true });
   if (secText.includes('weak') || secText.includes('md5') || secText.includes('sha1')) {
     items.push({ label: 'Encryption', ok: false, note: 'Weak algorithm detected' });
   } else if (lower.includes('encrypt') || lower.includes('hash')) {
@@ -2252,7 +2407,12 @@ function detectRegulatoryCompliance(code, R) {
   const list = document.getElementById('regComplianceList');
   if (items.length === 0) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#22c55e' : '#f59e0b'};border:1px solid ${i.ok ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? '✔' : ''} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
+  const _note = document.getElementById('regComplianceNote');
+  if (_note) {
+    const _found = window.lastComplianceFoundCount, _total = window.lastComplianceTotalCount;
+    _note.textContent = 'These tags mean a keyword was found in the code, not that a control was verified.' + (_total > 0 ? ' The dashboard\'s Compliance Coverage score is a separate measure: ' + _found + ' of ' + _total + ' financial-crime control patterns were found (' + Math.round(_found / _total * 100) + '%).' : '');
+  }
+  list.innerHTML = items.map(i => `<span style="font-size:11px;padding:6px 12px;border-radius:14px;background:${i.ok ? 'rgba(59,130,246,0.08)' : 'rgba(245,158,11,0.1)'};color:${i.ok ? '#1d4ed8' : '#d97706'};border:1px solid ${i.ok ? 'rgba(59,130,246,0.25)' : 'rgba(245,158,11,0.25)'}">${i.ok ? 'Detected:' : 'Review:'} ${i.label}${i.note ? ' - ' + i.note : ''}</span>`).join('');
 }
 let lastUniqueServices = [];
 let extraServicesFromModules = [];
@@ -2615,7 +2775,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
   const _extLangMap2 = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' };
   const _execLang = passedFname ? (_extLangMap2[passedFname.toLowerCase().split('.').pop()] || lang) : lang;
   const targetLabel = { python: 'Python 3', java: 'Java (modernized)', php: 'PHP (modernized)', cobol: 'Modernization Spec' }[_execLang] || 'Modernized';
-  const sourceLabel = { python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[_execLang] || _execLang;
+  const sourceLabel = (window.lastNoChangesNeeded && _execLang === 'python') ? 'Python 3 (already compatible)' : ({ python: 'Python 2/legacy', java: 'Legacy Java', php: 'Legacy PHP', cobol: 'COBOL' }[_execLang] || _execLang);
   const suitable = critCount === 0;
   const migType = svcCount >= 3 ? 'Incremental (phased by service)' : svcCount >= 1 ? 'Incremental' : 'Direct';
   const timelineWeeks = Math.max(1, Math.ceil(fixHours / 20));
@@ -2624,6 +2784,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
   const topRuleServiceMatch = topRuleEl ? topRuleEl.textContent.match(/Suggested Service:\s*([^\n]+)/) : null;
   const topRuleService = topRuleServiceMatch ? topRuleServiceMatch[1].trim() : null;
   text.innerHTML = `
+    ${window.lastScanIncomplete ? '<div style="background:#fef6ea;border:1px solid #fde8c0;border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:#b45309;font-weight:700">Incomplete scan: ' + escapeHtml(window.lastScanIncomplete.join(', ')) + ' did not complete. The figures below are missing data and should not be compared with other runs.</div>' : ''}
     <div style="background:#f1f4f8;border:1px solid #e5e8ee;border-radius:6px;padding:12px;margin-bottom:12px">
       <div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Executive Decision</div>
       <div style="font-size:13px;font-weight:700;color:${suitable ? '#22c55e' : '#ef4444'};margin-bottom:8px">${suitable ? ' Suitable for modernization' : ' Not suitable until critical issues resolved'}</div>
@@ -2631,10 +2792,10 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
         <div>Migration Type: <strong style="color:#0f1115">${migType}</strong></div>
         <div>Estimated Timeline: <strong style="color:#0f1115">${timelineLabel}</strong></div>
         <div>Risk: <strong style="color:${recColor}">${critCount >= 1 ? 'High' : mediumRiskCount >= 3 ? 'Medium' : 'Low'}</strong></div>
-        <div>Overall Migration Confidence: <strong style="color:#0f1115">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
+        <div>Overall Migration Confidence: <strong style="color:#0f1115">${window.lastNoChangesNeeded ? 'N/A - no changes needed' : (confPct != null ? confPct + '%' : 'N/A')}</strong></div>
         <div style="font-size:9px;color:#64748b;margin-top:4px;padding-top:4px;border-top:1px solid #e5e8ee">
           <span title="How confidently StarSage understood the legacy code and extracted business rules">Understanding: ${(window.lastRulesAvgConfidence != null) ? window.lastRulesAvgConfidence + '%' : 'N/A (no business rules detected)'}</span> ·
-          <span title="How confidently the syntax/API migration was performed">Transformation: ${(window.lastTransformConfidence != null) ? window.lastTransformConfidence + '%' : (confPct != null ? confPct + '%' : 'N/A')}</span> ·
+          <span title="Auto-applied fixes ÷ (auto-applied + flagged for manual review + security items not auto-fixed)">Transformation: ${(window.lastTransformConfidence != null) ? window.lastTransformConfidence + '% (' + window.lastTransformCounts.auto + ' fixed of ' + (window.lastTransformCounts.auto + window.lastTransformCounts.review + window.lastTransformCounts.notFixed) + ': ' + window.lastTransformCounts.review + ' need manual review, ' + window.lastTransformCounts.notFixed + ' security item(s) not auto-fixed)' : 'N/A (nothing needed converting)'}</span> ·
           ${(() => {
             const beh = R && R.behavioral;
             if (!beh || !beh.behavioral_status) {
@@ -2645,6 +2806,7 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
             const summary = beh.behavioral_summary || '';
             return '<span style="color:' + color + '" title="' + escapeHtml(summary) + '">Behavioral: ' + escapeHtml(status) + '</span>';
           })()}
+          <div style="margin-top:3px">${window.lastNoChangesNeeded ? 'The migration made no changes, so there is no migration confidence to report.' : (window.lastConfBreakdown && confPct != null ? 'How the overall figure is calculated: base confidence ' + window.lastConfBreakdown.base + '% − 8 points × ' + window.lastConfBreakdown.review + ' manual-review item' + (window.lastConfBreakdown.review === 1 ? '' : 's') + ' = ' + confPct + '%. Understanding, Transformation and Behavioral are shown for context and are not averaged into it.' : '')}</div>
         </div>
         ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#0f1115">' + topRuleService + '</strong></div>' : ''}
       </div>
@@ -2655,10 +2817,12 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
       <div>Critical Issues: <strong style="color:#0f1115">${critCount}</strong></div>
       <div>Warnings: <strong style="color:#0f1115">${warnCount}</strong></div>
       <div>Business Rules Found: <strong style="color:#0f1115">${rulesCount}</strong></div>
-      <div>Migration Confidence: <strong style="color:#0f1115">${confPct != null ? confPct + '%' : 'N/A'}</strong></div>
-      <div>Estimated Effort: <strong style="color:#0f1115">${fixHours.toFixed(1)} hrs</strong></div>
+      <div>Migration Confidence: <strong style="color:#0f1115">${window.lastNoChangesNeeded ? 'N/A - no changes needed' : (confPct != null ? confPct + '%' : 'N/A')}</strong></div>
+      <div title="${escapeHtml(window.lastEffortBasis || '')}">Estimated Effort: <strong style="color:#0f1115">${fixHours.toFixed(1)} hrs</strong></div>
       <div>Recommendation: <strong style="color:${recColor}">${recommendation}</strong></div>
     </div>
+    ${window.lastEffortBasis ? '<div style="font-size:10px;color:#64748b;margin-top:8px">Effort basis: ' + escapeHtml(window.lastEffortBasis) + '</div>' : ''}
+    ${window.lastScanFingerprint ? '<div style="font-size:10px;color:#64748b;margin-top:4px;font-family:monospace">' + escapeHtml(window.lastScanFingerprint.text) + '</div>' : ''}
     ${svcCount > 0 ? '<div style="font-size:10px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #e5e8ee">' + rulesCount + ' detected business rule' + (rulesCount === 1 ? '' : 's') + ' and detected banking modules together map to ' + svcCount + ' recommended service' + (svcCount === 1 ? '' : 's') + ' (a single rule or module can map to more than one service).</div>' : ''}
   `;
 }
@@ -2667,6 +2831,7 @@ function downloadJSON() {
   const data = {
     file: fname,
     generated: new Date().toISOString(),
+    scan_fingerprint: window.lastScanFingerprint ? { file_sha256: window.lastScanFingerprint.file_sha256, engine_version: window.lastScanFingerprint.engine_version, ui_build: window.lastScanFingerprint.ui_build, mode: window.lastScanFingerprint.mode, checks: window.lastScanFingerprint.checks } : null,
     confidence: document.getElementById('confPct').textContent,
     health_score: document.getElementById('healthNum').textContent,
     issues: Array.from(document.querySelectorAll('#issueList .issue')).map(e => ({ title: (e.querySelector('.issue-title')?.textContent || '').trim(), description: (e.querySelector('.issue-desc')?.textContent || '').trim() })),
@@ -3037,6 +3202,7 @@ function downloadReport() {
   const report = `StarSage Legacy Modernization Report
 Generated: ${new Date().toLocaleString()}
 File: ${fname}
+${window.lastScanFingerprint ? window.lastScanFingerprint.text : ''}
 
 EXECUTIVE SUMMARY
 ${execSummaryLine}
@@ -3056,6 +3222,7 @@ ${suggestText || 'None'}
 MIGRATION IMPACT (ESTIMATE):
 Est. Fix Time: ${fixTime}
 Est. Cost: ${fixCost}
+Basis: ${window.lastEffortBasis || 'n/a'}
 Risk Level: ${risk}
 
 ---
@@ -3307,6 +3474,43 @@ async function runDepFileScan(inputEl) {
   }
   inputEl.value = '';
 }
+// Bug 6: shared renderer for suite/scorecard results. Every numeric field gets a fallback so a
+// missing value can never render as the literal text "undefined".
+function renderSuiteResultHtml(d) {
+  const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+  const checksArr = Array.isArray(d && d.checks) ? d.checks : [];
+  const passed = num(d && d.passed_count);
+  const denom = num(d && d.applicable_count) ?? num(d && d.total_count);
+  const naCount = num(d && d.not_applicable_count) || 0;
+  const errCount = num(d && d.error_count) || 0;
+  let html;
+  if (passed == null || denom == null || (d && d.suite_run === false)) {
+    html = '<div style="text-align:center;padding:16px;background:#9ca3af11;border:2px solid #9ca3af;border-radius:10px;margin-bottom:12px">' +
+      '<div style="font-size:22px;font-weight:800;color:#6b7280">Not run</div>' +
+      '<div style="font-size:11px;color:#64748b;margin-top:2px">' + escapeHtml((d && d.summary) || 'No score was returned for this file.') + '</div></div>';
+  } else {
+    const scoreColor = denom === 0 ? '#9ca3af' : passed === denom ? '#16a34a' : passed >= denom / 2 ? '#d97706' : '#dc2626';
+    html = '<div style="text-align:center;padding:16px;background:' + scoreColor + '11;border:2px solid ' + scoreColor + ';border-radius:10px;margin-bottom:12px">' +
+      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + (denom === 0 ? 'N/A' : passed + '/' + denom) +
+      (naCount ? ' <span style="font-size:12px;color:#9ca3af">(' + naCount + ' N/A)</span>' : '') +
+      (errCount ? ' <span style="font-size:12px;color:#dc2626">(' + errCount + ' errored)</span>' : '') + '</div>' +
+      '<div style="font-size:11px;color:#64748b;margin-top:2px">' + (denom === 0 ? 'no checks applied to this file' : 'applicable checks passed') + '</div></div>';
+  }
+  html += '<div style="display:flex;flex-direction:column;gap:6px">';
+  checksArr.forEach(c => {
+    const isError = !!c.error;
+    const badgeColor = isError ? '#dc2626' : c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
+    const badgeText = isError ? '⚠ CHECK ERROR' : c.passed === true ? '✓ Static Check Passed' : c.passed === false ? 'REVIEW NEEDED' : '— N/A for this file';
+    html += '<div style="padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name || 'Unnamed check') + '</span>' +
+      '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>' +
+      (c.summary ? '<div style="font-size:10px;color:#64748b;margin-top:4px">' + escapeHtml(c.summary) + '</div>' : '') +
+      '</div>';
+  });
+  html += '</div><div style="margin-top:10px;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml((d && d.disclaimer) || '') + '</div>';
+  return html;
+}
 async function runComplianceSuite(endpoint, buttonLabel, btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
   window._advCheckToken = (window._advCheckToken || 0) + 1;
@@ -3323,36 +3527,37 @@ async function runComplianceSuite(endpoint, buttonLabel, btnEl) {
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
-    const _denom = d.applicable_count ?? d.total_count;
-    const scoreColor = d.passed_count === _denom ? '#16a34a' : d.passed_count >= _denom / 2 ? '#d97706' : '#dc2626';
-    let html = '<div style="text-align:center;padding:16px;background:' + scoreColor + '11;border:2px solid ' + scoreColor + ';border-radius:10px;margin-bottom:12px">' +
-      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + d.passed_count + '/' + _denom +
-      (d.not_applicable_count ? ' <span style="font-size:12px;color:#9ca3af">(' + d.not_applicable_count + ' N/A)</span>' : '') +
-      (d.error_count ? ' <span style="font-size:12px;color:#dc2626">(' + d.error_count + ' errored)</span>' : '') + '</div>' +
-      '<div style="font-size:11px;color:#64748b;margin-top:2px">applicable checks passed</div></div>';
-    html += '<div style="display:flex;flex-direction:column;gap:6px">';
-    (d.checks || []).forEach(c => {
-      const isError = !!c.error;
-      const badgeColor = isError ? '#dc2626' : c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
-      const badgeText = isError ? '⚠ CHECK ERROR' : c.passed === true ? '✓ Static Check Passed' : c.passed === false ? ' REVIEW NEEDED' : '— N/A';
-      html += '<div style="padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name) + '</span>' +
-        '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>' +
-        (c.summary ? '<div style="font-size:10px;color:#64748b;margin-top:4px">' + escapeHtml(c.summary) + '</div>' : '') +
-        '</div>';
-    });
-    html += '</div><div style="margin-top:10px;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml(d.disclaimer || '') + '</div>';
-    result.innerHTML = html;
+    result.innerHTML = renderSuiteResultHtml(d);
     if (btnEl) {
       const _origLabel = btnEl.dataset.origLabel || btnEl.textContent.trim();
       btnEl.dataset.origLabel = _origLabel;
       btnEl.innerHTML = _origLabel + ' <span style="color:#93c5fd;font-weight:400;font-size:10px">· Analyzed, see results below</span>';
+      btnEl.dataset.ran = 'ok';
     }
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = buttonLabel + ' failed: ' + e.message;
   }
 }
+// Bug 7: show honestly how much of the Advanced Checks grid has actually run on this file.
+// Each button is an individual check that only runs when clicked; the suite runs 8 of its own.
+function updateAdvCoverage() {
+  const el = document.getElementById('advCoverage');
+  if (!el) return;
+  const btns = Array.from(document.querySelectorAll('.adv-check-btn'));
+  const ran = btns.filter(b => b.dataset.ran === 'ok').length;
+  const errored = btns.filter(b => b.dataset.ran === 'err').length;
+  btns.forEach(b => {
+    if (b.dataset.origTitle == null) b.dataset.origTitle = b.title || '';
+    if (!b.dataset.ran) { b.style.opacity = '0.7'; b.title = (b.dataset.origTitle ? b.dataset.origTitle + ' - ' : '') + 'Not run on this file yet (click to run)'; }
+    else { b.style.opacity = ''; b.title = b.dataset.origTitle; }
+  });
+  el.innerHTML = 'Individual checks run on this file: <strong style="color:#0f1115">' + ran + ' of ' + btns.length + '</strong>' +
+    (errored ? ' · <span style="color:#dc2626">' + errored + ' errored</span>' : '') +
+    ' · Suite: ' + (window._suiteRanForFile ? '<strong style="color:#0f1115">ran (8 checks)</strong>' : 'not run') +
+    '<br>Faded buttons have <strong>not run</strong>. ✓ means a check ran (open it for its pass/fail result), not that it passed. The suite\'s 8 checks are separate from the ' + btns.length + ' buttons below.';
+}
+document.addEventListener('DOMContentLoaded', updateAdvCoverage);
 async function runPakistanBankingSuite(btnEl) {
   if (!files.length) { alert('Upload a file first.'); return; }
   window._advCheckToken = (window._advCheckToken || 0) + 1;
@@ -3369,26 +3574,10 @@ async function runPakistanBankingSuite(btnEl) {
     if (_myToken !== window._advCheckToken) return;
     if (!r.ok) throw new Error(d?.error || ('Server error ' + r.status));
     loading.style.display = 'none'; result.style.display = 'block';
-    const _denom = d.applicable_count ?? d.total_count;
-    const scoreColor = d.passed_count === _denom ? '#16a34a' : d.passed_count >= _denom / 2 ? '#d97706' : '#dc2626';
-    let html = '<div style="text-align:center;padding:16px;background:' + scoreColor + '11;border:2px solid ' + scoreColor + ';border-radius:10px;margin-bottom:12px">' +
-      '<div style="font-size:28px;font-weight:800;color:' + scoreColor + '">' + d.passed_count + '/' + _denom + (d.not_applicable_count ? ' <span style="font-size:12px;color:#9ca3af">(' + d.not_applicable_count + ' N/A)</span>' : '') + (d.error_count ? ' <span style="font-size:12px;color:#dc2626">(' + d.error_count + ' errored)</span>' : '') + '</div>' +
-      '<div style="font-size:11px;color:#64748b;margin-top:2px">applicable checks passed</div></div>';
-    html += '<div style="display:flex;flex-direction:column;gap:6px">';
-    (d.checks || []).forEach(c => {
-      const isError = !!c.error;
-      const badgeColor = isError ? '#dc2626' : c.passed === true ? '#16a34a' : c.passed === false ? '#dc2626' : '#9ca3af';
-      const badgeText = isError ? '⚠ CHECK ERROR' : c.passed === true ? '✓ Static Check Passed' : c.passed === false ? ' REVIEW NEEDED' : '— N/A';
-      html += '<div style="padding:8px 10px;background:#fafbfc;border:1px solid #e5e8ee;border-radius:6px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span style="font-size:11px;color:#0f1115">' + escapeHtml(c.name) + '</span>' +
-        '<span style="font-size:10px;font-weight:700;color:' + badgeColor + '">' + badgeText + '</span></div>' +
-        (c.summary ? '<div style="font-size:10px;color:#64748b;margin-top:4px">' + escapeHtml(c.summary) + '</div>' : '') +
-        '</div>';
-    });
-    html += '</div><div style="margin-top:10px;font-size:10px;color:#9ca3af;font-style:italic">' + escapeHtml(d.disclaimer || '') + '</div>';
-    result.innerHTML = html;
-    if (btnEl) { btnEl.innerHTML = 'Run Pakistan Banking Compliance Suite (8 checks in 1 click) <span style="color:#93c5fd;font-weight:400;font-size:10px">· Analyzed, see results below</span>'; }
+    result.innerHTML = renderSuiteResultHtml(d);
+    if (btnEl) { btnEl.innerHTML = 'Run Pakistan Banking Compliance Suite (runs 8 core checks) <span style="color:#93c5fd;font-weight:400;font-size:10px">· Analyzed, see results below</span>'; }
+    window._suiteRanForFile = true;
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Pakistan Banking Suite failed: ' + e.message;
   }
@@ -3411,9 +3600,11 @@ async function runDataLineage(btnEl) {
     loading.style.display = 'none'; result.style.display = 'block';
     result.innerHTML = formatGenericResult(d, 'Data Lineage');
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Data Lineage failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+    updateAdvCoverage();
   }
 }
 async function runDeadlineCostCalc(btnEl) {
@@ -3440,9 +3631,11 @@ async function runDeadlineCostCalc(btnEl) {
     loading.style.display = 'none'; result.style.display = 'block';
     result.innerHTML = formatGenericResult(d, 'Deadline Cost');
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Deadline Cost failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+    updateAdvCoverage();
   }
 }
 async function runGenericScan(endpoint, label, btnEl) {
@@ -3469,9 +3662,11 @@ async function runGenericScan(endpoint, label, btnEl) {
       result.innerHTML = formatGenericResult(d, label);
     }
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = label + ' failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+    updateAdvCoverage();
   }
 }
 function triggerRuntimeSignalUpload(btnEl) {
@@ -3496,9 +3691,11 @@ async function runRiskRadarWithLogs(logFile) {
     loading.style.display = 'none'; result.style.display = 'block';
     result.innerHTML = formatGenericResult(d, 'Runtime Signal Lite');
     if (btnEl) { btnEl.dataset.ran = 'ok'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#22c55e">✓</span>'; btnEl.classList.add('adv-active'); }
+    updateAdvCoverage();
   } catch (e) {
     loading.style.display = 'none'; result.style.display = 'block'; result.textContent = 'Runtime Signal Lite failed: ' + e.message;
     if (btnEl) { btnEl.dataset.ran = 'err'; btnEl.innerHTML = btnEl.dataset.label + ' <span style="color:#ef4444">✗</span>'; }
+    updateAdvCoverage();
   }
 }
 function renderD3DependencyGraph(d, container) {
