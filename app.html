@@ -2133,6 +2133,19 @@ function detectBankingModules(code) {
     </div>
   `).join('');
 }
+// Some pattern words below (flagged, approved, declined, blocked) are ordinary English words
+// with no banking-specific meaning on their own - e.g. a test function named
+// "test_trivial_duplicate_lines_not_flagged" got tagged "AML Validation" purely because its
+// own name contains "flagged", the same misclassification class as the "approv" substring
+// bug fixed on the backend's rule engine. Require a banking/transaction-domain term on the
+// same line before counting a bare hit on one of these weak words.
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked']);
+const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|balance|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
+function _businessRuleLineMatch(r, lineLower) {
+  const hit = r.patterns.find(p => lineLower.includes(p));
+  if (hit && _WEAK_BUSINESS_RULE_PATTERNS.has(hit) && !_BUSINESS_RULE_DOMAIN_CONTEXT_RE.test(lineLower)) return undefined;
+  return hit;
+}
 function detectBusinessRules(code) {
   const codeLines = code.split('\n');
   const rules = [
@@ -2158,7 +2171,7 @@ function detectBusinessRules(code) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p =>lineLower.includes(p))) { matchIdx = i; break; }
+        if (_businessRuleLineMatch(r, lineLower)) { matchIdx = i; break; }
       }
     }
     if (matchIdx === -1) {
@@ -2169,7 +2182,7 @@ function detectBusinessRules(code) {
         const isModuleLevelAssignment = /^[A-Za-z_][\w]*\s*(?:[:=]|:\s*[\w\[\]"'.]+\s*=)/.test(codeLines[i]) && !/^\s/.test(codeLines[i]);
         if (isModuleLevelAssignment) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p =>lineLower.includes(p)) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
+        if (_businessRuleLineMatch(r, lineLower) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
       }
     }
     if (matchIdx === -1) {
@@ -2177,13 +2190,13 @@ function detectBusinessRules(code) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
         const lineLower = codeLines[i].toLowerCase();
-        if (r.patterns.find(p =>lineLower.includes(p))) { matchIdx = i; break; }
+        if (_businessRuleLineMatch(r, lineLower)) { matchIdx = i; break; }
       }
     }
     if (matchIdx !== -1) {
       let i = matchIdx;
       let lineLower = codeLines[i].toLowerCase();
-      let hit = r.patterns.find(p =>lineLower.includes(p));
+      let hit = _businessRuleLineMatch(r, lineLower);
       let fn = findEnclosingFunction(codeLines, i);
       const performMatch = codeLines[i].trim().match(/^PERFORM\s+([\w-]+)\s*\.?\s*$/i);
       if (performMatch) {
