@@ -6950,7 +6950,17 @@ def calculate_behavioral_confidence(original_source, migrated_source, filename):
     verified = []
     skipped = []
     for fn in orig_funcs:
-        test_inputs = [{"x": i, "a": i, "b": i + 1, "n": i, "amount": i * 100, "rate": 5, "years": 2, "principal": 1000} for i in [0, 1, 5, 100, -1]]
+        _orig_node_for_fn = _orig_nodes.get(fn)
+        _param_names = [a.arg for a in _orig_node_for_fn.args.args] if _orig_node_for_fn is not None else []
+        # Bug: sample inputs used to be a fixed dict of 8 hardcoded parameter names (x, a, b, n,
+        # amount, rate, years, principal) - any function whose real parameters were named
+        # something else (price, pct, qty, balance, ...) hit "Unknown variable: <param>" and
+        # was silently skipped, so a genuine migration bug in it (e.g. `price * pct / 100`
+        # rewritten to `price * pct * 100`) could never be caught. Build sample values from the
+        # function's OWN parameter names instead, positionally - and give each parameter within
+        # the same call a different value (not one shared number), so a bug that swaps an
+        # operator between two different parameters still changes the result.
+        test_inputs = [{name: base + idx * 2 for idx, name in enumerate(_param_names)} for base in [0, 1, 5, 100, -1]]
         results_match = True
         cases_checked = 0
         reason = None
