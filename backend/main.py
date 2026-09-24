@@ -1263,9 +1263,39 @@ def _split_inline_comment_cstyle(_line):
     return _line, ""
 
 
+_TRIPLE_QUOTED_RE = re.compile(r"(?s)('''.*?'''|\"\"\".*?\"\"\")")
+
+
+def _mask_triple_quoted_strings(source):
+    """A docstring (or any other triple-quoted string) is DATA, not code - an illustrative
+    `print x` / `except Exception, e:` example written inside one to document old syntax is
+    not a real Python 2 statement to migrate. Every rewrite rule below used to run over the
+    raw source text line-by-line with no idea it was inside a string literal, so it rewrote
+    example code shown in docstrings as if it were live code (Bug 15). Replace each
+    triple-quoted literal with a placeholder that keeps the exact same line count (so every
+    line number used elsewhere in this function - REVIEW NEEDED messages, division-line
+    numbers - stays correct), run all the rules against that, then restore the untouched
+    original text once every rule has run."""
+    literals = []
+    def _repl(m):
+        literals.append(m.group(0))
+        return "\x00TRIPLESTR" + str(len(literals) - 1) + "\x00" + ("\n" * m.group(0).count("\n"))
+    return _TRIPLE_QUOTED_RE.sub(_repl, source), literals
+
+
+def _restore_triple_quoted_strings(migrated, literals):
+    for _i, _lit in enumerate(literals):
+        # the placeholder was followed by padding newlines (added to keep every later line
+        # number correct while the literal was masked) - consume those too, or restoring
+        # would leave them behind as extra blank lines.
+        _padded_placeholder = "\x00TRIPLESTR" + str(_i) + "\x00" + ("\n" * _lit.count("\n"))
+        migrated = migrated.replace(_padded_placeholder, _lit, 1)
+    return migrated
+
+
 def migrate_code(source):
     changes = []
-    migrated = source
+    migrated, _triple_quoted_literals = _mask_triple_quoted_strings(source)
     rules = [
         (r'\bxrange\b', 'range', "xrange -> range"),
         (r'\braw_input\b', 'input', "raw_input -> input"),
@@ -1425,6 +1455,7 @@ def migrate_code(source):
     if re.search(r'except\s*\(([^)]+)\)\s*,\s*(\w+)\s*:', migrated):
         migrated = re.sub(r'except\s*\(([^)]+)\)\s*,\s*(\w+)\s*:', r'except (\1) as \2:', migrated)
         changes.append("except (X, Y), e -> except (X, Y) as e")
+    migrated = _restore_triple_quoted_strings(migrated, _triple_quoted_literals)  # Bug 15: restore docstrings/triple-quoted strings untouched, now that every rewrite rule has run
     _source_already_py3 = False
     try:
         ast.parse(source)
@@ -5151,13 +5182,26 @@ def scan_sql_injection(source, filename):
         if m2:
             return m2.group(1).strip()
         return None
+    _percent_operator_re = _sq.compile(r"[\"\x27]\s*%\s*[\(\{a-zA-Z_]")
+    def _danger_present(danger, line):
+        if danger != "%":
+            return danger in line
+        # A bare "%" substring matches both the unsafe %-formatting OPERATOR (the query
+        # string is rebuilt with untrusted data before ever reaching execute()) and the
+        # DB-API "%s"/"%d" PLACEHOLDER inside a query string whose values are passed
+        # separately, e.g. execute_sql("... WHERE id = %s", (account_from,)) - which is
+        # exactly the parameterized pattern this tool's own disclaimer recommends. Only
+        # flag it when a "%" actually appears as an operator right after the string's
+        # closing quote (`"...%s..." % value`), not when "%s" is just placeholder text
+        # inside the string.
+        return bool(_percent_operator_re.search(line))
     for i, line in enumerate(lines):
         _matched_this_line = False
         _dangers_reported_this_line = set()
         for kw, danger, msg in checks:
             if danger in _dangers_reported_this_line:
                 continue
-            if _sql_shape[kw.upper()].search(line) and danger in line:
+            if _sql_shape[kw.upper()].search(line) and _danger_present(danger, line):
                 _dangers_reported_this_line.add(danger)
                 _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
                 _tainted = _extract_tainted_var(line)
@@ -5358,6 +5402,14 @@ def discover_business_rules_engine(source, filename):
     rules = []
     lines = source.split(chr(10))
     compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(transaction.?limit|daily.?limit|max_amount|threshold.?exceed|spending.?limit)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|access.?control|role.?based|permission.?check|approv)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk.?score|risk.?flag|block.?transaction|freeze.?account|suspicious.?flag)"}
+    # bare "approv" (approved/unapproved/approval) also matches ordinary non-financial workflow
+    # words - e.g. `if leave_type == "unapproved":` in an HR function got tagged as a banking
+    # "Authorization" rule on that word alone. Require an actual banking/transaction term to
+    # co-occur before "approv" alone counts; the other, more specific Authorization terms
+    # (authoriz, access_control, role_based, permission_check) are left as-is since they are
+    # not generic English words.
+    _authorization_strong_re = _re7.compile(r"(?i)(authoriz|access.?control|role.?based|permission.?check)")
+    _banking_domain_re = _re7.compile(r"(?i)(transaction|transfer|payment|balance|account|withdraw|deposit|fund|loan|credit|debit)")
     for i, line in enumerate(lines):
         stripped = line.strip()
         if filename.lower().endswith((".cbl", ".cob", ".cobol")):
@@ -5378,7 +5430,13 @@ def discover_business_rules_engine(source, filename):
             if len(condition) < 3: continue
             if _re7.match(r"^[\w\.]+\.(next|hasNext|isEmpty|isPresent)\s*\(\s*\)$", condition): continue
             if _re7.match(r"^(len\([\w\.]+\)\s*[><=!]+\s*0|[\w\.]+\s+is\s+not\s+None|[\w\.]+\s+is\s+None|not\s+[\w\.]+|[\w\.]+)$", condition.strip()): continue
-            tags = [name for name, pat in compliance_keywords.items() if _re7.search(pat, condition)]
+            tags = []
+            for name, pat in compliance_keywords.items():
+                if not _re7.search(pat, condition):
+                    continue
+                if name == "Authorization" and not _authorization_strong_re.search(condition) and not _banking_domain_re.search(condition):
+                    continue  # only a bare "approv" matched, with no banking context - not an authorization rule
+                tags.append(name)
             _fname_tag = _re7.sub(r"[^\w]", "", filename)[:8] if filename else "F"
             rules.append({"rule_id": f"RULE-{_fname_tag}-" + str(len(rules)+1).zfill(3), "condition": condition[:150], "condition_truncated": len(condition) > 150, "line": i+1, "compliance_tags": tags, "category": tags[0] if tags else "General Business Logic"})
     tagged = len([r for r in rules if r["compliance_tags"]])
