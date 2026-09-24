@@ -1987,6 +1987,21 @@ def analyze_php(source):
     return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": f"{len(_php_classes)} class(es), {len(_php_funcs)} function(s) found"}
 
 _C_BLOCK_COMMENT_RE = re.compile(r"(?s)/\*.*?\*/")
+_PHP_STRING_LITERAL_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+
+
+def _blank_php_string_literals_same_length(source):
+    """Build a detection-only copy of `source` with the same LENGTH (and the same character
+    offsets) as the original, where every PHP string literal's contents are replaced with a
+    neutral filler byte (\\x01, which can never form '/' or '*') so a /* ... */ search run on
+    this copy can't be fooled by comment-like sequences that merely happen to appear INSIDE a
+    string (e.g. a string containing the literal text "/* not a comment"). Any real embedded
+    newline inside a string is preserved as a real newline so line numbers/offsets still line
+    up exactly with the original source."""
+    def _repl(m):
+        lit = m.group(0)
+        return "".join(ch if ch == "\n" else "\x01" for ch in lit)
+    return _PHP_STRING_LITERAL_RE.sub(_repl, source)
 
 
 def _mask_c_block_comments(source):
@@ -1999,12 +2014,35 @@ def _mask_c_block_comments(source):
     got the "skip comment lines" guard, so all three could rewrite text inside a block comment.
     Mask every block comment out before any rewrite rule runs, then restore it, untouched,
     once they have all run. The placeholder keeps the exact same line count so every line
-    number used elsewhere in the function stays correct."""
+    number used elsewhere in the function stays correct.
+
+    A real /* or */ can never appear inside a PHP string literal as an ACTUAL comment
+    delimiter, but the character sequences "/*" or "*/" can trivially appear as plain data
+    inside a string (e.g. `"see /* below for details"`). Searching for comment boundaries
+    directly on `source` is fooled by that: two unrelated strings, one containing a "/*"-like
+    sequence and a later one containing a "*/"-like sequence, make every regex.finditer match
+    from the first fake "/*" to the first fake "*/" - silently swallowing all the real code in
+    between as if it were one giant comment. To avoid this, comment boundaries are located on
+    a same-length "detection copy" of the source with string-literal contents blanked out
+    (see _blank_php_string_literals_same_length); since that copy is exactly the same length
+    as `source`, the match offsets found on it are valid offsets into `source` too, so the
+    REAL comment text is then sliced out of the real `source` at those offsets. Real string
+    literals in `migrated`/`source` itself are never touched by this function, so downstream
+    rules (like the split()->explode() rule, which must inspect real string content) keep
+    seeing genuine string literals exactly as before."""
+    detection_copy = _blank_php_string_literals_same_length(source)
     literals = []
-    def _repl(m):
-        literals.append(m.group(0))
-        return "\x00CBLOCK" + str(len(literals) - 1) + "\x00" + ("\n" * m.group(0).count("\n"))
-    return _C_BLOCK_COMMENT_RE.sub(_repl, source), literals
+    pieces = []
+    last_end = 0
+    for m in _C_BLOCK_COMMENT_RE.finditer(detection_copy):
+        start, end = m.start(), m.end()
+        real_comment = source[start:end]
+        pieces.append(source[last_end:start])
+        literals.append(real_comment)
+        pieces.append("\x00CBLOCK" + str(len(literals) - 1) + "\x00" + ("\n" * real_comment.count("\n")))
+        last_end = end
+    pieces.append(source[last_end:])
+    return "".join(pieces), literals
 
 
 def _restore_c_block_comments(migrated, literals):
