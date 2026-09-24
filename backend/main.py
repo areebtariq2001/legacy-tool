@@ -1986,9 +1986,37 @@ def analyze_php(source):
     _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", source)))
     return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": f"{len(_php_classes)} class(es), {len(_php_funcs)} function(s) found"}
 
+_C_BLOCK_COMMENT_RE = re.compile(r"(?s)/\*.*?\*/")
+
+
+def _mask_c_block_comments(source):
+    """A /* ... */ block comment (including a PHPDoc /** ... */) is DATA, not code - an
+    illustrative old-syntax example written inside one (same idea as Bug 15 in the Python
+    migrator) must never be rewritten as if it were live code. Two of migrate_php's rewrite
+    sites (the PHP4-constructor fix and the curly-brace-access fix) run a regex over the WHOLE
+    file with no comment awareness at all, and a third (the split()->explode() conversion) is
+    a line-based loop that - unlike the other line-based rule loops in this function - never
+    got the "skip comment lines" guard, so all three could rewrite text inside a block comment.
+    Mask every block comment out before any rewrite rule runs, then restore it, untouched,
+    once they have all run. The placeholder keeps the exact same line count so every line
+    number used elsewhere in the function stays correct."""
+    literals = []
+    def _repl(m):
+        literals.append(m.group(0))
+        return "\x00CBLOCK" + str(len(literals) - 1) + "\x00" + ("\n" * m.group(0).count("\n"))
+    return _C_BLOCK_COMMENT_RE.sub(_repl, source), literals
+
+
+def _restore_c_block_comments(migrated, literals):
+    for _i, _lit in enumerate(literals):
+        _padded_placeholder = "\x00CBLOCK" + str(_i) + "\x00" + ("\n" * _lit.count("\n"))
+        migrated = migrated.replace(_padded_placeholder, _lit, 1)
+    return migrated
+
+
 def migrate_php(source):
     changes = []
-    migrated = source
+    migrated, _php_block_comments = _mask_c_block_comments(source)
     def _fix_php4_constructor(m):
         return f"{m.group(1)}__construct{m.group(3)}"
     _ctor_pattern = re.compile(r'(class\s+(\w+)\s*\{[^}]*?function\s+)\2(\s*\()')
@@ -2089,6 +2117,7 @@ def migrate_php(source):
         if _var_changed:
             migrated = chr(10).join(_var_mig_lines)
             changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
+    migrated = _restore_c_block_comments(migrated, _php_block_comments)
     check = validate_php(migrated)
     return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php")}
 
