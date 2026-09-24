@@ -3253,9 +3253,23 @@ def _create_users_table_if_needed(cur):
     global _users_table_initialized
     if _users_table_initialized:
         return
-    cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TEXT)")
-    cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, email TEXT, created_at TEXT, expires_at TEXT)")
-    cur.execute("CREATE TABLE IF NOT EXISTS analyzed_files (id SERIAL PRIMARY KEY, filename TEXT, term_freq_json TEXT, source_excerpt TEXT, created_at TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMPTZ)")
+    cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, email TEXT, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ)")
+    cur.execute("CREATE TABLE IF NOT EXISTS analyzed_files (id SERIAL PRIMARY KEY, filename TEXT, term_freq_json TEXT, source_excerpt TEXT, created_at TIMESTAMPTZ)")
+    # Bug 5: these columns used to be TEXT, so "expires_at < %s" (line ~3405) only worked because
+    # ISO-format strings happen to sort the same as the dates they represent, and there was no
+    # index for it to use - the cleanup query did a full table scan of sessions every time it ran.
+    # Upgrade any table created before this fix, in place, without touching rows that are already
+    # the right type.
+    cur.execute("""
+        SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_name IN ('users', 'sessions', 'analyzed_files')
+        AND column_name IN ('created_at', 'expires_at') AND data_type = 'text'
+    """)
+    for _tbl, _col in cur.fetchall():
+        cur.execute(f'ALTER TABLE {_tbl} ALTER COLUMN {_col} TYPE TIMESTAMPTZ USING NULLIF({_col}, \'\')::timestamptz')
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
     _users_table_initialized = True
 
 
@@ -3446,7 +3460,15 @@ def _check_user_auth(request: Request):
         row = cur.fetchone()
         if not row:
             return None
-        if datetime.fromisoformat(row[1]) < datetime.now():
+        # Bug 5: sessions.expires_at is now TIMESTAMPTZ, so psycopg2 hands back a real datetime
+        # (possibly timezone-aware), not the ISO string this used to assume - fromisoformat()
+        # on that object would raise, and comparing an aware datetime to a naive datetime.now()
+        # would also raise, so every request would have failed session validation.
+        _expires = row[1]
+        if isinstance(_expires, str):
+            _expires = datetime.fromisoformat(_expires)
+        _now = datetime.now(_expires.tzinfo) if _expires.tzinfo is not None else datetime.now()
+        if _expires < _now:
             return None
         return row[0]
     except Exception:
@@ -3561,7 +3583,7 @@ async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("ai-consistency-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AI consistency check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "AI consistency check failed safely: " + str(e)})
 
 
 class MigrationCertificate:
@@ -3678,7 +3700,7 @@ async def issue_migration_certificate_endpoint(request: Request):
         write_audit_log("issue-certificate", _filename, f"cert issued: {cert['certificate_id']}", user_email=_reviewer_email)
         return cert
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Certificate issuance failed: {str(e)}"})
+        return JSONResponse(status_code=500, content={"error": f"Certificate issuance failed: {str(e)}"})
 
 
 @app.get("/verify-migration-certificate/{cert_id}")
@@ -4510,7 +4532,7 @@ def _repo_file_assessment(source, path):
     _dep_level = None
     if _p.endswith(".py"):
         try:
-            _dep = assess_dependency_risk(source)
+            _dep = assess_dependency_risk(source, path)
             _dep_level = _dep.get("overall_risk")
             _issues = _issues + ["dependency: " + str(x) for x in range(int(_dep.get("total_issues", 0) or 0))]
         except Exception:
@@ -4670,7 +4692,7 @@ def _scan_repo_blocking(req: RepoRequest):
             result["warning"] = "No GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": "Repo scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"error": "Repo scan failed safely: " + str(e)})
 
 ARCH_DB_KEYWORDS = {"sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc", "asyncpg", "motor", "redis"}
 
@@ -5678,7 +5700,7 @@ async def architecture_endpoint(file: UploadFile = File(...)):
         write_audit_log("generate-architecture", file.filename, f"layers={len(result.get('architecture_layers', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Architecture generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Architecture generation failed safely: {e}"})
 
 @app.post("/extract-business-rules")
 async def business_rules_endpoint(file: UploadFile = File(...)):
@@ -5693,7 +5715,7 @@ async def business_rules_endpoint(file: UploadFile = File(...)):
         write_audit_log("extract-business-rules", file.filename, "rules extracted via AI")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Business rule extraction failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Business rule extraction failed safely: {e}"})
 
 @app.post("/executive-report")
 async def exec_report_endpoint(file: UploadFile = File(...)):
@@ -5708,7 +5730,7 @@ async def exec_report_endpoint(file: UploadFile = File(...)):
         write_audit_log("executive-report", file.filename, f"health={result.get('exec_health', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Executive report failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Executive report failed safely: {e}"})
 
 @app.post("/analyze-impact")
 async def impact_endpoint(file: UploadFile = File(...)):
@@ -5723,7 +5745,7 @@ async def impact_endpoint(file: UploadFile = File(...)):
         write_audit_log("analyze-impact", file.filename, f"functions={len(result.get('impact_map', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Impact analysis failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Impact analysis failed safely: {e}"})
 
 @app.post("/map-transaction-flow")
 async def txn_flow_endpoint(file: UploadFile = File(...)):
@@ -5738,7 +5760,7 @@ async def txn_flow_endpoint(file: UploadFile = File(...)):
         write_audit_log("map-transaction-flow", file.filename, f"flows={len(result.get('transaction_flows', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Transaction flow mapping failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Transaction flow mapping failed safely: {e}"})
 
 @app.post("/rollback-plan")
 async def rollback_endpoint(file: UploadFile = File(...)):
@@ -5753,7 +5775,7 @@ async def rollback_endpoint(file: UploadFile = File(...)):
         write_audit_log("rollback-plan", file.filename, f"steps={len(result.get('rollback_steps', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Rollback plan failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Rollback plan failed safely: {e}"})
 
 @app.post("/discover-rules")
 async def rules_engine_endpoint(file: UploadFile = File(...)):
@@ -5809,7 +5831,7 @@ async def cost_endpoint(file: UploadFile = File(...)):
         track_usage("estimate-cost", file.filename)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Cost estimation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Cost estimation failed safely: {e}"})
 
 @app.post("/detect-tech-stack")
 async def tech_stack_endpoint(file: UploadFile = File(...)):
@@ -5824,7 +5846,7 @@ async def tech_stack_endpoint(file: UploadFile = File(...)):
         write_audit_log("detect-tech-stack", file.filename, f"stacks={len(result.get('tech_stack', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Tech stack detection failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Tech stack detection failed safely: {e}"})
 
 @app.post("/audit-keys")
 async def key_audit_endpoint(file: UploadFile = File(...)):
@@ -5839,7 +5861,7 @@ async def key_audit_endpoint(file: UploadFile = File(...)):
         write_audit_log("audit-keys", file.filename, "key audit completed")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Key audit failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Key audit failed safely: {e}"})
 
 @app.post("/detect-fraud-gaps")
 async def fraud_endpoint(file: UploadFile = File(...)):
@@ -5854,7 +5876,7 @@ async def fraud_endpoint(file: UploadFile = File(...)):
         write_audit_log("detect-fraud-gaps", file.filename, f"score={result.get('fraud_score', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Fraud gap detection failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Fraud gap detection failed safely: {e}"})
 
 @app.post("/regional-compliance")
 async def regional_compliance_endpoint(file: UploadFile = File(...), region: str = "Pakistan"):
@@ -5887,7 +5909,7 @@ async def vendor_lockin_endpoint(file: UploadFile = File(...)):
         write_audit_log("vendor-lockin", file.filename, "findings=" + str(len(result.get("lockin_findings", []))))
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Vendor lock-in analysis failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Vendor lock-in analysis failed safely: {e}"})
 
 @app.post("/zero-trust-score")
 async def zero_trust_endpoint(file: UploadFile = File(...)):
@@ -5902,7 +5924,7 @@ async def zero_trust_endpoint(file: UploadFile = File(...)):
         write_audit_log("zero-trust-score", file.filename, "score=" + str(result.get("zt_score", 0)))
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Zero-trust scoring failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Zero-trust scoring failed safely: {e}"})
 
 @app.post("/local-ai-status")
 async def local_ai_status_endpoint(request: Request):
@@ -5929,7 +5951,7 @@ async def regulatory_framework_endpoint(file: UploadFile = File(...), framework:
         write_audit_log("regulatory-framework", file.filename, "framework=" + framework)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Regulatory framework check failed safely: " + str(e)})
 
 @app.post("/ask-code-question")
 async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What does this code do?"):
@@ -5947,7 +5969,7 @@ async def code_qa_endpoint(file: UploadFile = File(...), question: str = "What d
         write_audit_log("ask-code-question", file.filename, "question asked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Code Q&A failed safely: " + str(e)})
 
 @app.post("/github-webhook")
 async def github_webhook_endpoint(request: Request):
@@ -5968,7 +5990,7 @@ async def github_webhook_endpoint(request: Request):
         track_usage("github-webhook", "webhook")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": "Webhook endpoint failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"error": "Webhook endpoint failed safely: " + str(e)})
 
 def run_sandboxed_migration_test(migrated_code, filename):
     return {"sandbox_status": "Disabled", "sandbox_output": "", "sandbox_error": "", "sandbox_disclaimer": "Sandboxed execution has been disabled: it previously ran uploaded code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. This feature will return once a properly isolated execution environment (e.g. a locked-down container with no network access, non-root user, and resource limits) is in place."}
@@ -6000,7 +6022,11 @@ def save_living_documentation(filename, doc_content, doc_hash):
             cur = conn.cursor()
             global _docs_registry_schema_ready
             if not _docs_registry_schema_ready:
-                cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TEXT)")
+                cur.execute("CREATE TABLE IF NOT EXISTS docs_registry (id SERIAL PRIMARY KEY, filename TEXT, doc_content TEXT, doc_hash TEXT, version INTEGER, created_at TIMESTAMPTZ)")
+                cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'docs_registry' AND column_name = 'created_at' AND data_type = 'text'")
+                if cur.fetchone():  # Bug 5: upgrade a table created before this fix
+                    cur.execute("ALTER TABLE docs_registry ALTER COLUMN created_at TYPE TIMESTAMPTZ USING NULLIF(created_at, '')::timestamptz")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_docs_registry_filename ON docs_registry(filename)")
                 _docs_registry_schema_ready = True  # Bug 4: DDL once per process
             cur.execute("SELECT version, doc_hash, doc_content FROM docs_registry WHERE filename = %s ORDER BY version DESC LIMIT 1", (filename,))
             row = cur.fetchone()
@@ -6147,8 +6173,14 @@ def save_approval_decision(filename, decision, reviewer_notes, action_type, appr
             global _approval_log_schema_ready
             if not _approval_log_schema_ready:
                 with _schema_lock:
-                    cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TEXT)")
+                    cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TIMESTAMPTZ)")
                     cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
+                    # Bug 5: upgrade a table created before this fix, from TEXT to TIMESTAMPTZ
+                    cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'approval_log' AND column_name = 'timestamp' AND data_type = 'text'")
+                    if cur.fetchone():
+                        cur.execute("ALTER TABLE approval_log ALTER COLUMN timestamp TYPE TIMESTAMPTZ USING NULLIF(timestamp, '')::timestamptz")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_approved_by ON approval_log(approved_by)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_timestamp ON approval_log(timestamp)")
                     _approval_log_schema_ready = True  # Bug 4: DDL once per process
             cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp, approved_by) VALUES (%s, %s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"], approved_by or "anonymous"))
             conn.commit()
@@ -6194,7 +6226,10 @@ def get_approval_history(user_email=None, limit=500):
             else:
                 cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log ORDER BY id DESC LIMIT %s", (limit,))
             rows = cur.fetchall()
-            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4], "approved_by": r[5]} for r in rows]
+            # timestamp is TIMESTAMPTZ in the DB (Bug 5) but every caller here still expects an
+            # ISO string (they slice/sort it as text), so normalise it back at the read boundary
+            # instead of changing every consumer.
+            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4].isoformat() if hasattr(r[4], "isoformat") else r[4], "approved_by": r[5]} for r in rows]
         except Exception as e:
             print("get_approval_history DB read failed: " + str(e))
         finally:
@@ -6269,7 +6304,7 @@ async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, 
         result["approved_by"] = _user_email
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Approval save failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Approval save failed safely: {e}"})
 
 @app.get("/approval-history")
 async def approval_history_endpoint(request: Request):
@@ -6281,7 +6316,7 @@ async def approval_history_endpoint(request: Request):
         history = await run_in_threadpool(get_approval_history, None if _is_admin else _user_email)
         return {"approval_history": history, "total_decisions": len(history), "scope": "all reviewers (admin)" if _is_admin else "your decisions only"}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Could not load approval history: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Could not load approval history: {e}"})
 
 def calculate_code_quality(source, filename):
     source = source[:300000]
@@ -6325,7 +6360,7 @@ async def code_quality_endpoint(file: UploadFile = File(...)):
         write_audit_log("code-quality", file.filename, f"score={result.get('quality_score', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code quality check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Code quality check failed safely: {e}"})
 
 def get_migration_dashboard(user_email=None):
     history = get_approval_history(user_email)
@@ -6363,7 +6398,7 @@ async def migration_dashboard_endpoint(request: Request):
         result["scope"] = "all reviewers (admin)" if _is_admin else "your decisions only"
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Dashboard load failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Dashboard load failed safely: {e}"})
 
 def generate_migration_roadmap(repo_result):
     if not isinstance(repo_result, dict):
@@ -6396,7 +6431,7 @@ async def migration_roadmap_endpoint(req: RepoRequest, request: Request):
         result = generate_migration_roadmap(repo_result)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Roadmap generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Roadmap generation failed safely: {e}"})
 
 def compare_complexity(original_code, migrated_code):
     orig = calculate_complexity(original_code)
@@ -6476,7 +6511,7 @@ async def code_smells_endpoint(file: UploadFile = File(...)):
         write_audit_log("code-smells", file.filename, f"smells={result.get('total_smells', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code smell detection failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Code smell detection failed safely: {e}"})
 
 def suggest_refactoring(source, filename, language):
     smells = detect_code_smells(source, filename)
@@ -6531,7 +6566,7 @@ async def platform_compat_endpoint(file: UploadFile = File(...)):
         write_audit_log("platform-compatibility", file.filename, f"issues={result.get('total_issues', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Platform compatibility check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Platform compatibility check failed safely: {e}"})
 
 def calculate_dependency_portability(source, filename=""):
     if not filename.lower().endswith(".py"):
@@ -6574,7 +6609,7 @@ async def dependency_portability_endpoint(file: UploadFile = File(...)):
         write_audit_log("dependency-portability", file.filename, f"score={result.get('portability_score')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Dependency portability check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Dependency portability check failed safely: {e}"})
 
 _CONFIG_MIGRATION_PATTERNS_COMPILED = [(re.compile(p), n, s) for p, n, s in [(r"(?i)\b\w*(password|passwd|pwd)\w*\s*=\s*[\"\x27][^\"\x27]{3,}[\"\x27]", "Hardcoded credential (password)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b\w*(_user|db_user|username)\w*\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded credential (username)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)\b(host|hostname|server)\b\s*=\s*[\"\x27][\w\.\-]+[\"\x27]", "Hardcoded host/server address", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup"), (r"(?i)\bport\b\s*=\s*\d{2,5}", "Hardcoded port number", "Move to environment variable (e.g. APP_PORT) for flexibility across environments"), (r"(?i)\bdebug\b\s*=\s*True", "Hardcoded debug=True", "Should be environment-controlled - never run debug=True in production"), (r"(?i)(log_level)\s*=\s*[\"\x27]\w+[\"\x27]", "Hardcoded log level", "Move to environment variable (e.g. LOG_LEVEL) for environment-specific logging"), (r"(?i)(max_connections|cache_ttl|timeout)\w*\s*=\s*\d+", "Hardcoded tuning parameter", "Move to environment variable for environment-specific tuning"), (r"[\"\x27][^\"\x27]*\.(ini|cfg|conf|env)[\"\x27]", "Hardcoded config file path", "Use a config-loading library (e.g. python-dotenv, configparser) with environment-aware paths")]]
 def suggest_config_migration(source, filename):
@@ -6615,7 +6650,7 @@ async def config_migration_endpoint(file: UploadFile = File(...)):
         write_audit_log("config-migration", file.filename, f"issues={result.get('total_issues', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Config migration check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Config migration check failed safely: {e}"})
 
 
 def generate_rearchitecture_readiness(source, filename):
@@ -6672,7 +6707,7 @@ async def rearchitecture_readiness_endpoint(file: UploadFile = File(...)):
         write_audit_log("rearchitecture-readiness", file.filename, f"score={result.get('readiness_score')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Re-architecture readiness check failed safely: {e}"})
 
 def analyze_regulation_impact(source, filename):
     source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
@@ -7151,7 +7186,7 @@ async def regulation_impact_endpoint(file: UploadFile = File(...)):
         write_audit_log("regulation-impact", file.filename, f"regulations={result.get('total_regulations_affected', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Regulation-impact analysis failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Regulation-impact analysis failed safely: {e}"})
 
 @app.post("/strangler-fig")
 async def strangler_fig_endpoint(file: UploadFile = File(...)):
@@ -7166,7 +7201,7 @@ async def strangler_fig_endpoint(file: UploadFile = File(...)):
         write_audit_log("strangler-fig", file.filename, f"generated={result.get('wrapper_generated', False)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Strangler fig wrapper generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Strangler fig wrapper generation failed safely: {e}"})
 
 @app.post("/behavioral-confidence")
 async def behavioral_confidence_endpoint(original_file: UploadFile = File(...), migrated_file: UploadFile = File(...)):
@@ -7184,7 +7219,7 @@ async def behavioral_confidence_endpoint(original_file: UploadFile = File(...), 
         write_audit_log("behavioral-confidence", original_file.filename, f"status={result.get('behavioral_status', 'unknown')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": f"Behavioral confidence check failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": original_file.filename, "error": f"Behavioral confidence check failed safely: {e}"})
 
 @app.post("/migration-plan")
 async def migration_plan_endpoint(file: UploadFile = File(...)):
@@ -7199,7 +7234,7 @@ async def migration_plan_endpoint(file: UploadFile = File(...)):
         write_audit_log("migration-plan", file.filename, f"phases={result.get('total_phases', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Migration plan generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Migration plan generation failed safely: {e}"})
 
 class RegulatoryDeadlineRequest(BaseModel):
     filename: str = Field(default="", max_length=500)
@@ -7247,7 +7282,7 @@ async def regulatory_deadline_cost_endpoint(payload: RegulatoryDeadlineRequest):
         write_audit_log("regulatory-deadline-cost", payload.filename or "unspecified", f"days_remaining={days_remaining}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Regulatory deadline calculation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Regulatory deadline calculation failed safely: {e}"})
 
 class TraceabilityQueryRequest(BaseModel):
     question: str = Field(default="", max_length=2000)
@@ -7284,7 +7319,7 @@ Trace which specific function(s), condition(s), and line(s) in the source code a
         write_audit_log("traceability-query", payload.filename or "unspecified", f"question_len={len(question)}")
         return {"question": question, "traced_answer": result, "traceability_disclaimer": "AI-generated trace based on static source analysis - not a guarantee of runtime behavior. Always verify against actual execution for critical decisions."}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Traceability query failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Traceability query failed safely: {e}"})
 
 def generate_compatibility_matrix(source, filename):
     is_python = filename.lower().endswith(".py")
@@ -7318,7 +7353,7 @@ async def compatibility_matrix_endpoint(file: UploadFile = File(...)):
         write_audit_log("compatibility-matrix", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Compatibility matrix failed: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Compatibility matrix failed: " + str(e)})
 
 class DataLineageRequest(BaseModel):
     filename: str = Field(default="", max_length=500)
@@ -7368,7 +7403,7 @@ async def data_lineage_endpoint(payload: DataLineageRequest):
         write_audit_log("data-lineage", payload.filename or "unspecified", "field=" + payload.field_name)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": "Data lineage tracing failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"error": "Data lineage tracing failed safely: " + str(e)})
 
 def check_threat_intelligence(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7432,7 +7467,7 @@ async def threat_intelligence_endpoint(file: UploadFile = File(...)):
         write_audit_log("threat-intelligence", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Threat intelligence check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Threat intelligence check failed safely: " + str(e)})
 
 def _calculate_shannon_entropy(s):
     import math
@@ -7497,7 +7532,7 @@ async def entropy_secret_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("entropy-secret-scan", file.filename, "scanned")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Entropy secret scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Entropy secret scan failed safely: " + str(e)})
 
 def parse_dependency_file(content_text, filename):
     libs = []
@@ -7567,7 +7602,7 @@ async def dependency_file_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("dependency-file-scan", file.filename, "scanned")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Dependency file scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Dependency file scan failed safely: " + str(e)})
 
 def scan_pci_dss_signals(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7603,7 +7638,7 @@ async def pci_dss_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("pci-dss-scan", file.filename, "scanned")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI-DSS scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "PCI-DSS scan failed safely: " + str(e)})
 
 def check_audit_maker_checker(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7647,7 +7682,7 @@ async def audit_maker_checker_endpoint(file: UploadFile = File(...)):
         write_audit_log("audit-maker-checker", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Audit/Maker-Checker analysis failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Audit/Maker-Checker analysis failed safely: " + str(e)})
 
 def check_cnic_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7704,7 +7739,7 @@ async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("cnic-validation-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CNIC validation check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "CNIC validation check failed safely: " + str(e)})
 
 def check_data_localization(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7742,7 +7777,7 @@ async def data_localization_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("data-localization-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Data localization check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Data localization check failed safely: " + str(e)})
 
 def check_structuring_patterns(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7792,7 +7827,7 @@ async def structuring_pattern_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("structuring-pattern-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Structuring pattern check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Structuring pattern check failed safely: " + str(e)})
 
 def check_ntn_strn_validation_quality(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7830,7 +7865,7 @@ async def ntn_strn_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("ntn-strn-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NTN/STRN check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "NTN/STRN check failed safely: " + str(e)})
 
 def check_unusual_hours_flag(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7871,7 +7906,7 @@ async def unusual_hours_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("unusual-hours-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Unusual hours check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Unusual hours check failed safely: " + str(e)})
 
 def run_pakistan_banking_suite(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -7944,7 +7979,7 @@ async def pakistan_banking_suite_endpoint(file: UploadFile = File(...)):
         write_audit_log("pakistan-banking-suite", file.filename, "run")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Pakistan Banking Suite failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Pakistan Banking Suite failed safely: " + str(e)})
 
 def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, check_patterns, context_filter=None):
     if not filename.lower().endswith(".py"):
@@ -8014,7 +8049,7 @@ async def geo_anomaly_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("geo-anomaly-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Geo anomaly check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Geo anomaly check failed safely: " + str(e)})
 
 def scan_jwt_oauth_security(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8052,7 +8087,7 @@ async def jwt_oauth_security_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("jwt-oauth-security-scan", file.filename, "scanned")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "JWT/OAuth security scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "JWT/OAuth security scan failed safely: " + str(e)})
 
 def check_device_fingerprinting(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8084,7 +8119,7 @@ async def device_fingerprint_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("device-fingerprint-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Device fingerprint check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Device fingerprint check failed safely: " + str(e)})
 
 def check_high_value_threshold(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8116,7 +8151,7 @@ async def high_value_threshold_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("high-value-threshold-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "High-value threshold check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "High-value threshold check failed safely: " + str(e)})
 
 def scan_certificate_pinning(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8152,7 +8187,7 @@ async def certificate_pinning_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("certificate-pinning-check", file.filename, "scanned")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Certificate pinning check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Certificate pinning check failed safely: " + str(e)})
 
 def enrich_risk_radar_with_logs(source, filename, log_content):
     _base_radar = calculate_change_risk_radar(source, filename)
@@ -8203,7 +8238,7 @@ async def risk_radar_with_logs_endpoint(file: UploadFile = File(...), log_file: 
         write_audit_log("risk-radar-with-logs", file.filename, "analyzed")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk radar with logs failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Risk radar with logs failed safely: " + str(e)})
 
 def check_roundtrip_transaction_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8235,7 +8270,7 @@ async def roundtrip_transaction_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("roundtrip-transaction-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Round-trip transaction check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Round-trip transaction check failed safely: " + str(e)})
 
 def check_digital_signature_verification(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8267,7 +8302,7 @@ async def digital_signature_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("digital-signature-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital signature check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Digital signature check failed safely: " + str(e)})
 
 def _has_financial_context(func_source):
     _financial_context_pattern = re.compile(r"(?i)(?<![a-zA-Z])(amount\w*|balance\w*|account\w*|currenc\w*|money|fund\w*|principal\w*|payee\w*|payer\w*|beneficiar\w*|iban|swift)")
@@ -8318,7 +8353,7 @@ async def customer_risk_rating_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("customer-risk-rating-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Customer risk rating check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Customer risk rating check failed safely: " + str(e)})
 
 def check_hsm_integration(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8350,7 +8385,7 @@ async def hsm_integration_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("hsm-integration-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "HSM integration check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "HSM integration check failed safely: " + str(e)})
 
 def check_edd_triggers(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8382,7 +8417,7 @@ async def edd_triggers_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("edd-triggers-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "EDD triggers check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "EDD triggers check failed safely: " + str(e)})
 
 def _has_audit_context(func_source):
     _audit_context_pattern = re.compile(r"(?i)(audit|log_entry|transaction|record)")
@@ -8418,7 +8453,7 @@ async def timestamp_integrity_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("timestamp-integrity-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Timestamp integrity check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Timestamp integrity check failed safely: " + str(e)})
 
 def check_raast_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8450,7 +8485,7 @@ async def raast_compliance_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("raast-compliance-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "RAAST compliance check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "RAAST compliance check failed safely: " + str(e)})
 
 def check_credit_risk_analysis(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8482,7 +8517,7 @@ async def credit_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("credit-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Credit risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Credit risk check failed safely: " + str(e)})
 
 def check_non_repudiation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8514,7 +8549,7 @@ async def non_repudiation_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("non-repudiation-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Non-repudiation check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Non-repudiation check failed safely: " + str(e)})
 
 def check_concentration_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8546,7 +8581,7 @@ async def concentration_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("concentration-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Concentration risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Concentration risk check failed safely: " + str(e)})
 
 def check_beneficial_ownership(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8578,7 +8613,7 @@ async def beneficial_ownership_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("beneficial-ownership-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Beneficial ownership check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Beneficial ownership check failed safely: " + str(e)})
 
 def check_interest_rate_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8610,7 +8645,7 @@ async def interest_rate_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("interest-rate-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Interest rate risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Interest rate risk check failed safely: " + str(e)})
 
 def check_group_lending_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8642,7 +8677,7 @@ async def group_lending_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("group-lending-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Group lending check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Group lending check failed safely: " + str(e)})
 
 def check_fx_risk_management(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8674,7 +8709,7 @@ async def fx_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("fx-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "FX risk check failed safely: " + str(e)})
 
 def check_sanctions_screening(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8706,7 +8741,7 @@ async def sanctions_screening_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("sanctions-screening-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Sanctions screening check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Sanctions screening check failed safely: " + str(e)})
 
 def check_user_action_traceability(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8738,7 +8773,7 @@ async def user_action_traceability_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("user-action-traceability-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "User action traceability check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "User action traceability check failed safely: " + str(e)})
 
 def check_str_ctr_generation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -8770,7 +8805,7 @@ async def str_ctr_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("str-ctr-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "STR/CTR check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "STR/CTR check failed safely: " + str(e)})
 def check_repo_collateral_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8801,7 +8836,7 @@ async def repo_collateral_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("repo-collateral-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Repo collateral check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Repo collateral check failed safely: " + str(e)})
 def check_four_eyes_principle(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8832,7 +8867,7 @@ async def four_eyes_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("four-eyes-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Four eyes check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Four eyes check failed safely: " + str(e)})
 def check_mtm_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8863,7 +8898,7 @@ async def mtm_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("mtm-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "MTM check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "MTM check failed safely: " + str(e)})
 def check_biometric_liveness(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8894,7 +8929,7 @@ async def biometric_liveness_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("biometric-liveness-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Biometric liveness check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Biometric liveness check failed safely: " + str(e)})
 def check_derivatives_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8925,7 +8960,7 @@ async def derivatives_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("derivatives-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Derivatives risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Derivatives risk check failed safely: " + str(e)})
 def check_loan_officer_segregation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8956,7 +8991,7 @@ async def loan_officer_workflow_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("loan-officer-workflow-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Loan officer workflow check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Loan officer workflow check failed safely: " + str(e)})
 def check_digital_evidence_preservation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -8987,7 +9022,7 @@ async def digital_evidence_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("digital-evidence-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital evidence check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Digital evidence check failed safely: " + str(e)})
 def check_operational_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9018,7 +9053,7 @@ async def operational_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("operational-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Operational risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Operational risk check failed safely: " + str(e)})
 def check_1link_network_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9049,7 +9084,7 @@ async def link1_compliance_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("1link-compliance-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "1LINK compliance check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "1LINK compliance check failed safely: " + str(e)})
 def check_backup_dr_location(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9080,7 +9115,7 @@ async def backup_dr_location_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("backup-dr-location-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Backup DR location check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Backup DR location check failed safely: " + str(e)})
 def check_counterparty_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9111,7 +9146,7 @@ async def counterparty_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("counterparty-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Counterparty risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Counterparty risk check failed safely: " + str(e)})
 def check_mobile_banking_security(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9142,7 +9177,7 @@ async def mobile_banking_security_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("mobile-banking-security-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Mobile banking security check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Mobile banking security check failed safely: " + str(e)})
 def check_video_kyc_standards(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9173,7 +9208,7 @@ async def video_kyc_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("video-kyc-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Video KYC check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Video KYC check failed safely: " + str(e)})
 def check_risk_appetite_framework(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9204,7 +9239,7 @@ async def risk_appetite_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("risk-appetite-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Risk appetite check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Risk appetite check failed safely: " + str(e)})
 def check_mfb_loan_limits(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9235,7 +9270,7 @@ async def mfb_loan_limit_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("mfb-loan-limit-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "MFB loan limit check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "MFB loan limit check failed safely: " + str(e)})
 def check_branchless_banking(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9266,7 +9301,7 @@ async def branchless_banking_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("branchless-banking-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Branchless banking check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Branchless banking check failed safely: " + str(e)})
 def check_tbill_pib_trading(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9297,7 +9332,7 @@ async def tbill_pib_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("tbill-pib-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "T-Bill PIB check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "T-Bill PIB check failed safely: " + str(e)})
 def check_qr_payment_standards(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9328,7 +9363,7 @@ async def qr_payment_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("qr-payment-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "QR payment check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "QR payment check failed safely: " + str(e)})
 def check_fatf_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9359,7 +9394,7 @@ async def fatf_compliance_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("fatf-compliance-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FATF compliance check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "FATF compliance check failed safely: " + str(e)})
 def check_libor_sofr_migration(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9391,7 +9426,7 @@ async def libor_sofr_migration_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("libor-sofr-migration-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "LIBOR SOFR migration check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "LIBOR SOFR migration check failed safely: " + str(e)})
 def check_swift_mt_iso20022_migration(source, filename):
     source = _code_only_source(source)  # comments/docstrings are not evidence ("No AML" / "no OTP" used to count as present)
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -9424,7 +9459,7 @@ async def swift_iso20022_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("swift-iso20022-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "SWIFT ISO20022 check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "SWIFT ISO20022 check failed safely: " + str(e)})
 def check_realtime_alert_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9455,7 +9490,7 @@ async def realtime_alert_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("realtime-alert-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Realtime alert check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Realtime alert check failed safely: " + str(e)})
 def check_crossborder_transfer_controls(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9486,7 +9521,7 @@ async def crossborder_transfer_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("crossborder-transfer-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Crossborder transfer check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Crossborder transfer check failed safely: " + str(e)})
 def check_crossborder_data_transfer(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9517,7 +9552,7 @@ async def crossborder_data_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("crossborder-data-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Crossborder data check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Crossborder data check failed safely: " + str(e)})
 def check_correspondent_banking_risk(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9548,7 +9583,7 @@ async def correspondent_banking_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("correspondent-banking-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Correspondent banking check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Correspondent banking check failed safely: " + str(e)})
 def check_cloud_provider_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9579,7 +9614,7 @@ async def cloud_provider_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("cloud-provider-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Cloud provider check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Cloud provider check failed safely: " + str(e)})
 def check_atm_switch_reconciliation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9610,7 +9645,7 @@ async def atm_switch_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("atm-switch-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "ATM switch check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "ATM switch check failed safely: " + str(e)})
 def check_shell_company_indicators(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9641,7 +9676,7 @@ async def shell_company_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("shell-company-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Shell company check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Shell company check failed safely: " + str(e)})
 def check_nadra_api_integration(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9672,7 +9707,7 @@ async def nadra_integration_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("nadra-integration-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "NADRA integration check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "NADRA integration check failed safely: " + str(e)})
 def check_data_sovereignty(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9703,7 +9738,7 @@ async def data_sovereignty_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("data-sovereignty-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Data sovereignty check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Data sovereignty check failed safely: " + str(e)})
 def check_digital_onboarding_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9734,7 +9769,7 @@ async def digital_onboarding_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("digital-onboarding-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Digital onboarding check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Digital onboarding check failed safely: " + str(e)})
 def check_market_risk_logic(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9765,7 +9800,7 @@ async def market_risk_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("market-risk-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Market risk check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Market risk check failed safely: " + str(e)})
 def check_pci_tokenization(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9796,7 +9831,7 @@ async def pci_tokenization_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("pci-tokenization-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI tokenization check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "PCI tokenization check failed safely: " + str(e)})
 def check_cde_segmentation(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9827,7 +9862,7 @@ async def cde_segmentation_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("cde-segmentation-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CDE segmentation check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "CDE segmentation check failed safely: " + str(e)})
 def check_key_management_compliance(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9858,7 +9893,7 @@ async def key_management_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("key-management-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Key management check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Key management check failed safely: " + str(e)})
 def check_reverse_repo_margin(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9889,7 +9924,7 @@ async def reverse_repo_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("reverse-repo-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Reverse repo check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Reverse repo check failed safely: " + str(e)})
 def check_fx_dealing_room_limits(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -9920,7 +9955,7 @@ async def fx_dealing_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("fx-dealing-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "FX dealing check failed safely: " + str(e)})
 
 def check_riba_flag(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -9958,7 +9993,7 @@ async def riba_flag_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("riba-flag-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Riba flag check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Riba flag check failed safely: " + str(e)})
 def run_pci_dss_scorecard(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"suite_run": False, "checks": [], "passed_count": 0, "total_count": 0, "applicable_count": 0, "not_applicable_count": 0, "error_count": 0, "summary": "Not run - file too large."}
@@ -10006,7 +10041,7 @@ async def pci_dss_scorecard_endpoint(file: UploadFile = File(...)):
         write_audit_log("pci-dss-scorecard", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "PCI DSS scorecard failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "PCI DSS scorecard failed safely: " + str(e)})
 def check_murabaha_disclosure(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10037,7 +10072,7 @@ async def murabaha_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("murabaha-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Murabaha check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Murabaha check failed safely: " + str(e)})
 def check_musharakah_ownership(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10068,7 +10103,7 @@ async def musharakah_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("musharakah-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Musharakah check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Musharakah check failed safely: " + str(e)})
 def check_ijarah_ownership(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10099,7 +10134,7 @@ async def ijarah_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("ijarah-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Ijarah check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Ijarah check failed safely: " + str(e)})
 def check_takaful_structure(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10130,7 +10165,7 @@ async def takaful_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("takaful-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Takaful check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Takaful check failed safely: " + str(e)})
 def check_aaoifi_reference(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10161,7 +10196,7 @@ async def aaoifi_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("aaoifi-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "AAOIFI check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "AAOIFI check failed safely: " + str(e)})
 def run_islamic_banking_suite(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"suite_run": False, "checks": [], "passed_count": 0, "total_count": 0, "applicable_count": 0, "not_applicable_count": 0, "error_count": 0, "summary": "Not run - file too large."}
@@ -10238,7 +10273,7 @@ async def shariah_board_report_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("shariah-board-report-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Shariah board report check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Shariah board report check failed safely: " + str(e)})
 
 
 @app.post("/islamic-banking-suite")
@@ -10254,7 +10289,7 @@ async def islamic_banking_suite_endpoint(file: UploadFile = File(...)):
         write_audit_log("islamic-banking-suite", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Islamic banking suite failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Islamic banking suite failed safely: " + str(e)})
 def check_sbp_circular_reference(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
@@ -10295,7 +10330,7 @@ async def sbp_circular_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("sbp-circular-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "SBP circular check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "SBP circular check failed safely: " + str(e)})
 def _has_capital_context(func_source):
     _capital_pattern = re.compile(r"(?i)(tier.?1|tier.?2|risk.?weighted|(?<![a-zA-Z])rwa(?![a-zA-Z])|basel|capital.?adequacy)")
     return bool(_capital_pattern.search(func_source))
@@ -10331,7 +10366,7 @@ async def basel_car_check_endpoint(file: UploadFile = File(...)):
         write_audit_log("basel-car-check", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "Basel CAR check failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Basel CAR check failed safely: " + str(e)})
 def scan_cobol_banking_dialect(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
@@ -10367,7 +10402,7 @@ async def cobol_dialect_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("cobol-dialect-scan", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "COBOL dialect scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "COBOL dialect scan failed safely: " + str(e)})
 def scan_cbs_integration_points(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
@@ -10406,7 +10441,7 @@ async def cbs_integration_scan_endpoint(file: UploadFile = File(...)):
         write_audit_log("cbs-integration-scan", file.filename, "checked")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": "CBS integration scan failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": "CBS integration scan failed safely: " + str(e)})
 @app.post("/hidden-business-logic")
 async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
     try:
@@ -10420,7 +10455,7 @@ async def hidden_business_logic_endpoint(file: UploadFile = File(...)):
         write_audit_log("hidden-business-logic", file.filename, f"rules={result.get('total_hidden_rules', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Hidden-business-logic analysis failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Hidden-business-logic analysis failed safely: {e}"})
 
 @app.post("/change-risk-radar")
 async def change_risk_radar_endpoint(file: UploadFile = File(...)):
@@ -10435,7 +10470,7 @@ async def change_risk_radar_endpoint(file: UploadFile = File(...)):
         write_audit_log("change-risk-radar", file.filename, f"analyzed={len(result.get('radar', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Change-risk-radar analysis failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Change-risk-radar analysis failed safely: {e}"})
 
 @app.post("/legacy-ghosts")
 async def legacy_ghosts_endpoint(file: UploadFile = File(...)):
@@ -10450,7 +10485,7 @@ async def legacy_ghosts_endpoint(file: UploadFile = File(...)):
         write_audit_log("legacy-ghosts", file.filename, f"ghosts={result.get('ghosts_found', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Legacy ghost detection failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Legacy ghost detection failed safely: {e}"})
 
 @app.post("/service-boundaries")
 async def service_boundaries_endpoint(file: UploadFile = File(...)):
@@ -10465,7 +10500,7 @@ async def service_boundaries_endpoint(file: UploadFile = File(...)):
         write_audit_log("service-boundaries", file.filename, f"groups={len(result.get('boundaries', []))}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Service boundary detection failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Service boundary detection failed safely: {e}"})
 
 def recommend_migration_strategy(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -10507,7 +10542,7 @@ async def recommend_strategy_endpoint(file: UploadFile = File(...)):
         write_audit_log("recommend-strategy", file.filename, f"strategy={result.get('recommended_strategy')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Strategy recommendation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Strategy recommendation failed safely: {e}"})
 
 def calculate_migration_roi(source, filename):
     cost = estimate_migration_cost(source, filename)
@@ -10557,7 +10592,7 @@ async def migration_roi_endpoint(file: UploadFile = File(...)):
         write_audit_log("migration-roi", file.filename, f"savings={result.get('estimated_savings_3yr_usd')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"ROI calculation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"ROI calculation failed safely: {e}"})
 
 def generate_behavior_snapshot(original_code, migrated_code, filename):
     return {"snapshot_status": "Disabled", "match": None, "verdict": "Behavioral comparison is disabled", "snapshot_disclaimer": "This feature has been disabled: it previously executed both the original and migrated code directly on the server process with only a timeout as protection (no network/filesystem isolation), which is a genuine remote-code-execution risk for a public-facing service. It will return once a properly isolated execution environment is in place."}
@@ -10577,7 +10612,7 @@ async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migr
         write_audit_log("behavior-snapshot", original_file.filename, f"status={result.get('snapshot_status', 'unknown')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": original_file.filename, "error": f"Behavior snapshot comparison failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": original_file.filename, "error": f"Behavior snapshot comparison failed safely: {e}"})
 
 def generate_strangler_fig_wrapper(source, filename):
     import keyword as _kw
@@ -10718,7 +10753,7 @@ async def codebase_history_endpoint(payload: dict):
         track_usage("codebase-history", repo_url)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Codebase history lookup failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Codebase history lookup failed safely: {e}"})
 
 _SECURITY_ISSUE_TERMS = ("sql injection", "command injection", "injection risk", "hardcoded", "password",
                          "secret", "api key", "api_key", "md5", "sha1", "weak", "eval(", "exec(", "eval/exec")
@@ -10783,7 +10818,7 @@ async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "p
         track_usage("tech-debt-cost", file.filename)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Tech debt cost calculation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Tech debt cost calculation failed safely: {e}"})
 
 def generate_code_dna(source, filename):
     quality = calculate_code_quality(source, filename)
@@ -10826,7 +10861,7 @@ async def code_dna_endpoint(file: UploadFile = File(...)):
         track_usage("code-dna", file.filename)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Code DNA generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Code DNA generation failed safely: {e}"})
 
 def get_file_at_commit(repo_url, file_path, commit_sha):
     import re as _tre
@@ -10876,7 +10911,7 @@ async def time_travel_diff_endpoint(payload: dict):
         track_usage("time-travel-diff", repo_url)
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": "Time-travel diff failed safely: " + str(e)})
+        return JSONResponse(status_code=500, content={"error": "Time-travel diff failed safely: " + str(e)})
 
 _CROSS_LANG_SUPPORTED_PAIRS = [("python", "javascript"), ("javascript", "python"), ("php", "python"), ("python", "php")]
 
@@ -10928,7 +10963,7 @@ async def cross_language_migrate_endpoint(payload: CrossLanguageMigrateRequest):
         write_audit_log("cross-language-migrate", f"{from_lang}-to-{to_lang}", f"confidence={result.get('confidence_score', 'N/A')}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"Cross-language migration failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Cross-language migration failed safely: {e}"})
 
 def generate_dependency_graph(source, filename):
     if not (filename.lower().endswith(".py") or filename.lower().endswith(".pyw")):
@@ -10977,7 +11012,7 @@ async def dependency_graph_endpoint(file: UploadFile = File(...)):
         write_audit_log("dependency-graph", file.filename, f"nodes={result.get('total_nodes', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Dependency graph generation failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Dependency graph generation failed safely: {e}"})
 
 @app.post("/living-docs")
 async def living_docs_endpoint(file: UploadFile = File(...)):
@@ -11046,7 +11081,7 @@ async def github_issues_endpoint(payload: dict):
         write_audit_log("github-issues", repo_url, f"issues={result.get('total_open_issues', 0)}")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"GitHub issues lookup failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"GitHub issues lookup failed safely: {e}"})
 
 class GitHubIssueFixRequest(BaseModel):
     issue_title: str = Field(default="", max_length=2000)
@@ -11067,7 +11102,7 @@ async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
         write_audit_log("github-issue-fix", f"issue-{len(issue_title)}-chars", "suggested")
         return result
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": f"AI fix suggestion failed safely: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"AI fix suggestion failed safely: {e}"})
 
 @app.get("/")
 def root():
