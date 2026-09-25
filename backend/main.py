@@ -3175,6 +3175,12 @@ async def generate_docs_endpoint(file: UploadFile = File(...)):
         result = await run_in_threadpool(generate_documentation, source, file.filename)
         track_usage("generate-docs", file.filename)
         write_audit_log("generate-docs", file.filename, "doc generated")
+        # Bug: generate_documentation() returns a plain {"error": ...} dict (not a raised
+        # exception) when the AI provider is unavailable, so this endpoint's own try/except
+        # never triggered and FastAPI serialized the failure dict as an ordinary HTTP 200 -
+        # same silent-200 bug class as /github-webhook, /codebase-history, etc.
+        if isinstance(result, dict) and "error" in result:
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Doc generation failed safely: {e}"})
@@ -6255,6 +6261,15 @@ def get_living_documentation_history(filename):
 
 def generate_living_documentation(source, filename):
     doc = generate_documentation(source, filename)
+    # Bug: when the AI provider fails, generate_documentation() returns
+    # {"error": ..., "doc_generated": False} with NO "ai_documentation" key at all.
+    # This function used to fall through anyway, hash the resulting empty string, and
+    # SAVE IT as a new versioned "living documentation" entry - silently corrupting the
+    # version history with empty content on every AI outage, and claiming
+    # "Documentation generated, but versioned storage is not available" even though no
+    # documentation was generated at all. Bail out before touching storage.
+    if doc.get("error") or not doc.get("doc_generated", True):
+        return doc
     doc_text = doc.get("ai_documentation", "")
     doc_hash = hashlib.sha256(doc_text.encode("utf-8", errors="ignore")).hexdigest()
     save_result = save_living_documentation(filename, doc_text, doc_hash)
@@ -11259,6 +11274,11 @@ async def living_docs_endpoint(file: UploadFile = File(...)):
         result["filename"] = file.filename
         track_usage("living-docs", file.filename)
         write_audit_log("living-docs", file.filename, "generated")
+        # Same silent-200 bug class as /generate-docs: an AI-provider failure returns a
+        # plain {"error": ...} dict rather than raising, so this endpoint's own try/except
+        # never triggered.
+        if isinstance(result, dict) and "error" in result:
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": "Living documentation generation failed safely: " + str(e)})  # Bug 7: was HTTP 200, so the UI treated a failed scan as a clean result
