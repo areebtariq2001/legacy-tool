@@ -412,7 +412,17 @@ class StarBuildBlockchain:
             self._next_index += 1
             self._total_blocks_created += 1
             self._head_hash = new_block.hash
-            del self.chain[:-2000]
+            # Bound memory use without ever discarding the genesis block: get_summary() and
+            # external tamper-evidence checks treat self.chain[0].hash as the chain's fixed,
+            # immutable anchor ("genesis_hash") - `del self.chain[:-2000]` used to drop
+            # EVERYTHING except the newest 2000 blocks, including the true genesis block once
+            # the chain grew past that size, so "genesis_hash" silently started reporting a
+            # different, arbitrary block's hash over time, defeating the whole point of an
+            # immutable anchor. Keep the true genesis plus a rolling window of the newest 2000
+            # blocks instead; verify_chain() below is aware of the resulting gap and only
+            # requires hash-linkage between blocks that are still contiguous.
+            if len(self.chain) > 2001:
+                self.chain = [self.chain[0]] + self.chain[-2000:]
             return new_block
 
     def verify_chain(self):
@@ -430,7 +440,13 @@ class StarBuildBlockchain:
                 return False, current.index
             if not current.hash.startswith(_difficulty_prefix):
                 return False, current.index
-            if current.previous_hash != previous.hash:
+            # add_block() keeps genesis (chain[0]) plus only the newest 2000 blocks, so
+            # there is a deliberate index gap right after genesis once the chain has been
+            # trimmed at least once. Hash-linkage can only be checked between blocks that
+            # are still actually adjacent (current.index == previous.index + 1); a gap is
+            # not tampering, it's expected pruning, and every kept block still has its own
+            # hash/proof-of-work checked above regardless.
+            if current.index == previous.index + 1 and current.previous_hash != previous.hash:
                 return False, current.index
         if self._head_hash is not None and len(self.chain) > 0 and self.chain[-1].hash != self._head_hash:
             return False, "chain truncated - most recent block(s) missing (head hash mismatch)"
@@ -6113,6 +6129,14 @@ async def github_webhook_endpoint(request: Request):
             return JSONResponse(status_code=400, content={"error": "Invalid JSON payload"})
         result = process_github_webhook(payload)
         track_usage("github-webhook", "webhook")
+        if isinstance(result, dict) and "error" in result:
+            # process_github_webhook() catches its own internal exceptions and returns an
+            # {"error": ...} dict instead of raising, so this outer try/except never saw an
+            # exception to convert to a 500 - the plain dict was returned as-is and FastAPI
+            # serialized it as a normal HTTP 200 response. A caller checking the status code
+            # (the standard way to detect a failed webhook delivery) would see success even
+            # though processing failed. Same bug class as the /sandbox-test fix above.
+            return JSONResponse(status_code=500, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "Webhook endpoint failed safely: " + str(e)})
