@@ -7860,7 +7860,11 @@ def check_audit_maker_checker(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
-    _sensitive_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
+    # Exclude well-known non-banking compound terms that otherwise substring-match these
+    # bare words in a function NAME (e.g. transfer_learning_setup() is an ML function,
+    # withdraw_consent() is a GDPR/privacy function - neither is banking logic, but both
+    # contain "transfer"/"withdraw" and were being flagged as banking maker-checker gaps).
+    _sensitive_name_pattern = re.compile(r"(?i)(transfer(?!_?learning)|withdraw(?!_?consent)|deposit|approve|payment|transaction|disburs|refund|debit|credit)")
     _audit_call_pattern = re.compile(r"(?i)(audit|log\.|logger\.|logging\.)")
     _approval_check_pattern = re.compile(r"(?i)(approved|is_approved|(?<!un)authoriz|second.?approv|dual.?control|maker.?check|four.?eyes|4.?eyes)")
     findings = []
