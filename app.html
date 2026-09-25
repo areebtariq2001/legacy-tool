@@ -2103,7 +2103,18 @@ function detectBatchJobs(code) {
     { label: 'Night Batch', patterns: ['night_batch', 'nightly_batch', 'batch_job'] },
     { label: 'Reconciliation', patterns: ['reconcile', 'reconciliation'] },
   ];
-  const found = jobs.filter(j =>j.patterns.some(p =>lower.includes(p)));
+  // Same bug class as Bug 18: bare 'reconcile'/'reconciliation' collides with React's
+  // "reconciliation" (virtual-DOM diffing algorithm) and generic data-sync code
+  // (reconcile_inventory_counts()); bare 'settlement' collides with legal/dispute
+  // settlement code. Neither has anything to do with a banking batch job. Require a
+  // genuine banking/ledger-domain term somewhere in the file before counting these two.
+  const _WEAK_BATCH_JOB_PATTERNS = new Set(['reconcile', 'reconciliation', 'settlement', 'settle_batch']);
+  const _BATCH_JOB_DOMAIN_CONTEXT_RE = /(bank|ledger|gl_entr|journal_entr|account|transaction|branch|customer|teller|interest|loan|deposit|withdraw|transfer|payment|credit|debit)/i;
+  const found = jobs.filter(j => j.patterns.some(p => {
+    if (!lower.includes(p)) return false;
+    if (_WEAK_BATCH_JOB_PATTERNS.has(p) && !_BATCH_JOB_DOMAIN_CONTEXT_RE.test(lower)) return false;
+    return true;
+  }));
   const card = document.getElementById('batchJobsCard');
   const list = document.getElementById('batchJobsList');
   if (found.length === 0) { card.style.display = 'none'; return; }
