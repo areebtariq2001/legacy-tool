@@ -1982,7 +1982,10 @@ function detectPaymentSystems(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p =>lineLower.includes(p));
+      // 'swift' alone is a bare word that collides with the Swift programming language
+      // (e.g. a migration helper like rewrite_in_swift_syntax()) - same bug class as Bug 18.
+      // Require a banking/payment-domain term on the same line before counting it.
+      const hit = _businessRuleLineMatch(m, lineLower);
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -2179,7 +2182,7 @@ function detectBankingModules(code) {
 // would trivially satisfy its own domain-context check every time (the line that matched
 // "balance" always itself contains "balance"), making the guard a no-op for exactly the word
 // it's meant to guard.
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance']);
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance', 'swift']);
 const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
