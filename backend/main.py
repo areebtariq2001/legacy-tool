@@ -8047,7 +8047,12 @@ def check_structuring_patterns(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
-    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|deposit|payment|remit|disburs)(?!.?(time|id|type|status|date|hour|history|report|log))")
+    # Exclude well-known non-banking compound terms that otherwise substring-match these
+    # bare words in a function NAME (e.g. transfer_learning_setup()/transfer_learning_finetune()
+    # are ML functions, withdraw_consent() is a GDPR/privacy function - neither is banking
+    # logic, but both contain "transfer"/"withdraw" and were being flagged as AML
+    # structuring-pattern findings with fabricated "missing velocity control" recommendations).
+    _txn_name_pattern = re.compile(r"(?i)(transfer(?!_?learning)|withdraw(?!_?consent)|deposit|payment|remit|disburs)(?!.?(time|id|type|status|date|hour|history|report|log))")
     _velocity_pattern = re.compile(r"(?i)(daily.?limit|daily.?total|cumulative|aggregate|velocity|total.?today|running.?total|sum.?today)")
     _suspicious_split_pattern = re.compile(r"(?i)(split.?transaction|structur|smurf|avoid.?report|below.?threshold|under.?limit)")
     _sensitive_functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name)]
@@ -8135,7 +8140,11 @@ def check_unusual_hours_flag(source, filename):
         tree = ast.parse(source)
     except Exception:
         return {"checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "UNABLE TO ANALYZE: This file could not be parsed as valid Python 3 syntax (it may contain legacy Python 2 code). This check requires parsing function definitions and cannot analyze this file until it is migrated to valid Python 3 - run the Migration check first to see what needs converting."}
-    _txn_name_pattern = re.compile(r"(?i)(transfer|withdraw|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
+    # Exclude well-known non-banking compound terms that otherwise substring-match "transfer"/
+    # "withdraw" in a function NAME (transfer_learning_setup() is an ML function,
+    # withdraw_consent() is a GDPR/privacy function - neither is a banking transaction, but
+    # both were being flagged as "no unusual-hours check" findings).
+    _txn_name_pattern = re.compile(r"(?i)(transfer(?!_?learning)|withdraw(?!_?consent)|wire|payment|deposit|transaction|disburs|login|authenticate|signin|sign_in)")
     _time_check_pattern = re.compile(r"(?i)(\.hour\b|business.?hours|off.?hours|unusual.?time|odd.?hour|night.?time|banking.?hours|working.?hours)")
     _time_control_func_pattern = re.compile(r"(?i)(check.*hour|hour.*check|unusual.?hour|time.?of.?day|transaction.?time)")
     _comparison_op_pattern = re.compile(r"(>=|<=|>|<|==)\s*\d")
