@@ -6577,7 +6577,18 @@ async def migration_roadmap_endpoint(req: RepoRequest, request: Request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to generate a migration roadmap"})
     try:
         repo_result = await scan_repo_endpoint(req)
+        if isinstance(repo_result, JSONResponse):
+            # scan_repo_endpoint()'s underlying scan already failed (invalid/unreachable repo,
+            # no supported files, ...) and returned a proper error JSONResponse with the real
+            # reason and status code. generate_migration_roadmap()'s isinstance(dict) guard
+            # caught this case but replaced it with a generic "Invalid repository scan result
+            # provided" message that threw away the real reason - and that generic message was
+            # then returned as a silent HTTP 200 anyway. Pass the original error straight
+            # through instead.
+            return repo_result
         result = generate_migration_roadmap(repo_result)
+        if isinstance(result, dict) and "error" in result:
+            return JSONResponse(status_code=400, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Roadmap generation failed safely: {e}"})
@@ -11132,6 +11143,12 @@ async def cross_language_migrate_endpoint(payload: CrossLanguageMigrateRequest):
         to_lang = (payload.to_lang or "").lower()
         result = cross_language_migrate(source, from_lang, to_lang)
         track_usage("cross-language-migrate", f"{from_lang}-to-{to_lang}")
+        if isinstance(result, dict) and "error" in result:
+            # cross_language_migrate() returns a plain {"error": ...} dict for an unsupported
+            # language pair or an AI-provider failure instead of raising, so this outer
+            # try/except never saw an exception - same bug class as the other GitHub/roadmap
+            # endpoints already fixed. Returned as a silent HTTP 200 before this check.
+            return JSONResponse(status_code=400, content=result)
         write_audit_log("cross-language-migrate", f"{from_lang}-to-{to_lang}", f"confidence={result.get('confidence_score', 'N/A')}")
         return result
     except Exception as e:
