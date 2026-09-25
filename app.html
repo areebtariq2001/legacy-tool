@@ -2073,7 +2073,17 @@ function detectCompliance(code) {
   `).join('');
 }
 function detectBatchJobs(code) {
-  const lower = code.toLowerCase();
+  // Same comment-blindness bug fixed in detectBankingDomains(): this lowercased the RAW
+  // code including comments, so a comment merely mentioning "EOD" or "reconciliation" (even
+  // one saying the file has NOTHING to do with them) tagged an unrelated file with that
+  // batch-job type. Strip '#'/'//' comment text before matching.
+  const _codeNoComments = code.split('\n').map(ln => {
+    const hashIdx = ln.indexOf('#');
+    const slashIdx = ln.indexOf('//');
+    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
+    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
+  }).join('\n');
+  const lower = _codeNoComments.toLowerCase();
   const jobs = [
     { label: 'End Of Day (EOD)', patterns: ['eod', 'end_of_day', 'end-of-day'] },
     { label: 'End Of Month (EOM)', patterns: ['eom', 'end_of_month', 'end-of-month'] },
