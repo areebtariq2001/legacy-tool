@@ -2031,7 +2031,11 @@ function detectCompliance(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p =>lineLower.includes(p));
+      // Same bug class as Bug 18 in detectBusinessRules: a bare generic word like "flagged",
+      // "monitor" or "pep" (as a substring of e.g. "peptide") was enough to misclassify
+      // ordinary non-banking code as a compliance finding. Require a banking/transaction-domain
+      // term on the same line for those specific weak words, via the shared helper.
+      const hit = _businessRuleLineMatch(m, lineLower);
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -2139,7 +2143,13 @@ function detectBankingModules(code) {
 // own name contains "flagged", the same misclassification class as the "approv" substring
 // bug fixed on the backend's rule engine. Require a banking/transaction-domain term on the
 // same line before counting a bare hit on one of these weak words.
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked']);
+// Bare generic-English-word patterns used as sole trigger keywords across MULTIPLE detection
+// engines in this file (Business Rules, and - same bug, found independently - Compliance):
+// a match on one of these words only counts when a banking/transaction-domain term also
+// appears on the same line, otherwise ordinary non-banking code gets misclassified (e.g. a
+// test named test_..._not_flagged(), or a def system_monitor_health(), or a def
+// calculate_peptide_dose() matching "pep" as a bare substring of "PEP Detection").
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep']);
 const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|balance|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
