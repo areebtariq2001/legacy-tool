@@ -3334,6 +3334,11 @@ async def ai_suggest_endpoint(file: UploadFile = File(...)):
         result["filename"] = file.filename
         track_usage("ai-suggest", file.filename)
         write_audit_log("ai-suggest", file.filename, "ok")
+        # Same silent-200 bug class as /generate-docs, /living-docs, etc: ai_suggest()
+        # returns a plain {"error": ...} dict (not a raised exception) when the AI
+        # provider fails, so this endpoint's own try/except never triggered.
+        if isinstance(result, dict) and result.get("error"):
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AI suggestion failed safely: {e}"})
@@ -3349,6 +3354,11 @@ async def explain_endpoint(file: UploadFile = File(...)):
         result["filename"] = file.filename
         track_usage("explain", file.filename)
         write_audit_log("explain", file.filename, "ok")
+        # Same silent-200 bug class as /generate-docs, /living-docs, /ai-suggest: ai_explain()
+        # returns a plain {"error": ...} dict (not a raised exception) when the AI
+        # provider fails, so this endpoint's own try/except never triggered.
+        if isinstance(result, dict) and result.get("error"):
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Explanation failed safely: {e}"})
@@ -3365,6 +3375,11 @@ async def generate_tests_endpoint(file: UploadFile = File(...)):
         result["filename"] = file.filename
         track_usage("generate-tests", file.filename)
         write_audit_log("generate-tests", file.filename, f"lang={_gt_lang}")
+        # Same silent-200 bug class as /generate-docs, /living-docs, /ai-suggest, /explain:
+        # ai_generate_tests() returns a plain {"error": ...} dict (not a raised exception)
+        # when the AI provider fails, so this endpoint's own try/except never triggered.
+        if isinstance(result, dict) and result.get("error"):
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Test generation failed safely: {e}"})
@@ -3729,6 +3744,12 @@ async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
         result["filename"] = file.filename
         track_usage("ai-consistency-check", file.filename)
         write_audit_log("ai-consistency-check", file.filename, "checked")
+        # Same silent-200 bug class as /generate-docs, /ai-suggest, /explain, /generate-tests:
+        # verify_ai_output_consistency() returns a plain {"error": ...} dict (not a raised
+        # exception) when the AI provider fails, so this endpoint's own try/except never
+        # triggered.
+        if isinstance(result, dict) and result.get("error"):
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"filename": file.filename, "error": "AI consistency check failed safely: " + str(e)})
