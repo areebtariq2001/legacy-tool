@@ -2173,8 +2173,14 @@ function detectBankingModules(code) {
 // appears on the same line, otherwise ordinary non-banking code gets misclassified (e.g. a
 // test named test_..._not_flagged(), or a def system_monitor_health(), or a def
 // calculate_peptide_dose() matching "pep" as a bare substring of "PEP Detection").
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch']);
-const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|balance|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
+// "balance" is itself a weak bare word (e.g. "load_balancer"/"LoadBalancer" contains it as a
+// substring - nothing to do with account balances), so it's added to the weak-word set below.
+// It is deliberately NOT included in the domain-context regex: if it were, a "balance" hit
+// would trivially satisfy its own domain-context check every time (the line that matched
+// "balance" always itself contains "balance"), making the guard a no-op for exactly the word
+// it's meant to guard.
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance']);
+const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
   if (hit && _WEAK_BUSINESS_RULE_PATTERNS.has(hit) && !_BUSINESS_RULE_DOMAIN_CONTEXT_RE.test(lineLower)) return undefined;
