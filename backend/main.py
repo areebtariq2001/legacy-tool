@@ -6528,6 +6528,14 @@ async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, 
     try:
         result = await run_in_threadpool(save_approval_decision, filename, decision, reviewer_notes, action_type, approved_by=_user_email)
         result["approved_by"] = _user_email
+        # Same silent-200 bug class as the other endpoints fixed above:
+        # save_approval_decision() returns a plain dict with log_saved=False (and either an
+        # "error" key for an invalid `decision` value, or a "log_error" key for a DB failure)
+        # instead of raising, so this outer try/except never triggered and both failure modes
+        # were served as an ordinary HTTP 200.
+        if isinstance(result, dict) and result.get("log_saved") is False:
+            _status = 400 if "error" in result else 500
+            return JSONResponse(status_code=_status, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Approval save failed safely: {e}"})
