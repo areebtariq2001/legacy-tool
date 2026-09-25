@@ -2390,12 +2390,19 @@ def analyze_cobol(source, filename="file.cbl"):
     issues = []
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"issues": ["File too large - analysis skipped"], "cobol_summary": "File too large to analyze."}
+    # Comment-blindness bug (same class already fixed elsewhere via _code_only_source, e.g. the
+    # business-rule/compliance checks): these are plain keyword-presence checks, so a COBOL
+    # comment merely MENTIONING a risky construct ("* GO TO and PERFORM VARYING were removed in
+    # 2019") was enough to make analyze_cobol wrongly flag it as still present in the code. Scan
+    # the comment-blanked source instead - _code_only_source() already knows the COBOL
+    # column-7 comment-indicator convention (see _blank_c_style_comments).
+    _cobol_code_only = _code_only_source(source)
     for _compiled_pattern, msg in COBOL_CHECKS_COMPILED:
-        if _compiled_pattern.search(source):
+        if _compiled_pattern.search(_cobol_code_only):
             issues.append(msg)
     _cobol_paras = [p for p in re.findall(r"(?mi)^\s*(?!\d)(?!END-)([\w-]+)\.\s*$", source) if p.upper() not in _COBOL_DIVISIONS]
     _cobol_paras = list(dict.fromkeys(_cobol_paras))
-    if re.search(r"(?i)\b(password|passwd|pwd|pass|api-key|apikey|secret)\b[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", source):
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api-key|apikey|secret)\b[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", _cobol_code_only):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
         _sqli_result = scan_sql_injection(source, filename)
