@@ -2329,6 +2329,22 @@ function detectCallGraph(code) {
   let currentFn = null;
   let currentFnIndent = -1;
   let inBlockComment = false;
+
+  // Build ONE combined regex for every function/paragraph name, instead of the old
+  // fnNames.forEach(...) below that built a brand-new RegExp per name PER LINE - an O(lines x
+  // functions) blowup that took ~27s on a real 500-method, 6000+ line Java file. A single
+  // alternation regex built ONCE here turns each line's scan into one regex pass covering all
+  // names at once, however many there are. Names are matched case-insensitively (as before),
+  // so a lowercase-name -> canonical-name map recovers the exact casing fnNames stored, since
+  // the text actually matched on a given line may differ in case from how the name was declared.
+  const _escapeRegExpMeta = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const _canonicalByLower = new Map();
+  fnNames.forEach(n => _canonicalByLower.set(n.toLowerCase(), n));
+  const _sortedNames = [...fnNames].sort((a, b) => b.length - a.length).map(_escapeRegExpMeta);
+  const _callRegex = _sortedNames.length
+    ? new RegExp('\\b(' + _sortedNames.join('|') + ')\\s*\\(|\\bPERFORM\\s+(' + _sortedNames.join('|') + ')\\b', 'gi')
+    : null;
+
   codeLines.forEach(l => {
     const trimmed = l.trim();
     // A /* ... */ block comment's interior lines (including the closing */) are DATA, not
@@ -2366,15 +2382,19 @@ function detectCallGraph(code) {
       currentFn = null;
       currentFnIndent = -1;
     }
-    if (currentFn === null) return;
-    fnNames.forEach(name => {
-      if (currentFn && name !== currentFn) {
-        const rx = new RegExp('\\b' + name.replace(/-/g, '\\-') + '\\s*\\(|PERFORM\\s+' + name + '\\b', 'i');
-        if (rx.test(l)) {
-          edges.push({ from: currentFn, to: name });
-        }
+    if (currentFn === null || !_callRegex) return;
+    _callRegex.lastIndex = 0;
+    const _seenOnLine = new Set();
+    let _m;
+    while ((_m = _callRegex.exec(l)) !== null) {
+      const _matchedText = _m[1] || _m[2];
+      const name = _matchedText ? _canonicalByLower.get(_matchedText.toLowerCase()) : null;
+      if (name && name !== currentFn && !_seenOnLine.has(name)) {
+        _seenOnLine.add(name);
+        edges.push({ from: currentFn, to: name });
       }
-    });
+      if (_m.index === _callRegex.lastIndex) _callRegex.lastIndex++; // guard against zero-length match loops
+    }
   });
   const allUniqueEdges = [...new Map(edges.map(e => [e.from + '->' + e.to, e])).values()];
   const uniqueEdges = allUniqueEdges.slice(0, 15);
