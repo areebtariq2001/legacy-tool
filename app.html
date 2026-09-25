@@ -1922,13 +1922,24 @@ function detectInsurance(code) {
     { label: 'Agent Management', patterns: ['agent_id', 'agent_code', 'insurance_agent'], baseConf: 85 },
     { label: 'Coverage Rules', patterns: ['coverage', 'coverage_amount'], baseConf: 75 },
   ];
+  // 'coverage' alone is a bare generic word that collides with test/code coverage
+  // tooling ("test coverage", "coverage_report", "branch coverage", "coverage.xml") -
+  // same bug class as Bug 18. Require an insurance-domain term on the same line
+  // before counting a bare "coverage" hit.
+  const _INSURANCE_WEAK_PATTERNS = new Set(['coverage']);
+  const _INSURANCE_DOMAIN_CONTEXT_RE = /(insur|policy|polic|underwrit|claim|premium|agent)/i;
+  const _insuranceLineMatch = (r, lineLower) => {
+    const hit = r.patterns.find(p => lineLower.includes(p));
+    if (hit && _INSURANCE_WEAK_PATTERNS.has(hit) && !_INSURANCE_DOMAIN_CONTEXT_RE.test(lineLower)) return undefined;
+    return hit;
+  };
   const found = [];
   items.forEach(m => {
     for (let i = 0; i < codeLines.length; i++) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p =>lineLower.includes(p));
+      const hit = _insuranceLineMatch(m, lineLower);
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -2099,7 +2110,10 @@ function detectBankingModules(code) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
       const lineLower = codeLines[i].toLowerCase();
-      const hit = m.patterns.find(p =>lineLower.includes(p));
+      // 'branch' alone is a bare generic programming word (git branch, if/else branch,
+      // branch prediction) - same bug class as Bug 18. Require banking-domain context
+      // via the shared helper before counting it as "Branch Operations".
+      const hit = _businessRuleLineMatch(m, lineLower);
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
         const conf = Math.min(98, m.baseConf + Math.min(6, hit.length - 4));
@@ -2149,7 +2163,7 @@ function detectBankingModules(code) {
 // appears on the same line, otherwise ordinary non-banking code gets misclassified (e.g. a
 // test named test_..._not_flagged(), or a def system_monitor_health(), or a def
 // calculate_peptide_dose() matching "pep" as a bare substring of "PEP Detection").
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep']);
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch']);
 const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|balance|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
@@ -2419,7 +2433,19 @@ function detectCallGraph(code) {
   `).join('') + (allUniqueEdges.length > 15 ? '<div style="font-size:10px;color:#64748b;padding:4px">+' + (allUniqueEdges.length - 15) + ' more edges not shown</div>' : '');
 }
 function detectBankingDomains(code) {
-  const lower = code.toLowerCase();
+  // Comment-blindness bug (same class fixed elsewhere in this file/backend): this used to
+  // lowercase the RAW code including comments, so a comment merely mentioning "loan",
+  // "customer" or "interest" (e.g. "// nothing to do with loans or customers here") made an
+  // unrelated file get tagged with that banking domain. Strip '#'/'//' comment text (up to
+  // end of line, not touching string literals) before matching, same approach already used
+  // in detectDatabaseIntelligence.
+  const _codeNoComments = code.split('\n').map(ln => {
+    const hashIdx = ln.indexOf('#');
+    const slashIdx = ln.indexOf('//');
+    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
+    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
+  }).join('\n');
+  const lower = _codeNoComments.toLowerCase();
   const domains = [
     { label: 'Loans', patterns: ['loan', 'emi', 'mortgage'] },
     { label: 'Cards', patterns: ['card_number', 'creditcard', 'credit_card', 'debit_card'] },
@@ -2510,7 +2536,12 @@ function detectRegulatoryCompliance(code, R) {
   if (lower.includes('kyc')) items.push({ label: 'KYC', ok: true });
   if (lower.includes('pci') || lower.includes('card_number') || lower.includes('cardnumber')) items.push({ label: 'PCI-DSS Relevant Data', ok: !secText.includes('weak') });
   if (lower.includes('gdpr') || lower.includes('personal_data') || lower.includes('pii')) items.push({ label: 'GDPR', ok: true });
-  if (lower.includes('audit') || lower.includes('log')) items.push({ label: 'Audit Logging', ok: true });
+  // Bug: bare `lower.includes('log')` matched the substring "log" ANYWHERE, including
+  // inside "catalog", "dialog", "login", "console.log" - so virtually any file (banking
+  // or not) got a false "Audit Logging: Detected" badge, defeating the whole point of the
+  // check. `includes('audit')` had the same issue with "audition". Require word-boundary
+  // matches on the actual logging/audit vocabulary instead of a bare substring.
+  if (/\baudit\w*\b/.test(lower) || /\blog(ger|ging|s)?\b/.test(lower)) items.push({ label: 'Audit Logging', ok: true });
   if (secText.includes('weak') || secText.includes('md5') || secText.includes('sha1')) {
     items.push({ label: 'Encryption', ok: false, note: 'Weak algorithm detected' });
   } else if (lower.includes('encrypt') || lower.includes('hash')) {
