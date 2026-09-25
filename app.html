@@ -2328,9 +2328,32 @@ function detectCallGraph(code) {
   const edges = [];
   let currentFn = null;
   let currentFnIndent = -1;
+  let inBlockComment = false;
   codeLines.forEach(l => {
     const trimmed = l.trim();
-    if (trimmed === '' || trimmed.startsWith('#') || trimmed.startsWith('//')) return;
+    // A /* ... */ block comment's interior lines (including the closing */) are DATA, not
+    // code - they must never reset the current function/paragraph scope or be scanned for
+    // calls, the same way a full-line comment below is skipped.
+    if (inBlockComment) {
+      if (trimmed.includes('*/')) inBlockComment = false;
+      return;
+    }
+    if (trimmed === '') return;
+    // Comment markers across the languages this function scans: '#' (Python), '//' (Java/PHP),
+    // '*' (a PHPDoc/Javadoc continuation line, OR the classic fixed-format COBOL comment
+    // indicator that sits in column 7 - e.g. "      * business rule check ..."). These must be
+    // skipped HERE, before the scope-reset/indent check below, not just before the
+    // call-scanning step further down - otherwise a comment line that happens to sit at or
+    // below the enclosing function/paragraph's indent silently ends that scope early, and every
+    // real call after it (PERFORM, function calls, ...) is missed. This was the root cause of a
+    // 499-paragraph COBOL PERFORM chain collapsing to a single detected edge: the very first
+    // comment line inside each paragraph's body reset currentFn before the real PERFORM line
+    // after it was ever looked at.
+    if (trimmed.startsWith('#') || trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+    if (trimmed.startsWith('/*')) {
+      if (!trimmed.includes('*/')) inBlockComment = true;
+      return;
+    }
     const lineIndent = l.length - l.trimStart().length;
     let matchedNewFn = null;
     fnPatterns.forEach(p => { const m = l.match(p); if (m && m[1]) matchedNewFn = m[1]; });
@@ -2628,6 +2651,14 @@ function renderKnowledgeGraph(passedFname) {
   for (const m of _javaPhpMatches) functionsFromSource.push(m[1]);
   const _phpFuncMatches = _kgSource.matchAll(/function\s+([A-Za-z_][\w]*)\s*\(/g);
   for (const m of _phpFuncMatches) functionsFromSource.push(m[1]);
+  // COBOL has no def/function keyword - a callable unit is a paragraph, written as its own
+  // name alone on a line ending with a period (optionally preceded by a 6-digit sequence
+  // number in old fixed-format sources), e.g. "       PARA-0." or "012400 PARA-0.". Without
+  // this, a 500-paragraph COBOL program showed "Functions Referenced (3)" - only paragraphs
+  // that happened to also get matched elsewhere (e.g. inside a Business Rule/Banking Module
+  // hit) were ever counted, even though the source plainly defines all 500.
+  const _cobolParaMatches = _kgSource.matchAll(/^[ \t]*(?:\d{6}[ \t]+)?([A-Za-z][\w-]*)\.[ \t]*$/gm);
+  for (const m of _cobolParaMatches) functionsFromSource.push(m[1]);
   const functions = [...new Set([...functionsFromDom, ...functionsFromSource])];
   const groups = [
     { label: 'Program', items: [fname], color: '#3b82f6' },
