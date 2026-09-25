@@ -2493,7 +2493,20 @@ function detectBankingDomains(code) {
     { label: 'Interest', patterns: ['interest', 'apr', 'apy'] },
     { label: 'GL (General Ledger)', patterns: ['general_ledger', 'ledger', 'gl_entry', 'journal_entry'] },
   ];
-  const found = domains.filter(d =>d.patterns.some(p =>lower.includes(p)));
+  // Same bug class as Bug 18: bare 'customer' collides with any CRM/e-commerce/restaurant
+  // code (get_customer_orders(), seat_customer()); bare 'interest' collides with generic
+  // "points of interest" (GIS) or "user interest" recommendation code; bare 'swift' collides
+  // with the Swift programming language (rewrite_in_swift_syntax()) - already fixed for
+  // detectPaymentSystems, same fix needed here. Require a genuine banking-domain term
+  // elsewhere in the file before counting these three (this function is file-wide, not
+  // per-line, like detectBatchJobs above).
+  const _WEAK_BANKING_DOMAIN_PATTERNS = new Set(['customer', 'interest', 'swift']);
+  const _BANKING_DOMAIN_CONTEXT_RE = /(bank|ledger|gl_entr|journal_entr|account|transaction|branch|teller|loan|deposit|withdraw|transfer|treasury|forex|rtgs|neft|payment|credit|debit|mortgage|apr|apy)/i;
+  const found = domains.filter(d => d.patterns.some(p => {
+    if (!lower.includes(p)) return false;
+    if (_WEAK_BANKING_DOMAIN_PATTERNS.has(p) && !_BANKING_DOMAIN_CONTEXT_RE.test(lower)) return false;
+    return true;
+  }));
   const card = document.getElementById('domainCard');
   const list = document.getElementById('domainList');
   if (found.length === 0) { card.style.display = 'none'; return; }
