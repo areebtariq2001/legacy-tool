@@ -10910,6 +10910,14 @@ async def codebase_history_endpoint(payload: dict):
         file_path = payload.get("file_path", "")
         result = get_codebase_history(repo_url, file_path)
         track_usage("codebase-history", repo_url)
+        if isinstance(result, dict) and "error" in result:
+            # get_codebase_history() returns a plain {"error": ...} dict (invalid URL, GitHub
+            # rate limit, non-200 status, ...) instead of raising, so this outer try/except
+            # never saw an exception to convert to an error status - the dict was returned
+            # as-is and FastAPI serialized it as a normal HTTP 200. Same bug class as the
+            # /github-webhook and /sandbox-test fixes; matches the 400 used for the same kind
+            # of "invalid/unreachable GitHub repo" error in /scan-repo.
+            return JSONResponse(status_code=400, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Codebase history lookup failed safely: {e}"})
@@ -11068,6 +11076,11 @@ async def time_travel_diff_endpoint(payload: dict):
         commit_new = payload.get("commit_new", "")
         result = get_time_travel_diff(repo_url, file_path, commit_old, commit_new)
         track_usage("time-travel-diff", repo_url)
+        if isinstance(result, dict) and "error" in result:
+            # get_time_travel_diff()/get_file_at_commit() return a plain {"error": ...} dict
+            # (invalid URL/SHA/path, non-200 GitHub response, ...) instead of raising, so this
+            # outer try/except never saw an exception - same bug class as /codebase-history.
+            return JSONResponse(status_code=400, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "Time-travel diff failed safely: " + str(e)})
@@ -11238,6 +11251,11 @@ async def github_issues_endpoint(payload: dict):
         result = fetch_github_issues(repo_url)
         track_usage("github-issues", repo_url)
         write_audit_log("github-issues", repo_url, f"issues={result.get('total_open_issues', 0)}")
+        if isinstance(result, dict) and "error" in result:
+            # fetch_github_issues() returns a plain {"error": ...} dict (invalid URL, GitHub
+            # rate limit, non-200 status, ...) instead of raising, so this outer try/except
+            # never saw an exception - same bug class as /codebase-history.
+            return JSONResponse(status_code=400, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"GitHub issues lookup failed safely: {e}"})
