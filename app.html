@@ -1926,8 +1926,16 @@ function detectInsurance(code) {
   // tooling ("test coverage", "coverage_report", "branch coverage", "coverage.xml") -
   // same bug class as Bug 18. Require an insurance-domain term on the same line
   // before counting a bare "coverage" hit.
-  const _INSURANCE_WEAK_PATTERNS = new Set(['coverage']);
-  const _INSURANCE_DOMAIN_CONTEXT_RE = /(insur|policy|polic|underwrit|claim|premium|agent)/i;
+  // 'claim' alone collides with JWT/OAuth "claims" (decoded_claims = jwt.decode(...)) and
+  // with generic resource-claiming code (claim_resource(lock_id)) - neither is insurance.
+  // 'renewal' alone collides with SSL/TLS certificate renewal (renew_certificate()) and
+  // 'commission' alone collides with sales commission calculations - both common outside
+  // insurance code. All four require a genuine insurance-domain term on the same line.
+  // Note: 'claim' is deliberately NOT included in the domain-context regex below - if it
+  // were, a "claim" hit would trivially satisfy its own domain-context check every time
+  // (same no-op guard mistake fixed for "balance" in detectBusinessRules).
+  const _INSURANCE_WEAK_PATTERNS = new Set(['coverage', 'claim', 'renewal', 'commission']);
+  const _INSURANCE_DOMAIN_CONTEXT_RE = /(insur|policy|polic|underwrit|premium|agent)/i;
   const _insuranceLineMatch = (r, lineLower) => {
     const hit = r.patterns.find(p => lineLower.includes(p));
     if (hit && _INSURANCE_WEAK_PATTERNS.has(hit) && !_INSURANCE_DOMAIN_CONTEXT_RE.test(lineLower)) return undefined;
