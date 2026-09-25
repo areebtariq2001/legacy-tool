@@ -386,7 +386,10 @@ class StarBuildBlockchain:
     """
     def __init__(self):
         self.chain = []
-        self._lock = threading.Lock()
+        # RLock (not a plain Lock): verify_chain() and get_summary() each acquire this lock to
+        # read self.chain safely (see below), and get_summary() calls verify_chain() itself -
+        # a plain Lock would deadlock a thread against its own already-held lock in that case.
+        self._lock = threading.RLock()
         self._next_index = 0
         self._total_blocks_created = 0
         self._head_hash = None  # tracks the hash of the most-recently-added block, independent of
@@ -425,44 +428,62 @@ class StarBuildBlockchain:
                 self.chain = [self.chain[0]] + self.chain[-2000:]
             return new_block
 
+    def get_chain_length_and_head_hash(self):
+        """Read self.chain's length and the last block's hash as one atomic snapshot. A caller
+        that instead does len(audit_blockchain.chain) and audit_blockchain.chain[-1].hash as two
+        separate statements (as the certificate authority used to) can race against add_block()'s
+        trim reassignment in between the two reads, reporting a block count that doesn't actually
+        correspond to the hash recorded right next to it."""
+        with self._lock:
+            return len(self.chain), self.chain[-1].hash
+
     def verify_chain(self):
-        _difficulty_prefix = "00"
-        if len(self.chain) > 0:
-            _first = self.chain[0]
-            if _first.hash != _first.compute_hash():
-                return False, _first.index
-            if not _first.hash.startswith(_difficulty_prefix):
-                return False, _first.index
-        for i in range(1, len(self.chain)):
-            current = self.chain[i]
-            previous = self.chain[i - 1]
-            if current.hash != current.compute_hash():
-                return False, current.index
-            if not current.hash.startswith(_difficulty_prefix):
-                return False, current.index
-            # add_block() keeps genesis (chain[0]) plus only the newest 2000 blocks, so
-            # there is a deliberate index gap right after genesis once the chain has been
-            # trimmed at least once. Hash-linkage can only be checked between blocks that
-            # are still actually adjacent (current.index == previous.index + 1); a gap is
-            # not tampering, it's expected pruning, and every kept block still has its own
-            # hash/proof-of-work checked above regardless.
-            if current.index == previous.index + 1 and current.previous_hash != previous.hash:
-                return False, current.index
-        if self._head_hash is not None and len(self.chain) > 0 and self.chain[-1].hash != self._head_hash:
-            return False, "chain truncated - most recent block(s) missing (head hash mismatch)"
-        return True, None
+        # add_block() can reassign self.chain to a shorter list at any time (the genesis+newest
+        # -2000 trim). Without holding the same lock here, len(self.chain) read at the top of
+        # this method could be computed against the OLD (longer) list, and then a concurrent
+        # add_block() swaps self.chain for the new (shorter) one before the loop below reaches
+        # self.chain[i] for an i that no longer exists - raising IndexError and crashing
+        # whatever endpoint called this (e.g. /audit-log-summary). Holding the lock for the
+        # whole read makes it atomic with respect to add_block()'s mutations.
+        with self._lock:
+            _difficulty_prefix = "00"
+            if len(self.chain) > 0:
+                _first = self.chain[0]
+                if _first.hash != _first.compute_hash():
+                    return False, _first.index
+                if not _first.hash.startswith(_difficulty_prefix):
+                    return False, _first.index
+            for i in range(1, len(self.chain)):
+                current = self.chain[i]
+                previous = self.chain[i - 1]
+                if current.hash != current.compute_hash():
+                    return False, current.index
+                if not current.hash.startswith(_difficulty_prefix):
+                    return False, current.index
+                # add_block() keeps genesis (chain[0]) plus only the newest 2000 blocks, so
+                # there is a deliberate index gap right after genesis once the chain has been
+                # trimmed at least once. Hash-linkage can only be checked between blocks that
+                # are still actually adjacent (current.index == previous.index + 1); a gap is
+                # not tampering, it's expected pruning, and every kept block still has its own
+                # hash/proof-of-work checked above regardless.
+                if current.index == previous.index + 1 and current.previous_hash != previous.hash:
+                    return False, current.index
+            if self._head_hash is not None and len(self.chain) > 0 and self.chain[-1].hash != self._head_hash:
+                return False, "chain truncated - most recent block(s) missing (head hash mismatch)"
+            return True, None
 
     def get_summary(self):
-        is_valid, tampered_at = self.verify_chain()
-        return {
-            "total_blocks": len(self.chain),
-            "chain_valid": is_valid,
-            "tampered_block": tampered_at,
-            "genesis_hash": self.chain[0].hash,
-            "latest_hash": self.chain[-1].hash,
-            "integrity_status": "VERIFIED" if is_valid else f"TAMPERED at block {tampered_at}",
-            "disclaimer": "This is a single-process, in-memory hash chain (with proof-of-work for demonstration), not a distributed blockchain. It provides the same tamper-evidence property as a real blockchain's linked-hash structure, but resets on server restart and has no independent network of validators."
-        }
+        with self._lock:
+            is_valid, tampered_at = self.verify_chain()
+            return {
+                "total_blocks": len(self.chain),
+                "chain_valid": is_valid,
+                "tampered_block": tampered_at,
+                "genesis_hash": self.chain[0].hash,
+                "latest_hash": self.chain[-1].hash,
+                "integrity_status": "VERIFIED" if is_valid else f"TAMPERED at block {tampered_at}",
+                "disclaimer": "This is a single-process, in-memory hash chain (with proof-of-work for demonstration), not a distributed blockchain. It provides the same tamper-evidence property as a real blockchain's linked-hash structure, but resets on server restart and has no independent network of validators."
+            }
 
 
 audit_blockchain = StarBuildBlockchain()
@@ -3708,6 +3729,11 @@ class MigrationCertificate:
     def issue(self, filename, original_hash, migrated_hash, confidence, reviewer_email, approved):
         with self._lock:
             cert_id = hashlib.sha256(f"{filename}{original_hash}{migrated_hash}{datetime.now().isoformat()}".encode()).hexdigest()[:16].upper()
+            # Read as one atomic snapshot, not two separate statements - audit_blockchain.add_block()
+            # can trim/reassign its chain concurrently from another request, and reading the length
+            # and the last hash separately could report a block count that doesn't actually
+            # correspond to the hash recorded right next to it in this certificate.
+            _chain_len, _chain_head_hash = audit_blockchain.get_chain_length_and_head_hash()
             certificate = {
                 "certificate_id": f"STARBUILD-{cert_id}",
                 "issued_at": datetime.now().isoformat(),
@@ -3717,8 +3743,8 @@ class MigrationCertificate:
                 "confidence_score": confidence,
                 "approved_by": reviewer_email,
                 "approval_status": "APPROVED" if approved else "REJECTED",
-                "blockchain_block": len(audit_blockchain.chain),
-                "chain_hash_at_issuance": audit_blockchain.chain[-1].hash,
+                "blockchain_block": _chain_len,
+                "chain_hash_at_issuance": _chain_head_hash,
             }
             cert_data = json.dumps(certificate, sort_keys=True)
             certificate["certificate_signature"] = hmac.new(_CERT_SIGNING_KEY.encode(), cert_data.encode(), hashlib.sha256).hexdigest()
