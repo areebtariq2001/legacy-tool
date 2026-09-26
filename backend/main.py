@@ -2704,12 +2704,23 @@ def migrate_cobol(source, filename="file.cbl"):
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
             cond = _cobol_hyphen_fix(cond_raw)
-            cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
+            # Bug: bare "EQUAL TO"/"EQUAL" -> "==" used to run FIRST, before the compound
+            # operators below that themselves CONTAIN the word "EQUAL" ("GREATER THAN OR EQUAL
+            # TO", "LESS THAN OR EQUAL TO", "NOT EQUAL TO"). That consumed the "EQUAL TO" part
+            # of each compound phrase before its own rule ever got a chance to match, so e.g.
+            # "COUNT GREATER THAN OR EQUAL TO 10" became "COUNT GREATER THAN OR == 10", then
+            # (after the later bare "GREATER THAN" -> ">" rule) the syntactically invalid
+            # "COUNT > OR == 10" - a Python SyntaxError, not merely a wrong comparison. The
+            # already-correct ordering used elsewhere in this file for IF conditions
+            # (COBOL_IF_OPS_RAW: longest/compound operators first) was not applied here. Match
+            # that ordering: compound operators (which contain "EQUAL" as a substring) must be
+            # substituted before the bare "EQUAL TO"/"EQUAL" rule ever runs.
             cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bGREATER\s+THAN\b", ">", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bLESS\s+THAN\b", "<", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bHIGH_VALUES?\b", "None", cond, flags=re.IGNORECASE)
