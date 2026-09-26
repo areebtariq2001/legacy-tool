@@ -2099,12 +2099,31 @@ function detectBatchJobs(code) {
   // code including comments, so a comment merely mentioning "EOD" or "reconciliation" (even
   // one saying the file has NOTHING to do with them) tagged an unrelated file with that
   // batch-job type. Strip '#'/'//' comment text before matching.
-  const _codeNoComments = code.split('\n').map(ln => {
-    const hashIdx = ln.indexOf('#');
-    const slashIdx = ln.indexOf('//');
-    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
-    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
-  }).join('\n');
+  // Bug: the original stripper used a naive, string-unaware ln.indexOf('#')/ln.indexOf('//')
+  // to find where the comment starts (same bug class as detectDatabaseIntelligence()'s fix).
+  // A '#' or '//' occurring earlier on the line INSIDE a string literal (e.g.
+  // `ticket_id = "#" + str(n); run_settlement_batch()`) was mistaken for the start of a
+  // comment, silently truncating the rest of the line - including real code after it. That
+  // could hide a genuine batch-job call on the same line as a string containing one of these
+  // characters, producing a false negative for a real Daily Settlement/EOD/etc. job. Use a
+  // string-aware scanner that only treats '#'/'//' as a comment start outside of a string.
+  const _stripInlineCommentForBatchJobs = (ln) => {
+    let _inStr = false, _strCh = null, _escaped = false;
+    for (let i = 0; i < ln.length; i++) {
+      const ch = ln[i];
+      if (_escaped) { _escaped = false; continue; }
+      if (_inStr) {
+        if (ch === '\\') { _escaped = true; continue; }
+        if (ch === _strCh) _inStr = false;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { _inStr = true; _strCh = ch; continue; }
+      if (ch === '#') return ln.slice(0, i);
+      if (ch === '/' && ln[i + 1] === '/') return ln.slice(0, i);
+    }
+    return ln;
+  };
+  const _codeNoComments = code.split('\n').map(_stripInlineCommentForBatchJobs).join('\n');
   const lower = _codeNoComments.toLowerCase();
   const jobs = [
     { label: 'End Of Day (EOD)', patterns: ['eod', 'end_of_day', 'end-of-day'] },
