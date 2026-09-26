@@ -2593,12 +2593,19 @@ function detectRegulatoryCompliance(code, R) {
   // check. `includes('audit')` had the same issue with "audition". Require word-boundary
   // matches on the actual logging/audit vocabulary instead of a bare substring.
   if (/\baudit\w*\b/.test(lower) || /\blog(ger|ging|s)?\b/.test(lower)) items.push({ label: 'Audit Logging', ok: true });
+  // Same bug class as Bug 18: bare 'hash' collides with any generic hashmap/hash-table/cache
+  // code (LRU cache bucket hashing) that has nothing to do with encryption; bare 'role'
+  // collides with a plain UI/ARIA `role` attribute that has nothing to do with access
+  // control. Require a genuine crypto/security term elsewhere in the file before counting
+  // 'hash' as encryption, and a genuine access-control term before counting 'role'.
+  const _CRYPTO_CONTEXT_RE = /(encrypt|cipher|\baes\b|\brsa\b|crypto|secret|salt|bcrypt|password|\bsha\d|\bmd5\b)/i;
+  const _ACCESS_CONTROL_CONTEXT_RE = /(access_control|permission|rbac|authoriz|privilege|\badmin\b)/i;
   if (secText.includes('weak') || secText.includes('md5') || secText.includes('sha1')) {
     items.push({ label: 'Encryption', ok: false, note: 'Weak algorithm detected' });
-  } else if (lower.includes('encrypt') || lower.includes('hash')) {
+  } else if (lower.includes('encrypt') || (lower.includes('hash') && _CRYPTO_CONTEXT_RE.test(lower))) {
     items.push({ label: 'Encryption', ok: true });
   }
-  if (lower.includes('access_control') || lower.includes('role') || lower.includes('permission')) items.push({ label: 'Access Control', ok: true });
+  if (lower.includes('access_control') || lower.includes('permission') || (lower.includes('role') && _ACCESS_CONTROL_CONTEXT_RE.test(lower))) items.push({ label: 'Access Control', ok: true });
   const card = document.getElementById('regComplianceCard');
   const list = document.getElementById('regComplianceList');
   if (items.length === 0) { card.style.display = 'none'; return; }
