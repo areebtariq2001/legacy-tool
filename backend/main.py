@@ -1161,7 +1161,15 @@ def calculate_confidence_java(source, migrated, valid, vars_ok):
     if not vars_ok:
         score -= 25
         reasons.append("Java names may have changed")
-    if "AI service error" in migrated or migrated.strip() == "":
+    # Bug: an unanchored substring check here meant that if the user's OWN legitimate source
+    # code happened to contain the literal text "AI service error" anywhere (e.g. real code
+    # that itself calls an AI provider and has its own error-handling string with that exact
+    # phrase) and the AI faithfully reproduced it in the migrated output, this silently
+    # docked 40 points and reported "AI did not return usable output" - even though the
+    # migration succeeded perfectly. call_ai_provider()'s actual failure string always starts
+    # with this text (see every other call site in this file, which correctly use
+    # .startswith()); a real failure never has other content before it.
+    if migrated.startswith("AI service error") or migrated.strip() == "":
         score -= 40
         reasons.append("AI did not return usable output")
     if len(source.strip()) > 0:
@@ -1618,7 +1626,10 @@ def calculate_confidence(source, migrated, valid, vars_ok, verified):
     if not vars_ok:
         score -= 25
         reasons.append("variable names may have changed")
-    if "AI service error" in migrated or migrated.strip() == "":
+    # Bug: same unanchored-substring issue as calculate_confidence_java() above - see its
+    # comment. Anchor to the start, matching call_ai_provider()'s actual failure format and
+    # every other call site in this file.
+    if migrated.startswith("AI service error") or migrated.strip() == "":
         score -= 40
         reasons.append("AI did not return usable output")
     if len(source.strip()) > 0:
