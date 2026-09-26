@@ -2539,12 +2539,30 @@ function detectBankingDomains(code) {
   // unrelated file get tagged with that banking domain. Strip '#'/'//' comment text (up to
   // end of line, not touching string literals) before matching, same approach already used
   // in detectDatabaseIntelligence.
-  const _codeNoComments = code.split('\n').map(ln => {
-    const hashIdx = ln.indexOf('#');
-    const slashIdx = ln.indexOf('//');
-    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
-    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
-  }).join('\n');
+  // Bug: the stripper itself used a naive, string-unaware ln.indexOf('#')/ln.indexOf('//') to
+  // find where the comment starts - the exact same bug already fixed in
+  // detectDatabaseIntelligence() and detectBatchJobs(). A '#' or '//' occurring earlier on the
+  // line INSIDE a string literal (e.g. `ref = "#" + str(n); wire_transfer(a, b)`) was mistaken
+  // for a comment start, silently truncating real code after it - so a genuine wire_transfer/
+  // loan/customer call sharing a line with such a string was never seen, producing a false
+  // negative for that banking domain. Use the same string-aware scanner as the other two fixes.
+  const _stripInlineCommentForBankingDomains = (ln) => {
+    let _inStr = false, _strCh = null, _escaped = false;
+    for (let i = 0; i < ln.length; i++) {
+      const ch = ln[i];
+      if (_escaped) { _escaped = false; continue; }
+      if (_inStr) {
+        if (ch === '\\') { _escaped = true; continue; }
+        if (ch === _strCh) _inStr = false;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { _inStr = true; _strCh = ch; continue; }
+      if (ch === '#') return ln.slice(0, i);
+      if (ch === '/' && ln[i + 1] === '/') return ln.slice(0, i);
+    }
+    return ln;
+  };
+  const _codeNoComments = code.split('\n').map(_stripInlineCommentForBankingDomains).join('\n');
   const lower = _codeNoComments.toLowerCase();
   const domains = [
     { label: 'Loans', patterns: ['loan', 'emi', 'mortgage'] },
