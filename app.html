@@ -2387,8 +2387,17 @@ function detectCopybooks(code) {
   if (names.size === 0) { card.style.display = 'none'; return; }
   lastCopybookNames = [...names];
   card.style.display = 'block';
+  // Bug: sharedWith filenames (from the browser File API's e.fname - an OS filename, which can
+  // legally contain HTML-special characters like < > " on most filesystems) were concatenated
+  // directly into innerHTML with no escaping, unlike every other place in this file that
+  // renders a filename (e.g. renderSessionSummary()'s fileList.innerHTML, a few lines below,
+  // correctly uses escapeHtml(e.fname)). A file uploaded with a crafted name such as
+  // '<img src=x onerror=alert(1)>.cbl' would have that markup parsed and executed here instead
+  // of shown as text. 'n' itself (the COPY statement's copybook name) is safe without escaping
+  // since the regex above only ever captures [\w-]+ - no HTML-special characters - but the
+  // filenames are not similarly constrained, so they must be escaped.
   list.innerHTML = [...names].map(n => {
-    const sharedWith = sessionFileResults.filter(e =>e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e =>e.fname);
+    const sharedWith = sessionFileResults.filter(e =>e.fname !== (files[0] ? files[0].name : '') && e.copybooks && e.copybooks.includes(n)).map(e =>escapeHtml(e.fname));
     return `<div style="padding:5px 10px;border-radius:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);min-width:140px">
       <span style="font-size:11px;color:#7c3aed;font-family:monospace"> ${n}</span>
       ${sharedWith.length > 0 ? '<div style="font-size:9px;color:#64748b;margin-top:3px">Also used by: ' + sharedWith.join(', ') + '</div>' : '<div style="font-size:9px;color:#64748b;margin-top:3px">Not seen in other files analyzed this session</div>'}
