@@ -11433,6 +11433,12 @@ async def github_issue_fix_endpoint(payload: GitHubIssueFixRequest):
         result = await run_in_threadpool(suggest_github_issue_fix, issue_title, issue_body, source)
         track_usage("github-issue-fix", f"issue-{len(issue_title)}-chars")
         write_audit_log("github-issue-fix", f"issue-{len(issue_title)}-chars", "suggested")
+        if isinstance(result, dict) and "error" in result:
+            # suggest_github_issue_fix() returns a plain {"error": ...} dict when the AI call
+            # fails, instead of raising - so this outer try/except never saw an exception and
+            # the error dict was returned as an ordinary HTTP 200. Same bug class as /qa-check,
+            # /extract-business-rules and other AI-calling endpoints fixed earlier.
+            return JSONResponse(status_code=502, content=result)
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"AI fix suggestion failed safely: {e}"})
