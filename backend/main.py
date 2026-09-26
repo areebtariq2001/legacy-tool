@@ -2649,8 +2649,18 @@ def migrate_cobol(source, filename="file.cbl"):
                     _parts.append(_t)
                 else:
                     _parts.append(_cobol_hyphen_fix(_t))
+            # Bug (reported by the user): COBOL's "DISPLAY <lit1> <lit2> ..." concatenates its
+            # operands directly with NO separator between them (e.g. DISPLAY "Hello, " "World!"
+            # prints "Hello, World!" - the only space is the one already inside the first
+            # literal). Joining the parts with ", " here produced `print("Hello, ", "World!")`,
+            # and Python's print() inserts its OWN space between comma-separated positional
+            # args by default - so the migrated output silently gained an extra space
+            # ("Hello,  World!") versus the real COBOL output on every multi-literal DISPLAY,
+            # which is common for building fixed-width reports/labels where spacing matters.
+            # Fix: pass sep="" so print() reproduces COBOL's no-separator concatenation.
             disp_content = ", ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
-            out_lines.append(f"{cur_indent()}print({disp_content})")
+            _disp_sep_kw = ', sep=""' if len(_parts) > 1 else ""
+            out_lines.append(f"{cur_indent()}print({disp_content}{_disp_sep_kw})")
             changes.append("DISPLAY -> print()")
             continue
         move_m = re.match(r'^MOVE\s+((?:"[^"]*"|\x27[^\x27]*\x27|\S+))\s+TO\s+([\w\s-]+?)\.?$', line, re.IGNORECASE)
