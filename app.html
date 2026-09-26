@@ -2201,7 +2201,15 @@ function detectBankingModules(code) {
 // would trivially satisfy its own domain-context check every time (the line that matched
 // "balance" always itself contains "balance"), making the guard a no-op for exactly the word
 // it's meant to guard.
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance', 'swift']);
+// "interest" alone collides with GIS "points of interest" or generic recommendation-system
+// "user interest" code; "velocity" alone collides with generic game/physics velocity
+// (sprite.velocity in a physics update loop) - neither has anything to do with loan interest
+// or AML transaction-velocity screening. Both added to the weak-word set for the same reason.
+// "fraud" alone collides with a generic ML dataset loader named after a public dataset (e.g.
+// load_fraud_dataset() for a Kaggle credit-card-fraud CSV, with no real fraud-detection logic);
+// "sanction" alone collides with generic content-moderation code (sanction_user() = ban a
+// user) that has nothing to do with an AML/OFAC sanctions list.
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance', 'swift', 'interest', 'velocity', 'fraud', 'sanction']);
 const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
