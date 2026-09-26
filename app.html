@@ -1414,7 +1414,10 @@ async function runAnalysisOrBatch() {
   progBar.style.display = 'block';
   for (let i = 0; i < allFiles.length; i++) {
     const pct = Math.round(((i) / allFiles.length) * 100);
-    progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + allFiles[i].name + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
+    // Bug: same filename-XSS class as detectCopybooks()/renderDependencyChainSVG() - allFiles[i].name
+    // is a raw browser File API name (can legally contain HTML-special characters) and was
+    // concatenated into innerHTML unescaped here during batch analysis.
+    progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + escapeHtml(allFiles[i].name) + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
     files = [allFiles[i]];
     const _batchExt = allFiles[i].name.split('.').pop().toLowerCase();
     const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
