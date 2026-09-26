@@ -2717,7 +2717,19 @@ function detectDatabaseIntelligence(code) {
   list.innerHTML = html;
 }
 function detectRegulatoryCompliance(code, R) {
-  const lower = code.toLowerCase();
+  // Bug (most severe instance of the comment-blindness class in this file): unlike every
+  // other detector here, this one had NO comment stripping at all - it lowercased the RAW
+  // code including every comment and matched every regulatory item (AML, KYC, PCI-DSS, GDPR,
+  // Audit Logging, Encryption, Access Control) against that raw text. A comment that
+  // explicitly says a file does NOT do something - e.g.
+  // "// This module does NOT implement AML or KYC checks - handled by a separate vendor
+  // system." - contains the words "aml" and "kyc" as substrings, so this reported
+  // "Detected: AML" and "Detected: KYC" on a file with no such logic at all. On a regulatory-
+  // compliance dashboard, a false "Detected" badge is actively misleading (it can be read as
+  // "this control exists"), which is worse than a missed one. Strip comments line-by-line
+  // (same string-aware scanner used elsewhere in this file) before matching.
+  const _codeNoComments = code.split('\n').map(_stripTrailingInlineComment).join('\n');
+  const lower = _codeNoComments.toLowerCase();
   const secText = (R.security ? (typeof R.security === 'string' ? R.security : JSON.stringify(R.security)) : '').toLowerCase();
   const items = [];
   if (lower.includes('aml') || lower.includes('anti-money')) items.push({ label: 'AML', ok: true });
