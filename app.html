@@ -1343,13 +1343,32 @@ async function simulateAttack() {
     resultEl.textContent = 'Simulation failed: ' + e.message;
   }
 }
+// Bug (heavy/critical): there was NO client-side file-size check anywhere in this file. A
+// file accepted here is later read entirely into memory with files[0].text() (see
+// runAnalysis/runDataLineage/runTraceabilityQuery/runAsk) before it is ever sent to the
+// backend, and the backend's own MAX_FILE_SIZE check (500,000 bytes) only runs AFTER that
+// full upload completes. Only the file extension was checked here, never its size - so
+// selecting or dragging in a large file (a multi-hundred-MB or multi-GB source file,
+// or simply the wrong file picked by mistake with a matching extension) would try to read
+// the ENTIRE file into a JS string in the browser tab's memory, which can freeze or crash
+// the tab outright, well before the backend ever gets a chance to reject it. On a tool
+// whose whole job is reviewing sensitive banking code, a one-click accidental oversized
+// upload taking down the browser tab is exactly the kind of fragility that can't be
+// tolerated. Reject oversized files immediately, client-side, before they are read at all.
+const MAX_CLIENT_FILE_SIZE = 500000; // keep in sync with the backend's MAX_FILE_SIZE
 function onFileInput(fs) {
   const supportedExt = ['py', 'java', 'php', 'cbl', 'cob', 'cobol'];
   const incoming = Array.from(fs);
-  const unsupported = incoming.filter(f => !supportedExt.includes(f.name.split('.').pop().toLowerCase()));
+  const oversized = incoming.filter(f => f.size > MAX_CLIENT_FILE_SIZE);
+  if (oversized.length > 0) {
+    alert('File too large: ' + oversized.map(f => f.name + ' (' + (f.size / 1000).toFixed(0) + ' KB)').join(', ') + '. Maximum accepted size is ' + (MAX_CLIENT_FILE_SIZE / 1000) + ' KB per file - larger files are rejected here before upload to avoid freezing the browser tab while reading them.');
+    fs = incoming.filter(f => f.size <= MAX_CLIENT_FILE_SIZE);
+    if (fs.length === 0) return;
+  }
+  const unsupported = Array.from(fs).filter(f => !supportedExt.includes(f.name.split('.').pop().toLowerCase()));
   if (unsupported.length > 0) {
     alert('Unsupported file type: ' + unsupported.map(f =>f.name).join(', ') + '. StarSage supports .py, .java, .php, and .cbl/.cob files.');
-    const supported = incoming.filter(f =>supportedExt.includes(f.name.split('.').pop().toLowerCase()));
+    const supported = Array.from(fs).filter(f =>supportedExt.includes(f.name.split('.').pop().toLowerCase()));
     if (supported.length === 0) return;
     fs = supported;
   }
