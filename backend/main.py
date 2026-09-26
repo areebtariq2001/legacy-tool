@@ -2125,8 +2125,36 @@ def migrate_php(source):
     ]
     curly_brace_pattern = r'(\$\w+)\{(\d+|\$\w+)\}'
     if re.search(curly_brace_pattern, migrated):
-        migrated = re.sub(curly_brace_pattern, r'\1[\2]', migrated)
-        changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
+        # Bug: this used to run re.sub() directly against the whole `migrated` text, outside
+        # the string-literal-masking pipeline used by the `rules` loop below and by the
+        # `var $foo` -> `public $foo` fix further down. That meant a PHP string literal that
+        # merely CONTAINS this text pattern - e.g. a comment/log/doc string like
+        # "the old $foo{0} syntax is deprecated, use $foo[0] instead" - had its literal
+        # content silently rewritten (corrupting the string), exactly the same bug class
+        # already fixed for the var/public substitution below. Apply the same per-line,
+        # string-masking treatment here too, so only real code (not string contents) is
+        # rewritten.
+        _cb_mig_lines = migrated.split(chr(10))
+        _cb_changed = False
+        for _cbi, _cbline in enumerate(_cb_mig_lines):
+            _cbline_stripped = _cbline.lstrip()
+            if _cbline_stripped.startswith("#") or _cbline_stripped.startswith("//") or _cbline_stripped.startswith("/*") or _cbline_stripped.startswith("*"):
+                continue
+            _cb_code_part, _cb_comment_part = _split_inline_comment_php(_cbline)
+            _cb_str_literals = []
+            def _mask_cb_str(m):
+                _cb_str_literals.append(m.group(0))
+                return "\x00STRLIT" + str(len(_cb_str_literals) - 1) + "\x00"
+            _cb_masked_code_part = re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', _mask_cb_str, _cb_code_part)
+            _cb_new_masked_code_part = re.sub(curly_brace_pattern, r'\1[\2]', _cb_masked_code_part)
+            _cb_new_code_part = re.sub(r'\x00STRLIT(\d+)\x00', lambda m: _cb_str_literals[int(m.group(1))], _cb_new_masked_code_part)
+            _cb_new_line = _cb_new_code_part + _cb_comment_part
+            if _cb_new_line != _cbline:
+                _cb_mig_lines[_cbi] = _cb_new_line
+                _cb_changed = True
+        if _cb_changed:
+            migrated = chr(10).join(_cb_mig_lines)
+            changes.append("curly-brace string/array access {n} -> [n] (curly-brace access removed in PHP 8)")
 
     _mig_lines = migrated.split(chr(10))  # Bug 6: split once for all rules, join once after
     for pattern, repl, label in rules:
