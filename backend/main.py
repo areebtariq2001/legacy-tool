@@ -2799,6 +2799,50 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("WHEN ") and eval_subject_stack and eval_first_when_stack:
             eval_subject = eval_subject_stack[-1]
             when_val = line[5:].rstrip(".").strip()
+            # Bug (reported by the user): EVALUATE TRUE ... WHEN <condition> is a very common
+            # COBOL idiom (an if/elif chain written as an EVALUATE) - each WHEN clause is a full
+            # boolean condition ("WS-AMT NOT GREATER THAN 1000"), not a bare operator/value to
+            # compare the subject against. The code below only ever handled the latter shape
+            # (WHEN <op> <value>, implicitly compared to eval_subject) or a bare literal value
+            # (compared with ==), so for EVALUATE TRUE it fell through to the literal-value
+            # branch and emitted the WHOLE condition, verbatim COBOL keywords included, as the
+            # literal RHS of an == comparison against "True":
+            #   WHEN WS-AMT GREATER THAN 1000   ->   if True == WS_AMT GREATER THAN 1000:
+            # - a SyntaxError for EVERY operator, not just the NOT GREATER/LESS THAN case that
+            # surfaced it, since "GREATER THAN"/"LESS THAN"/etc. were never being converted at
+            # all here. Detect EVALUATE TRUE and convert the WHEN clause as a full condition,
+            # reusing the exact same figurative-word/hyphen-fix + operator-substitution pipeline
+            # the IF-statement handler uses, instead of comparing it to the subject.
+            if eval_subject.strip() in ("TRUE", "True"):
+                # Bug fix note: this must match the IF-statement handler's figurative-word map
+                # (defined further below as a function-local `_figurative_word_map`, not visible
+                # here) - a prior edit referenced a nonexistent `_COBOL_FIGURATIVE_WORD_MAP`
+                # module-level name, which would raise NameError on the first EVALUATE TRUE/WHEN
+                # block ever migrated. Define the same mapping locally here instead.
+                _eval_true_figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
+                _cond_words = when_val.split()
+                _cond_fixed_words = []
+                for _w in _cond_words:
+                    _w_upper_stripped = _w.rstrip(".,")
+                    if _w_upper_stripped.upper() in _eval_true_figurative_word_map:
+                        _cond_fixed_words.append(_eval_true_figurative_word_map[_w_upper_stripped.upper()])
+                    elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
+                        _cond_fixed_words.append(_w.replace("-", "_"))
+                    else:
+                        _cond_fixed_words.append(_w)
+                when_cond = " ".join(_cond_fixed_words)
+                for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
+                    when_cond = _compiled_pat.sub(_repl, when_cond)
+                when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", when_cond)
+                if not eval_first_when_stack[-1]:
+                    if_depth = max(0, if_depth - 1)
+                    out_lines.append(f"{cur_indent()}elif {when_cond}:")
+                else:
+                    out_lines.append(f"{cur_indent()}if {when_cond}:")
+                    eval_first_when_stack[-1] = False
+                if_depth += 1
+                changes.append("WHEN (EVALUATE TRUE condition) -> if/elif")
+                continue
             _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
             if _thru_m:
                 _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
