@@ -2809,8 +2809,18 @@ def migrate_cobol(source, filename="file.cbl"):
                 when_cond = f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
                 changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({when_cond}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             else:
-                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
-                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
+                # Bug: same missing-compound-operator class as COBOL_IF_OPS_RAW and the
+                # PERFORM...UNTIL condition block - "NOT GREATER THAN"/"NOT LESS THAN" (common
+                # COBOL idioms for "<="/">=") were absent from this alternation entirely, so a
+                # "WHEN NOT GREATER THAN 1000" clause fell through to the else branch below,
+                # which treats the whole unrecognized phrase as a literal value and emits
+                # `eval_subject == NOT GREATER THAN 1000` - bare COBOL keywords used as if they
+                # were Python identifiers, a SyntaxError. Unlike the sequential re.sub() bugs
+                # elsewhere, this is a single anchored alternation, so order among these
+                # alternatives doesn't matter for correctness (each starts with a distinct
+                # token) - only their presence does.
+                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
+                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
                 _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
                 if _when_op_m:
                     _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
