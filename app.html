@@ -2398,7 +2398,17 @@ function detectCopybooks(code) {
 function detectCallGraph(code) {
   const codeLines = code.split(String.fromCharCode(10));
   const fnNames = new Set();
-  const fnPatterns = [/^\s*def\s+(\w+)/, /^\s*function\s+(\w+)/, /^\s*(?:public|private|protected|static)?\s*\w+\s+(\w+)\s*\(/, /^\s*\d{6}\s+([\w-]+)\.\s*$/, /^\s*([\w-]+)\.\s*$/];
+  // Bug: this Java/PHP-style pattern was missing two safeguards that the near-identical
+  // pattern in findEnclosingFunction() already has - a negative lookahead excluding
+  // control-flow/statement keywords, and a required "{" at the end to confirm it's an actual
+  // declaration, not just a call. Without them, an ordinary function CALL that happens to look
+  // like "word word(" - most commonly "return someFunction(x);" - was misidentified as a NEW
+  // function/method declaration named "someFunction". That silently reset currentFn (and
+  // currentFnIndent) mid-body, so every real call after that "return" line for the rest of the
+  // enclosing function was attributed to the wrong scope (or simply dropped, since the fake
+  // "declared" name usually never went on to make any further calls before the real function
+  // ended) - collapsing a real function's call edges in the graph with no error or warning.
+  const fnPatterns = [/^\s*def\s+(\w+)/, /^\s*function\s+(\w+)/, /^\s*(?:public|private|protected|static)?\s*(?!return\b|echo\b|print\b|if\b|while\b|for\b|foreach\b|switch\b|throw\b|new\b|else\b|elseif\b)\w+\s+(\w+)\s*\([^)]*\)\s*\{/, /^\s*\d{6}\s+([\w-]+)\.\s*$/, /^\s*([\w-]+)\.\s*$/];
   codeLines.forEach(l => { fnPatterns.forEach(p => { const m = l.match(p); if (m && m[1] && m[1].length > 1) fnNames.add(m[1]); }); });
   const edges = [];
   let currentFn = null;
