@@ -2209,7 +2209,12 @@ function detectBankingModules(code) {
 // load_fraud_dataset() for a Kaggle credit-card-fraud CSV, with no real fraud-detection logic);
 // "sanction" alone collides with generic content-moderation code (sanction_user() = ban a
 // user) that has nothing to do with an AML/OFAC sanctions list.
-const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance', 'swift', 'interest', 'velocity', 'fraud', 'sanction']);
+// "apr" and "apy" are bare 3-letter substrings that collide constantly with ordinary English
+// words having nothing to do with interest rates: "apr" is a substring of "april"/"apricot"
+// (e.g. generate_april_report(), fruit = 'apricot'), and "apy" is a substring of "therapy"
+// (e.g. schedule_physical_therapy_session()). Both added to the weak-word set so they require
+// a genuine banking/transaction-domain term on the same line, same as "interest" above.
+const _WEAK_BUSINESS_RULE_PATTERNS = new Set(['flagged', 'approved', 'declined', 'blocked', 'monitor', 'pep', 'branch', 'balance', 'swift', 'interest', 'velocity', 'fraud', 'sanction', 'apr', 'apy']);
 const _BUSINESS_RULE_DOMAIN_CONTEXT_RE = /(transaction|transfer|payment|account|withdraw|deposit|fund|loan|credit|debit|customer|bank)/i;
 function _businessRuleLineMatch(r, lineLower) {
   const hit = r.patterns.find(p => lineLower.includes(p));
@@ -2508,8 +2513,15 @@ function detectBankingDomains(code) {
   // detectPaymentSystems, same fix needed here. Require a genuine banking-domain term
   // elsewhere in the file before counting these three (this function is file-wide, not
   // per-line, like detectBatchJobs above).
-  const _WEAK_BANKING_DOMAIN_PATTERNS = new Set(['customer', 'interest', 'swift']);
-  const _BANKING_DOMAIN_CONTEXT_RE = /(bank|ledger|gl_entr|journal_entr|account|transaction|branch|teller|loan|deposit|withdraw|transfer|treasury|forex|rtgs|neft|payment|credit|debit|mortgage|apr|apy)/i;
+  // 'apr'/'apy' are the same bare-substring problem: 'apr' collides with "april"/"apricot"
+  // and 'apy' collides with "therapy" - neither has anything to do with interest rates.
+  // Note: 'apr'/'apy' must NOT also appear in the domain-context regex below - if they did,
+  // a bare 'apr'/'apy' hit would trivially satisfy its own domain-context check every time
+  // (the same no-op-guard mistake already fixed for 'balance'/'claim' elsewhere in this
+  // file), making this guard a no-op for exactly the words it's meant to guard. They have
+  // been removed from the context regex accordingly.
+  const _WEAK_BANKING_DOMAIN_PATTERNS = new Set(['customer', 'interest', 'swift', 'apr', 'apy']);
+  const _BANKING_DOMAIN_CONTEXT_RE = /(bank|ledger|gl_entr|journal_entr|account|transaction|branch|teller|loan|deposit|withdraw|transfer|treasury|forex|rtgs|neft|payment|credit|debit|mortgage)/i;
   const found = domains.filter(d => d.patterns.some(p => {
     if (!lower.includes(p)) return false;
     if (_WEAK_BANKING_DOMAIN_PATTERNS.has(p) && !_BANKING_DOMAIN_CONTEXT_RE.test(lower)) return false;
