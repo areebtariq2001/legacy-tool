@@ -3565,7 +3565,14 @@ _login_attempts_lock = threading.Lock()
 def login_user(email, password, ip="unknown"):
     email = (email or "").strip().lower()
     _now = time.time()
-    _lockout_key = email + "|" + ip
+    # Bug: keying the lockout on email+ip meant the whole progressive-delay/lockout scheme
+    # (2s/5s/15s/60s delays, then a hard 5-attempt lockout) only ever applied per (email, IP)
+    # pair. An attacker brute-forcing one victim's password just needs a new source IP - a
+    # botnet, a proxy pool, or even a plain ISP-assigned dynamic IP - every 5 guesses to get a
+    # completely fresh allowance for the SAME target account, bypassing the lockout entirely.
+    # Key on the account (email) alone so the lockout actually protects the account regardless
+    # of which IP the guesses come from.
+    _lockout_key = email
     with _login_attempts_lock:
         if len(_failed_login_attempts) > 5000:
             _stale = [k for k, ts in _failed_login_attempts.items() if not any(_now - t < 900 for t in ts)]
