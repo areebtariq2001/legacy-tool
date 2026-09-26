@@ -2530,12 +2530,32 @@ function detectDatabaseIntelligence(code) {
   // prose in comments (e.g. "select items from the list") can't be mistaken
   // for a real query - this does not touch string literals, since genuine
   // embedded SQL queries (cursor.execute("SELECT ... FROM ...")) live there.
-  const _codeNoComments = code.split('\n').map(ln => {
-    const hashIdx = ln.indexOf('#');
-    const slashIdx = ln.indexOf('//');
-    const cutIdx = [hashIdx, slashIdx].filter(i => i >= 0).sort((a, b) => a - b)[0];
-    return cutIdx !== undefined ? ln.slice(0, cutIdx) : ln;
-  }).join('\n');
+  // Bug: the previous implementation found the FIRST '#' or '//' ANYWHERE on the line via
+  // indexOf(), with no awareness of string literals. A line containing an unrelated string
+  // with a '#' or '//' in it BEFORE the actual embedded SQL - e.g.
+  // log("Ref #123"); cursor.execute("SELECT * FROM orders_table WHERE id=5") - had the '#'
+  // inside "Ref #123" mistaken for a comment start, silently truncating the rest of the line
+  // and losing the real SELECT...FROM query entirely (a false negative: a genuine orders_table
+  // reference went completely undetected, with no warning). Scan character-by-character
+  // tracking string-literal state instead, so a '#'/'//' inside a string is never mistaken
+  // for a real comment marker.
+  const _stripInlineCommentForSql = (ln) => {
+    let _inStr = false, _strCh = null, _escaped = false;
+    for (let i = 0; i < ln.length; i++) {
+      const ch = ln[i];
+      if (_escaped) { _escaped = false; continue; }
+      if (_inStr) {
+        if (ch === '\\') { _escaped = true; continue; }
+        if (ch === _strCh) _inStr = false;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { _inStr = true; _strCh = ch; continue; }
+      if (ch === '#') return ln.slice(0, i);
+      if (ch === '/' && ln[i + 1] === '/') return ln.slice(0, i);
+    }
+    return ln;
+  };
+  const _codeNoComments = code.split('\n').map(_stripInlineCommentForSql).join('\n');
   const tableRegexes = [
     /\bSELECT\b[\s\S]{0,300}?\bFROM\s+([A-Za-z_][\w]*)(?!\s+import\b)/gi,
     /INSERT\s+INTO\s+([A-Za-z_][\w]*)/gi,
