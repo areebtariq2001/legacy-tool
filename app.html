@@ -1098,6 +1098,36 @@ function stripNonCode(code, fname) {
 function isCommentLine(trimmedLine) {
   return trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || trimmedLine.startsWith('*') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*/');
 }
+// Bug: isCommentLine() only recognizes a line that is ENTIRELY a comment (starts with '//',
+// '#', etc.). Every per-line domain detector below (detectInsurance, detectPaymentSystems,
+// detectCompliance, detectBankingModules, detectBusinessRules) used isCommentLine() to skip
+// whole-comment lines, then matched keywords against the REST of the line completely
+// unstripped - so a line of unrelated real code followed by a trailing inline comment (e.g.
+// `log_event(x)  // reminder: ask finance about wire transfer fees sometime`) was never
+// recognized as a comment line (it doesn't start with '//'), and its trailing comment text
+// was matched as if it were code. That produced a false positive: a domain/module/business
+// rule reported as present in a file purely because of a passing remark in a comment, not
+// because the code does anything of the kind. Same root bug ("comment blindness") already
+// fixed for whole-comment lines and for detectDatabaseIntelligence/detectBatchJobs/
+// detectBankingDomains's file-wide stripping - this closes the same gap for the inline,
+// end-of-line comment case in the per-line detectors. Only strips '#'/'//' outside of string
+// literals, so a literal "#" or "//" inside a string used as real match text is untouched.
+function _stripTrailingInlineComment(line) {
+  let _inStr = false, _strCh = null, _escaped = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (_escaped) { _escaped = false; continue; }
+    if (_inStr) {
+      if (ch === '\\') { _escaped = true; continue; }
+      if (ch === _strCh) _inStr = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { _inStr = true; _strCh = ch; continue; }
+    if (ch === '#') return line.slice(0, i);
+    if (ch === '/' && line[i + 1] === '/') return line.slice(0, i);
+  }
+  return line;
+}
 function isBarePropertyDeclaration(trimmedLine) {
   return /^(?:var|public|private|protected)\s+\$?\w+\s*;\s*$/.test(trimmedLine);
 }
@@ -1957,7 +1987,7 @@ function detectInsurance(code) {
     for (let i = 0; i < codeLines.length; i++) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-      const lineLower = codeLines[i].toLowerCase();
+      const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
       const hit = _insuranceLineMatch(m, lineLower);
       if (hit) {
         const fn = findEnclosingFunction(codeLines, i);
@@ -2000,7 +2030,7 @@ function detectPaymentSystems(code) {
     for (let i = 0; i < codeLines.length; i++) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-      const lineLower = codeLines[i].toLowerCase();
+      const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
       // 'swift' alone is a bare word that collides with the Swift programming language
       // (e.g. a migration helper like rewrite_in_swift_syntax()) - same bug class as Bug 18.
       // Require a banking/payment-domain term on the same line before counting it.
@@ -2063,7 +2093,7 @@ function detectCompliance(code) {
     for (let i = 0; i < codeLines.length; i++) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-      const lineLower = codeLines[i].toLowerCase();
+      const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
       // Same bug class as Bug 18 in detectBusinessRules: a bare generic word like "flagged",
       // "monitor" or "pep" (as a substring of e.g. "peptide") was enough to misclassify
       // ordinary non-banking code as a compliance finding. Require a banking/transaction-domain
@@ -2171,7 +2201,7 @@ function detectBankingModules(code) {
     for (let i = 0; i < codeLines.length; i++) {
       const trimmed = codeLines[i].trim();
       if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-      const lineLower = codeLines[i].toLowerCase();
+      const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
       // 'branch' alone is a bare generic programming word (git branch, if/else branch,
       // branch prediction) - same bug class as Bug 18. Require banking-domain context
       // via the shared helper before counting it as "Branch Operations".
@@ -2275,7 +2305,7 @@ function detectBusinessRules(code) {
       for (let i = procDivStart; i < codeLines.length; i++) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-        const lineLower = codeLines[i].toLowerCase();
+        const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
         if (_businessRuleLineMatch(r, lineLower)) { matchIdx = i; break; }
       }
     }
@@ -2286,7 +2316,7 @@ function detectBusinessRules(code) {
         if (/^(def|function|public\s|private\s|protected\s)\s*[\w<>\[\]]*\s*\w+\s*\(/.test(trimmed)) continue;
         const isModuleLevelAssignment = /^[A-Za-z_][\w]*\s*(?:[:=]|:\s*[\w\[\]"'.]+\s*=)/.test(codeLines[i]) && !/^\s/.test(codeLines[i]);
         if (isModuleLevelAssignment) continue;
-        const lineLower = codeLines[i].toLowerCase();
+        const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
         if (_businessRuleLineMatch(r, lineLower) && findEnclosingFunction(codeLines, i)) { matchIdx = i; break; }
       }
     }
@@ -2294,7 +2324,7 @@ function detectBusinessRules(code) {
       for (let i = 0; i < codeLines.length; i++) {
         const trimmed = codeLines[i].trim();
         if (isCommentLine(trimmed) || isBarePropertyDeclaration(trimmed)) continue;
-        const lineLower = codeLines[i].toLowerCase();
+        const lineLower = _stripTrailingInlineComment(codeLines[i]).toLowerCase();
         if (_businessRuleLineMatch(r, lineLower)) { matchIdx = i; break; }
       }
     }
