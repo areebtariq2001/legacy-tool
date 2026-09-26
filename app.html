@@ -1442,40 +1442,60 @@ async function runAnalysisOrBatch() {
     btn.parentNode.insertBefore(progBar, btn.nextSibling);
   }
   progBar.style.display = 'block';
-  for (let i = 0; i < allFiles.length; i++) {
-    const pct = Math.round(((i) / allFiles.length) * 100);
-    // Bug: same filename-XSS class as detectCopybooks()/renderDependencyChainSVG() - allFiles[i].name
-    // is a raw browser File API name (can legally contain HTML-special characters) and was
-    // concatenated into innerHTML unescaped here during batch analysis.
-    progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + escapeHtml(allFiles[i].name) + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
-    files = [allFiles[i]];
-    const _batchExt = allFiles[i].name.split('.').pop().toLowerCase();
-    const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
-    if (_batchExtMap[_batchExt]) lang = _batchExtMap[_batchExt];
-    await runAnalysis();
-  }
-  const _skipped = window._batchSkipped || [];
-  progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Analyzed ' + (allFiles.length - _skipped.length) + ' of ' + allFiles.length + ' files. See Repository Summary below.</div>' +
-    (_skipped.length ? '<div style="font-size:11px;color:#d97706;margin-top:4px">Skipped ' + _skipped.length + ': ' + _skipped.map(x => escapeHtml(x.name) + ' (' + escapeHtml(x.reason) + ')').join(', ') + '</div>' : '');
-  files = allFiles;
-  renderChips();
-  document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
-  document.getElementById('impact-time').textContent = window._batchTotalFixHours.toFixed(1) + ' hrs (batch total)';
-  document.getElementById('impact-cost').textContent = '$' + Math.round(window._batchTotalFixHours * 15 * 0.8) + '–$' + Math.round(window._batchTotalFixHours * 15 * 1.3) + ' (batch total)';
-  {
-    const _b = window._batchRoi;
-    if (_b && document.getElementById('roi-debt')) {
-      document.getElementById('roi-debt').textContent = '$' + Math.round(_b.debt).toLocaleString() + ' (batch total)';
-      document.getElementById('roi-hours').textContent = _b.hours.toFixed(1) + ' (batch total)';
-      document.getElementById('roi-breach').textContent = '$' + Math.round(_b.breach).toLocaleString() + ' (batch total)';
-      document.getElementById('roi-score').textContent = _b.scores.length ? Math.round(_b.scores.reduce((a, c) => a + c, 0) / _b.scores.length) + ' (avg of ' + _b.scores.length + ' files)' : 'N/A';
+  // Bug: a single unexpected exception anywhere inside runAnalysis() for ANY one file in the
+  // batch (a malformed/unexpected backend response, a rendering edge case, a future
+  // regression) used to propagate straight out of this uncaught for-loop and out of this
+  // whole function - runAnalysisOrBatch() is wired up from a plain onclick="" with no
+  // .catch(), so nothing after the failing file ever ran: the remaining files in the batch
+  // were never processed, the run button stayed permanently disabled, window._isBatchRun was
+  // never reset to false, and the progress bar froze mid-run - the entire tool became
+  // unusable (every button and re-run attempt blocked by _analysisInProgress/disabled state)
+  // from a failure on a SINGLE file, with no way to recover short of reloading the page. Give
+  // each file its own safety net so one bad file is skipped and reported, and wrap the
+  // remaining batch bookkeeping in try/finally so the UI is guaranteed to be left in a usable
+  // state (button re-enabled, batch flag cleared) even if something in that bookkeeping
+  // itself throws.
+  try {
+    for (let i = 0; i < allFiles.length; i++) {
+      const pct = Math.round(((i) / allFiles.length) * 100);
+      // Bug: same filename-XSS class as detectCopybooks()/renderDependencyChainSVG() - allFiles[i].name
+      // is a raw browser File API name (can legally contain HTML-special characters) and was
+      // concatenated into innerHTML unescaped here during batch analysis.
+      progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + escapeHtml(allFiles[i].name) + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
+      files = [allFiles[i]];
+      const _batchExt = allFiles[i].name.split('.').pop().toLowerCase();
+      const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
+      if (_batchExtMap[_batchExt]) lang = _batchExtMap[_batchExt];
+      try {
+        await runAnalysis();
+      } catch (e) {
+        (window._batchSkipped = window._batchSkipped || []).push({ name: allFiles[i].name, reason: 'Unexpected error during analysis: ' + (e && e.message ? e.message : String(e)) });
+      }
     }
+    const _skipped = window._batchSkipped || [];
+    progBar.innerHTML = '<div style="font-size:11px;color:#22c55e">✓ Analyzed ' + (allFiles.length - _skipped.length) + ' of ' + allFiles.length + ' files. See Repository Summary below.</div>' +
+      (_skipped.length ? '<div style="font-size:11px;color:#d97706;margin-top:4px">Skipped ' + _skipped.length + ': ' + _skipped.map(x => escapeHtml(x.name) + ' (' + escapeHtml(x.reason) + ')').join(', ') + '</div>' : '');
+    files = allFiles;
+    renderChips();
+    document.getElementById('impact-files').textContent = allFiles.length + ' (batch)';
+    document.getElementById('impact-time').textContent = window._batchTotalFixHours.toFixed(1) + ' hrs (batch total)';
+    document.getElementById('impact-cost').textContent = '$' + Math.round(window._batchTotalFixHours * 15 * 0.8) + '–$' + Math.round(window._batchTotalFixHours * 15 * 1.3) + ' (batch total)';
+    {
+      const _b = window._batchRoi;
+      if (_b && document.getElementById('roi-debt')) {
+        document.getElementById('roi-debt').textContent = '$' + Math.round(_b.debt).toLocaleString() + ' (batch total)';
+        document.getElementById('roi-hours').textContent = _b.hours.toFixed(1) + ' (batch total)';
+        document.getElementById('roi-breach').textContent = '$' + Math.round(_b.breach).toLocaleString() + ' (batch total)';
+        document.getElementById('roi-score').textContent = _b.scores.length ? Math.round(_b.scores.reduce((a, c) => a + c, 0) / _b.scores.length) + ' (avg of ' + _b.scores.length + ' files)' : 'N/A';
+      }
+    }
+  } finally {
+    window._isBatchRun = false;
+    if (diffNote) diffNote.style.display = 'block';
+    document.getElementById('pipeline').style.display = '';
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
-  window._isBatchRun = false;
-  if (diffNote) diffNote.style.display = 'block';
-  document.getElementById('pipeline').style.display = '';
-  btn.disabled = false;
-  btn.textContent = originalText;
   document.getElementById('repoSummaryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 // Bug 8: the backend answers HTTP 429 when requests arrive too fast (>20 in 10 s per IP, or
