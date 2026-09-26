@@ -2416,6 +2416,16 @@ COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHE
 COBOL_IF_OPS_RAW = [
                 (r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">="),
                 (r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<="),
+                # Bug: "NOT GREATER THAN"/"NOT LESS THAN" (common COBOL idioms for "<="/">=")
+                # had no compound rule here, unlike "GREATER THAN OR EQUAL TO" etc. above. The
+                # bare "GREATER THAN" -> ">" rule below ran first and consumed the "GREATER
+                # THAN" part of "NOT GREATER THAN", leaving a bare "NOT" that the later
+                # "NOT" -> "not" rule then turned into the literal word "not" sitting next to
+                # ">" - e.g. "WS-AMT NOT GREATER THAN 1000" became "WS_AMT not > 1000", which is
+                # a Python SyntaxError, not merely a wrong comparison. Must run before the bare
+                # "GREATER THAN"/"LESS THAN"/"NOT" rules, same as the other compound operators.
+                (r"\bNOT\s+GREATER\s+THAN\b", "<="),
+                (r"\bNOT\s+LESS\s+THAN\b", ">="),
                 (r"\bGREATER\s+THAN\b", ">"),
                 (r"\bLESS\s+THAN\b", "<"),
                 (r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!="),
@@ -2718,6 +2728,14 @@ def migrate_cobol(source, filename="file.cbl"):
             cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
+            # Bug: same missing-compound-rule issue as COBOL_IF_OPS_RAW above - "NOT GREATER
+            # THAN"/"NOT LESS THAN" had no rule here either, so the bare "GREATER THAN"/"LESS
+            # THAN" rules below consumed part of the phrase first, then the bare "NOT" rule
+            # further down turned the leftover "NOT" into the literal word "not" - e.g.
+            # "WS-COUNT NOT LESS THAN 10" became "WS_COUNT not < 10", a Python SyntaxError.
+            # Must run before the bare "GREATER THAN"/"LESS THAN" rules.
+            cond = re.sub(r"\bNOT\s+GREATER\s+THAN\b", "<=", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bNOT\s+LESS\s+THAN\b", ">=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bGREATER\s+THAN\b", ">", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bLESS\s+THAN\b", "<", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
