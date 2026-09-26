@@ -1563,7 +1563,15 @@ async function runAnalysis() {
             const lineMatch = text.match(/line\(s\)\s+([\d,\s]+)/i);
             text = (text.split(' - ')[0] || text.substring(0, 50)) + (lineMatch ? '' : '') + ' — see Issues & Recommendations for details.';
           }
-          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? ' ' : '✓ ') + text + '</div>';
+          // Bug: 'text' here is a backend-generated "changes" message, and several of those
+          // messages embed a raw excerpt of the user's OWN source code verbatim (e.g. migrate_code()'s
+          // Python-2 "raise E, V, T" handling appends "REVIEW NEEDED: '<the exact source line>' -
+          // ..."). If that source line itself contains HTML - e.g.
+          // raise Exception, "<img src=x onerror=alert(1)>", tb - the tag was inserted into
+          // innerHTML unescaped and executed. Every other place in this file that renders
+          // backend-derived text into innerHTML (issue titles/descriptions just below,
+          // why_explanations right after this block) already escapes it; this was the one gap.
+          return '<div style="font-size:11px;color:' + (isReview ? '#f59e0b' : '#4b5563') + ';padding:3px 0">' + (isReview ? ' ' : '✓ ') + escapeHtml(String(text)) + '</div>';
         }).join('');
       const _secRaw = R.security;
       const _whyExp = R.migrate && Array.isArray(R.migrate.why_explanations) ? R.migrate.why_explanations : [];
@@ -2881,7 +2889,15 @@ function renderDependencyChainSVG() {
       const x = ii * 140 + 10;
       positions.push({ layer: li, item, x, y, w: 130 });
       svgContent += '<rect x="' + x + '" y="' + y + '" width="130" height="' + boxH + '" rx="5" fill="#f1f4f8" stroke="' + layer.color + '" stroke-width="1.3"/>';
-      const shortLabel = item.length > 18 ? item.substring(0, 16) + '…' : item;
+      // Bug: 'item' is a raw value with no character restrictions when it comes from a
+      // filename (the "Program" layer uses f.fname, a browser File API name that can legally
+      // contain HTML/SVG-special characters like < > " on most filesystems) - unlike table,
+      // copybook or service names, which are already regex-constrained elsewhere. Inserting it
+      // unescaped into this SVG string (which becomes container.innerHTML below) let a crafted
+      // filename break out of the <text>/<svg> markup and execute, e.g.
+      // "</text></svg><img src=x onerror=alert(1)>" as a filename. Escape it, same as every
+      // other place in this file that renders a filename into innerHTML.
+      const shortLabel = escapeHtml(item.length > 18 ? item.substring(0, 16) + '…' : item);
       svgContent += '<text x="' + (x + 65) + '" y="' + (y + boxH/2 + 4) + '" text-anchor="middle" fill="' + layer.color + '" font-size="9" font-family="monospace">' + shortLabel + '</text>';
     });
   });
