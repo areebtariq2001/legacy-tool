@@ -2330,8 +2330,16 @@ function detectBusinessRules(code) {
     }
     if (matchIdx !== -1) {
       let i = matchIdx;
-      let lineLower = codeLines[i].toLowerCase();
-      let hit = _businessRuleLineMatch(r, lineLower);
+      // Bug: this recomputed the matched keyword from the RAW, unstripped line (unlike the
+      // detection loops above, which correctly use _stripTrailingInlineComment). A trailing
+      // comment on the matched line could contain an earlier-listed pattern than the one
+      // actually found in the real code (e.g. real code matches "insufficient_funds", but a
+      // trailing comment like "// remember to check the account balance display formatting"
+      // contains "balance", which is earlier in this rule's pattern list) - so the UI's
+      // "Matched because the source contains the keyword" tooltip could report a keyword that
+      // was only ever present in an unrelated comment, not in the code that was actually
+      // flagged. Use the same stripped line the detection loops already validated against.
+      let hit = _businessRuleLineMatch(r, _stripTrailingInlineComment(codeLines[i]).toLowerCase());
       let fn = findEnclosingFunction(codeLines, i);
       const performMatch = codeLines[i].trim().match(/^PERFORM\s+([\w-]+)\s*\.?\s*$/i);
       if (performMatch) {
@@ -2346,9 +2354,21 @@ function detectBusinessRules(code) {
             if (!t) continue;
             if (isCommentLine(t)) continue;
             if (/^\s*(?:\d{6}\s+)?[\w-]+\.\s*$/.test(codeLines[j])) break;
-            i = j;
-            lineLower = codeLines[i].toLowerCase();
-            fn = targetPara;
+            // Bug: this jumped the reported line/function to the target paragraph's first
+            // real statement (to show more useful context than a bare "PERFORM X." call
+            // site), but kept the ORIGINAL `hit` from the call-site line regardless of
+            // whether that keyword actually appears anywhere on the new line. The UI then
+            // showed a snippet like "MOVE 0 TO FLAG." next to a tooltip claiming it matched
+            // on "daily-limit" - a keyword nowhere in that snippet, actively misleading a
+            // reviewer trying to verify the finding. Only redirect when the target line's
+            // own content genuinely re-validates the match; otherwise keep reporting the
+            // original PERFORM line, where the keyword and snippet are guaranteed consistent.
+            const targetHit = _businessRuleLineMatch(r, _stripTrailingInlineComment(codeLines[j]).toLowerCase());
+            if (targetHit) {
+              i = j;
+              hit = targetHit;
+              fn = targetPara;
+            }
             break;
           }
         }
