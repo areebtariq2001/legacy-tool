@@ -11238,6 +11238,18 @@ def get_file_at_commit(repo_url, file_path, commit_sha):
     if not m:
         return {"error": "Invalid GitHub repo URL. Expected format: https://github.com/owner/repo"}
     owner, repo = m.group(1), m.group(2)
+    # Bug: unlike get_codebase_history() and fetch_github_issues() - which parse owner/repo out
+    # of repo_url with this exact same regex - this function never validated owner/repo against
+    # the "^[\w.-]+$" allowlist before splicing them into raw_url below. commit_sha and file_path
+    # were validated, but owner/repo (attacker-controlled via the repo_url request field) were
+    # not, so any character except "/" (including spaces, "@", ":", control characters, or ".."
+    # segments) passed straight into the outgoing raw.githubusercontent.com request URL. Modern
+    # requests/http.client happens to reject raw CR/LF in a URL, which is the only reason this
+    # hadn't already caused a live open redirect/SSRF-shaped bug - it was one library-level
+    # protection away from doing so, and unlike the other two functions it had no explicit,
+    # defense-in-depth check of its own. Apply the same allowlist the sibling functions use.
+    if not re.match(r"^[\w.-]+$", owner) or not re.match(r"^[\w.-]+$", repo) or ".." in owner or ".." in repo:
+        return {"error": "Invalid owner or repo name in the URL - only letters, numbers, dots, hyphens, and underscores are allowed."}
     gh_token = os.environ.get("GITHUB_TOKEN", "")
     gh_headers = {"Authorization": "token " + gh_token} if gh_token else {}
     try:
