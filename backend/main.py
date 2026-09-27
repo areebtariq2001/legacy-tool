@@ -2427,8 +2427,14 @@ COBOL_IF_OPS_RAW = [
                 # test, but it produces valid, runnable, reasonably-correct Python instead of a
                 # guaranteed crash. Must run before the bare "NOT" -> "not" rule and the "IS"
                 # rule below (both would otherwise mangle "IS NOT NUMERIC" first).
-                (r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
-                (r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
+                #
+                # Bug (reported by the user - minor, edge-case): the original version used
+                # .lstrip('+-'), which strips EVERY leading +/- character, not just one - so
+                # "--5" or "++5" (not valid COBOL numeric literals) were wrongly accepted as
+                # numeric. COBOL allows at most a single leading sign. Strip only one leading
+                # sign character (via slicing, not lstrip) before the digit/decimal check.
+                (r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not (lambda _s: (_s[1:] if _s[:1] in ('+', '-') else _s).replace('.', '', 1).isdigit())(str(\1).strip()))"),
+                (r"\b(\w+)\s+IS\s+NUMERIC\b", r"((lambda _s: (_s[1:] if _s[:1] in ('+', '-') else _s).replace('.', '', 1).isdigit())(str(\1).strip()))"),
                 # Bug: COBOL sign-conditions ("<identifier> IS [NOT] POSITIVE/NEGATIVE/ZERO") -
                 # another common class-condition idiom used constantly on balance/amount fields
                 # in financial code (e.g. "IF WS-BALANCE IS NEGATIVE") - were also completely
@@ -2547,6 +2553,85 @@ def analyze_cobol(source, filename="file.cbl"):
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
+def _cobol_perform_until_condition_to_python(cond_raw):
+    """Convert a raw COBOL PERFORM ... UNTIL condition (or a PERFORM VARYING ... UNTIL
+    condition, which uses the exact same grammar) into a Python boolean expression string.
+
+    Bug (reported by the user): this whole condition-conversion pipeline used to live only
+    inline inside the out-of-line "PERFORM <para> UNTIL <cond>" handler. That meant every
+    fix made to it (IS NUMERIC, IS POSITIVE/NEGATIVE/ZERO, the "IS" keyword, NOT GREATER/LESS
+    THAN [OR EQUAL TO], ...) only applied to that one out-of-line form - the far more common
+    inline "PERFORM UNTIL <cond> ... END-PERFORM" form (no paragraph name) had no handler at
+    all and never reached this code, so all of those fixes were effectively dead code for it.
+    Extracting this into one shared function, called by every PERFORM-UNTIL-shaped construct
+    (out-of-line PERFORM UNTIL, inline PERFORM UNTIL, and PERFORM VARYING ... UNTIL), is the
+    fix for that class of bug: one place to fix, automatically consistent everywhere.
+    """
+    cond = _cobol_hyphen_fix(cond_raw)
+    # Bug: COBOL class-conditions ("<identifier> IS [NOT] NUMERIC") were left completely
+    # untouched, producing "while not (WS_INPUT IS NUMERIC):", a SyntaxError. Must run before
+    # the "IS"-strip rule and the bare "NOT" rule below (both would otherwise mangle
+    # "IS NOT NUMERIC"). Bug (reported by the user, minor/edge-case): the numeric check must
+    # strip at most ONE leading sign character, not every leading +/- via .lstrip('+-') (which
+    # would wrongly accept "--5"/"++5" as numeric - not valid COBOL numeric literals).
+    cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not (lambda _s: (_s[1:] if _s[:1] in ('+', '-') else _s).replace('.', '', 1).isdigit())(str(\1).strip()))", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+NUMERIC\b", r"((lambda _s: (_s[1:] if _s[:1] in ('+', '-') else _s).replace('.', '', 1).isdigit())(str(\1).strip()))", cond, flags=re.IGNORECASE)
+    # Bug: COBOL sign-conditions ("<identifier> IS [NOT] POSITIVE/NEGATIVE/ZERO") - a common
+    # class-condition idiom used constantly on balance/amount fields in financial code (e.g.
+    # "IF WS-BALANCE IS NEGATIVE") - were also completely unhandled here. Must run before the
+    # generic ZERO -> "0" rule and before "NOT" below.
+    cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+POSITIVE\b", r"(not (\1 > 0))", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+POSITIVE\b", r"(\1 > 0)", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NEGATIVE\b", r"(not (\1 < 0))", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+NEGATIVE\b", r"(\1 < 0)", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+ZERO\b", r"(\1 != 0)", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\b(\w+)\s+IS\s+ZERO\b", r"(\1 == 0)", cond, flags=re.IGNORECASE)
+    # Bug (reported by the user - same wide-impact "IS" bug as COBOL_IF_OPS_RAW/the
+    # EVALUATE/WHEN handler): "... UNTIL WS-COUNT IS GREATER THAN 10" left the word "IS"
+    # untouched while the operator around it converted correctly, producing
+    # "while not (WS_COUNT IS > 10):" - a SyntaxError. Strip "IS" whenever it immediately
+    # precedes a relational keyword, before any operator conversion below.
+    cond = re.sub(r"\bIS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", cond, flags=re.IGNORECASE)
+    # Bug: bare "EQUAL TO"/"EQUAL" -> "==" used to run FIRST, before the compound operators
+    # below that themselves CONTAIN the word "EQUAL" ("GREATER THAN OR EQUAL TO", "LESS THAN
+    # OR EQUAL TO", "NOT EQUAL TO"). That consumed the "EQUAL TO" part of each compound phrase
+    # before its own rule ever got a chance to match. Match the ordering used elsewhere in
+    # this file for IF conditions (COBOL_IF_OPS_RAW: longest/compound operators first):
+    # compound operators must be substituted before the bare "EQUAL TO"/"EQUAL" rule runs.
+    # Bug (reported by the user, one level up from the NOT GREATER/LESS THAN fix below):
+    # "NOT GREATER THAN OR EQUAL TO"/"NOT LESS THAN OR EQUAL TO" were still broken even after
+    # that fix, because the plain "GREATER THAN OR EQUAL TO" -> ">=" rule ran FIRST and
+    # matched as a substring, consuming that part and leaving a bare "NOT" next to the
+    # already-substituted ">=". These are the longest/most-specific compound phrases here, so
+    # they must run before every other rule, including the plain "GREATER THAN OR EQUAL
+    # TO"/"LESS THAN OR EQUAL TO" rules just below.
+    cond = re.sub(r"\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\b", "<", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\b", ">", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
+    # Bug: same missing-compound-rule issue as COBOL_IF_OPS_RAW above - "NOT GREATER
+    # THAN"/"NOT LESS THAN" had no rule here either, so the bare "GREATER THAN"/"LESS THAN"
+    # rules below consumed part of the phrase first, then the bare "NOT" rule further down
+    # turned the leftover "NOT" into the literal word "not". Must run before the bare
+    # "GREATER THAN"/"LESS THAN" rules.
+    cond = re.sub(r"\bNOT\s+GREATER\s+THAN\b", "<=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s+LESS\s+THAN\b", ">=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bGREATER\s+THAN\b", ">", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bLESS\s+THAN\b", "<", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bHIGH_VALUES?\b", "None", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bLOW_VALUES?\b", "None", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bTRUE\b", "True", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bFALSE\b", "False", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bAND\b", "and", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bOR\b", "or", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
+    return cond
+
 def migrate_cobol(source, filename="file.cbl"):
     changes = []
     out_lines = ["# Converted from COBOL - best-effort rule-based translation. Review carefully before use.", ""]
@@ -2565,6 +2650,16 @@ def migrate_cobol(source, filename="file.cbl"):
     _ws_vars = []
     _paragraphs = []
     _performed = []
+    # Bug (reported by the user - the biggest bug of this session): inline "PERFORM UNTIL
+    # <cond> ... END-PERFORM" (no paragraph name) and "PERFORM VARYING <var> FROM <start> BY
+    # <step> UNTIL <cond> ... END-PERFORM" had NO handler at all - the loop body ran exactly
+    # once as flat sequential code, the loop condition was discarded entirely, and (for
+    # VARYING) the loop variable was never initialized or incremented. This stack tracks
+    # currently-open inline PERFORM UNTIL/VARYING blocks so the matching END-PERFORM can close
+    # them correctly - each entry is None for a plain PERFORM UNTIL (nothing to inject at
+    # END-PERFORM) or the Python increment-statement text for a PERFORM VARYING (injected right
+    # before END-PERFORM closes the loop body, mirroring COBOL's real bottom-of-loop increment).
+    _perform_loop_stack = []
     _COBOL_SINGLE_WORD_STMTS = {"EXIT", "GOBACK", "CONTINUE", "ELSE", "END-IF", "END-EVALUATE", "END-PERFORM", "NEXT", "STOP"}
     def _para_fn(_name):
         _n = _name.replace("-", "_").lower()
@@ -2787,75 +2882,12 @@ def migrate_cobol(source, filename="file.cbl"):
             test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, re.IGNORECASE)
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
-            cond = _cobol_hyphen_fix(cond_raw)
-            # Bug: same unhandled-class-condition issue as COBOL_IF_OPS_RAW above - "PERFORM
-            # ... UNTIL WS-INPUT IS NUMERIC" left "IS NUMERIC" untouched, producing
-            # "while not (WS_INPUT IS NUMERIC):", a SyntaxError. Must run before the "IS"-strip
-            # rule and the bare "NOT" rule below (both would otherwise mangle "IS NOT NUMERIC").
-            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
-            # Bug: same unhandled sign-condition issue as COBOL_IF_OPS_RAW above - "PERFORM
-            # ... UNTIL WS-BALANCE IS NEGATIVE" left "IS NEGATIVE" untouched (and "IS ZERO" was
-            # actively mishandled by the generic "ZERO" -> "0" rule further down, producing
-            # "IS 0" - still broken). Must run before that generic ZERO rule and before "NOT".
-            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+POSITIVE\b", r"(not (\1 > 0))", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+POSITIVE\b", r"(\1 > 0)", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NEGATIVE\b", r"(not (\1 < 0))", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+NEGATIVE\b", r"(\1 < 0)", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+ZERO\b", r"(\1 != 0)", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\b(\w+)\s+IS\s+ZERO\b", r"(\1 == 0)", cond, flags=re.IGNORECASE)
-            # Bug (reported by the user - same wide-impact "IS" bug as COBOL_IF_OPS_RAW/the
-            # EVALUATE/WHEN handler): "PERFORM ... UNTIL WS-COUNT IS GREATER THAN 10" left the
-            # word "IS" untouched while the operator around it converted correctly, producing
-            # "while not (WS_COUNT IS > 10):" - a SyntaxError. Strip "IS" whenever it
-            # immediately precedes a relational keyword, before any operator conversion below.
-            cond = re.sub(r"\bIS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", cond, flags=re.IGNORECASE)
-            # Bug: bare "EQUAL TO"/"EQUAL" -> "==" used to run FIRST, before the compound
-            # operators below that themselves CONTAIN the word "EQUAL" ("GREATER THAN OR EQUAL
-            # TO", "LESS THAN OR EQUAL TO", "NOT EQUAL TO"). That consumed the "EQUAL TO" part
-            # of each compound phrase before its own rule ever got a chance to match, so e.g.
-            # "COUNT GREATER THAN OR EQUAL TO 10" became "COUNT GREATER THAN OR == 10", then
-            # (after the later bare "GREATER THAN" -> ">" rule) the syntactically invalid
-            # "COUNT > OR == 10" - a Python SyntaxError, not merely a wrong comparison. The
-            # already-correct ordering used elsewhere in this file for IF conditions
-            # (COBOL_IF_OPS_RAW: longest/compound operators first) was not applied here. Match
-            # that ordering: compound operators (which contain "EQUAL" as a substring) must be
-            # substituted before the bare "EQUAL TO"/"EQUAL" rule ever runs.
-            # Bug (reported by the user, one level up from the NOT GREATER/LESS THAN fix below):
-            # "NOT GREATER THAN OR EQUAL TO"/"NOT LESS THAN OR EQUAL TO" were still broken even
-            # after that fix, because the plain "GREATER THAN OR EQUAL TO" -> ">=" rule right
-            # below ran FIRST and matched as a substring of "NOT GREATER THAN OR EQUAL TO",
-            # consuming that part and leaving a bare "NOT" next to the already-substituted ">="
-            # - e.g. "WS-COUNT NOT GREATER THAN OR EQUAL TO 10" became
-            # "WS_COUNT not >= 10", a SyntaxError. These are the longest/most-specific compound
-            # phrases here, so they must run before every other rule, including the plain
-            # "GREATER THAN OR EQUAL TO"/"LESS THAN OR EQUAL TO" rules just below.
-            cond = re.sub(r"\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\b", "<", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\b", ">", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
-            # Bug: same missing-compound-rule issue as COBOL_IF_OPS_RAW above - "NOT GREATER
-            # THAN"/"NOT LESS THAN" had no rule here either, so the bare "GREATER THAN"/"LESS
-            # THAN" rules below consumed part of the phrase first, then the bare "NOT" rule
-            # further down turned the leftover "NOT" into the literal word "not" - e.g.
-            # "WS-COUNT NOT LESS THAN 10" became "WS_COUNT not < 10", a Python SyntaxError.
-            # Must run before the bare "GREATER THAN"/"LESS THAN" rules.
-            cond = re.sub(r"\bNOT\s+GREATER\s+THAN\b", "<=", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bNOT\s+LESS\s+THAN\b", ">=", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bGREATER\s+THAN\b", ">", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bLESS\s+THAN\b", "<", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bEQUAL\s+TO\b|\bEQUAL\b", "==", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bZEROS?\b", "0", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bSPACES?\b", '""', cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bHIGH_VALUES?\b", "None", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bLOW_VALUES?\b", "None", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bTRUE\b", "True", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bFALSE\b", "False", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bAND\b", "and", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bOR\b", "or", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
-            cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
+            # Bug (reported by the user): this condition-conversion pipeline used to be
+            # duplicated inline here, out of sync with COBOL_IF_OPS_RAW and never reused by any
+            # other PERFORM-UNTIL-shaped construct. Now extracted into a shared helper (see
+            # _cobol_perform_until_condition_to_python above) so the inline PERFORM UNTIL and
+            # PERFORM VARYING handlers below get the same, always-in-sync conversion.
+            cond = _cobol_perform_until_condition_to_python(cond_raw)
             if test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 out_lines.append(f"{cur_indent()}    {para_name}()")
@@ -2866,6 +2898,64 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}while not ({cond}):")
                 out_lines.append(f"{cur_indent()}    {para_name}()")
             changes.append("PERFORM UNTIL -> while loop")
+            continue
+        # Bug (reported by the user - the biggest bug of this session): "PERFORM VARYING <var>
+        # FROM <start> BY <step> UNTIL <cond> ... END-PERFORM" (COBOL's standard counted
+        # for-loop idiom) had NO handler anywhere, despite the tool's own analysis claiming
+        # "PERFORM VARYING found - convert to for loop". The loop variable was never
+        # initialized or incremented and the body ran exactly once as flat sequential code.
+        # Implemented as an exact-semantics while-loop (init before the loop, increment
+        # injected at END-PERFORM, i.e. the bottom of the loop body) rather than a
+        # for/range() translation, to match COBOL's real pre-test/bottom-of-loop-increment
+        # behavior exactly and avoid introducing a new class of off-by-one/direction-of-
+        # comparison bugs that a range() translation would risk.
+        _perf_varying_m = re.match(r"^PERFORM\s+VARYING\s+([\w-]+)\s+FROM\s+(.+?)\s+BY\s+(.+?)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
+        if _perf_varying_m:
+            _vary_var = _perf_varying_m.group(1).replace("-", "_")
+            _vary_start = _cobol_hyphen_fix(_perf_varying_m.group(2).strip())
+            _vary_step = _cobol_hyphen_fix(_perf_varying_m.group(3).strip())
+            _vary_cond_raw = _perf_varying_m.group(4)
+            _vary_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _vary_cond_raw, re.IGNORECASE)
+            if _vary_test_after_m:
+                _vary_cond_raw = _vary_cond_raw[:_vary_test_after_m.start()]
+            _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw)
+            _vary_incr_stmt = f"{_vary_var} = {_vary_var} + ({_vary_step})"
+            out_lines.append(f"{cur_indent()}{_vary_var} = {_vary_start}")
+            if _vary_test_after_m:
+                out_lines.append(f"{cur_indent()}while True:")
+                _perform_loop_stack.append(("test_after_varying", _vary_cond, _vary_incr_stmt))
+                changes.append("REVIEW NEEDED: PERFORM VARYING ... UNTIL ... WITH TEST AFTER converted to a post-test loop (executes body first, then checks) - verify this matches the intended COBOL semantics.")
+            else:
+                out_lines.append(f"{cur_indent()}while not ({_vary_cond}):")
+                _perform_loop_stack.append(("incr", _vary_incr_stmt))
+            if_depth += 1
+            changes.append("PERFORM VARYING ... UNTIL -> while loop (explicit init before the loop, increment injected at END-PERFORM to match COBOL's real bottom-of-loop increment)")
+            continue
+        # Bug (reported by the user - the biggest bug of this session): inline "PERFORM UNTIL
+        # <cond> ... END-PERFORM" (no paragraph name) had NO handler anywhere - it does not
+        # match the out-of-line "PERFORM <para> UNTIL <cond>" regex above (which requires a
+        # paragraph name before UNTIL). Confirmed by direct execution: the loop body ran
+        # exactly once as flat sequential code and the loop condition was discarded entirely -
+        # a silent wrong-logic bug with no crash, so untestable by an AST/syntax sweep alone.
+        # This is COBOL's single most common loop idiom, so this was the highest-impact bug of
+        # the session. Collect body lines the same way IF...END-IF already does: open a Python
+        # while block here and close it at the matching END-PERFORM below.
+        _perf_inline_until_m = re.match(r"^PERFORM\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
+        if _perf_inline_until_m:
+            _inline_cond_raw = _perf_inline_until_m.group(1)
+            _inline_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _inline_cond_raw, re.IGNORECASE)
+            if _inline_test_after_m:
+                _inline_cond_raw = _inline_cond_raw[:_inline_test_after_m.start()]
+            _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw)
+            if _inline_test_after_m:
+                out_lines.append(f"{cur_indent()}while True:")
+                _perform_loop_stack.append(("test_after", _inline_cond))
+                changes.append("REVIEW NEEDED: inline PERFORM UNTIL ... WITH TEST AFTER converted to a post-test loop (executes body first, then checks) - verify this matches the intended COBOL semantics.")
+            else:
+                out_lines.append(f"{cur_indent()}while not ({_inline_cond}):")
+                _perform_loop_stack.append(None)
+            if_depth += 1
+            changes.append("PERFORM UNTIL (inline block) -> while loop")
             continue
         _perf_times_m = re.match(r"^PERFORM\s+([\w-]+)\s+([\w-]+)\s+TIMES\.?$", line, re.IGNORECASE)
         if _perf_times_m and _perf_times_m.group(1).upper() not in ("UNTIL", "VARYING"):
@@ -3033,6 +3123,32 @@ def migrate_cobol(source, filename="file.cbl"):
             if_depth = max(0, if_depth - 1)
             if not _unexpected_end_if:
                 changes.append("END-IF removed (Python uses indentation)")
+            continue
+        # Bug (reported by the user, part of the same "biggest bug of this session" report):
+        # there was previously NO dedicated END-PERFORM handler at all - it fell through to
+        # the generic "# TODO: manual review" fallback further below, which is also why the
+        # inline PERFORM UNTIL/VARYING bodies above never got closed off (the fallback doesn't
+        # know about if_depth or the pending VARYING increment). Mirrors END-IF/END-EVALUATE:
+        # pop the matching loop-stack entry, emit any pending increment/test-after check at the
+        # CURRENT indentation (i.e. still inside the loop body, before decrementing if_depth),
+        # then decrement if_depth to close the block.
+        if upper.startswith("END-PERFORM"):
+            if _perform_loop_stack:
+                _loop_entry = _perform_loop_stack.pop()
+                if isinstance(_loop_entry, tuple) and _loop_entry[0] == "incr":
+                    out_lines.append(f"{cur_indent()}{_loop_entry[1]}")
+                elif isinstance(_loop_entry, tuple) and _loop_entry[0] == "test_after":
+                    out_lines.append(f"{cur_indent()}if ({_loop_entry[1]}):")
+                    out_lines.append(f"{cur_indent()}    break")
+                elif isinstance(_loop_entry, tuple) and _loop_entry[0] == "test_after_varying":
+                    out_lines.append(f"{cur_indent()}if ({_loop_entry[1]}):")
+                    out_lines.append(f"{cur_indent()}    break")
+                    out_lines.append(f"{cur_indent()}{_loop_entry[2]}")
+                if_depth = max(0, if_depth - 1)
+                changes.append("END-PERFORM removed (Python uses indentation)")
+            else:
+                out_lines.append(f"{cur_indent()}# UNEXPECTED END-PERFORM - review structure, indentation below may be incorrect")
+                changes.append("REVIEW NEEDED: unexpected END-PERFORM with no matching inline PERFORM UNTIL/VARYING block - the source COBOL may have mismatched PERFORM/END-PERFORM, or this is an out-of-line PERFORM UNTIL <para> which does not use END-PERFORM. Review the migrated output carefully.")
             continue
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
