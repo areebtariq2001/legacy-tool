@@ -2553,6 +2553,58 @@ def analyze_cobol(source, filename="file.cbl"):
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
+# Bug (reported by the user): COBOL's "abbreviated combined relation condition" - a legal
+# shorthand where a later relational operand's subject is implied ("IF WS-A > 10 AND < 20"
+# means "IF WS-A > 10 AND WS-A < 20" - no need to repeat WS-A) - was not understood at all. The
+# migrator copied "AND"/"<" through as literal tokens, producing "if WS_A > 10 and < 20:" - a
+# SyntaxError. This is a rarer, more legacy/verbose-COBOL-style construct than the other bugs
+# this session, but still a genuine crash wherever real COBOL source uses it.
+_COBOL_REL_OP_TEXT = r"(?:IS\s+)?(?:NOT\s+)?(?:GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN|EQUAL\s+TO|EQUAL|>=|<=|<>|>|<|=)"
+
+def _cobol_expand_abbreviated_relation_conditions(cond):
+    """Expand an abbreviated combined relation condition by re-inserting the implied subject
+    before a bare relational operator that directly follows AND/OR with no operand of its own
+    (e.g. "WS-A > 10 AND < 20" -> "WS-A > 10 AND WS-A < 20"), so the normal
+    operator-conversion pipeline (which has no notion of an implied subject) can handle each
+    side as an ordinary, complete comparison. Must run before hyphen-fixing/figurative-literal
+    substitution/operator conversion - it only needs to know where AND/OR sit and whether a
+    segment already starts with its own operand.
+
+    Bug fix note (found while verifying this fix, before it ever shipped): naively splitting on
+    a bare AND/OR also matches the "OR" that is itself part of the compound phrases "GREATER
+    THAN OR EQUAL [TO]"/"LESS THAN OR EQUAL [TO]" (and their NOT variants) - which would wrongly
+    chop "WS-COUNT GREATER THAN OR EQUAL TO 5" into two pieces at that internal "OR",
+    corrupting ordinary conditions that have nothing to do with the abbreviated-condition
+    feature at all. Protect that specific "OR" with a placeholder before splitting, then
+    restore it afterward.
+    """
+    _or_placeholder = "XCOBOLTHANORQUALX"
+    _protect_pat = re.compile(r"((?:GREATER|LESS)\s+THAN\s+)OR(\s+EQUAL(?:\s+TO)?)", re.IGNORECASE)
+    _protected_cond = _protect_pat.sub(lambda m: m.group(1) + _or_placeholder + m.group(2), cond)
+    _segments = re.split(r"(\bAND\b|\bOR\b)", _protected_cond, flags=re.IGNORECASE)
+    if len(_segments) < 3:
+        return cond
+    _current_subject = None
+    _rebuilt = []
+    for _idx, _seg in enumerate(_segments):
+        if _idx % 2 == 1:
+            _rebuilt.append(_seg)
+            continue
+        _seg_stripped = _seg.strip()
+        _bare_relop_m = re.match(r"^(" + _COBOL_REL_OP_TEXT + r")\s+(.+)$", _seg_stripped, re.IGNORECASE)
+        if _bare_relop_m and _current_subject:
+            _leading_ws = _seg[:len(_seg) - len(_seg.lstrip())]
+            _trailing_ws = _seg[len(_seg.rstrip()):]
+            _rebuilt.append(f"{_leading_ws}{_current_subject} {_seg_stripped}{_trailing_ws}")
+        else:
+            _rebuilt.append(_seg)
+            _subj_m = re.match(r"^\s*(\S+)\s+" + _COBOL_REL_OP_TEXT + r"\s+", _seg, re.IGNORECASE)
+            if _subj_m:
+                _current_subject = _subj_m.group(1)
+    _result = "".join(_rebuilt)
+    _result = re.sub(_or_placeholder, "OR", _result, flags=re.IGNORECASE)
+    return _result
+
 def _cobol_88_literal_to_python(tok):
     tok = tok.strip()
     _val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
@@ -2591,6 +2643,7 @@ def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None):
     (out-of-line PERFORM UNTIL, inline PERFORM UNTIL, and PERFORM VARYING ... UNTIL), is the
     fix for that class of bug: one place to fix, automatically consistent everywhere.
     """
+    cond_raw = _cobol_expand_abbreviated_relation_conditions(cond_raw)
     cond_raw = _resolve_cobol_condition_names(cond_raw, cond_names)
     cond = _cobol_hyphen_fix(cond_raw)
     # Bug: COBOL class-conditions ("<identifier> IS [NOT] NUMERIC") were left completely
@@ -2745,6 +2798,11 @@ def migrate_cobol(source, filename="file.cbl"):
         handler so stacked WHEN clauses (see below) can call this once per stacked value and
         combine the results with "or", instead of duplicating this whole pipeline."""
         if eval_subject.strip() in ("TRUE", "True"):
+            # Bug (reported by the user): an abbreviated combined relation condition inside an
+            # EVALUATE TRUE / WHEN <condition> clause ("WHEN WS-A > 10 AND < 20") needs the
+            # same implied-subject expansion as the IF-statement handler, before the word-by-
+            # word figurative-literal/hyphen-fix loop below (which has no notion of it).
+            when_val = _cobol_expand_abbreviated_relation_conditions(when_val)
             _eval_true_figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
             _cond_words = when_val.split()
             _cond_fixed_words = []
@@ -3233,6 +3291,12 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
             cond = re.sub(r"\bTHEN\s*$", "", cond, flags=re.IGNORECASE).rstrip()
+            # Bug (reported by the user): an abbreviated combined relation condition ("IF
+            # WS-A > 10 AND < 20", implied subject on the second operand) must be expanded to
+            # a full condition ("WS-A > 10 AND WS-A < 20") before any other word-by-word
+            # processing below, which has no notion of an implied subject and would otherwise
+            # copy "AND"/"<" through as literal tokens - a SyntaxError.
+            cond = _cobol_expand_abbreviated_relation_conditions(cond)
             _figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
             _words = cond.split()
             _fixed_words = []
