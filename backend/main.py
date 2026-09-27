@@ -2501,6 +2501,21 @@ COBOL_IF_OPS_RAW = [
                 (r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!="),
                 (r"\bEQUAL\s+TO\b", "=="),
                 (r"\bEQUAL\b", "=="),
+                # Bug (found independently while testing the abbreviated-condition fix, not
+                # related to it - same crash reproduces standalone): COBOL allows a bare "NOT"
+                # directly in front of a SYMBOLIC relational operator too, not just the
+                # word-form ones above ("IF WS-A NOT > 10" means "IF WS-A <= 10", exactly like
+                # "IF WS-A NOT GREATER THAN 10"). Only the word-form negations (NOT GREATER
+                # THAN, NOT LESS THAN, NOT EQUAL TO) had rules; "NOT >"/"NOT <"/"NOT =" matched
+                # no rule at all, so the generic "NOT" -> "not" rule below fired on its own,
+                # leaving the symbolic operator untouched right next to the word "not" -
+                # "WS_A not > 10" - a SyntaxError. Must run before the bare "NOT" -> "not" rule,
+                # same as the word-form NOT-rules above.
+                (r"\bNOT\s*>=", "<"),
+                (r"\bNOT\s*<=", ">"),
+                (r"\bNOT\s*>", "<="),
+                (r"\bNOT\s*<", ">="),
+                (r"\bNOT\s*=", "!="),
                 (r"\bNOT\b", "not"),
                 (r"\bAND\b", "and"),
                 (r"\bOR\b", "or"),
@@ -2706,6 +2721,16 @@ def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None):
     cond = re.sub(r"\bFALSE\b", "False", cond, flags=re.IGNORECASE)
     cond = re.sub(r"\bAND\b", "and", cond, flags=re.IGNORECASE)
     cond = re.sub(r"\bOR\b", "or", cond, flags=re.IGNORECASE)
+    # Bug (found independently while testing the abbreviated-condition fix, not related to it -
+    # same crash reproduces standalone here too): a bare "NOT" directly in front of a SYMBOLIC
+    # relational operator ("PERFORM UNTIL WS-A NOT > 10") was never handled - only the
+    # word-form negations above (NOT GREATER THAN, etc.) were. Must run before the bare
+    # "NOT" -> "not" rule below.
+    cond = re.sub(r"\bNOT\s*>=", "<", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s*<=", ">", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s*>", "<=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s*<", ">=", cond, flags=re.IGNORECASE)
+    cond = re.sub(r"\bNOT\s*=", "!=", cond, flags=re.IGNORECASE)
     cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
     cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
     return cond
@@ -3065,7 +3090,20 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m:
-            _add_sources = [_cobol_hyphen_fix(s.strip()) for s in add_m.group(1).split() if s.strip()]
+            # Bug (reported by the user, 10th bug of this round): COBOL allows multiple ADD
+            # sources to be comma-separated ("ADD WS-A, WS-B TO WS-C.") as well as
+            # space-separated ("ADD WS-A WS-B TO WS-C.") - equally valid, equally common.
+            # Splitting on whitespace alone (.split()) left the comma glued onto its token
+            # ("WS-A,"), and joining with " + " then produced a trailing-comma tuple literal
+            # that is VALID Python syntax but the wrong construct entirely:
+            #   WS_C += WS_A, + WS_B
+            # - a tuple, not a sum - which ast.parse() cannot catch (both trailing-comma
+            # tuples and unary "+" are valid syntax) but crashes at runtime with
+            # "TypeError: unsupported operand type(s) for +=: 'int' and 'tuple'". Split on a
+            # run of whitespace AND/OR commas instead, so a comma acts as a separator exactly
+            # like whitespace already does (same fix pattern as the level-88 comma-VALUE-list
+            # bug).
+            _add_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", add_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_add_sources) if len(_add_sources) > 1 else (_add_sources[0] if _add_sources else "0")
             dst_var = add_m.group(2).replace("-", "_")
             out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
@@ -3073,7 +3111,9 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if sub_m:
-            _sub_sources = [_cobol_hyphen_fix(s.strip()) for s in sub_m.group(1).split() if s.strip()]
+            # Bug (reported by the user, same root cause as ADD above): "SUBTRACT WS-A, WS-B
+            # FROM WS-C." has the identical comma-separated-sources issue.
+            _sub_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", sub_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_sub_sources) if len(_sub_sources) > 1 else (_sub_sources[0] if _sub_sources else "0")
             dst_var = sub_m.group(2).replace("-", "_")
             out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
