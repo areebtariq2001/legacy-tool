@@ -2414,6 +2414,18 @@ COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHE
 
 
 COBOL_IF_OPS_RAW = [
+                # Bug (reported by the user - wide-impact, since "IS" is idiomatic, very common
+                # COBOL relation-condition style, e.g. "IF WS-AMT IS GREATER THAN 1000" or
+                # "IF WS-AMT IS EQUAL TO 1000"): the word "IS" had NO rule anywhere in this
+                # table, so it passed through completely untouched while every operator around
+                # it converted correctly - "WS-AMT IS GREATER THAN 1000" became
+                # "WS_AMT IS > 1000", a SyntaxError, for every single comparison operator, not
+                # just one. Strip "IS" whenever it immediately precedes a relational keyword
+                # (NOT/EQUAL/GREATER/LESS) - i.e. only in condition context - so it doesn't
+                # touch an unrelated "IS" inside a string literal or elsewhere. Must run first,
+                # before any operator-conversion rule below, since those rules match on
+                # "GREATER THAN"/"EQUAL TO"/etc. and don't expect a leading "IS" in the way.
+                (r"\bIS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", ""),
                 # Bug (reported by the user, one level up from the NOT GREATER/LESS THAN fix
                 # below): "NOT GREATER THAN OR EQUAL TO"/"NOT LESS THAN OR EQUAL TO" (COBOL
                 # idioms for "<"/">") were still broken even after that fix, because
@@ -2736,6 +2748,12 @@ def migrate_cobol(source, filename="file.cbl"):
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
             cond = _cobol_hyphen_fix(cond_raw)
+            # Bug (reported by the user - same wide-impact "IS" bug as COBOL_IF_OPS_RAW/the
+            # EVALUATE/WHEN handler): "PERFORM ... UNTIL WS-COUNT IS GREATER THAN 10" left the
+            # word "IS" untouched while the operator around it converted correctly, producing
+            # "while not (WS_COUNT IS > 10):" - a SyntaxError. Strip "IS" whenever it
+            # immediately precedes a relational keyword, before any operator conversion below.
+            cond = re.sub(r"\bIS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", cond, flags=re.IGNORECASE)
             # Bug: bare "EQUAL TO"/"EQUAL" -> "==" used to run FIRST, before the compound
             # operators below that themselves CONTAIN the word "EQUAL" ("GREATER THAN OR EQUAL
             # TO", "LESS THAN OR EQUAL TO", "NOT EQUAL TO"). That consumed the "EQUAL TO" part
