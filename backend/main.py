@@ -2553,7 +2553,31 @@ def analyze_cobol(source, filename="file.cbl"):
 def _cobol_hyphen_fix(s):
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
-def _cobol_perform_until_condition_to_python(cond_raw):
+def _cobol_88_literal_to_python(tok):
+    tok = tok.strip()
+    _val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
+    return _val_map.get(tok.upper(), tok)
+
+def _resolve_cobol_condition_names(text, cond_names):
+    """Substitute any COBOL level-88 condition-name usage (e.g. bare "WS-VALID" used as a
+    whole IF/WHEN/PERFORM UNTIL condition) with its resolved "<parent> == <value>" (or "in
+    (...)"/range) Python expression, before any other condition-conversion rule runs (in
+    particular before hyphens are turned into underscores, since cond_names is keyed by the
+    original hyphenated COBOL name).
+
+    Bug (reported by the user): level-88 condition names were declared and even disclosed as
+    a comment, but never actually resolved anywhere they were USED - "IF WS-VALID" fell
+    through to the same "any hyphenated word -> underscore" fallback as an ordinary variable,
+    producing "if WS_VALID:" where WS_VALID was never assigned anywhere - a NameError at
+    runtime (valid syntax, so an AST/syntax sweep couldn't catch it either).
+    """
+    if not cond_names:
+        return text
+    for _name in sorted(cond_names, key=len, reverse=True):
+        text = re.sub(r"\b" + re.escape(_name) + r"\b", cond_names[_name], text, flags=re.IGNORECASE)
+    return text
+
+def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None):
     """Convert a raw COBOL PERFORM ... UNTIL condition (or a PERFORM VARYING ... UNTIL
     condition, which uses the exact same grammar) into a Python boolean expression string.
 
@@ -2567,6 +2591,7 @@ def _cobol_perform_until_condition_to_python(cond_raw):
     (out-of-line PERFORM UNTIL, inline PERFORM UNTIL, and PERFORM VARYING ... UNTIL), is the
     fix for that class of bug: one place to fix, automatically consistent everywhere.
     """
+    cond_raw = _resolve_cobol_condition_names(cond_raw, cond_names)
     cond = _cobol_hyphen_fix(cond_raw)
     # Bug: COBOL class-conditions ("<identifier> IS [NOT] NUMERIC") were left completely
     # untouched, producing "while not (WS_INPUT IS NUMERIC):", a SyntaxError. Must run before
@@ -2650,6 +2675,15 @@ def migrate_cobol(source, filename="file.cbl"):
     _ws_vars = []
     _paragraphs = []
     _performed = []
+    # Bug (reported by the user): level-88 condition names ("88 WS-VALID VALUE 'Y'.") were
+    # declared and disclosed as a comment, but never tracked anywhere they were actually used
+    # (a bare "IF WS-VALID") - see _resolve_cobol_condition_names above. Keyed by the ORIGINAL
+    # hyphenated COBOL name (e.g. "WS-VALID"), mapped to the resolved Python boolean expression
+    # ("(WS_STATUS == 'Y')"). _last_elementary_var tracks the most recently declared
+    # elementary WORKING-STORAGE item, since a level-88 item's condition always refers to the
+    # field declared immediately above it.
+    _cond_names = {}
+    _last_elementary_var = None
     # Bug (reported by the user - the biggest bug of this session): inline "PERFORM UNTIL
     # <cond> ... END-PERFORM" (no paragraph name) and "PERFORM VARYING <var> FROM <start> BY
     # <step> UNTIL <cond> ... END-PERFORM" had NO handler at all - the loop body ran exactly
@@ -2692,8 +2726,73 @@ def migrate_cobol(source, filename="file.cbl"):
             elif _c == "*" and _ln[_ci + 1] == ">" and not _in_str:
                 return _ln[:_ci].rstrip()
         return _ln
+    def _normalize_line(_raw):
+        """Apply the same sequence-number-stripping/comment-stripping normalization the main
+        loop applies to each raw line, without consuming anything - used to peek ahead for
+        stacked WHEN clauses. Returns None for a blank/comment-only line."""
+        _nl = _raw.strip()
+        if filename.lower().endswith((".cbl", ".cob")):
+            _seq_m = re.match(r"^(\d{6})\s+(.*)$", _nl)
+            if _seq_m:
+                _nl = _seq_m.group(2)
+        if not _nl or _nl.startswith("*"):
+            return None
+        _nl = _strip_inline_star_comment(_nl).strip()
+        return _nl or None
+    def _compute_when_cond(when_val, eval_subject):
+        """Convert a single WHEN clause's value/condition text (the part after "WHEN ", for
+        ONE stacked value) into a Python condition string. Extracted out of the main WHEN
+        handler so stacked WHEN clauses (see below) can call this once per stacked value and
+        combine the results with "or", instead of duplicating this whole pipeline."""
+        if eval_subject.strip() in ("TRUE", "True"):
+            _eval_true_figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
+            _cond_words = when_val.split()
+            _cond_fixed_words = []
+            for _w in _cond_words:
+                _w_upper_stripped = _w.rstrip(".,")
+                if _w_upper_stripped.upper() in _cond_names:
+                    _cond_fixed_words.append(_cond_names[_w_upper_stripped.upper()])
+                elif _w_upper_stripped.upper() in _eval_true_figurative_word_map:
+                    _cond_fixed_words.append(_eval_true_figurative_word_map[_w_upper_stripped.upper()])
+                elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
+                    _cond_fixed_words.append(_w.replace("-", "_"))
+                else:
+                    _cond_fixed_words.append(_w)
+            _when_cond = " ".join(_cond_fixed_words)
+            for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
+                _when_cond = _compiled_pat.sub(_repl, _when_cond)
+            _when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", _when_cond)
+            return _when_cond
+        _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
+        if _thru_m:
+            _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
+            _thru_lo_raw = _thru_m.group(1).strip()
+            _thru_hi_raw = _thru_m.group(2).strip()
+            _thru_lo = _thru_val_map.get(_thru_lo_raw.upper(), _cobol_hyphen_fix(_thru_lo_raw))
+            _thru_hi = _thru_val_map.get(_thru_hi_raw.upper(), _cobol_hyphen_fix(_thru_hi_raw))
+            changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({_thru_lo} <= {eval_subject} <= {_thru_hi}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
+            return f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
+        when_val = re.sub(r"^IS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", when_val, flags=re.IGNORECASE)
+        _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
+        _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
+        _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
+        if _when_op_m:
+            _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
+            _when_rhs_raw = _when_op_m.group(2).strip()
+            _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
+            return f"{eval_subject} {_when_op_py} {_when_rhs}"
+        _when_val_py = _when_figurative_map.get(when_val.upper(), _cobol_hyphen_fix(when_val) if not (when_val.startswith(chr(34)) or when_val.startswith(chr(39))) else when_val)
+        return f"{eval_subject} == {_when_val_py}"
 
-    for raw_line in lines:
+    # Bug (reported by the user): stacked WHEN clauses ("WHEN 1 / WHEN 2 / WHEN 3 / DISPLAY
+    # ...") - a very common COBOL idiom for sharing one body across several discrete values,
+    # analogous to fall-through cases in a switch statement - need to look ahead to the next
+    # line(s) to know whether the current WHEN has a body of its own or shares the next WHEN's
+    # body. That requires an index we can peek/advance rather than a plain "for line in lines".
+    _li = 0
+    while _li < len(lines):
+        raw_line = lines[_li]
+        _li += 1
         line = raw_line.strip()
         if filename.lower().endswith((".cbl", ".cob")):
             seq_match = re.match(r"^(\d{6})\s+(.*)$", line)
@@ -2745,8 +2844,30 @@ def migrate_cobol(source, filename="file.cbl"):
                 _open_para("PROCEDURE-START")
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
-            out_lines.append(f"# Condition name: {_cond_name_m.group(1).replace('-', '_')} VALUE {_cond_name_m.group(2) or '(unspecified)'} - COBOL level-88 condition names have no direct Python equivalent; consider a helper function or comparison at the point of use.")
-            changes.append(f"Level-88 condition name {_cond_name_m.group(1)} noted as a comment (manual review recommended)")
+            _cond_name_raw = _cond_name_m.group(1)
+            _cond_val_raw = _cond_name_m.group(2)
+            _cond_expr = None
+            if _last_elementary_var and _cond_val_raw:
+                _cond_val_clean = _cond_val_raw.rstrip(".").strip()
+                _cond_thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", _cond_val_clean, re.IGNORECASE)
+                if _cond_thru_m:
+                    _cond_lo = _cobol_88_literal_to_python(_cond_thru_m.group(1))
+                    _cond_hi = _cobol_88_literal_to_python(_cond_thru_m.group(2))
+                    _cond_expr = f"({_cond_lo} <= {_last_elementary_var} <= {_cond_hi})"
+                else:
+                    _cond_tokens = re.findall(r"'[^']*'|\"[^\"]*\"|\S+", _cond_val_clean)
+                    _cond_pyvals = [_cobol_88_literal_to_python(t) for t in _cond_tokens]
+                    if len(_cond_pyvals) == 1:
+                        _cond_expr = f"({_last_elementary_var} == {_cond_pyvals[0]})"
+                    elif _cond_pyvals:
+                        _cond_expr = f"({_last_elementary_var} in ({', '.join(_cond_pyvals)}))"
+            if _cond_expr:
+                _cond_names[_cond_name_raw.upper()] = _cond_expr
+                out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} -> auto-resolved to {_cond_expr} wherever {_cond_name_raw.replace('-', '_')} is used as a condition.")
+                changes.append(f"Level-88 condition name {_cond_name_raw} -> resolved to {_cond_expr} at each point of use")
+            else:
+                out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} - could not auto-resolve (no parent field found); manual review recommended.")
+                changes.append(f"REVIEW NEEDED: Level-88 condition name {_cond_name_raw} could not be auto-resolved - noted as a comment only. Any use of {_cond_name_raw.replace('-', '_')} as a condition will raise a NameError until fixed manually.")
             continue
         var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
@@ -2770,6 +2891,7 @@ def migrate_cobol(source, filename="file.cbl"):
             else:
                 out_lines.append(f"{var_name} = None")
             _ws_vars.append(var_name)
+            _last_elementary_var = var_name
             _nest_info = f" (level {level_num}, nested under {current_group_01})" if _level_num_int != 1 and current_group_01 else ""
             changes.append(f"Variable {var_m.group(2)} declared{_nest_info}")
             continue
@@ -2887,7 +3009,7 @@ def migrate_cobol(source, filename="file.cbl"):
             # other PERFORM-UNTIL-shaped construct. Now extracted into a shared helper (see
             # _cobol_perform_until_condition_to_python above) so the inline PERFORM UNTIL and
             # PERFORM VARYING handlers below get the same, always-in-sync conversion.
-            cond = _cobol_perform_until_condition_to_python(cond_raw)
+            cond = _cobol_perform_until_condition_to_python(cond_raw, _cond_names)
             if test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 out_lines.append(f"{cur_indent()}    {para_name}()")
@@ -2918,7 +3040,7 @@ def migrate_cobol(source, filename="file.cbl"):
             _vary_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _vary_cond_raw, re.IGNORECASE)
             if _vary_test_after_m:
                 _vary_cond_raw = _vary_cond_raw[:_vary_test_after_m.start()]
-            _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw)
+            _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw, _cond_names)
             _vary_incr_stmt = f"{_vary_var} = {_vary_var} + ({_vary_step})"
             out_lines.append(f"{cur_indent()}{_vary_var} = {_vary_start}")
             if _vary_test_after_m:
@@ -2946,7 +3068,7 @@ def migrate_cobol(source, filename="file.cbl"):
             _inline_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _inline_cond_raw, re.IGNORECASE)
             if _inline_test_after_m:
                 _inline_cond_raw = _inline_cond_raw[:_inline_test_after_m.start()]
-            _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw)
+            _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw, _cond_names)
             if _inline_test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 _perform_loop_stack.append(("test_after", _inline_cond))
@@ -2996,100 +3118,33 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("WHEN ") and eval_subject_stack and eval_first_when_stack:
             eval_subject = eval_subject_stack[-1]
             when_val = line[5:].rstrip(".").strip()
-            # Bug (reported by the user): EVALUATE TRUE ... WHEN <condition> is a very common
-            # COBOL idiom (an if/elif chain written as an EVALUATE) - each WHEN clause is a full
-            # boolean condition ("WS-AMT NOT GREATER THAN 1000"), not a bare operator/value to
-            # compare the subject against. The code below only ever handled the latter shape
-            # (WHEN <op> <value>, implicitly compared to eval_subject) or a bare literal value
-            # (compared with ==), so for EVALUATE TRUE it fell through to the literal-value
-            # branch and emitted the WHOLE condition, verbatim COBOL keywords included, as the
-            # literal RHS of an == comparison against "True":
-            #   WHEN WS-AMT GREATER THAN 1000   ->   if True == WS_AMT GREATER THAN 1000:
-            # - a SyntaxError for EVERY operator, not just the NOT GREATER/LESS THAN case that
-            # surfaced it, since "GREATER THAN"/"LESS THAN"/etc. were never being converted at
-            # all here. Detect EVALUATE TRUE and convert the WHEN clause as a full condition,
-            # reusing the exact same figurative-word/hyphen-fix + operator-substitution pipeline
-            # the IF-statement handler uses, instead of comparing it to the subject.
-            if eval_subject.strip() in ("TRUE", "True"):
-                # Bug fix note: this must match the IF-statement handler's figurative-word map
-                # (defined further below as a function-local `_figurative_word_map`, not visible
-                # here) - a prior edit referenced a nonexistent `_COBOL_FIGURATIVE_WORD_MAP`
-                # module-level name, which would raise NameError on the first EVALUATE TRUE/WHEN
-                # block ever migrated. Define the same mapping locally here instead.
-                _eval_true_figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
-                _cond_words = when_val.split()
-                _cond_fixed_words = []
-                for _w in _cond_words:
-                    _w_upper_stripped = _w.rstrip(".,")
-                    if _w_upper_stripped.upper() in _eval_true_figurative_word_map:
-                        _cond_fixed_words.append(_eval_true_figurative_word_map[_w_upper_stripped.upper()])
-                    elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
-                        _cond_fixed_words.append(_w.replace("-", "_"))
-                    else:
-                        _cond_fixed_words.append(_w)
-                when_cond = " ".join(_cond_fixed_words)
-                for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
-                    when_cond = _compiled_pat.sub(_repl, when_cond)
-                when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", when_cond)
-                if not eval_first_when_stack[-1]:
-                    if_depth = max(0, if_depth - 1)
-                    out_lines.append(f"{cur_indent()}elif {when_cond}:")
-                else:
-                    out_lines.append(f"{cur_indent()}if {when_cond}:")
-                    eval_first_when_stack[-1] = False
-                if_depth += 1
-                changes.append("WHEN (EVALUATE TRUE condition) -> if/elif")
-                continue
-            _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
-            if _thru_m:
-                _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
-                _thru_lo_raw = _thru_m.group(1).strip()
-                _thru_hi_raw = _thru_m.group(2).strip()
-                _thru_lo = _thru_val_map.get(_thru_lo_raw.upper(), _cobol_hyphen_fix(_thru_lo_raw))
-                _thru_hi = _thru_val_map.get(_thru_hi_raw.upper(), _cobol_hyphen_fix(_thru_hi_raw))
-                when_cond = f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
-                changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({when_cond}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
+            # Bug (reported by the user, 4th bug of this round): stacked WHEN clauses ("WHEN 1
+            # / WHEN 2 / WHEN 3 / DISPLAY ...", sharing one body across several discrete
+            # values - a very common COBOL fall-through idiom, analogous to stacked cases in a
+            # switch statement) crashed with an IndentationError. Each WHEN was immediately
+            # given its own if/elif line with no body, since the code never checked whether the
+            # NEXT line was also a WHEN (meaning THIS one has no body of its own and shares the
+            # next WHEN's body). Peek ahead past any further bare "WHEN <value>" lines (not
+            # "WHEN OTHER", which is a separate, already-handled branch) and combine all of
+            # their conditions into one with "or", attaching the eventual shared body to that
+            # single combined if/elif.
+            _stacked_when_vals = [when_val]
+            while _li < len(lines):
+                _peek_norm = _normalize_line(lines[_li])
+                if _peek_norm is None:
+                    _li += 1
+                    continue
+                _peek_upper = _peek_norm.upper()
+                if _peek_upper.startswith("WHEN ") and not _peek_upper.startswith("WHEN OTHER"):
+                    _stacked_when_vals.append(_peek_norm[5:].rstrip(".").strip())
+                    _li += 1
+                    continue
+                break
+            if len(_stacked_when_vals) > 1:
+                when_cond = " or ".join(f"({_compute_when_cond(_v, eval_subject)})" for _v in _stacked_when_vals)
+                changes.append(f"Stacked WHEN clauses ({len(_stacked_when_vals)} values sharing one body) combined into a single condition with 'or'")
             else:
-                # Bug: same missing-compound-operator class as COBOL_IF_OPS_RAW and the
-                # PERFORM...UNTIL condition block - "NOT GREATER THAN"/"NOT LESS THAN" (common
-                # COBOL idioms for "<="/">=") were absent from this alternation entirely, so a
-                # "WHEN NOT GREATER THAN 1000" clause fell through to the else branch below,
-                # which treats the whole unrecognized phrase as a literal value and emits
-                # `eval_subject == NOT GREATER THAN 1000` - bare COBOL keywords used as if they
-                # were Python identifiers, a SyntaxError.
-                #
-                # Correction (reported by the user): the claim that "order among these
-                # alternatives doesn't matter because each starts with a distinct token" was
-                # WRONG for this exact pair - "NOT GREATER THAN" IS a literal text-prefix of
-                # "NOT GREATER THAN OR EQUAL TO" (and likewise for LESS THAN). Since Python's re
-                # alternation tries each alternative in listed order and stops at the FIRST one
-                # that matches (not the longest), having the short "NOT GREATER THAN" alternative
-                # come before the long "NOT GREATER THAN OR EQUAL TO" one made a
-                # "WHEN WS-AMT NOT GREATER THAN OR EQUAL TO 1000" clause match "NOT GREATER
-                # THAN" first, leaving "OR EQUAL TO 1000" as the captured RHS - producing
-                # `WS_AMT <= OR EQUAL TO 1000`, a SyntaxError. Order DOES matter here: the two
-                # new "OR EQUAL" alternatives must be listed before their shorter counterparts.
-                #
-                # Bug (reported by the user): this is a SEPARATE code path from the IF/PERFORM
-                # UNTIL/EVALUATE-TRUE "IS"-strip fix - a bare (non-TRUE) "EVALUATE <subject> /
-                # WHEN IS GREATER THAN 1000" clause (operator compared directly against the
-                # EVALUATE subject) reaches _when_op_m directly with "IS" still attached at the
-                # front of when_val, and that fix never touched this spot. Strip a leading "IS"
-                # the same way, before the alternation runs, so "WHEN IS GREATER THAN 1000"
-                # doesn't fall through with "IS" glued onto the captured operator text (which
-                # produced e.g. "WS_AMT == IS GREATER THAN 1000", a SyntaxError).
-                when_val = re.sub(r"^IS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", when_val, flags=re.IGNORECASE)
-                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
-                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
-                _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
-                if _when_op_m:
-                    _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
-                    _when_rhs_raw = _when_op_m.group(2).strip()
-                    _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
-                    when_cond = f"{eval_subject} {_when_op_py} {_when_rhs}"
-                else:
-                    _when_val_py = _when_figurative_map.get(when_val.upper(), _cobol_hyphen_fix(when_val) if not (when_val.startswith(chr(34)) or when_val.startswith(chr(39))) else when_val)
-                    when_cond = f"{eval_subject} == {_when_val_py}"
+                when_cond = _compute_when_cond(when_val, eval_subject)
             if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
                 out_lines.append(f"{cur_indent()}elif {when_cond}:")
@@ -3158,7 +3213,13 @@ def migrate_cobol(source, filename="file.cbl"):
             _fixed_words = []
             for _w in _words:
                 _w_upper_stripped = _w.rstrip(".,")
-                if _w_upper_stripped.upper() in _figurative_word_map:
+                if _w_upper_stripped.upper() in _cond_names:
+                    # Bug (reported by the user): a bare level-88 condition name used as an IF
+                    # condition ("IF WS-VALID") fell through to the generic "hyphenated word ->
+                    # underscore" rule below, treating it as an ordinary (never-assigned)
+                    # variable - a NameError at runtime. Resolve it to its actual meaning first.
+                    _fixed_words.append(_cond_names[_w_upper_stripped.upper()])
+                elif _w_upper_stripped.upper() in _figurative_word_map:
                     _fixed_words.append(_figurative_word_map[_w_upper_stripped.upper()])
                 elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
                     _fixed_words.append(_w.replace("-", "_"))
