@@ -3079,6 +3079,60 @@ def migrate_cobol(source, filename="file.cbl"):
             out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
             changes.append("SUBTRACT -> -=" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
             continue
+        # Bug found (open-ended review): MULTIPLY and DIVIDE - two of COBOL's four core
+        # arithmetic verbs, exactly as fundamental as ADD/SUBTRACT (both of which already have
+        # dedicated handlers just above) and extremely common in financial/banking COBOL
+        # (interest, percentage, and per-unit calculations) - had NO handler anywhere in this
+        # function. This didn't crash or silently corrupt output (both fall through safely to
+        # the generic "# TODO: manual review" fallback, and are honestly disclosed via "1
+        # MULTIPLY"/"1 DIVIDE" in the REVIEW NEEDED summary), but it is a real, confirmable
+        # feature gap and an inconsistency: COMPUTE, ADD and SUBTRACT all convert to working
+        # Python, while MULTIPLY/DIVIDE - arithmetically no different - were always left
+        # entirely unconverted. Add dedicated handlers, mirroring ADD/SUBTRACT for the simple
+        # in-place forms and reusing COMPUTE's REVIEW NEEDED disclaimer for
+        # truncation/ROUNDED/REMAINDER semantics this migration does not fully replicate.
+        _mult_m = re.match(r"^MULTIPLY\s+(.+?)\s+BY\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?(\s+ROUNDED)?\.?$", line, re.IGNORECASE)
+        if _mult_m:
+            _mult_src = _cobol_hyphen_fix(_mult_m.group(1).strip())
+            _mult_by_var = _mult_m.group(2).replace("-", "_")
+            _mult_giving_var = _mult_m.group(3)
+            if _mult_giving_var:
+                _mult_dst = _mult_giving_var.replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_mult_dst} = {_mult_src} * {_mult_by_var}")
+                changes.append(f"MULTIPLY {_mult_m.group(1).strip()} BY {_mult_m.group(2)} GIVING {_mult_giving_var} -> assignment")
+            else:
+                out_lines.append(f"{cur_indent()}{_mult_by_var} *= {_mult_src}")
+                changes.append(f"MULTIPLY {_mult_m.group(1).strip()} BY {_mult_m.group(2)} -> *=")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
+            continue
+        _div_m = re.match(r"^DIVIDE\s+(.+?)\s+(INTO|BY)\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?(\s+ROUNDED)?(?:\s+REMAINDER\s+([\w-]+))?\.?$", line, re.IGNORECASE)
+        if _div_m:
+            _div_src = _cobol_hyphen_fix(_div_m.group(1).strip())
+            _div_prep = _div_m.group(2).upper()
+            _div_other_var = _div_m.group(3).replace("-", "_")
+            _div_giving_var = _div_m.group(4)
+            _div_remainder_var = _div_m.group(6)
+            # "DIVIDE a INTO b" means b = b / a; "DIVIDE a BY b" means (with GIVING only,
+            # required for the BY form) result = a / b - the dividend/divisor are swapped
+            # between the two prepositions, a common source of off-by-inversion mistakes if
+            # not handled explicitly.
+            if _div_prep == "INTO":
+                _dividend, _divisor = _div_other_var, _div_src
+            else:
+                _dividend, _divisor = _div_src, _div_other_var
+            if _div_giving_var:
+                _div_dst = _div_giving_var.replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_div_dst} = {_dividend} / {_divisor}")
+                changes.append(f"DIVIDE {_div_m.group(1).strip()} {_div_m.group(2)} {_div_m.group(3)} GIVING {_div_giving_var} -> assignment")
+            else:
+                out_lines.append(f"{cur_indent()}{_div_other_var} = {_dividend} / {_divisor}")
+                changes.append(f"DIVIDE {_div_m.group(1).strip()} {_div_m.group(2)} {_div_m.group(3)} -> assignment")
+            if _div_remainder_var:
+                _rem_dst = _div_remainder_var.replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_rem_dst} = {_dividend} % {_divisor}")
+                changes.append(f"DIVIDE ... REMAINDER {_div_remainder_var} -> % (modulo)")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - COBOL fixed-point decimal arithmetic truncates by default unless ROUNDED is specified (also, Python's / gives a float, not COBOL's fixed-point decimal), which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic, and that division-by-zero is guarded elsewhere (COBOL raises a SIZE ERROR condition; unguarded Python division raises ZeroDivisionError).")
+            continue
         perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
         if perform_m:
             para_name = _para_fn(perform_m.group(1))
