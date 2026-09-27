@@ -2942,7 +2942,13 @@ function renderDiffHighlighted(elId, thisCode, otherCode, isNew, reviewLineNums,
   }
   el.innerHTML = thisLines.map((line, idx) => {
     const isSecretLine = secretLineNums && secretLineNums.has(idx + 1);
-    const displayLine = isSecretLine ? line.replace(/([=:]\s*["'])[^"']+(["'])/, '$1***REDACTED***$2') : line;
+    // Bug: this replace() had no /g flag, so only the FIRST quoted assignment on a flagged
+    // line was redacted. A line with more than one secret on it (e.g.
+    // `DB_USER = "admin"; DB_PASSWORD = "SuperSecret123"`) came out as
+    // `DB_USER = "***REDACTED***"; DB_PASSWORD = "SuperSecret123"` - the real password still
+    // shown in plain text in the diff viewer, on a line the tool itself flagged as containing
+    // a secret. Add /g so every quoted assignment on the line is redacted, not just the first.
+    const displayLine = isSecretLine ? line.replace(/([=:]\s*["'])[^"']+(["'])/g, '$1***REDACTED***$2') : line;
     const esc = displayLine.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const needsReview = reviewLineNums && reviewLineNums.has(idx + 1);
     const tag = tags[idx];
