@@ -2414,6 +2414,18 @@ COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHE
 
 
 COBOL_IF_OPS_RAW = [
+                # Bug (reported by the user, one level up from the NOT GREATER/LESS THAN fix
+                # below): "NOT GREATER THAN OR EQUAL TO"/"NOT LESS THAN OR EQUAL TO" (COBOL
+                # idioms for "<"/">") were still broken even after that fix, because
+                # "GREATER THAN OR EQUAL TO" -> ">=" ran FIRST and matched as a substring of
+                # "NOT GREATER THAN OR EQUAL TO", consuming the "GREATER THAN OR EQUAL TO" part
+                # and leaving a bare "NOT" next to the already-substituted ">=" - e.g.
+                # "WS-AMT NOT GREATER THAN OR EQUAL TO 1000" became "WS_AMT not >= 1000", a
+                # SyntaxError. These are the longest/most-specific compound phrases in this
+                # whole table, so they must run before EVERY other rule here, including the
+                # plain "GREATER THAN OR EQUAL TO"/"LESS THAN OR EQUAL TO" rules just below.
+                (r"\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\b", "<"),
+                (r"\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\b", ">"),
                 (r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">="),
                 (r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<="),
                 # Bug: "NOT GREATER THAN"/"NOT LESS THAN" (common COBOL idioms for "<="/">=")
@@ -2735,6 +2747,17 @@ def migrate_cobol(source, filename="file.cbl"):
             # (COBOL_IF_OPS_RAW: longest/compound operators first) was not applied here. Match
             # that ordering: compound operators (which contain "EQUAL" as a substring) must be
             # substituted before the bare "EQUAL TO"/"EQUAL" rule ever runs.
+            # Bug (reported by the user, one level up from the NOT GREATER/LESS THAN fix below):
+            # "NOT GREATER THAN OR EQUAL TO"/"NOT LESS THAN OR EQUAL TO" were still broken even
+            # after that fix, because the plain "GREATER THAN OR EQUAL TO" -> ">=" rule right
+            # below ran FIRST and matched as a substring of "NOT GREATER THAN OR EQUAL TO",
+            # consuming that part and leaving a bare "NOT" next to the already-substituted ">="
+            # - e.g. "WS-COUNT NOT GREATER THAN OR EQUAL TO 10" became
+            # "WS_COUNT not >= 10", a SyntaxError. These are the longest/most-specific compound
+            # phrases here, so they must run before every other rule, including the plain
+            # "GREATER THAN OR EQUAL TO"/"LESS THAN OR EQUAL TO" rules just below.
+            cond = re.sub(r"\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+GREATER\s+THAN\s+OR\s+EQUAL\b", "<", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bNOT\s+LESS\s+THAN\s+OR\s+EQUAL\b", ">", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bGREATER\s+THAN\s+OR\s+EQUAL\s+TO\b|\bGREATER\s+THAN\s+OR\s+EQUAL\b", ">=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bLESS\s+THAN\s+OR\s+EQUAL\s+TO\b|\bLESS\s+THAN\s+OR\s+EQUAL\b", "<=", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\bNOT\s+EQUAL\s+TO\b|\bNOT\s+EQUAL\b", "!=", cond, flags=re.IGNORECASE)
@@ -2869,12 +2892,21 @@ def migrate_cobol(source, filename="file.cbl"):
                 # "WHEN NOT GREATER THAN 1000" clause fell through to the else branch below,
                 # which treats the whole unrecognized phrase as a literal value and emits
                 # `eval_subject == NOT GREATER THAN 1000` - bare COBOL keywords used as if they
-                # were Python identifiers, a SyntaxError. Unlike the sequential re.sub() bugs
-                # elsewhere, this is a single anchored alternation, so order among these
-                # alternatives doesn't matter for correctness (each starts with a distinct
-                # token) - only their presence does.
-                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
-                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
+                # were Python identifiers, a SyntaxError.
+                #
+                # Correction (reported by the user): the claim that "order among these
+                # alternatives doesn't matter because each starts with a distinct token" was
+                # WRONG for this exact pair - "NOT GREATER THAN" IS a literal text-prefix of
+                # "NOT GREATER THAN OR EQUAL TO" (and likewise for LESS THAN). Since Python's re
+                # alternation tries each alternative in listed order and stops at the FIRST one
+                # that matches (not the longest), having the short "NOT GREATER THAN" alternative
+                # come before the long "NOT GREATER THAN OR EQUAL TO" one made a
+                # "WHEN WS-AMT NOT GREATER THAN OR EQUAL TO 1000" clause match "NOT GREATER
+                # THAN" first, leaving "OR EQUAL TO 1000" as the captured RHS - producing
+                # `WS_AMT <= OR EQUAL TO 1000`, a SyntaxError. Order DOES matter here: the two
+                # new "OR EQUAL" alternatives must be listed before their shorter counterparts.
+                _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
+                _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
                 _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
                 if _when_op_m:
                     _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
