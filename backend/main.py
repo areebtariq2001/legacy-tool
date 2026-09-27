@@ -2855,7 +2855,15 @@ def migrate_cobol(source, filename="file.cbl"):
                     _cond_hi = _cobol_88_literal_to_python(_cond_thru_m.group(2))
                     _cond_expr = f"({_cond_lo} <= {_last_elementary_var} <= {_cond_hi})"
                 else:
-                    _cond_tokens = re.findall(r"'[^']*'|\"[^\"]*\"|\S+", _cond_val_clean)
+                    # Bug (reported by the user, 6th bug of this round - a regression in the
+                    # level-88 fix itself): a comma-separated VALUE list ("88 WS-SPECIAL VALUE
+                    # 1, 3, 5." - another very common level-88 idiom, alongside THRU ranges) was
+                    # tokenized with a bare \S+, which treats a comma as part of the token
+                    # (matching "1," "3," "5" instead of "1" "3" "5"). Joining those with ", "
+                    # produced doubled commas - "(WS_CODE in (1,, 3,, 5))" - a SyntaxError.
+                    # Exclude "," from the bare-token alternative so it acts as a separator, the
+                    # same role whitespace already plays here.
+                    _cond_tokens = re.findall(r"'[^']*'|\"[^\"]*\"|[^,\s]+", _cond_val_clean)
                     _cond_pyvals = [_cobol_88_literal_to_python(t) for t in _cond_tokens]
                     if len(_cond_pyvals) == 1:
                         _cond_expr = f"({_last_elementary_var} == {_cond_pyvals[0]})"
@@ -2924,6 +2932,23 @@ def migrate_cobol(source, filename="file.cbl"):
                     _disp_val = _disp_val[:_dci].rstrip()
                     break
             _tokens = re.findall(r'"[^"]*"|\x27[^\x27]*\x27|\S+', _disp_val)
+            # Bug (reported by the user): an OCCURS/subscripted table reference
+            # ("DISPLAY WS-ITEM(1)") is unsupported here, same as it is for MOVE below - but
+            # unlike MOVE (whose destination regex can't match text containing parentheses at
+            # all, so it falls straight through to the generic TODO fallback), DISPLAY's
+            # operand regex happily grabs "WS-ITEM(1)" as a single token and hyphen-fixes it to
+            # "WS_ITEM(1)", which is then printed as-is: print(WS_ITEM(1)) - Python reads that
+            # as CALLING a function named WS_ITEM, which was never defined (the OCCURS field
+            # itself was skipped), so it's a NameError at runtime. And unlike MOVE, this never
+            # got flagged as REVIEW NEEDED at all - inconsistent and misleading, since the two
+            # statements operating on the exact same unsupported construct got different
+            # treatment. Detect a subscript the same way (a "(" in a non-literal token) and
+            # route the whole DISPLAY to the same TODO/manual-review fallback as MOVE, instead
+            # of blindly emitting a broken print().
+            if any("(" in _t for _t in _tokens if not (_t.startswith('"') or _t.startswith(chr(39)))):
+                out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+                changes.append(f"REVIEW NEEDED: DISPLAY {_disp_val} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support (the underlying array field itself is also left as a TODO). Left as a comment for manual conversion instead of generating a print() call that would raise a NameError/TypeError at runtime.")
+                continue
             _parts = []
             for _t in _tokens:
                 if _t.startswith('"') or _t.startswith(chr(39)):
