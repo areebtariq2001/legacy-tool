@@ -2414,6 +2414,21 @@ COBOL_CHECKS_COMPILED = [(re.compile(p, re.IGNORECASE), m) for p, m in COBOL_CHE
 
 
 COBOL_IF_OPS_RAW = [
+                # Bug: COBOL class-conditions ("<identifier> IS [NOT] NUMERIC") were completely
+                # unhandled - same bug class as the "IS" relation-condition fix below, but for a
+                # different, equally common COBOL idiom (used everywhere for input/field
+                # validation, e.g. "IF WS-INPUT IS NUMERIC"). With no rule for it anywhere, "IS
+                # NUMERIC" passed straight through into the generated code as bare, invalid
+                # Python syntax: "IF WS-INPUT IS NUMERIC" -> "if WS_INPUT IS NUMERIC:", a
+                # SyntaxError regardless of what the identifier held. Best-effort conversion to a
+                # digit-string check (handles an optional leading sign and a decimal point, since
+                # COBOL's NUMERIC test allows both, depending on the field's PICTURE) - a
+                # heuristic, not a full re-implementation of COBOL's PICTURE-aware numeric class
+                # test, but it produces valid, runnable, reasonably-correct Python instead of a
+                # guaranteed crash. Must run before the bare "NOT" -> "not" rule and the "IS"
+                # rule below (both would otherwise mangle "IS NOT NUMERIC" first).
+                (r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
+                (r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
                 # Bug (reported by the user - wide-impact, since "IS" is idiomatic, very common
                 # COBOL relation-condition style, e.g. "IF WS-AMT IS GREATER THAN 1000" or
                 # "IF WS-AMT IS EQUAL TO 1000"): the word "IS" had NO rule anywhere in this
@@ -2748,6 +2763,12 @@ def migrate_cobol(source, filename="file.cbl"):
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
             cond = _cobol_hyphen_fix(cond_raw)
+            # Bug: same unhandled-class-condition issue as COBOL_IF_OPS_RAW above - "PERFORM
+            # ... UNTIL WS-INPUT IS NUMERIC" left "IS NUMERIC" untouched, producing
+            # "while not (WS_INPUT IS NUMERIC):", a SyntaxError. Must run before the "IS"-strip
+            # rule and the bare "NOT" rule below (both would otherwise mangle "IS NOT NUMERIC").
+            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
             # Bug (reported by the user - same wide-impact "IS" bug as COBOL_IF_OPS_RAW/the
             # EVALUATE/WHEN handler): "PERFORM ... UNTIL WS-COUNT IS GREATER THAN 10" left the
             # word "IS" untouched while the operator around it converted correctly, producing
