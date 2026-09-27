@@ -3946,6 +3946,19 @@ class MigrationCertificate:
                    "a fixed value.")
             )
             self.certificates[certificate["certificate_id"]] = certificate
+            # Bug (reported by the user): unlike _failed_login_attempts, _rate_limit_store,
+            # _endpoint_rate_store, _anti_bot_patterns, etc. elsewhere in this file - which all
+            # cap themselves once they pass 5000 entries - self.certificates had no eviction at
+            # all. Every certificate ever issued stayed in memory for the entire life of the
+            # server process, and /issue-migration-certificate is a normal endpoint hit on every
+            # migration approval, so this was unbounded memory growth (a slow OOM/DoS risk) on a
+            # long-running server, not a one-off. Evict the oldest-issued certificates (by their
+            # own "issued_at" field) once the store passes 5000, matching the pattern already
+            # used for the other in-memory stores.
+            if len(self.certificates) > 5000:
+                _oldest_ids = sorted(self.certificates, key=lambda k: self.certificates[k].get("issued_at", ""))[: len(self.certificates) - 5000]
+                for _cid in _oldest_ids:
+                    self.certificates.pop(_cid, None)
             try:
                 audit_blockchain.add_block(
                     action="CERTIFICATE_ISSUED", filename=filename, user_email=reviewer_email, ip="system",
