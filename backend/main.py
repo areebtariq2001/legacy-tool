@@ -2429,6 +2429,31 @@ COBOL_IF_OPS_RAW = [
                 # rule below (both would otherwise mangle "IS NOT NUMERIC" first).
                 (r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
                 (r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())"),
+                # Bug: COBOL sign-conditions ("<identifier> IS [NOT] POSITIVE/NEGATIVE/ZERO") -
+                # another common class-condition idiom used constantly on balance/amount fields
+                # in financial code (e.g. "IF WS-BALANCE IS NEGATIVE") - were also completely
+                # unhandled, same root cause as the IS NUMERIC bug above. "POSITIVE"/"NEGATIVE"
+                # had no rule at all, and "IS ZERO" was actively mishandled: the generic
+                # "ZERO" -> "0" figurative-literal rule further down in this table (meant for
+                # comparisons like "= ZERO") fired on it too, turning "WS-AMT IS ZERO" into
+                # "WS_AMT IS 0" - still a SyntaxError, just a different one. Must run before
+                # that generic ZERO rule (and before "NOT" -> "not"), so these are placed here,
+                # near the top of the table alongside the other class-condition fixes.
+                #
+                # Additional wrinkle for ZERO specifically: unlike POSITIVE/NEGATIVE, "ZERO" is
+                # ALSO a figurative literal that both callers of this table (the IF handler and
+                # the EVALUATE TRUE/WHEN handler) pre-convert to "0" via their own per-word
+                # figurative-literal pass, which runs BEFORE this table - so by the time this
+                # rule sees the condition text, "WS-AMT IS ZERO" has already become
+                # "WS_AMT IS 0", and a rule that only matches the literal word "ZERO" never
+                # fires. Match either spelling so the rule works regardless of which stage a
+                # given caller does that substitution at.
+                (r"\b(\w+)\s+IS\s+NOT\s+POSITIVE\b", r"(not (\1 > 0))"),
+                (r"\b(\w+)\s+IS\s+POSITIVE\b", r"(\1 > 0)"),
+                (r"\b(\w+)\s+IS\s+NOT\s+NEGATIVE\b", r"(not (\1 < 0))"),
+                (r"\b(\w+)\s+IS\s+NEGATIVE\b", r"(\1 < 0)"),
+                (r"\b(\w+)\s+IS\s+NOT\s+(?:ZERO|0)\b", r"(\1 != 0)"),
+                (r"\b(\w+)\s+IS\s+(?:ZERO|0)\b", r"(\1 == 0)"),
                 # Bug (reported by the user - wide-impact, since "IS" is idiomatic, very common
                 # COBOL relation-condition style, e.g. "IF WS-AMT IS GREATER THAN 1000" or
                 # "IF WS-AMT IS EQUAL TO 1000"): the word "IS" had NO rule anywhere in this
@@ -2769,6 +2794,16 @@ def migrate_cobol(source, filename="file.cbl"):
             # rule and the bare "NOT" rule below (both would otherwise mangle "IS NOT NUMERIC").
             cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NUMERIC\b", r"(not str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
             cond = re.sub(r"\b(\w+)\s+IS\s+NUMERIC\b", r"(str(\1).strip().lstrip('+-').replace('.', '', 1).isdigit())", cond, flags=re.IGNORECASE)
+            # Bug: same unhandled sign-condition issue as COBOL_IF_OPS_RAW above - "PERFORM
+            # ... UNTIL WS-BALANCE IS NEGATIVE" left "IS NEGATIVE" untouched (and "IS ZERO" was
+            # actively mishandled by the generic "ZERO" -> "0" rule further down, producing
+            # "IS 0" - still broken). Must run before that generic ZERO rule and before "NOT".
+            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+POSITIVE\b", r"(not (\1 > 0))", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+POSITIVE\b", r"(\1 > 0)", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+NEGATIVE\b", r"(not (\1 < 0))", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+NEGATIVE\b", r"(\1 < 0)", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+NOT\s+ZERO\b", r"(\1 != 0)", cond, flags=re.IGNORECASE)
+            cond = re.sub(r"\b(\w+)\s+IS\s+ZERO\b", r"(\1 == 0)", cond, flags=re.IGNORECASE)
             # Bug (reported by the user - same wide-impact "IS" bug as COBOL_IF_OPS_RAW/the
             # EVALUATE/WHEN handler): "PERFORM ... UNTIL WS-COUNT IS GREATER THAN 10" left the
             # word "IS" untouched while the operator around it converted correctly, producing
