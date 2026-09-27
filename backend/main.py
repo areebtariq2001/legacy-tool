@@ -2944,6 +2944,16 @@ def migrate_cobol(source, filename="file.cbl"):
                 # THAN" first, leaving "OR EQUAL TO 1000" as the captured RHS - producing
                 # `WS_AMT <= OR EQUAL TO 1000`, a SyntaxError. Order DOES matter here: the two
                 # new "OR EQUAL" alternatives must be listed before their shorter counterparts.
+                #
+                # Bug (reported by the user): this is a SEPARATE code path from the IF/PERFORM
+                # UNTIL/EVALUATE-TRUE "IS"-strip fix - a bare (non-TRUE) "EVALUATE <subject> /
+                # WHEN IS GREATER THAN 1000" clause (operator compared directly against the
+                # EVALUATE subject) reaches _when_op_m directly with "IS" still attached at the
+                # front of when_val, and that fix never touched this spot. Strip a leading "IS"
+                # the same way, before the alternation runs, so "WHEN IS GREATER THAN 1000"
+                # doesn't fall through with "IS" glued onto the captured operator text (which
+                # produced e.g. "WS_AMT == IS GREATER THAN 1000", a SyntaxError).
+                when_val = re.sub(r"^IS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", when_val, flags=re.IGNORECASE)
                 _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
                 _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
                 _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
