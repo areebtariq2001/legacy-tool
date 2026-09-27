@@ -4640,8 +4640,15 @@ async function runAsk() {
     }
     document.getElementById('askResult').classList.add('show');
   } catch (e) {
+    // Bug: unlike the sibling runTraceabilityQuery() (same try/catch shape, a few lines
+    // above), this catch swallowed the error completely - on any failure (network error,
+    // backend 500, timeout) the UI just silently reverted to the "Ask anything / Upload a
+    // file first..." empty state with zero indication that the question actually failed.
+    // A user would think their question was never submitted (and might resubmit it) rather
+    // than seeing there was a real error, since e.message was captured but never shown.
     document.getElementById('askLoad').classList.remove('show');
     document.getElementById('askEmpty').style.display = 'block';
+    alert('Question failed: ' + e.message);
   }
 }
 function copyEl(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
