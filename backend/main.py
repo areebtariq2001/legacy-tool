@@ -2648,6 +2648,20 @@ def _cobol_has_unsupported_subscript(text):
 # this session, but still a genuine crash wherever real COBOL source uses it.
 _COBOL_REL_OP_TEXT = r"(?:IS\s+)?(?:NOT\s+)?(?:GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN|EQUAL\s+TO|EQUAL|>=|<=|<>|>|<|=)"
 
+# Bug (reported by the user, 17th bug): a USAGE clause after PIC ("PIC 9(7)V99 COMP-3.", or
+# the equivalent COMP/COMP-1..4/COMPUTATIONAL[-1..4]/BINARY/PACKED-DECIMAL/DISPLAY forms, with
+# or without an explicit "USAGE IS") is extremely common in real COBOL - it is the standard
+# way to mark a numeric field as binary/packed-decimal, used throughout financial and
+# performance-sensitive code. The elementary-item declaration regex required the PIC clause's
+# single token to be immediately followed by only an optional VALUE clause or the end of the
+# line, so any trailing USAGE clause left unmatched, unconsumed text - the whole regex failed
+# to match, and the field was never declared at all (fell through to the generic, disclosed
+# "# TODO: manual review" comment). A single-paragraph program could accidentally look correct
+# (MOVE created a same-named local, DISPLAY read it back in the same function), but the field
+# was genuinely never declared/globalized - referencing it from a DIFFERENT paragraph (the
+# normal case for WORKING-STORAGE) raised NameError, exactly like the group-field bug (#14).
+_COBOL_USAGE_CLAUSE_TEXT = r"(?:\s+(?:USAGE\s+(?:IS\s+)?)?(?:COMP(?:UTATIONAL)?(?:-[1-4])?|BINARY|PACKED-DECIMAL|DISPLAY))?"
+
 def _cobol_expand_abbreviated_relation_conditions(cond):
     """Expand an abbreviated combined relation condition by re-inserting the implied subject
     before a bare relational operator that directly follows AND/OR with no operand of its own
@@ -2844,6 +2858,19 @@ def migrate_cobol(source, filename="file.cbl"):
     # END-PERFORM) or the Python increment-statement text for a PERFORM VARYING (injected right
     # before END-PERFORM closes the loop body, mirroring COBOL's real bottom-of-loop increment).
     _perform_loop_stack = []
+    # Bug (reported by the user, 18th bug, second half): "ON SIZE ERROR"/"ON EXCEPTION"/"ON
+    # OVERFLOW" (and their "NOT ON ..." counterparts) introduce a conditional body that COBOL
+    # only runs when the preceding arithmetic/CALL/STRING statement actually overflows or
+    # raises an exception. This migrator has no such detection at all (Python ints don't
+    # overflow, and no equivalent check is emitted), so the clause's body statements
+    # (DISPLAY, MOVE, ...) fell through to their ordinary handlers and were emitted as plain,
+    # unconditional code - they ran on EVERY execution, not just on an actual error, silently
+    # wrong. Track whether we're currently inside such a clause; while active, every line is
+    # disclosed as a non-executed comment instead of being converted normally, since this
+    # migration cannot evaluate the real condition. The clause closes on its scope terminator
+    # (any "END-<VERB>.") or at the next paragraph boundary (a bare COBOL sentence-terminating
+    # period implicitly closes any open clause too).
+    _in_error_clause = False
     _COBOL_SINGLE_WORD_STMTS = {"EXIT", "GOBACK", "CONTINUE", "ELSE", "END-IF", "END-EVALUATE", "END-PERFORM", "NEXT", "STOP"}
     def _para_fn(_name):
         _n = _name.replace("-", "_").lower()
@@ -2996,7 +3023,7 @@ def migrate_cobol(source, filename="file.cbl"):
             _pre_seq_m = re.match(r"^(\d{6})\s+(.*)$", _pre_line_stripped)
             if _pre_seq_m:
                 _pre_line_stripped = _pre_seq_m.group(2)
-        _pre_var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", _pre_line_stripped, re.IGNORECASE)
+        _pre_var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", _pre_line_stripped, re.IGNORECASE)
         if _pre_var_m:
             _pre_name = _pre_var_m.group(2).upper().replace("-", "_")
             _ws_elementary_name_counts[_pre_name] = _ws_elementary_name_counts.get(_pre_name, 0) + 1
@@ -3052,7 +3079,34 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         if in_procedure:
             _para_m = re.match(r"^([A-Za-z0-9][\w-]*)(?:\s+SECTION)?\s*\.$", line, re.IGNORECASE)
-            if _para_m and _para_m.group(1).upper() not in _COBOL_SINGLE_WORD_STMTS:
+            # Bug (reported by the user, 18th bug): _COBOL_SINGLE_WORD_STMTS only listed the
+            # specific scope-terminators this migrator happened to have dedicated handlers for
+            # (END-IF/END-EVALUATE/END-PERFORM) - any OTHER "END-<VERB>." (END-COMPUTE,
+            # END-ADD, END-SUBTRACT, END-MULTIPLY, END-DIVIDE, END-STRING, ...) matches the
+            # exact same "identifier + period, alone on a line" shape as a real paragraph name
+            # and was misread as one: a brand new, never-intended paragraph/function was
+            # opened right there, silently splitting the CURRENT paragraph in half - everything
+            # after the scope terminator (including STOP RUN) became part of a phantom
+            # "end_compute()"-style function instead of staying in the paragraph that was being
+            # migrated. main() still happened to call every function in source order, so a
+            # small standalone test could look "accidentally" correct, but any OTHER paragraph
+            # that explicitly PERFORMs the original paragraph by name gets an incomplete
+            # paragraph missing its own ending. Fix: exclude every "END-<WORD>" shape, not just
+            # the three this migrator has specific handlers for.
+            _is_scope_terminator = _para_m and re.match(r"^END-[A-Za-z-]+$", _para_m.group(1), re.IGNORECASE)
+            if _in_error_clause:
+                if _para_m:
+                    # A scope terminator ("END-COMPUTE.") or a real paragraph header both
+                    # implicitly end any open ON SIZE ERROR/EXCEPTION/OVERFLOW clause (a COBOL
+                    # sentence-terminating period always closes an open clause); fall through
+                    # to the normal handling below (paragraph-open, or the generic disclosed
+                    # fallback for the scope terminator itself).
+                    _in_error_clause = False
+                else:
+                    out_lines.append(f"{cur_indent()}# TODO: manual review (inside ON SIZE ERROR/EXCEPTION/OVERFLOW, NOT executed by this migration) - {line}")
+                    changes.append(f"REVIEW NEEDED: {line.strip()} - this statement is inside an ON SIZE ERROR/EXCEPTION/OVERFLOW clause. This migration cannot detect the real error condition (e.g. Python integers don't overflow the way COBOL fixed-point fields do), so it is disclosed as a comment and NOT executed, instead of being converted as ordinary code that would then run unconditionally, on every execution, rather than only on an actual error.")
+                    continue
+            if _para_m and not _is_scope_terminator and _para_m.group(1).upper() not in _COBOL_SINGLE_WORD_STMTS:
                 if_depth = 0
                 _fn_name = _open_para(_para_m.group(1))
                 changes.append(f"Paragraph {_para_m.group(1)} -> def {_fn_name}()")
@@ -3093,6 +3147,12 @@ def migrate_cobol(source, filename="file.cbl"):
                 _line_quotes_stashed = _line_quotes_stashed.replace("\x00QSTR" + str(_qi) + "\x00", _qval)
             line = _line_quotes_stashed
             upper = line.upper()
+            _error_clause_m = re.match(r"^(?:NOT\s+)?ON\s+(?:SIZE\s+ERROR|EXCEPTION|OVERFLOW)\b", line, re.IGNORECASE)
+            if _error_clause_m:
+                _in_error_clause = True
+                out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+                changes.append(f"REVIEW NEEDED: {line.strip()} - this migration does not detect COBOL SIZE ERROR/EXCEPTION/OVERFLOW conditions, so the statement(s) under this clause are disclosed as comments and NOT executed, rather than being converted as unconditional code that would then run every time instead of only on an actual error.")
+                continue
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
             _cond_name_raw = _cond_name_m.group(1)
@@ -3128,7 +3188,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} - could not auto-resolve (no parent field found); manual review recommended.")
                 changes.append(f"REVIEW NEEDED: Level-88 condition name {_cond_name_raw} could not be auto-resolved - noted as a comment only. Any use of {_cond_name_raw.replace('-', '_')} as a condition will raise a NameError until fixed manually.")
             continue
-        var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+        var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             level_num = var_m.group(1)
             _level_num_int = int(level_num)
