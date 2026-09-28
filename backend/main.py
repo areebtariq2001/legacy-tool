@@ -2600,6 +2600,30 @@ def _cobol_hyphen_fix(s):
     s = "".join(_out)
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
+# Bug (found via open-ended review, same root cause/class as the already-fixed DISPLAY and
+# MOVE subscript bugs): a subscripted/OCCURS-indexed operand ("WS-ITEM(1)") appearing as a
+# SOURCE operand in COMPUTE/ADD/SUBTRACT/MULTIPLY/DIVIDE is not a literal and has no dedicated
+# handling, so it silently passes through the ordinary "strip hyphens, keep parens" conversion
+# and becomes "WS_ITEM(1)" in the generated Python - which Python reads as CALLING a function
+# named WS_ITEM with argument 1, not as a subscript. This is a silent runtime TypeError
+# ("'NoneType'/'int' object is not callable"), not a SyntaxError, so ast.parse() cannot catch
+# it. Any handler that builds an expression from raw, not-yet-hyphen-fixed COBOL operand text
+# should check this first and fall back to the same disclosed "# TODO: manual review" pattern
+# already used for DISPLAY/MOVE, rather than silently emitting a call expression.
+def _cobol_has_unsupported_subscript(text):
+    _in_str = False
+    _str_ch = None
+    for _c in text:
+        if _in_str:
+            if _c == _str_ch:
+                _in_str = False
+        elif _c in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _c
+        elif _c == "(":
+            return True
+    return False
+
 # Bug (reported by the user): COBOL's "abbreviated combined relation condition" - a legal
 # shorthand where a later relational operand's subject is implied ("IF WS-A > 10 AND < 20"
 # means "IF WS-A > 10 AND WS-A < 20" - no need to repeat WS-A) - was not understood at all. The
@@ -3159,6 +3183,21 @@ def migrate_cobol(source, filename="file.cbl"):
             src_val = move_m.group(1).strip()
             _COBOL_FIGURATIVES_MOVE = {"ZEROS": "0", "ZERO": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
             is_literal = src_val.startswith(chr(34)) or src_val.startswith(chr(39)) or re.match(r"^-?\d+(\.\d+)?$", src_val) or src_val.upper() in _COBOL_FIGURATIVES_MOVE
+            # Bug (found via open-ended review, same class as the already-fixed DISPLAY
+            # subscript bug): a subscripted/OCCURS-indexed source ("MOVE WS-ITEM(1) TO WS-X.")
+            # is not a string/numeric literal and is not detected as one here, so it fell
+            # through to the ordinary "not is_literal" variable-reference branch below, which
+            # just strips hyphens and uppercases it - producing "WS_X = WS_ITEM(1)". Python
+            # reads that as CALLING a function named WS_ITEM with argument 1, not as a
+            # subscript - a silent TypeError at runtime ("'NoneType' object is not callable"),
+            # not a SyntaxError, so ast.parse() cannot catch it either. The destination side
+            # already safely falls through to the generic TODO fallback (its regex doesn't
+            # allow "(" at all), so only the source side needed this same disclosed-fallback
+            # treatment.
+            if not is_literal and "(" in src_val:
+                out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+                changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - subscripted/OCCURS-indexed source is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+                continue
             if src_val.upper() in _COBOL_FIGURATIVES_MOVE:
                 src_val_clean = _COBOL_FIGURATIVES_MOVE[src_val.upper()]
             elif not is_literal:
@@ -3182,6 +3221,10 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("EXIT -> return (end of paragraph)")
             continue
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
+        if compute_m and _cobol_has_unsupported_subscript(compute_m.group(2)):
+            out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            continue
         if compute_m:
             var_name = compute_m.group(1).upper().replace("-", "_")
             expr = _cobol_hyphen_fix(compute_m.group(2))
@@ -3191,6 +3234,10 @@ def migrate_cobol(source, filename="file.cbl"):
                 changes.append(f"REVIEW NEEDED: COMPUTE {var_name} = {expr} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
+        if add_m and _cobol_has_unsupported_subscript(add_m.group(1)):
+            out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            continue
         if add_m:
             # Bug (reported by the user, 10th bug of this round): COBOL allows multiple ADD
             # sources to be comma-separated ("ADD WS-A, WS-B TO WS-C.") as well as
@@ -3212,6 +3259,10 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append("ADD -> +=" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
             continue
         sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
+        if sub_m and _cobol_has_unsupported_subscript(sub_m.group(1)):
+            out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            continue
         if sub_m:
             # Bug (reported by the user, same root cause as ADD above): "SUBTRACT WS-A, WS-B
             # FROM WS-C." has the identical comma-separated-sources issue.
@@ -3234,6 +3285,10 @@ def migrate_cobol(source, filename="file.cbl"):
         # in-place forms and reusing COMPUTE's REVIEW NEEDED disclaimer for
         # truncation/ROUNDED/REMAINDER semantics this migration does not fully replicate.
         _mult_m = re.match(r"^MULTIPLY\s+(.+?)\s+BY\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?(\s+ROUNDED)?\.?$", line, re.IGNORECASE)
+        if _mult_m and _cobol_has_unsupported_subscript(_mult_m.group(1)):
+            out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            continue
         if _mult_m:
             _mult_src = _cobol_hyphen_fix(_mult_m.group(1).strip())
             _mult_by_var = _mult_m.group(2).upper().replace("-", "_")
@@ -3248,6 +3303,10 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append(f"REVIEW NEEDED: {line.strip()} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
         _div_m = re.match(r"^DIVIDE\s+(.+?)\s+(INTO|BY)\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?(\s+ROUNDED)?(?:\s+REMAINDER\s+([\w-]+))?\.?$", line, re.IGNORECASE)
+        if _div_m and _cobol_has_unsupported_subscript(_div_m.group(1)):
+            out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            continue
         if _div_m:
             _div_src = _cobol_hyphen_fix(_div_m.group(1).strip())
             _div_prep = _div_m.group(2).upper()
