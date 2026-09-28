@@ -2610,18 +2610,34 @@ def _cobol_hyphen_fix(s):
 # it. Any handler that builds an expression from raw, not-yet-hyphen-fixed COBOL operand text
 # should check this first and fall back to the same disclosed "# TODO: manual review" pattern
 # already used for DISPLAY/MOVE, rather than silently emitting a call expression.
+#
+# Bug (reported by the user, 16th bug - a regression in the fix above, found while verifying
+# it): the original heuristic flagged ANY "(" outside a string literal as a subscript. COBOL
+# also uses parentheses for ordinary arithmetic grouping ("COMPUTE WS-X = (WS-A + WS-B) * 2."),
+# which is extremely common and was already converting correctly before this fix - the
+# overly-broad heuristic sent it to the TODO fallback too, a new regression, not just a
+# missed case. A real COBOL subscript's "(" is always written directly against its
+# identifier, with no space ("WS-ITEM(1)"); grouping parentheses are their own standalone
+# token, always preceded by whitespace, another operator, or the start of the expression
+# ("(WS-A + WS-B)"). Only flag the identifier-immediately-followed-by-"(" pattern.
 def _cobol_has_unsupported_subscript(text):
     _in_str = False
     _str_ch = None
+    _prev_is_ident_char = False
     for _c in text:
         if _in_str:
             if _c == _str_ch:
                 _in_str = False
-        elif _c in (chr(34), chr(39)):
+            _prev_is_ident_char = False
+            continue
+        if _c in (chr(34), chr(39)):
             _in_str = True
             _str_ch = _c
-        elif _c == "(":
+            _prev_is_ident_char = False
+            continue
+        if _c == "(" and _prev_is_ident_char:
             return True
+        _prev_is_ident_char = _c.isalnum() or _c == "-"
     return False
 
 # Bug (reported by the user): COBOL's "abbreviated combined relation condition" - a legal
@@ -3043,6 +3059,40 @@ def migrate_cobol(source, filename="file.cbl"):
                 continue
             if not _paragraphs:
                 _open_para("PROCEDURE-START")
+            # Bug (reported by the user, 15th bug - discovered while verifying bug #14): COBOL
+            # data-name qualification ("WS-CODE OF WS-EMPLOYEE", or the equivalent "IN" form,
+            # optionally chained - "WS-CODE OF WS-DETAIL OF WS-EMPLOYEE") disambiguates or
+            # clarifies which field is meant when a group is involved. This migrator has no
+            # notion of qualified/scoped names at all - group sub-fields already resolve to
+            # their bare elementary name (bug #14's fix) - so an OF/IN qualifier is pure,
+            # meaningless extra text to every statement handler here, which read it as
+            # ordinary sequential words instead. In MOVE (destination parsing splits on
+            # whitespace for multi-target MOVE) this silently created bogus extra variables
+            # ("OF", the group name itself) and assigned the SAME value to all of them -
+            # wrong output with no crash. In IF/DISPLAY/ADD/etc. "OF"/"IN" and the group name
+            # were copied straight through as literal, unconverted tokens ("if WS_CODE OF
+            # WS_EMPLOYEE == ...:"), a SyntaxError. Fix: strip every OF/IN qualifier (down to
+            # just the leftmost, most-specific elementary name) from the line ONCE here,
+            # before any statement-specific parsing - the same "one central place covers every
+            # call site" approach that fixed the case-insensitivity bug (#12). Quote-aware, so
+            # a string literal's actual text (which could itself contain the words "of"/"in")
+            # is never touched.
+            _of_in_placeholders = []
+            def _of_in_stash(_m):
+                _of_in_placeholders.append(_m.group(0))
+                return "\x00QSTR" + str(len(_of_in_placeholders) - 1) + "\x00"
+            _line_quotes_stashed = re.sub(r'"[^"]*"|\x27[^\x27]*\x27', _of_in_stash, line)
+            # Repeated substitution handles chained qualifiers ("A OF B OF C" -> "A"), applied
+            # only to the quote-stashed text so a string literal's actual contents (which
+            # could themselves legitimately contain the words "of"/"in") are never touched.
+            _prev = None
+            while _prev != _line_quotes_stashed:
+                _prev = _line_quotes_stashed
+                _line_quotes_stashed = re.sub(r"\b([A-Za-z][\w-]*)\s+(?:OF|IN)\s+[A-Za-z][\w-]*\b", r"\1", _line_quotes_stashed, count=1, flags=re.IGNORECASE)
+            for _qi, _qval in enumerate(_of_in_placeholders):
+                _line_quotes_stashed = _line_quotes_stashed.replace("\x00QSTR" + str(_qi) + "\x00", _qval)
+            line = _line_quotes_stashed
+            upper = line.upper()
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
             _cond_name_raw = _cond_name_m.group(1)
