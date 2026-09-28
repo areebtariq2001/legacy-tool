@@ -7352,9 +7352,12 @@ class ApprovalRequest(BaseModel):
 
 @app.post("/save-approval")
 async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
+    # Requested by the user: Approve/Reject should not require a login. Login is no longer
+    # mandatory here - if a valid session token IS present, the decision is still attributed
+    # to that logged-in user (save_approval_decision already records it); if not, the decision
+    # is saved as "anonymous" (save_approval_decision's existing approved_by-or-"anonymous"
+    # fallback) instead of being blocked with a 401.
     _user_email = await run_in_threadpool(_check_user_auth, request)
-    if not _user_email:
-        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to approve or reject migrations"})
     if req is not None:
         filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
     try:
