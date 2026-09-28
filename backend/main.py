@@ -2893,16 +2893,73 @@ def migrate_cobol(source, filename="file.cbl"):
             changes.append(f"REVIEW NEEDED: WHEN {when_val} (THRU/range) converted to a range-check ({_thru_lo} <= {eval_subject} <= {_thru_hi}) - verify this matches the intended COBOL range semantics, especially for non-numeric ranges.")
             return f"{_thru_lo} <= {eval_subject} <= {_thru_hi}"
         when_val = re.sub(r"^IS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", when_val, flags=re.IGNORECASE)
-        _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", when_val, re.IGNORECASE)
-        _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
-        _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
-        if _when_op_m:
-            _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
-            _when_rhs_raw = _when_op_m.group(2).strip()
-            _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
-            return f"{eval_subject} {_when_op_py} {_when_rhs}"
-        _when_val_py = _when_figurative_map.get(when_val.upper(), _cobol_hyphen_fix(when_val) if not (when_val.startswith(chr(34)) or when_val.startswith(chr(39))) else when_val)
-        return f"{eval_subject} == {_when_val_py}"
+
+        def _single_when_condition(_wv):
+            _wv = re.sub(r"^IS\s+(?=NOT\b|EQUAL\b|GREATER\b|LESS\b)", "", _wv, flags=re.IGNORECASE)
+            _when_op_m = re.match(r"^(EQUAL\s+TO|EQUAL|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+GREATER\s+THAN\s+OR\s+EQUAL|NOT\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO|NOT\s+LESS\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN\s+OR\s+EQUAL\s+TO|GREATER\s+THAN\s+OR\s+EQUAL|GREATER\s+THAN|LESS\s+THAN\s+OR\s+EQUAL\s+TO|LESS\s+THAN\s+OR\s+EQUAL|LESS\s+THAN|NOT\s+GREATER\s+THAN|NOT\s+LESS\s+THAN|NOT\s+EQUAL\s+TO|NOT\s+EQUAL)\s+(.+)$", _wv, re.IGNORECASE)
+            _when_op_map = {"EQUAL TO": "==", "EQUAL": "==", "GREATER THAN OR EQUAL TO": ">=", "GREATER THAN OR EQUAL": ">=", "GREATER THAN": ">", "LESS THAN OR EQUAL TO": "<=", "LESS THAN OR EQUAL": "<=", "LESS THAN": "<", "NOT GREATER THAN": "<=", "NOT LESS THAN": ">=", "NOT GREATER THAN OR EQUAL TO": "<", "NOT GREATER THAN OR EQUAL": "<", "NOT LESS THAN OR EQUAL TO": ">", "NOT LESS THAN OR EQUAL": ">", "NOT EQUAL TO": "!=", "NOT EQUAL": "!="}
+            _when_figurative_map = {"ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": '""', "SPACE": '""', "HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "TRUE": "True", "FALSE": "False"}
+            if _when_op_m:
+                _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
+                _when_rhs_raw = _when_op_m.group(2).strip()
+                _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
+                return f"{eval_subject} {_when_op_py} {_when_rhs}"
+            _when_val_py = _when_figurative_map.get(_wv.upper(), _cobol_hyphen_fix(_wv) if not (_wv.startswith(chr(34)) or _wv.startswith(chr(39))) else _wv)
+            return f"{eval_subject} == {_when_val_py}"
+
+        # Bug (reported by the user, 13th bug of this round): a combined AND/OR WHEN condition
+        # in a non-TRUE EVALUATE ("EVALUATE WS-A WHEN GREATER THAN 10 AND LESS THAN 20") was
+        # never split - only the FIRST operator+value was converted, and everything after the
+        # AND/OR ("AND LESS THAN 20") was copied through as literal, unconverted COBOL keywords
+        # ("if WS_A > 10 AND LESS THAN 20:"), a SyntaxError. This is the exact same combined-
+        # relation-condition problem already solved for IF/PERFORM UNTIL/EVALUATE TRUE (bug
+        # #8) - split on top-level AND/OR (protecting the "OR" inside "GREATER THAN OR EQUAL
+        # TO"/"LESS THAN OR EQUAL TO" the same way), convert each segment through the ordinary
+        # single-condition pipeline above, then recombine with Python and/or.
+        _or_placeholder = "XCOBOLTHANORQUALX"
+        _protect_pat = re.compile(r"((?:GREATER|LESS)\s+THAN\s+)OR(\s+EQUAL(?:\s+TO)?)", re.IGNORECASE)
+        _protected_when_val = _protect_pat.sub(lambda m: m.group(1) + _or_placeholder + m.group(2), when_val)
+        _when_segments = re.split(r"(\bAND\b|\bOR\b)", _protected_when_val, flags=re.IGNORECASE)
+        if len(_when_segments) > 1:
+            _combined_parts = []
+            for _seg in _when_segments:
+                _seg_stripped = _seg.strip()
+                if _seg_stripped.upper() in ("AND", "OR"):
+                    _combined_parts.append(_seg_stripped.lower())
+                    continue
+                _seg_restored = re.sub(_or_placeholder, "OR", _seg_stripped, flags=re.IGNORECASE)
+                _combined_parts.append(_single_when_condition(_seg_restored))
+            return " ".join(_combined_parts)
+        return _single_when_condition(when_val)
+
+    # Bug (reported by the user, 14th bug - "sabse widespread bug" of this session): a
+    # WORKING-STORAGE group/record field ("01 WS-REC." with sub-fields like "05 WS-NAME PIC
+    # X(10).") was declared and globalized under its group-PREFIXED name (WS_REC_WS_NAME), but
+    # every PROCEDURE DIVISION statement handler (MOVE, DISPLAY, IF, ...) refers to a field by
+    # its bare ELEMENTARY name (WS_NAME) - the form COBOL code actually writes almost always
+    # (record-qualification syntax, "WS-NAME OF WS-REC", is rare and not implemented here
+    # anyway). That mismatch means the declared/global name is never the name any statement
+    # actually uses: assigning to WS_NAME inside a paragraph silently creates a new LOCAL
+    # variable (shadowing nothing, since WS_REC_WS_NAME was declared global instead), and
+    # reading it from a DIFFERENT paragraph - the normal case, since WORKING-STORAGE is
+    # supposed to be shared across the whole program - raises NameError, because that
+    # paragraph's own "global WS_REC_WS_NAME" doesn't cover WS_NAME either. Fix: declare/
+    # globalize group sub-fields under their bare elementary name by default, matching what
+    # every procedure-division handler already expects. Group-prefixing is now used ONLY as a
+    # fallback when the same elementary name is declared more than once in the file (a real
+    # naming collision that a bare name genuinely can't resolve) - pre-scanned once below,
+    # since that can't be known until the whole DATA DIVISION has been read.
+    _ws_elementary_name_counts = {}
+    for _pre_line in lines:
+        _pre_line_stripped = _pre_line.strip()
+        if filename.lower().endswith((".cbl", ".cob")):
+            _pre_seq_m = re.match(r"^(\d{6})\s+(.*)$", _pre_line_stripped)
+            if _pre_seq_m:
+                _pre_line_stripped = _pre_seq_m.group(2)
+        _pre_var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+(?:\s+VALUE\s+(.+?))?\.?$", _pre_line_stripped, re.IGNORECASE)
+        if _pre_var_m:
+            _pre_name = _pre_var_m.group(2).upper().replace("-", "_")
+            _ws_elementary_name_counts[_pre_name] = _ws_elementary_name_counts.get(_pre_name, 0) + 1
 
     # Bug (reported by the user): stacked WHEN clauses ("WHEN 1 / WHEN 2 / WHEN 3 / DISPLAY
     # ...") - a very common COBOL idiom for sharing one body across several discrete values,
@@ -3004,8 +3061,16 @@ def migrate_cobol(source, filename="file.cbl"):
             raw_name = var_m.group(2).upper().replace("-", "_")
             while _group_stack and _group_stack[-1][0] >= _level_num_int:
                 _group_stack.pop()
-            if _group_stack:
+            if _group_stack and _ws_elementary_name_counts.get(raw_name, 0) > 1:
+                # Genuine collision - the bare elementary name is declared more than once in
+                # this file, so it can't be used unqualified without ambiguity. Fall back to
+                # the group-prefixed name (the pre-fix behavior) and flag it, since no
+                # PROCEDURE DIVISION statement here is qualified ("... OF WS-REC") either.
                 var_name = f"{_group_stack[-1][1]}_{raw_name}"
+                current_group_01 = _group_stack[-1][1]
+                changes.append(f"REVIEW NEEDED: field {var_m.group(2)} declared under group {current_group_01} - this elementary name is declared more than once in this file, so it was kept group-prefixed ({var_name}) to avoid a naming collision. Any PROCEDURE DIVISION statement that references it by the bare name alone will need manual qualification.")
+            elif _group_stack:
+                var_name = raw_name
                 current_group_01 = _group_stack[-1][1]
             else:
                 var_name = raw_name
