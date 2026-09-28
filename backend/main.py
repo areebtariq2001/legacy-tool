@@ -2660,7 +2660,32 @@ _COBOL_REL_OP_TEXT = r"(?:IS\s+)?(?:NOT\s+)?(?:GREATER\s+THAN\s+OR\s+EQUAL\s+TO|
 # (MOVE created a same-named local, DISPLAY read it back in the same function), but the field
 # was genuinely never declared/globalized - referencing it from a DIFFERENT paragraph (the
 # normal case for WORKING-STORAGE) raised NameError, exactly like the group-field bug (#14).
-_COBOL_USAGE_CLAUSE_TEXT = r"(?:\s+(?:USAGE\s+(?:IS\s+)?)?(?:COMP(?:UTATIONAL)?(?:-[1-4])?|BINARY|PACKED-DECIMAL|DISPLAY))?"
+#
+# Follow-up (reported by the user, same root cause/family): the same declaration-regex gap
+# exists for any OTHER clause that can appear after PIC - SIGN LEADING/TRAILING [SEPARATE
+# [CHARACTER]], JUSTIFIED/JUST RIGHT/LEFT, BLANK WHEN ZERO, and SYNCHRONIZED/SYNC - all
+# equally common, valid COBOL clauses that this migrator has no semantic use for (their
+# storage-layout/display-formatting effect is out of scope, same as COMP/COMP-3's numeric
+# packing), but whose mere unrecognized PRESENCE was silently breaking the field's declaration
+# entirely. These are matched in any order and any repetition and simply consumed/discarded,
+# so the field still declares under its plain name - exactly like COMP/COMP-3 above.
+#
+# OCCURS is deliberately NOT included here even though it can appear in the same position:
+# OCCURS makes the field a table/array, a fundamentally different shape (not a scalar) that
+# this migrator does not model at all. Swallowing it here would make an OCCURS field silently
+# declare as an ordinary scalar Python variable - trading today's honest, disclosed "# TODO:
+# manual review" (a safe, correct non-declaration) for a new, silently WRONG declaration. An
+# OCCURS field is correctly left as a disclosed manual-review item, per this migration's own
+# documented scope.
+_COBOL_USAGE_CLAUSE_TEXT = (
+    r"(?:\s+(?:"
+    r"(?:USAGE\s+(?:IS\s+)?)?(?:COMP(?:UTATIONAL)?(?:-[1-4])?|BINARY|PACKED-DECIMAL|DISPLAY)"
+    r"|SIGN\s+(?:IS\s+)?(?:LEADING|TRAILING)(?:\s+SEPARATE(?:\s+CHARACTER)?)?"
+    r"|JUST(?:IFIED)?\s+(?:RIGHT|LEFT)"
+    r"|BLANK\s+(?:WHEN\s+)?ZERO"
+    r"|SYNC(?:HRONIZED)?(?:\s+(?:LEFT|RIGHT))?"
+    r"))*"
+)
 
 def _cobol_expand_abbreviated_relation_conditions(cond):
     """Expand an abbreviated combined relation condition by re-inserting the implied subject
