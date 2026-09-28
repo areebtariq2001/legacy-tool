@@ -2565,7 +2565,39 @@ def analyze_cobol(source, filename="file.cbl"):
         issues.append(f"Sensitive-data sub-check could not complete: {e} - review manually for hardcoded secrets/PII")
     return {"issues": issues, "classes": [], "methods": _cobol_paras[:20], "total_methods": len(_cobol_paras), "methods_truncated": len(_cobol_paras) > 20, "cobol_summary": f"{len(_cobol_paras)} paragraph(s) found (COBOL has no classes/OOP)"}
 
+# Bug (reported by the user - "sabse bada systemic bug" of this session): COBOL identifiers
+# are case-insensitive - "WS-COUNT", "ws-count" and "Ws-Count" all name the SAME field to a
+# real COBOL compiler. This migrator only ever converted hyphens to underscores and otherwise
+# copied each occurrence's case through verbatim, so a field declared in one case and
+# referenced in another (extremely common in real, decades-old legacy COBOL, where casing was
+# never enforced) became a DIFFERENT Python identifier at every differently-cased spelling -
+# e.g. "01 ws-count ... ADD 1 TO WS-COUNT. DISPLAY WS-Count." migrated to three unrelated
+# names (ws_count / WS_COUNT / WS_Count), crashing with "UnboundLocalError: cannot access
+# local variable 'WS_COUNT'". Fix: canonicalize every COBOL identifier to UPPERCASE (matching
+# this codebase's other case-insensitive-name convention, level-88 condition names, which are
+# already looked up via cond_names[name.upper()]) wherever COBOL source text is converted into
+# a Python identifier, so every spelling of the same COBOL name resolves to the same Python
+# name regardless of the source's original casing. _cobol_hyphen_fix is the single, central,
+# most-used conversion helper (conditions, expressions, DIVIDE/MULTIPLY operands, EVALUATE
+# subjects, ...) so uppercasing here covers most call sites in one place; it is quote-aware so
+# the actual contents of a COBOL string literal ("some text") are never altered - only COBOL
+# source text OUTSIDE quotes is uppercased.
 def _cobol_hyphen_fix(s):
+    _out = []
+    _i, _n = 0, len(s)
+    while _i < _n:
+        _c = s[_i]
+        if _c in (chr(34), chr(39)):
+            _j = s.find(_c, _i + 1)
+            if _j == -1:
+                _out.append(s[_i:])
+                break
+            _out.append(s[_i:_j + 1])
+            _i = _j + 1
+        else:
+            _out.append(_c.upper())
+            _i += 1
+    s = "".join(_out)
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z])", "_", s)
 
 # Bug (reported by the user): COBOL's "abbreviated combined relation condition" - a legal
@@ -2837,8 +2869,13 @@ def migrate_cobol(source, filename="file.cbl"):
                     _cond_fixed_words.append(_cond_names[_w_upper_stripped.upper()])
                 elif _w_upper_stripped.upper() in _eval_true_figurative_word_map:
                     _cond_fixed_words.append(_eval_true_figurative_word_map[_w_upper_stripped.upper()])
-                elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
-                    _cond_fixed_words.append(_w.replace("-", "_"))
+                elif _w and _w[0] not in ('"', "'") and any(_c.isalpha() for _c in _w):
+                    # Case-insensitive identifier fix (reported by the user, systemic bug):
+                    # uppercase before hyphen-fixing so "Ws-Count"/"ws-count"/"WS-COUNT" all
+                    # resolve to the one canonical WS_COUNT Python name - not just hyphenated
+                    # words, since a single-word variable with no hyphen at all (e.g. "Total")
+                    # needs the exact same case normalization to match its declaration.
+                    _cond_fixed_words.append(_w.upper().replace("-", "_"))
                 else:
                     _cond_fixed_words.append(_w)
             _when_cond = " ".join(_cond_fixed_words)
@@ -2964,7 +3001,7 @@ def migrate_cobol(source, filename="file.cbl"):
         if var_m and in_working_storage:
             level_num = var_m.group(1)
             _level_num_int = int(level_num)
-            raw_name = var_m.group(2).replace("-", "_")
+            raw_name = var_m.group(2).upper().replace("-", "_")
             while _group_stack and _group_stack[-1][0] >= _level_num_int:
                 _group_stack.pop()
             if _group_stack:
@@ -2989,7 +3026,7 @@ def migrate_cobol(source, filename="file.cbl"):
         group_m = re.match(r"^(\d+)\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if group_m and in_working_storage:
             _grp_level = int(group_m.group(1))
-            _grp_raw = group_m.group(2).replace("-", "_")
+            _grp_raw = group_m.group(2).upper().replace("-", "_")
             while _group_stack and _group_stack[-1][0] >= _grp_level:
                 _group_stack.pop()
             _grp_full = f"{_group_stack[-1][1]}_{_grp_raw}" if _group_stack else _grp_raw
@@ -3060,10 +3097,10 @@ def migrate_cobol(source, filename="file.cbl"):
             if src_val.upper() in _COBOL_FIGURATIVES_MOVE:
                 src_val_clean = _COBOL_FIGURATIVES_MOVE[src_val.upper()]
             elif not is_literal:
-                src_val_clean = src_val.replace("-", "_")
+                src_val_clean = src_val.upper().replace("-", "_")
             else:
                 src_val_clean = src_val
-            dst_vars = [d.replace("-", "_") for d in move_m.group(2).strip().split()]
+            dst_vars = [d.upper().replace("-", "_") for d in move_m.group(2).strip().split()]
             for dst_var in dst_vars:
                 out_lines.append(f"{cur_indent()}{dst_var} = {src_val_clean}")
             _dst_info = f" ({len(dst_vars)} destinations)" if len(dst_vars) > 1 else ""
@@ -3081,7 +3118,7 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m:
-            var_name = compute_m.group(1).replace("-", "_")
+            var_name = compute_m.group(1).upper().replace("-", "_")
             expr = _cobol_hyphen_fix(compute_m.group(2))
             out_lines.append(f"{cur_indent()}{var_name} = {expr}")
             changes.append("COMPUTE -> assignment")
@@ -3105,7 +3142,7 @@ def migrate_cobol(source, filename="file.cbl"):
             # bug).
             _add_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", add_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_add_sources) if len(_add_sources) > 1 else (_add_sources[0] if _add_sources else "0")
-            dst_var = add_m.group(2).replace("-", "_")
+            dst_var = add_m.group(2).upper().replace("-", "_")
             out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
             changes.append("ADD -> +=" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
             continue
@@ -3115,7 +3152,7 @@ def migrate_cobol(source, filename="file.cbl"):
             # FROM WS-C." has the identical comma-separated-sources issue.
             _sub_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", sub_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_sub_sources) if len(_sub_sources) > 1 else (_sub_sources[0] if _sub_sources else "0")
-            dst_var = sub_m.group(2).replace("-", "_")
+            dst_var = sub_m.group(2).upper().replace("-", "_")
             out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
             changes.append("SUBTRACT -> -=" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
             continue
@@ -3134,10 +3171,10 @@ def migrate_cobol(source, filename="file.cbl"):
         _mult_m = re.match(r"^MULTIPLY\s+(.+?)\s+BY\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?(\s+ROUNDED)?\.?$", line, re.IGNORECASE)
         if _mult_m:
             _mult_src = _cobol_hyphen_fix(_mult_m.group(1).strip())
-            _mult_by_var = _mult_m.group(2).replace("-", "_")
+            _mult_by_var = _mult_m.group(2).upper().replace("-", "_")
             _mult_giving_var = _mult_m.group(3)
             if _mult_giving_var:
-                _mult_dst = _mult_giving_var.replace("-", "_")
+                _mult_dst = _mult_giving_var.upper().replace("-", "_")
                 out_lines.append(f"{cur_indent()}{_mult_dst} = {_mult_src} * {_mult_by_var}")
                 changes.append(f"MULTIPLY {_mult_m.group(1).strip()} BY {_mult_m.group(2)} GIVING {_mult_giving_var} -> assignment")
             else:
@@ -3149,7 +3186,7 @@ def migrate_cobol(source, filename="file.cbl"):
         if _div_m:
             _div_src = _cobol_hyphen_fix(_div_m.group(1).strip())
             _div_prep = _div_m.group(2).upper()
-            _div_other_var = _div_m.group(3).replace("-", "_")
+            _div_other_var = _div_m.group(3).upper().replace("-", "_")
             _div_giving_var = _div_m.group(4)
             _div_remainder_var = _div_m.group(6)
             # "DIVIDE a INTO b" means b = b / a; "DIVIDE a BY b" means (with GIVING only,
@@ -3160,17 +3197,29 @@ def migrate_cobol(source, filename="file.cbl"):
                 _dividend, _divisor = _div_other_var, _div_src
             else:
                 _dividend, _divisor = _div_src, _div_other_var
+            # Bug (reported by the user, 11th bug): when a REMAINDER clause is present, COBOL's
+            # GIVING and REMAINDER are the two halves of ONE integer-truncating division - they
+            # must always satisfy quotient*divisor + remainder == dividend. This handler used
+            # Python's "/" (true division, e.g. 17/5 = 3.4) for the quotient but "%" (integer
+            # modulo, e.g. 17%5 = 2) for the remainder unconditionally - producing a
+            # self-contradictory pair (quotient 3.4 alongside remainder 2, even though remainder
+            # 2 is only valid for quotient 3). Fix: when REMAINDER is requested, use "//" (floor
+            # division) for the quotient instead of "/", so it is the SAME division operation as
+            # the "%" remainder and the two values stay mathematically consistent (Python's "//"
+            # and "%" are always a matching pair). Without REMAINDER, "/" is left as-is since
+            # there is no paired remainder for it to be inconsistent with.
+            _div_op = "//" if _div_remainder_var else "/"
             if _div_giving_var:
-                _div_dst = _div_giving_var.replace("-", "_")
-                out_lines.append(f"{cur_indent()}{_div_dst} = {_dividend} / {_divisor}")
+                _div_dst = _div_giving_var.upper().replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_div_dst} = {_dividend} {_div_op} {_divisor}")
                 changes.append(f"DIVIDE {_div_m.group(1).strip()} {_div_m.group(2)} {_div_m.group(3)} GIVING {_div_giving_var} -> assignment")
             else:
-                out_lines.append(f"{cur_indent()}{_div_other_var} = {_dividend} / {_divisor}")
+                out_lines.append(f"{cur_indent()}{_div_other_var} = {_dividend} {_div_op} {_divisor}")
                 changes.append(f"DIVIDE {_div_m.group(1).strip()} {_div_m.group(2)} {_div_m.group(3)} -> assignment")
             if _div_remainder_var:
-                _rem_dst = _div_remainder_var.replace("-", "_")
+                _rem_dst = _div_remainder_var.upper().replace("-", "_")
                 out_lines.append(f"{cur_indent()}{_rem_dst} = {_dividend} % {_divisor}")
-                changes.append(f"DIVIDE ... REMAINDER {_div_remainder_var} -> % (modulo)")
+                changes.append(f"DIVIDE ... REMAINDER {_div_remainder_var} -> % (modulo), quotient uses // (floor division) so it stays consistent with the remainder")
             changes.append(f"REVIEW NEEDED: {line.strip()} - COBOL fixed-point decimal arithmetic truncates by default unless ROUNDED is specified (also, Python's / gives a float, not COBOL's fixed-point decimal), which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic, and that division-by-zero is guarded elsewhere (COBOL raises a SIZE ERROR condition; unguarded Python division raises ZeroDivisionError).")
             continue
         perform_m = re.match(r"^PERFORM\s+([\w-]+)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
@@ -3210,7 +3259,7 @@ def migrate_cobol(source, filename="file.cbl"):
         # comparison bugs that a range() translation would risk.
         _perf_varying_m = re.match(r"^PERFORM\s+VARYING\s+([\w-]+)\s+FROM\s+(.+?)\s+BY\s+(.+?)\s+UNTIL\s+(.+?)\.?$", line, re.IGNORECASE)
         if _perf_varying_m:
-            _vary_var = _perf_varying_m.group(1).replace("-", "_")
+            _vary_var = _perf_varying_m.group(1).upper().replace("-", "_")
             _vary_start = _cobol_hyphen_fix(_perf_varying_m.group(2).strip())
             _vary_step = _cobol_hyphen_fix(_perf_varying_m.group(3).strip())
             _vary_cond_raw = _perf_varying_m.group(4)
@@ -3259,7 +3308,7 @@ def migrate_cobol(source, filename="file.cbl"):
         _perf_times_m = re.match(r"^PERFORM\s+([\w-]+)\s+([\w-]+)\s+TIMES\.?$", line, re.IGNORECASE)
         if _perf_times_m and _perf_times_m.group(1).upper() not in ("UNTIL", "VARYING"):
             _times = _perf_times_m.group(2)
-            _times_py = _times if _times.isdigit() else _times.replace("-", "_")
+            _times_py = _times if _times.isdigit() else _times.upper().replace("-", "_")
             out_lines.append(f"{cur_indent()}for _ in range(int({_times_py})):")
             out_lines.append(f"{cur_indent()}    {_para_fn(_perf_times_m.group(1))}()")
             _performed.append(_perf_times_m.group(1))
@@ -3404,8 +3453,12 @@ def migrate_cobol(source, filename="file.cbl"):
                     _fixed_words.append(_cond_names[_w_upper_stripped.upper()])
                 elif _w_upper_stripped.upper() in _figurative_word_map:
                     _fixed_words.append(_figurative_word_map[_w_upper_stripped.upper()])
-                elif _w and _w[0] not in ('"', "'") and "-" in _w and any(_c.isalnum() for _c in _w):
-                    _fixed_words.append(_w.replace("-", "_"))
+                elif _w and _w[0] not in ('"', "'") and any(_c.isalpha() for _c in _w):
+                    # Case-insensitive identifier fix (reported by the user, systemic bug): see
+                    # _cobol_hyphen_fix's docstring/comment. Uppercase before hyphen-fixing so
+                    # any casing of the same COBOL name - hyphenated or not - resolves to one
+                    # canonical Python identifier, matching how it was declared.
+                    _fixed_words.append(_w.upper().replace("-", "_"))
                 else:
                     _fixed_words.append(_w)
             cond = " ".join(_fixed_words)
