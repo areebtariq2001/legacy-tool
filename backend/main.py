@@ -3104,6 +3104,27 @@ def migrate_cobol(source, filename="file.cbl"):
             continue
         if in_procedure:
             _para_m = re.match(r"^([A-Za-z0-9][\w-]*)(?:\s+SECTION)?\s*\.$", line, re.IGNORECASE)
+            # Bug (reported by the user, 19th bug): real COBOL allows a paragraph name and its
+            # first statement to be written on the SAME line, separated only by the paragraph
+            # name's own period ("PARA-A. DISPLAY "A"." - extremely common for short one-liner
+            # paragraphs such as error handlers). The paragraph-header regex above only matches
+            # a name/period ALONE on a line, so this combo was missed entirely: the whole line
+            # (name included) fell through to the generic per-line "# TODO: manual review"
+            # fallback instead of opening a paragraph, and that fallback landed AFTER the
+            # previous paragraph's "raise _StopRun()"/return, making it unreachable dead code on
+            # top of everything else. Net effect: "def para_a():" was never generated at all,
+            # so any "PERFORM PARA-A." elsewhere raised NameError. Fix: when the whole-line
+            # paragraph-header regex doesn't match, separately check for "name[.SECTION].
+            # <remaining statement text>" - if the leading token is a genuine paragraph name
+            # (not a scope terminator or single-word statement, same exclusions as below), open
+            # the paragraph exactly as usual and push the remaining statement text back onto the
+            # line queue so it gets fully re-processed as an ordinary statement of the newly
+            # opened paragraph (OF/IN stripping, quote handling, etc. all still apply), instead
+            # of duplicating any statement-parsing logic here.
+            _para_same_line_m = None
+            if not _para_m:
+                _para_same_line_m = re.match(r"^([A-Za-z0-9][\w-]*)(?:\s+SECTION)?\.\s+(\S.*)$", line, re.IGNORECASE)
+            _para_name_candidate = _para_m.group(1) if _para_m else (_para_same_line_m.group(1) if _para_same_line_m else None)
             # Bug (reported by the user, 18th bug): _COBOL_SINGLE_WORD_STMTS only listed the
             # specific scope-terminators this migrator happened to have dedicated handlers for
             # (END-IF/END-EVALUATE/END-PERFORM) - any OTHER "END-<VERB>." (END-COMPUTE,
@@ -3118,23 +3139,29 @@ def migrate_cobol(source, filename="file.cbl"):
             # that explicitly PERFORMs the original paragraph by name gets an incomplete
             # paragraph missing its own ending. Fix: exclude every "END-<WORD>" shape, not just
             # the three this migrator has specific handlers for.
-            _is_scope_terminator = _para_m and re.match(r"^END-[A-Za-z-]+$", _para_m.group(1), re.IGNORECASE)
+            _is_scope_terminator = _para_name_candidate and re.match(r"^END-[A-Za-z-]+$", _para_name_candidate, re.IGNORECASE)
+            _is_real_para_header = bool(_para_name_candidate) and not _is_scope_terminator and _para_name_candidate.upper() not in _COBOL_SINGLE_WORD_STMTS
             if _in_error_clause:
-                if _para_m:
-                    # A scope terminator ("END-COMPUTE.") or a real paragraph header both
-                    # implicitly end any open ON SIZE ERROR/EXCEPTION/OVERFLOW clause (a COBOL
-                    # sentence-terminating period always closes an open clause); fall through
-                    # to the normal handling below (paragraph-open, or the generic disclosed
-                    # fallback for the scope terminator itself).
+                if _para_m or _para_same_line_m:
+                    # A scope terminator ("END-COMPUTE.") or a real paragraph header (on its own
+                    # line, or combined with its first statement) both implicitly end any open
+                    # ON SIZE ERROR/EXCEPTION/OVERFLOW clause (a COBOL sentence-terminating
+                    # period always closes an open clause); fall through to the normal handling
+                    # below (paragraph-open, or the generic disclosed fallback for the scope
+                    # terminator itself).
                     _in_error_clause = False
                 else:
                     out_lines.append(f"{cur_indent()}# TODO: manual review (inside ON SIZE ERROR/EXCEPTION/OVERFLOW, NOT executed by this migration) - {line}")
                     changes.append(f"REVIEW NEEDED: {line.strip()} - this statement is inside an ON SIZE ERROR/EXCEPTION/OVERFLOW clause. This migration cannot detect the real error condition (e.g. Python integers don't overflow the way COBOL fixed-point fields do), so it is disclosed as a comment and NOT executed, instead of being converted as ordinary code that would then run unconditionally, on every execution, rather than only on an actual error.")
                     continue
-            if _para_m and not _is_scope_terminator and _para_m.group(1).upper() not in _COBOL_SINGLE_WORD_STMTS:
+            if _is_real_para_header:
                 if_depth = 0
-                _fn_name = _open_para(_para_m.group(1))
-                changes.append(f"Paragraph {_para_m.group(1)} -> def {_fn_name}()")
+                _fn_name = _open_para(_para_name_candidate)
+                if _para_same_line_m:
+                    changes.append(f"Paragraph {_para_name_candidate} -> def {_fn_name}() (statement on the same line as the header was split out and re-processed)")
+                    lines.insert(_li, _para_same_line_m.group(2))
+                else:
+                    changes.append(f"Paragraph {_para_name_candidate} -> def {_fn_name}()")
                 continue
             if not _paragraphs:
                 _open_para("PROCEDURE-START")
