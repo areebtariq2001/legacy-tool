@@ -1,17 +1,53 @@
-﻿services:
+services:
   backend:
     build: ./backend
     restart: unless-stopped
     expose:
       - "8000"
+    # Resource limits: keeps one runaway request (e.g. a huge AI-migration call) from eating
+    # the whole host's CPU/RAM. Docker Compose v2 (confirmed in use here - "Docker Compose
+    # version v5.5.1") applies deploy.resources.limits directly via `docker compose up`, no
+    # Swarm mode needed.
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          memory: 512M
+    # Healthcheck hits the backend's own /health route (confirmed to exist in main.py).
+    # NOTE: the base image is python:3.11-slim, which does NOT include curl - using curl here
+    # (as commonly suggested) would make the healthcheck itself fail with "executable file
+    # not found" on every run. Using Python's own urllib instead needs no extra package.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    # nginx:alpine is Busybox-based and DOES ship wget, so this needs no extra install.
+    # Hits our own /nginx-health location (see nginx/conf.d/default.conf) - checks that
+    # nginx itself is serving, not the backend behind it.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -3092,6 +3092,18 @@ def migrate_cobol(source, filename="file.cbl"):
                 _when_cond = _compiled_pat.sub(_repl, _when_cond)
             _when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", _when_cond)
             return _when_cond
+        # Bug (reported by the user, 24th bug): the subscripted/OCCURS-indexed-operand fix
+        # just above only covers the "EVALUATE TRUE" form. The far more common non-TRUE form
+        # ("EVALUATE <subject> WHEN <value>") is a completely separate code path below and was
+        # never checked at all - on EITHER side: the subject itself ("EVALUATE WS-ITEM(1)
+        # WHEN 5") and a table field used as a WHEN value ("EVALUATE WS-X WHEN WS-ITEM(1)")
+        # both crashed with the same NameError ("WS_ITEM(1)" misread as a Python function
+        # call). Checked here, before any other conversion, on both operands raw. Falls back
+        # to the same safe "True" placeholder as the EVALUATE TRUE case above and the IF
+        # handler - the caller still opens/closes the if/elif block structurally as normal.
+        if _cobol_has_unsupported_subscript(eval_subject) or _cobol_has_unsupported_subscript(when_val):
+            changes.append(f"REVIEW NEEDED: EVALUATE {eval_subject.strip()} WHEN {when_val.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so this was converted to an unconditional 'True' - verify the real condition manually and fix it in the migrated code.")
+            return "True"
         _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
         if _thru_m:
             _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
@@ -3551,12 +3563,39 @@ def migrate_cobol(source, filename="file.cbl"):
                     elif src_val.upper() in ("SPACES", "SPACE"):
                         _assign_val = f'"{chr(32) * _alpha_n}"'
                         _padded_any = True
+                    elif src_val.upper() in ("ZERO", "ZEROS", "ZEROES"):
+                        # Bug (reported by the user, 26th bug): MOVE ZERO/ZEROS/ZEROES to an
+                        # alphanumeric (PIC X/A) destination was emitting a Python INTEGER (0),
+                        # not a character-filled string. Real COBOL MOVE of the ZERO figurative
+                        # constant to an alphanumeric field fills the WHOLE field with the digit
+                        # character '0' (e.g. PIC X(5) becomes "00000"), the same way SPACES
+                        # fills it with blanks above - it does NOT become a numeric zero. Because
+                        # ZERO/ZEROS/ZEROES is classified as `is_literal=True` (via
+                        # _COBOL_FIGURATIVES_MOVE), it never reached the plain-variable branch
+                        # either, so this case was falling through with no padding at all.
+                        _assign_val = f'"{chr(48) * _alpha_n}"'
+                        _padded_any = True
+                    elif not is_literal:
+                        # Bug (reported by the user): a variable-source MOVE to a known
+                        # alphanumeric (PIC X/A) destination was NOT being space-padded/truncated
+                        # at all - only the quoted-literal-source case above got that treatment.
+                        # Real COBOL MOVE space-pads (or truncates) based on the DESTINATION
+                        # field's declared length regardless of whether the source is a literal
+                        # or another field, so e.g. MOVE WS-SHORT (PIC X(3)) TO WS-LONG (PIC X(6))
+                        # must produce a 6-char, space-padded value - not a raw, unpadded copy of
+                        # WS-SHORT's current (shorter) value. Unlike a literal, the source
+                        # variable's actual value isn't known until runtime, so the padding has
+                        # to happen at runtime too: str(...) guards against a source that hasn't
+                        # been assigned a string yet (e.g. still None or a number), matching the
+                        # destination being declared alphanumeric.
+                        _assign_val = f"str({src_val_clean})[:{_alpha_n}].ljust({_alpha_n})"
+                        _padded_any = True
                 out_lines.append(f"{cur_indent()}{dst_var} = {_assign_val}")
             _dst_info = f" ({len(dst_vars)} destinations)" if len(dst_vars) > 1 else ""
             changes.append(f"MOVE -> assignment{_dst_info}")
             if _padded_any:
                 changes.append(f"MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - space-padded/truncated to the destination field's declared PIC X/A length, matching COBOL MOVE semantics.")
-            if not is_literal:
+            if not is_literal and not _padded_any:
                 changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
         if upper.startswith("STOP RUN") or upper.rstrip(".").strip() in ("GOBACK", "EXIT PROGRAM"):
