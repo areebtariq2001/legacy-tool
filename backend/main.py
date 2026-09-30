@@ -2700,6 +2700,19 @@ _COBOL_USAGE_CLAUSE_TEXT = (
 # space inside it - is captured and carried through as ONE token, never split or rejoined.
 _QUOTE_AWARE_TOKEN_RE = re.compile(r'"[^"]*"|\x27[^\x27]*\x27|\S+')
 
+# Bug (reported by the user, 20th bug of a later batch): used when joining a multi-line COMPUTE
+# statement's continuation lines back into one logical line (see the COMPUTE handler). A
+# continuation line is pure arithmetic (more operators/operands/parens) and never starts with a
+# COBOL clause/statement keyword - so if the NEXT physical line looks like the start of one of
+# these, it is the beginning of a new clause or statement, not more of the expression, and must
+# NOT be swallowed into the COMPUTE's right-hand side.
+_COMPUTE_CONTINUATION_STOP_RE = re.compile(
+    r"^(?:(?:NOT\s+)?ON\s+(?:SIZE\s+ERROR|EXCEPTION|OVERFLOW)\b|END-[A-Za-z-]+\b|"
+    r"DISPLAY\b|MOVE\b|IF\b|PERFORM\b|ADD\b|SUBTRACT\b|MULTIPLY\b|DIVIDE\b|COMPUTE\b|"
+    r"EVALUATE\b|STOP\s+RUN\b|GOBACK\b|EXIT\b)",
+    re.IGNORECASE,
+)
+
 
 def _cobol_alpha_pic_len(pic_token):
     """Bug (reported by the user, 20th bug, part 2): MOVE to an alphanumeric (PIC X/A) field
@@ -3468,18 +3481,67 @@ def migrate_cobol(source, filename="file.cbl"):
             out_lines.append(f"{cur_indent()}return")
             changes.append("EXIT -> return (end of paragraph)")
             continue
+        # Bug (reported by the user, 20th bug of this batch): a COMPUTE statement spanning
+        # multiple physical lines (a normal COBOL continuation pattern - splitting a long
+        # right-hand-side expression across lines for readability, most visibly for financial
+        # formulas that combine multiplication and division) was never joined back into one
+        # logical statement before matching. "COMPUTE WS-X =\n    (A * B) / 12" failed the
+        # single-physical-line COMPUTE regex outright (empty right-hand side captured on the
+        # first physical line), and the continuation line ("(A * B) / 12") has no COMPUTE
+        # keyword at all - so BOTH physical lines silently fell through to the generic
+        # disclosed TODO fallback, dropping the assignment entirely (the destination field kept
+        # whatever value it had before) instead of computing it, and the field's real division
+        # never got the fixed-point-truncation warning this migration means to flag on it,
+        # while unrelated single-line COMPUTEs elsewhere still did. Fix: when a COMPUTE's
+        # opening physical line doesn't end in COBOL's sentence-terminating period, keep
+        # pulling and joining subsequent physical lines (the same normalization every other
+        # line already gets) until one is found that does end in "." - then treat the joined
+        # result as a single logical line, exactly as if it had been written on one physical
+        # line to begin with.
+        # Bug (reported by the user, 23rd bug of this batch): when a file has more than one
+        # COMPUTE statement, the "Fixed" tally ("COMPUTE -> assignment", once per successfully
+        # converted COMPUTE) and the disclosed TODO tally (once per COMPUTE this migration
+        # couldn't convert, e.g. an unsupported subscript) gave no way to tell WHICH of the
+        # file's several COMPUTE statements landed in which bucket - both messages were
+        # identical regardless of which line produced them. _compute_line_no (the COMPUTE
+        # statement's own starting line, captured before any multi-line joining below) is
+        # threaded into every COMPUTE-related change message so each one is traceable back to
+        # its exact source line, the way most other findings in this report already are.
+        _compute_line_no = _li
+        _compute_start_m = re.match(r"^COMPUTE\s+[\w-]+\s*=\s*", line, re.IGNORECASE)
+        if _compute_start_m and not line.rstrip().endswith("."):
+            # Only join lines that are genuinely continuing the arithmetic EXPRESSION (more
+            # operators/operands/parens) - never swallow the start of a new clause or statement,
+            # such as an ON SIZE ERROR/EXCEPTION/OVERFLOW clause (part of the SAME COMPUTE
+            # statement in real COBOL, but handled by its own dedicated logic elsewhere and
+            # correctly has NO period before it) or END-COMPUTE, or any other statement that
+            # happens to follow a COMPUTE whose own line has no period yet. Stopping here
+            # instead of consuming such a line preserves the existing, already-correct handling
+            # for those cases exactly as before this fix.
+            _compute_joined_parts = [line]
+            while _li < len(lines) and not _compute_joined_parts[-1].rstrip().endswith("."):
+                _compute_cont_norm = _normalize_line(lines[_li])
+                if _compute_cont_norm is None:
+                    _li += 1
+                    continue
+                if _COMPUTE_CONTINUATION_STOP_RE.match(_compute_cont_norm):
+                    break
+                _li += 1
+                _compute_joined_parts.append(_compute_cont_norm)
+            line = " ".join(_compute_joined_parts)
+            upper = line.upper()
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m and _cobol_has_unsupported_subscript(compute_m.group(2)):
             out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
-            changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
+            changes.append(f"REVIEW NEEDED: line {_compute_line_no}: {line.strip()} - subscripted/OCCURS-indexed operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
             continue
         if compute_m:
             var_name = compute_m.group(1).upper().replace("-", "_")
             expr = _cobol_hyphen_fix(compute_m.group(2))
             out_lines.append(f"{cur_indent()}{var_name} = {expr}")
-            changes.append("COMPUTE -> assignment")
+            changes.append(f"COMPUTE -> assignment (line {_compute_line_no})")
             if "/" in expr or "*" in expr:
-                changes.append(f"REVIEW NEEDED: COMPUTE {var_name} = {expr} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
+                changes.append(f"REVIEW NEEDED: line {_compute_line_no}: COMPUTE {var_name} = {expr} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
         add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
         if add_m and _cobol_has_unsupported_subscript(add_m.group(1)):
@@ -5239,7 +5301,15 @@ def _grouped_sqli_issue(sqli_issues):
 
 _CNIC_LITERAL_RE = re.compile(r"[\"\x27][^\"\x27]*\b\d{5}-?\d{7}-?\d\b[^\"\x27]*[\"\x27]")
 _CNIC_NAME_RE = re.compile(r"(?i)\b\w*(cnic|nic_?no|national_?id)\w*\b")
-_OUTPUT_CALL_RE = re.compile(r"(?i)(\.write\s*\(|\bwritelines\s*\(|\bprint\b|\blog(?:ger|ging)?\.(?:debug|info|warning|warn|error|critical|exception)\s*\(|\bSystem\.out\.print|\becho\b|\berror_log\s*\(|\bfile_put_contents\s*\(|\bfprintf\s*\()")
+# Bug (reported by the user, 19th bug of this batch): a real per-customer CNIC field (e.g.
+# CUST-CNIC, populated from an input record - not a hardcoded literal) written to COBOL's
+# DISPLAY statement (COBOL's stdout equivalent) was never flagged as PII-output-exposure,
+# because this regex - shared across every language this scanner supports - enumerated
+# Python/Java/PHP-style output calls (print/log.../System.out.print/echo/...) but had no COBOL
+# alternative at all. DISPLAY is COBOL's exact equivalent of print()/echo, and is arguably the
+# MORE important case to catch here, since it runs on every real customer record in production,
+# not just a hardcoded test constant (which was already correctly flagged separately).
+_OUTPUT_CALL_RE = re.compile(r"(?i)(\.write\s*\(|\bwritelines\s*\(|\bprint\b|\blog(?:ger|ging)?\.(?:debug|info|warning|warn|error|critical|exception)\s*\(|\bSystem\.out\.print|\becho\b|\berror_log\s*\(|\bfile_put_contents\s*\(|\bfprintf\s*\(|\bDISPLAY\b)")
 
 def _cnic_exposure_findings(source):
     """Bug 13: hardcoded CNIC literals and CNIC values written to logs/files/stdout."""
