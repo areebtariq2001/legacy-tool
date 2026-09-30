@@ -2926,6 +2926,32 @@ def migrate_cobol(source, filename="file.cbl"):
     _group_stack = []
     _skipped_types = {}
     if_depth = 0
+    # Bug (reported by the user, 21st bug): a period-terminated IF (old-style COBOL, no
+    # END-IF - "IF WS-A > 0 <stmt>." with the IF's body closed only by the sentence-ending
+    # period of its last statement, extremely common in pre-COBOL-85 code) never closed at
+    # all. if_depth only ever decreased on the explicit keywords ELSE/END-IF/END-EVALUATE/
+    # END-PERFORM, so every statement AFTER such an IF's terminating period was emitted one
+    # indentation level too deep - permanently inside the IF (and, for a false/untaken
+    # condition, never executed at all - a silent wrong-logic bug, not a crash). Real COBOL
+    # rule: a sentence-terminating period closes every currently-open IF/ELSE level at once
+    # (not just the innermost one), but does NOT close an in-line PERFORM UNTIL/VARYING loop
+    # or an EVALUATE (both of those are COBOL-85 constructs that always require their own
+    # explicit END-PERFORM/END-EVALUATE - there is no legacy period-only form for either).
+    # _scope_kinds is a stack running in lockstep with if_depth, tagging each open level as
+    # "if" (period-closable) or "perform"/"when" (only closable by its own explicit END-*),
+    # so a period only pops the "if" levels off the top, stopping at the first non-"if" one.
+    _scope_kinds = []
+    _pending_if_close = False
+    _COBOL_SCOPE_MGMT_LINE_RE = re.compile(
+        r"^(?:IF\s|ELSE\b|END-IF\b|EVALUATE\s|WHEN\s|END-EVALUATE\b|"
+        r"PERFORM\s+(?:UNTIL|VARYING)\b|END-PERFORM\b)"
+    )
+    def _cobol_line_ends_sentence(_ln):
+        """True if this physical line's final non-space character is a COBOL sentence-
+        terminating period, ignoring any period that is just literal text inside a quoted
+        string (e.g. DISPLAY "END." does NOT end the sentence)."""
+        _no_strings = re.sub(r'"[^"]*"|\x27[^\x27]*\x27', "", _ln)
+        return _no_strings.rstrip().endswith(".")
     # Paragraph support: every COBOL paragraph becomes a Python function that declares the
     # WORKING-STORAGE variables global, PERFORM becomes a call, and main() runs the paragraphs
     # in source order (COBOL fall-through) until STOP RUN. Previously PERFORM X was left as a
@@ -3182,6 +3208,19 @@ def migrate_cobol(source, filename="file.cbl"):
             _group_stack = []
             continue
         if in_procedure:
+            # Bug 21 fix: apply any IF/ELSE-scope close that the PREVIOUS statement's own
+            # sentence-terminating period triggered, before this line's indentation
+            # (cur_indent(), driven by if_depth) is used for anything below. Deferring the
+            # close to the top of the NEXT statement (rather than closing immediately at the
+            # bottom of the previous one) needs no change to any of the individual statement
+            # handlers further down - it only needs to know, from the previous iteration,
+            # whether that statement's line was a plain "closable" statement or one of the
+            # explicit scope-management keywords, which is determined the same way below.
+            if _pending_if_close:
+                while _scope_kinds and _scope_kinds[-1] == "if":
+                    _scope_kinds.pop()
+                    if_depth = max(0, if_depth - 1)
+                _pending_if_close = False
             _para_m = re.match(r"^([A-Za-z0-9][\w-]*)(?:\s+SECTION)?\s*\.$", line, re.IGNORECASE)
             # Bug (reported by the user, 19th bug): real COBOL allows a paragraph name and its
             # first statement to be written on the SAME line, separated only by the paragraph
@@ -3235,6 +3274,8 @@ def migrate_cobol(source, filename="file.cbl"):
                     continue
             if _is_real_para_header:
                 if_depth = 0
+                _scope_kinds = []
+                _pending_if_close = False
                 _fn_name = _open_para(_para_name_candidate)
                 if _para_same_line_m:
                     changes.append(f"Paragraph {_para_name_candidate} -> def {_fn_name}() (statement on the same line as the header was split out and re-processed)")
@@ -3278,6 +3319,20 @@ def migrate_cobol(source, filename="file.cbl"):
                 _line_quotes_stashed = _line_quotes_stashed.replace("\x00QSTR" + str(_qi) + "\x00", _qval)
             line = _line_quotes_stashed
             upper = line.upper()
+            # Bug 21 fix (continued): classify THIS statement now, using its final text (after
+            # the OF/IN-qualifier stripping above), for the *next* iteration's pending-close
+            # check. A line that is itself one of the explicit scope-management keywords
+            # (IF/ELSE/END-IF/EVALUATE/WHEN/END-EVALUATE/an in-line PERFORM UNTIL or VARYING/
+            # END-PERFORM) already manages if_depth/_scope_kinds correctly in its own handler
+            # below, so its trailing period must NOT trigger an extra close here. Every other
+            # statement (DISPLAY, MOVE, COMPUTE, PERFORM <para>, STOP RUN, GOBACK, ADD/
+            # SUBTRACT/MULTIPLY/DIVIDE, the generic TODO fallback, ...) is a plain COBOL
+            # sentence: if it ends with a real (not-inside-a-string) period, that period closes
+            # every currently open IF/ELSE level, per COBOL's implicit-scope-terminator rule.
+            if _COBOL_SCOPE_MGMT_LINE_RE.match(upper):
+                _pending_if_close = False
+            else:
+                _pending_if_close = _cobol_line_ends_sentence(line)
             _error_clause_m = re.match(r"^(?:NOT\s+)?ON\s+(?:SIZE\s+ERROR|EXCEPTION|OVERFLOW)\b", line, re.IGNORECASE)
             if _error_clause_m:
                 _in_error_clause = True
@@ -3549,6 +3604,17 @@ def migrate_cobol(source, filename="file.cbl"):
                 _compute_joined_parts.append(_compute_cont_norm)
             line = " ".join(_compute_joined_parts)
             upper = line.upper()
+            # Bug 21 fix (continued): the pending-if-close classification above ran on the
+            # COMPUTE's FIRST physical line only, before this multi-line join even happens -
+            # if that first line had no trailing period (the normal case for a continuation),
+            # it was classified as "sentence not yet terminated". Now that the full, joined
+            # statement is known, re-classify using its real ending: if the join stopped
+            # because it found the terminating period, this multi-line COMPUTE does end the
+            # sentence and must still close an enclosing period-terminated IF/ELSE; if it
+            # stopped instead because the next line was a new clause/statement (the
+            # _COMPUTE_CONTINUATION_STOP_RE guard above), no period was found and nothing
+            # should close.
+            _pending_if_close = _cobol_line_ends_sentence(line)
         compute_m = re.match(r"^COMPUTE\s+([\w-]+)\s*=\s*(.+?)\.?$", line, re.IGNORECASE)
         if compute_m and _cobol_has_unsupported_subscript(compute_m.group(2)):
             out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
@@ -3730,6 +3796,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}while not ({_vary_cond}):")
                 _perform_loop_stack.append(("incr", _vary_incr_stmt))
             if_depth += 1
+            _scope_kinds.append("perform")
             changes.append("PERFORM VARYING ... UNTIL -> while loop (explicit init before the loop, increment injected at END-PERFORM to match COBOL's real bottom-of-loop increment)")
             continue
         # Bug (reported by the user - the biggest bug of this session): inline "PERFORM UNTIL
@@ -3756,6 +3823,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}while not ({_inline_cond}):")
                 _perform_loop_stack.append(None)
             if_depth += 1
+            _scope_kinds.append("perform")
             changes.append("PERFORM UNTIL (inline block) -> while loop")
             continue
         _perf_times_m = re.match(r"^PERFORM\s+([\w-]+)\s+([\w-]+)\s+TIMES\.?$", line, re.IGNORECASE)
@@ -3787,11 +3855,14 @@ def migrate_cobol(source, filename="file.cbl"):
             _cur_first_when = eval_first_when_stack[-1] if eval_first_when_stack else True
             if not _cur_first_when:
                 if_depth = max(0, if_depth - 1)
+                if _scope_kinds:
+                    _scope_kinds.pop()
                 out_lines.append(f"{cur_indent()}else:")
             else:
                 out_lines.append(f"{cur_indent()}if True:  # WHEN OTHER was the only WHEN clause seen - verify EVALUATE structure")
                 changes.append("REVIEW NEEDED: WHEN OTHER was the first (only) WHEN clause seen for this EVALUATE - generated as an unconditional if True: block since there is no prior WHEN to attach an else to.")
             if_depth += 1
+            _scope_kinds.append("when")
             changes.append("WHEN OTHER -> else")
             continue
         if upper.startswith("WHEN ") and eval_subject_stack and eval_first_when_stack:
@@ -3826,15 +3897,20 @@ def migrate_cobol(source, filename="file.cbl"):
                 when_cond = _compute_when_cond(when_val, eval_subject)
             if not eval_first_when_stack[-1]:
                 if_depth = max(0, if_depth - 1)
+                if _scope_kinds:
+                    _scope_kinds.pop()
                 out_lines.append(f"{cur_indent()}elif {when_cond}:")
             else:
                 out_lines.append(f"{cur_indent()}if {when_cond}:")
                 eval_first_when_stack[-1] = False
             if_depth += 1
+            _scope_kinds.append("when")
             changes.append("WHEN -> if/elif")
             continue
         if upper.startswith("END-EVALUATE"):
             if_depth = max(0, if_depth - 1)
+            if _scope_kinds:
+                _scope_kinds.pop()
             if eval_subject_stack:
                 eval_subject_stack.pop()
             if eval_first_when_stack:
@@ -3845,8 +3921,11 @@ def migrate_cobol(source, filename="file.cbl"):
             if if_depth == 0:
                 changes.append("REVIEW NEEDED: ELSE found with no matching open IF - the generated else below is likely invalid Python and needs manual correction.")
             if_depth = max(0, if_depth - 1)
+            if _scope_kinds:
+                _scope_kinds.pop()
             out_lines.append(f"{cur_indent()}else:")
             if_depth += 1
+            _scope_kinds.append("if")
             changes.append("ELSE -> else")
             continue
         if upper.startswith("END-IF"):
@@ -3855,6 +3934,8 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"{cur_indent()}# UNEXPECTED END-IF - review structure, indentation below may be incorrect")
                 changes.append("REVIEW NEEDED: unexpected END-IF with no matching IF - the source COBOL may have mismatched IF/END-IF blocks. Indentation from this point onward may be incorrect - review the migrated output carefully.")
             if_depth = max(0, if_depth - 1)
+            if _scope_kinds:
+                _scope_kinds.pop()
             if not _unexpected_end_if:
                 changes.append("END-IF removed (Python uses indentation)")
             continue
@@ -3879,6 +3960,8 @@ def migrate_cobol(source, filename="file.cbl"):
                     out_lines.append(f"{cur_indent()}    break")
                     out_lines.append(f"{cur_indent()}{_loop_entry[2]}")
                 if_depth = max(0, if_depth - 1)
+                if _scope_kinds:
+                    _scope_kinds.pop()
                 changes.append("END-PERFORM removed (Python uses indentation)")
             else:
                 out_lines.append(f"{cur_indent()}# UNEXPECTED END-PERFORM - review structure, indentation below may be incorrect")
@@ -3924,6 +4007,7 @@ def migrate_cobol(source, filename="file.cbl"):
             cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
             out_lines.append(f"{cur_indent()}if {cond}:")
             if_depth += 1
+            _scope_kinds.append("if")
             changes.append("IF -> if (COBOL operators converted)")
             continue
         out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
