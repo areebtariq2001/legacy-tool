@@ -3563,6 +3563,18 @@ def migrate_cobol(source, filename="file.cbl"):
                     elif src_val.upper() in ("SPACES", "SPACE"):
                         _assign_val = f'"{chr(32) * _alpha_n}"'
                         _padded_any = True
+                    elif src_val.upper() in ("ZERO", "ZEROS", "ZEROES"):
+                        # Bug (reported by the user, 26th bug): MOVE ZERO/ZEROS/ZEROES to an
+                        # alphanumeric (PIC X/A) destination was emitting a Python INTEGER (0),
+                        # not a character-filled string. Real COBOL MOVE of the ZERO figurative
+                        # constant to an alphanumeric field fills the WHOLE field with the digit
+                        # character '0' (e.g. PIC X(5) becomes "00000"), the same way SPACES
+                        # fills it with blanks above - it does NOT become a numeric zero. Because
+                        # ZERO/ZEROS/ZEROES is classified as `is_literal=True` (via
+                        # _COBOL_FIGURATIVES_MOVE), it never reached the plain-variable branch
+                        # either, so this case was falling through with no padding at all.
+                        _assign_val = f'"{chr(48) * _alpha_n}"'
+                        _padded_any = True
                     elif not is_literal:
                         # Bug (reported by the user): a variable-source MOVE to a known
                         # alphanumeric (PIC X/A) destination was NOT being space-padded/truncated
