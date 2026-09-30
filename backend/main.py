@@ -2997,6 +2997,7 @@ def migrate_cobol(source, filename="file.cbl"):
     # (any "END-<VERB>.") or at the next paragraph boundary (a bare COBOL sentence-terminating
     # period implicitly closes any open clause too).
     _in_error_clause = False
+    _error_clause_kind = None  # "size_error" or "read_search" - which message to show while suppressed
     _COBOL_SINGLE_WORD_STMTS = {"EXIT", "GOBACK", "CONTINUE", "ELSE", "END-IF", "END-EVALUATE", "END-PERFORM", "NEXT", "STOP"}
     def _para_fn(_name):
         _n = _name.replace("-", "_").lower()
@@ -3292,9 +3293,14 @@ def migrate_cobol(source, filename="file.cbl"):
                     # below (paragraph-open, or the generic disclosed fallback for the scope
                     # terminator itself).
                     _in_error_clause = False
+                    _error_clause_kind = None
                 else:
-                    out_lines.append(f"{cur_indent()}# TODO: manual review (inside ON SIZE ERROR/EXCEPTION/OVERFLOW, NOT executed by this migration) - {line}")
-                    changes.append(f"REVIEW NEEDED: {line.strip()} - this statement is inside an ON SIZE ERROR/EXCEPTION/OVERFLOW clause. This migration cannot detect the real error condition (e.g. Python integers don't overflow the way COBOL fixed-point fields do), so it is disclosed as a comment and NOT executed, instead of being converted as ordinary code that would then run unconditionally, on every execution, rather than only on an actual error.")
+                    if _error_clause_kind == "read_search":
+                        out_lines.append(f"{cur_indent()}# TODO: manual review (inside READ/SEARCH AT END/NOT AT END/WHEN clause, NOT executed by this migration) - {line}")
+                        changes.append(f"REVIEW NEEDED: {line.strip()} - this statement is inside a READ/SEARCH clause (AT END/NOT AT END/WHEN). This migration implements neither real file I/O nor OCCURS-table SEARCH, so it cannot evaluate which clause would actually run, and it is disclosed as a comment and NOT executed, instead of being converted as ordinary code that would then run unconditionally, every time, regardless of the real outcome.")
+                    else:
+                        out_lines.append(f"{cur_indent()}# TODO: manual review (inside ON SIZE ERROR/EXCEPTION/OVERFLOW, NOT executed by this migration) - {line}")
+                        changes.append(f"REVIEW NEEDED: {line.strip()} - this statement is inside an ON SIZE ERROR/EXCEPTION/OVERFLOW clause. This migration cannot detect the real error condition (e.g. Python integers don't overflow the way COBOL fixed-point fields do), so it is disclosed as a comment and NOT executed, instead of being converted as ordinary code that would then run unconditionally, on every execution, rather than only on an actual error.")
                     continue
             if _is_real_para_header:
                 if_depth = 0
@@ -3360,8 +3366,33 @@ def migrate_cobol(source, filename="file.cbl"):
             _error_clause_m = re.match(r"^(?:NOT\s+)?ON\s+(?:SIZE\s+ERROR|EXCEPTION|OVERFLOW)\b", line, re.IGNORECASE)
             if _error_clause_m:
                 _in_error_clause = True
+                _error_clause_kind = "size_error"
                 out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
                 changes.append(f"REVIEW NEEDED: {line.strip()} - this migration does not detect COBOL SIZE ERROR/EXCEPTION/OVERFLOW conditions, so the statement(s) under this clause are disclosed as comments and NOT executed, rather than being converted as unconditional code that would then run every time instead of only on an actual error.")
+                continue
+            # Bug (reported by the user, 27th/28th bug): READ ... AT END/NOT AT END and
+            # SEARCH ... AT END/WHEN both introduce conditional clause bodies, the exact same
+            # class of gap as "ON SIZE ERROR" just above - this migration implements neither
+            # real file I/O nor OCCURS-table SEARCH, so it has no way to evaluate which clause
+            # would actually run. Without this check, every clause body (MOVE/DISPLAY/...)
+            # fell through to its ordinary handler and was emitted as plain, unconditional
+            # code - e.g. a SEARCH's AT END body AND every WHEN body all ran in sequence, so
+            # the result was always whatever the LAST clause happened to set, regardless of
+            # whether a real search would have matched - silently wrong, with no crash to
+            # reveal it (unlike READ, which can additionally crash on an undeclared FD field).
+            # Only triggered when the statement's own line does NOT end in a real sentence-
+            # terminating period - i.e. it continues onto AT END/WHEN clause lines below, the
+            # multi-line form the bug reports show. A complete single-line "READ CUST-FILE."
+            # (no clause at all) still falls through to the ordinary generic-fallback TODO
+            # comment exactly as before - nothing to suppress there. Reuses the exact same
+            # `_in_error_clause` "disclosed but not executed" suppression and its existing
+            # closing logic (any END-<verb>./new paragraph header already closes it).
+            _read_or_search_stmt_m = re.match(r"^(?:READ|SEARCH)\b", line, re.IGNORECASE)
+            if _read_or_search_stmt_m and not _cobol_line_ends_sentence(line):
+                _in_error_clause = True
+                _error_clause_kind = "read_search"
+                out_lines.append(f"{cur_indent()}# TODO: manual review (READ/SEARCH with AT END/WHEN clauses - not executed by this migration) - {line}")
+                changes.append(f"REVIEW NEEDED: {line.strip()} - this migration does not implement real file I/O or OCCURS-table SEARCH, so it cannot evaluate the AT END/NOT AT END/WHEN clause(s) that follow. The whole statement, including those clause bodies, is disclosed as comments and NOT executed, instead of being converted as unconditional code that would otherwise always run every clause's body in sequence, regardless of the real outcome.")
                 continue
         _cond_name_m = re.match(r"^88\s+([\w-]+)(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if _cond_name_m and in_working_storage:
