@@ -3048,6 +3048,18 @@ def migrate_cobol(source, filename="file.cbl"):
         handler so stacked WHEN clauses (see below) can call this once per stacked value and
         combine the results with "or", instead of duplicating this whole pipeline."""
         if eval_subject.strip() in ("TRUE", "True"):
+            # Bug (reported by the user, 23rd bug): same subscripted/OCCURS-indexed-operand
+            # bug as the IF handler above (see its comment) - "EVALUATE TRUE / WHEN WS-ITEM(1)
+            # = 5" was never checked here either, so it crashed with the exact same
+            # NameError/TypeError. Checked before any other conversion, on the raw condition
+            # text for this one stacked WHEN value; falls back to the same safe "True"
+            # placeholder used by the IF handler and by this file's own existing WHEN-OTHER
+            # fallback further below - the caller (WHEN/WHEN OTHER handler) still opens and
+            # closes the if/elif block structurally as normal, only the unresolvable
+            # condition itself is replaced.
+            if _cobol_has_unsupported_subscript(when_val):
+                changes.append(f"REVIEW NEEDED: WHEN {when_val.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so this was converted to an unconditional 'True' - verify the real condition manually and fix it in the migrated code.")
+                return "True"
             # Bug (reported by the user): an abbreviated combined relation condition inside an
             # EVALUATE TRUE / WHEN <condition> clause ("WHEN WS-A > 10 AND < 20") needs the
             # same implied-subject expansion as the IF-statement handler, before the word-by-
@@ -3749,6 +3761,17 @@ def migrate_cobol(source, filename="file.cbl"):
             test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", cond_raw, re.IGNORECASE)
             if test_after_m:
                 cond_raw = cond_raw[:test_after_m.start()]
+            # Bug (reported by the user, 23rd bug): same subscripted/OCCURS-indexed-operand bug
+            # as IF/EVALUATE-WHEN above - "PERFORM <para> UNTIL WS-ITEM(1) = 5" crashed with the
+            # same NameError/TypeError. Unlike the inline/VARYING forms below, this out-of-line
+            # form opens no Python block of its own (the loop body is just a call to the already
+            # -defined paragraph function, no matching END-PERFORM to keep in sync) - safe to
+            # disclose the whole statement as a TODO comment and skip it entirely, exactly like
+            # the already-fixed DISPLAY/MOVE/COMPUTE/ADD/SUBTRACT/MULTIPLY/DIVIDE subscript bugs.
+            if _cobol_has_unsupported_subscript(cond_raw):
+                out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
+                changes.append(f"REVIEW NEEDED: {line.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so this loop was left as a comment for manual conversion.")
+                continue
             # Bug (reported by the user): this condition-conversion pipeline used to be
             # duplicated inline here, out of sync with COBOL_IF_OPS_RAW and never reused by any
             # other PERFORM-UNTIL-shaped construct. Now extracted into a shared helper (see
@@ -3785,7 +3808,21 @@ def migrate_cobol(source, filename="file.cbl"):
             _vary_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _vary_cond_raw, re.IGNORECASE)
             if _vary_test_after_m:
                 _vary_cond_raw = _vary_cond_raw[:_vary_test_after_m.start()]
-            _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw, _cond_names)
+            # Bug (reported by the user, 23rd bug): same subscripted/OCCURS-indexed-operand bug
+            # as IF/EVALUATE-WHEN/out-of-line-PERFORM above. Unlike that out-of-line form, this
+            # PERFORM VARYING opens a real Python while block with a matching END-PERFORM
+            # further down (which pops _perform_loop_stack/if_depth/_scope_kinds), so the whole
+            # statement can't just be dropped - that would desync the block-closing logic at
+            # END-PERFORM. Instead substitute the literal Python "True" for the unresolvable
+            # condition: "while not (True):" never runs the loop body at all (the safe,
+            # non-hanging default - the alternative, guessing "False" here, would produce
+            # "while not (False):", an infinite loop), while still opening/closing the block
+            # structurally like normal so nothing downstream desyncs.
+            if _cobol_has_unsupported_subscript(_vary_cond_raw):
+                changes.append(f"REVIEW NEEDED: {line.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The loop condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so the loop was converted to never execute its body - verify the real condition manually and fix it in the migrated code.")
+                _vary_cond = "True"
+            else:
+                _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw, _cond_names)
             _vary_incr_stmt = f"{_vary_var} = {_vary_var} + ({_vary_step})"
             out_lines.append(f"{cur_indent()}{_vary_var} = {_vary_start}")
             if _vary_test_after_m:
@@ -3814,7 +3851,15 @@ def migrate_cobol(source, filename="file.cbl"):
             _inline_test_after_m = re.search(r"\s+WITH\s+TEST\s+AFTER\s*$", _inline_cond_raw, re.IGNORECASE)
             if _inline_test_after_m:
                 _inline_cond_raw = _inline_cond_raw[:_inline_test_after_m.start()]
-            _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw, _cond_names)
+            # Bug (reported by the user, 23rd bug): same subscripted/OCCURS-indexed-operand bug
+            # as the PERFORM VARYING case just above (see its comment for why "True", not
+            # "False", is the safe substitute here) - this inline form also opens a real Python
+            # while block with a matching END-PERFORM, so the statement can't just be dropped.
+            if _cobol_has_unsupported_subscript(_inline_cond_raw):
+                changes.append(f"REVIEW NEEDED: {line.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The loop condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so the loop was converted to never execute its body - verify the real condition manually and fix it in the migrated code.")
+                _inline_cond = "True"
+            else:
+                _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw, _cond_names)
             if _inline_test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 _perform_loop_stack.append(("test_after", _inline_cond))
@@ -3970,6 +4015,25 @@ def migrate_cobol(source, filename="file.cbl"):
         if upper.startswith("IF "):
             cond = line[3:].rstrip(".")
             cond = re.sub(r"\bTHEN\s*$", "", cond, flags=re.IGNORECASE).rstrip()
+            # Bug (reported by the user, 23rd bug): the same subscripted/OCCURS-indexed-operand
+            # bug already fixed for DISPLAY/MOVE/COMPUTE/ADD/SUBTRACT/MULTIPLY/DIVIDE ("WS-ITEM
+            # (1)" misread as a Python function call, "WS_ITEM(1)") was never applied to any of
+            # the three condition-parsing call sites - IF, EVALUATE TRUE/WHEN, and PERFORM
+            # UNTIL - so a table field used in a condition (an extremely common COBOL idiom for
+            # validation/search logic) still crashed with a raw NameError/TypeError. Checked
+            # here, on the condition text before any other conversion. Unlike DISPLAY/MOVE/
+            # COMPUTE (plain statements, safely left out of the output entirely), IF's body is
+            # a whole block that must stay structurally intact for its matching END-IF/ELSE to
+            # keep working - so instead of dropping the block, fall back to the same safe
+            # "if True:" placeholder this file already uses for an unresolvable EVALUATE WHEN
+            # OTHER (see below): the block still opens and closes correctly, and the disclosed
+            # body is surfaced for review instead of being silently skipped.
+            if _cobol_has_unsupported_subscript(cond):
+                out_lines.append(f"{cur_indent()}if True:  # TODO: manual review - could not convert condition: {cond.strip()}")
+                changes.append(f"REVIEW NEEDED: IF {cond.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so this was converted to an unconditional 'if True:' - verify the real condition manually and fix it in the migrated code.")
+                if_depth += 1
+                _scope_kinds.append("if")
+                continue
             # Bug (reported by the user): an abbreviated combined relation condition ("IF
             # WS-A > 10 AND < 20", implied subject on the second operand) must be expanded to
             # a full condition ("WS-A > 10 AND WS-A < 20") before any other word-by-word
