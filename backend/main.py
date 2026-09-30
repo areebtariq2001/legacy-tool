@@ -3563,12 +3563,27 @@ def migrate_cobol(source, filename="file.cbl"):
                     elif src_val.upper() in ("SPACES", "SPACE"):
                         _assign_val = f'"{chr(32) * _alpha_n}"'
                         _padded_any = True
+                    elif not is_literal:
+                        # Bug (reported by the user): a variable-source MOVE to a known
+                        # alphanumeric (PIC X/A) destination was NOT being space-padded/truncated
+                        # at all - only the quoted-literal-source case above got that treatment.
+                        # Real COBOL MOVE space-pads (or truncates) based on the DESTINATION
+                        # field's declared length regardless of whether the source is a literal
+                        # or another field, so e.g. MOVE WS-SHORT (PIC X(3)) TO WS-LONG (PIC X(6))
+                        # must produce a 6-char, space-padded value - not a raw, unpadded copy of
+                        # WS-SHORT's current (shorter) value. Unlike a literal, the source
+                        # variable's actual value isn't known until runtime, so the padding has
+                        # to happen at runtime too: str(...) guards against a source that hasn't
+                        # been assigned a string yet (e.g. still None or a number), matching the
+                        # destination being declared alphanumeric.
+                        _assign_val = f"str({src_val_clean})[:{_alpha_n}].ljust({_alpha_n})"
+                        _padded_any = True
                 out_lines.append(f"{cur_indent()}{dst_var} = {_assign_val}")
             _dst_info = f" ({len(dst_vars)} destinations)" if len(dst_vars) > 1 else ""
             changes.append(f"MOVE -> assignment{_dst_info}")
             if _padded_any:
                 changes.append(f"MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - space-padded/truncated to the destination field's declared PIC X/A length, matching COBOL MOVE semantics.")
-            if not is_literal:
+            if not is_literal and not _padded_any:
                 changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
         if upper.startswith("STOP RUN") or upper.rstrip(".").strip() in ("GOBACK", "EXIT PROGRAM"):
