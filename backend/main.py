@@ -637,7 +637,15 @@ def sanitize_ai_output(text):
     text = re.sub(r"<script[^>]*>.*?</script>", "[removed: script tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<iframe[^>]*>.*?</iframe>", "[removed: iframe tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<(object|embed)[^>]*>.*?</\1>", "[removed: embedded object]", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
+    # Bug (reported by the user, 30th bug): this regex only matched a QUOTED event-handler
+    # attribute value ("...=" or '...='). HTML allows an unquoted attribute value too (a
+    # classic XSS technique specifically used to dodge naive quote-based sanitizers), so
+    # `<img src=x onerror=alert(1)>` passed straight through untouched - the sanitizer's
+    # entire purpose (stripping malicious on* handlers from AI output before it reaches the
+    # user, on the /ai-suggest, /explain and /generate-tests endpoints) was bypassed by simply
+    # not quoting the payload. Fixed by also matching an unquoted value: one or more
+    # characters that aren't whitespace or ">" (where an unquoted HTML attribute value ends).
+    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*("[^"]*"|\x27[^\x27]*\x27|[^\s>]+)', "", text, flags=re.IGNORECASE)
     text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
     return text
 
