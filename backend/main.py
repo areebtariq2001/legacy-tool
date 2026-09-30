@@ -2687,6 +2687,45 @@ _COBOL_USAGE_CLAUSE_TEXT = (
     r"))*"
 )
 
+# Bug (reported by the user, 20th bug, part 1): the IF-condition handler and the EVALUATE TRUE
+# / WHEN <condition> handler both tokenized a condition with plain "".split()"" (whitespace-only,
+# with no notion of quoted string literals) and rejoined the fixed-up tokens with a single
+# space (" ".join(...)). Splitting on ANY whitespace also splits INSIDE a quoted literal, so a
+# literal like "JOHN      " (6 trailing spaces, a very common fixed-width COBOL comparison
+# value) got broken into "JOHN" and multiple empty-looking pieces, then rejoined with exactly
+# one space each - silently collapsing "JOHN      " down to "JOHN " in the migrated condition.
+# That is a silent, wrong comparison (a fixed-width match that should succeed now fails, or vice
+# versa), with no crash and no TODO/REVIEW marker anywhere. Fix: tokenize with a quote-aware
+# pattern (same approach already used by DISPLAY) so a whole quoted literal - including every
+# space inside it - is captured and carried through as ONE token, never split or rejoined.
+_QUOTE_AWARE_TOKEN_RE = re.compile(r'"[^"]*"|\x27[^\x27]*\x27|\S+')
+
+
+def _cobol_alpha_pic_len(pic_token):
+    """Bug (reported by the user, 20th bug, part 2): MOVE to an alphanumeric (PIC X/A) field
+    never space-pads (or truncates) the value to the field's declared length the way real COBOL
+    MOVE does - "MOVE "AB" TO WS-NAME" (01 WS-NAME PIC X(6)) should store "AB    " (space-padded
+    to 6 chars), but this migration stored the bare, unpadded "AB", so a later fixed-width
+    comparison like "IF WS-NAME = "AB    "" silently produced the WRONG result (no match) with
+    no crash or TODO. This helper returns the declared length of a PIC X/A (alphanumeric) clause
+    so MOVE can replicate COBOL's pad-or-truncate-to-length semantics; returns None for anything
+    that isn't a plain alphanumeric PIC (numeric PIC 9/V/S fields pad with zeros, not spaces, and
+    have different semantics entirely - out of scope for this fix, already separately disclosed
+    as a REVIEW NEEDED note for non-literal/unresolvable MOVEs)."""
+    _m = re.match(r"^([XA])\((\d+)\)$", pic_token, re.IGNORECASE)
+    if _m:
+        return int(_m.group(2))
+    if re.match(r"^[XA]+$", pic_token, re.IGNORECASE):
+        return len(pic_token)
+    _parts = re.findall(r"[XA]\(\d+\)|[XA]", pic_token, re.IGNORECASE)
+    if _parts and "".join(_parts).upper() == pic_token.upper():
+        _total = 0
+        for _p in _parts:
+            _pm = re.match(r"^[XA]\((\d+)\)$", _p, re.IGNORECASE)
+            _total += int(_pm.group(1)) if _pm else 1
+        return _total
+    return None
+
 def _cobol_expand_abbreviated_relation_conditions(cond):
     """Expand an abbreviated combined relation condition by re-inserting the implied subject
     before a bare relational operator that directly follows AND/OR with no operand of its own
@@ -2864,6 +2903,10 @@ def migrate_cobol(source, filename="file.cbl"):
     _ws_vars = []
     _paragraphs = []
     _performed = []
+    # Bug (reported by the user, 20th bug, part 2): maps each declared alphanumeric (PIC X/A)
+    # field's Python variable name to its declared length, so MOVE can space-pad/truncate a
+    # value to it the way real COBOL MOVE does - see _cobol_alpha_pic_len's docstring.
+    _ws_alpha_len = {}
     # Bug (reported by the user): level-88 condition names ("88 WS-VALID VALUE 'Y'.") were
     # declared and disclosed as a comment, but never tracked anywhere they were actually used
     # (a bare "IF WS-VALID") - see _resolve_cobol_condition_names above. Keyed by the ORIGINAL
@@ -2953,7 +2996,11 @@ def migrate_cobol(source, filename="file.cbl"):
             # word figurative-literal/hyphen-fix loop below (which has no notion of it).
             when_val = _cobol_expand_abbreviated_relation_conditions(when_val)
             _eval_true_figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
-            _cond_words = when_val.split()
+            # Bug (reported by the user, 20th bug, part 1): see _QUOTE_AWARE_TOKEN_RE's comment -
+            # a plain .split() here broke a quoted literal's internal spaces into separate
+            # tokens, then " ".join(...) below silently collapsed them back down to one space
+            # each, corrupting fixed-width literal comparisons like WS-NAME = "JOHN      ".
+            _cond_words = _QUOTE_AWARE_TOKEN_RE.findall(when_val)
             _cond_fixed_words = []
             for _w in _cond_words:
                 _w_upper_stripped = _w.rstrip(".,")
@@ -3240,7 +3287,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} - could not auto-resolve (no parent field found); manual review recommended.")
                 changes.append(f"REVIEW NEEDED: Level-88 condition name {_cond_name_raw} could not be auto-resolved - noted as a comment only. Any use of {_cond_name_raw.replace('-', '_')} as a condition will raise a NameError until fixed manually.")
             continue
-        var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+\S+" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+        var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+(\S+?)" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             level_num = var_m.group(1)
             _level_num_int = int(level_num)
@@ -3261,12 +3308,31 @@ def migrate_cobol(source, filename="file.cbl"):
             else:
                 var_name = raw_name
                 current_group_01 = None
-            val = var_m.group(3)
+            # Bug (reported by the user, 20th bug, part 2): track each alphanumeric (PIC X/A)
+            # field's declared length so both this VALUE clause AND any later MOVE can pad/
+            # truncate to it, matching real COBOL semantics - see _cobol_alpha_pic_len's
+            # docstring. This must run BEFORE the VALUE clause is converted below, since a
+            # declared VALUE ("01 WS-NAME PIC X(10) VALUE "JOHN".") is itself COBOL's initial
+            # MOVE into the field and needs the exact same space-padding - otherwise a field's
+            # OWN starting value would stay unpadded ("JOHN") while a later MOVE to the same
+            # field correctly padded ("JOHN      "), an inconsistency that would itself silently
+            # break a fixed-width comparison made before any MOVE ever touches the field.
+            _alpha_len = _cobol_alpha_pic_len(var_m.group(3))
+            if _alpha_len is not None:
+                _ws_alpha_len[var_name] = _alpha_len
+            val = var_m.group(4)
             if val:
                 val_clean = val.rstrip(".").strip()
                 val_clean = re.sub(r"^ALL\s+", "", val_clean, flags=re.IGNORECASE)
                 val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None", "TRUE": "True", "FALSE": "False"}
-                out_lines.append(f"{var_name} = {val_map.get(val_clean.upper(), val_clean)}")
+                _val_py = val_map.get(val_clean.upper(), val_clean)
+                if _alpha_len is not None and (val_clean.startswith(chr(34)) or val_clean.startswith(chr(39))):
+                    _val_quote_ch = val_clean[0]
+                    _val_inner = val_clean[1:-1]
+                    _val_py = f"{_val_quote_ch}{_val_inner[:_alpha_len].ljust(_alpha_len)}{_val_quote_ch}"
+                elif _alpha_len is not None and val_clean.upper() in ("SPACES", "SPACE"):
+                    _val_py = f'"{chr(32) * _alpha_len}"'
+                out_lines.append(f"{var_name} = {_val_py}")
             else:
                 out_lines.append(f"{var_name} = None")
             _ws_vars.append(var_name)
@@ -3367,10 +3433,30 @@ def migrate_cobol(source, filename="file.cbl"):
             else:
                 src_val_clean = src_val
             dst_vars = [d.upper().replace("-", "_") for d in move_m.group(2).strip().split()]
+            # Bug (reported by the user, 20th bug, part 2): a literal MOVEd to a known
+            # alphanumeric (PIC X/A) destination is space-padded (or truncated) to the field's
+            # declared length here, exactly like real COBOL MOVE - see _cobol_alpha_pic_len's
+            # docstring. Padding is computed PER destination (a multi-target MOVE can have
+            # destinations of different declared lengths).
+            _is_quoted_literal = is_literal and (src_val.startswith(chr(34)) or src_val.startswith(chr(39)))
+            _padded_any = False
             for dst_var in dst_vars:
-                out_lines.append(f"{cur_indent()}{dst_var} = {src_val_clean}")
+                _assign_val = src_val_clean
+                _alpha_n = _ws_alpha_len.get(dst_var)
+                if _alpha_n is not None:
+                    if _is_quoted_literal:
+                        _quote_ch = src_val[0]
+                        _inner = src_val[1:-1]
+                        _assign_val = f"{_quote_ch}{_inner[:_alpha_n].ljust(_alpha_n)}{_quote_ch}"
+                        _padded_any = True
+                    elif src_val.upper() in ("SPACES", "SPACE"):
+                        _assign_val = f'"{chr(32) * _alpha_n}"'
+                        _padded_any = True
+                out_lines.append(f"{cur_indent()}{dst_var} = {_assign_val}")
             _dst_info = f" ({len(dst_vars)} destinations)" if len(dst_vars) > 1 else ""
             changes.append(f"MOVE -> assignment{_dst_info}")
+            if _padded_any:
+                changes.append(f"MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - space-padded/truncated to the destination field's declared PIC X/A length, matching COBOL MOVE semantics.")
             if not is_literal:
                 changes.append(f"REVIEW NEEDED: MOVE {move_m.group(1).strip()} TO {move_m.group(2)} - COBOL MOVE truncates or pads based on the destination field's PIC clause size, which this migration does not replicate. Verify field lengths match, especially for financial/fixed-width data.")
             continue
@@ -3727,7 +3813,11 @@ def migrate_cobol(source, filename="file.cbl"):
             # copy "AND"/"<" through as literal tokens - a SyntaxError.
             cond = _cobol_expand_abbreviated_relation_conditions(cond)
             _figurative_word_map = {"HIGH-VALUE": "None", "HIGH-VALUES": "None", "LOW-VALUE": "None", "LOW-VALUES": "None", "ZERO": "0", "ZEROS": "0", "ZEROES": "0", "SPACES": chr(34)+chr(34), "SPACE": chr(34)+chr(34), "TRUE": "True", "FALSE": "False"}
-            _words = cond.split()
+            # Bug (reported by the user, 20th bug, part 1): see _QUOTE_AWARE_TOKEN_RE's comment -
+            # a plain .split() here broke a quoted literal's internal spaces into separate
+            # tokens, then " ".join(...) below silently collapsed them back down to one space
+            # each, corrupting fixed-width literal comparisons like IF WS-NAME = "JOHN      ".
+            _words = _QUOTE_AWARE_TOKEN_RE.findall(cond)
             _fixed_words = []
             for _w in _words:
                 _w_upper_stripped = _w.rstrip(".,")
