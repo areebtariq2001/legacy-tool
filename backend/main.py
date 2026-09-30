@@ -3535,6 +3535,25 @@ def migrate_cobol(source, filename="file.cbl"):
                     _disp_val = _disp_val[:_dci].rstrip()
                     break
             _tokens = re.findall(r'"[^"]*"|\x27[^\x27]*\x27|\S+', _disp_val)
+            # Bug (reported by the user, 22nd bug): "DISPLAY ... WITH NO ADVANCING" (or the
+            # equally-legal "DISPLAY ... NO ADVANCING", WITH is optional in real COBOL)
+            # suppresses the trailing newline COBOL would otherwise add, so the NEXT DISPLAY
+            # continues on the same line (used for prompts like "Enter name: " followed by a
+            # value on the same line). This wasn't recognized as a clause at all - WITH/NO/
+            # ADVANCING were tokenized as three more literal operands to print, producing
+            # print("Enter name: ", WITH, NO, ADVANCING, sep="") - a NameError at runtime,
+            # since WITH/NO/ADVANCING were never real Python names. Checked here (quote-aware,
+            # via the already-tokenized list, so a literal that happens to CONTAIN the words
+            # "no advancing" is never touched) and stripped from the operand list; the clause's
+            # effect (no trailing newline) is reproduced with print(..., end="").
+            _no_advancing = False
+            _disp_up_tokens = [_t.upper() for _t in _tokens]
+            if len(_tokens) >= 3 and _disp_up_tokens[-3:] == ["WITH", "NO", "ADVANCING"]:
+                _no_advancing = True
+                _tokens = _tokens[:-3]
+            elif len(_tokens) >= 2 and _disp_up_tokens[-2:] == ["NO", "ADVANCING"]:
+                _no_advancing = True
+                _tokens = _tokens[:-2]
             # Bug (reported by the user): an OCCURS/subscripted table reference
             # ("DISPLAY WS-ITEM(1)") is unsupported here, same as it is for MOVE below - but
             # unlike MOVE (whose destination regex can't match text containing parentheses at
@@ -3569,8 +3588,9 @@ def migrate_cobol(source, filename="file.cbl"):
             # Fix: pass sep="" so print() reproduces COBOL's no-separator concatenation.
             disp_content = ", ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
             _disp_sep_kw = ', sep=""' if len(_parts) > 1 else ""
-            out_lines.append(f"{cur_indent()}print({disp_content}{_disp_sep_kw})")
-            changes.append("DISPLAY -> print()")
+            _disp_end_kw = ', end=""' if _no_advancing else ""
+            out_lines.append(f"{cur_indent()}print({disp_content}{_disp_sep_kw}{_disp_end_kw})")
+            changes.append("DISPLAY -> print()" + (" (WITH NO ADVANCING -> end=\"\", no trailing newline)" if _no_advancing else ""))
             continue
         move_m = re.match(r'^MOVE\s+((?:"[^"]*"|\x27[^\x27]*\x27|\S+))\s+TO\s+([\w\s-]+?)\.?$', line, re.IGNORECASE)
         if move_m:
