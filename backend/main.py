@@ -3092,6 +3092,18 @@ def migrate_cobol(source, filename="file.cbl"):
                 _when_cond = _compiled_pat.sub(_repl, _when_cond)
             _when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", _when_cond)
             return _when_cond
+        # Bug (reported by the user, 24th bug): the subscripted/OCCURS-indexed-operand fix
+        # just above only covers the "EVALUATE TRUE" form. The far more common non-TRUE form
+        # ("EVALUATE <subject> WHEN <value>") is a completely separate code path below and was
+        # never checked at all - on EITHER side: the subject itself ("EVALUATE WS-ITEM(1)
+        # WHEN 5") and a table field used as a WHEN value ("EVALUATE WS-X WHEN WS-ITEM(1)")
+        # both crashed with the same NameError ("WS_ITEM(1)" misread as a Python function
+        # call). Checked here, before any other conversion, on both operands raw. Falls back
+        # to the same safe "True" placeholder as the EVALUATE TRUE case above and the IF
+        # handler - the caller still opens/closes the if/elif block structurally as normal.
+        if _cobol_has_unsupported_subscript(eval_subject) or _cobol_has_unsupported_subscript(when_val):
+            changes.append(f"REVIEW NEEDED: EVALUATE {eval_subject.strip()} WHEN {when_val.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so this was converted to an unconditional 'True' - verify the real condition manually and fix it in the migrated code.")
+            return "True"
         _thru_m = re.match(r"^(.+?)\s+(?:THRU|THROUGH)\s+(.+)$", when_val, re.IGNORECASE)
         if _thru_m:
             _thru_val_map = {"SPACES": '""', "SPACE": '""', "ZEROS": "0", "ZERO": "0", "ZEROES": "0", "LOW-VALUES": "None", "LOW-VALUE": "None", "HIGH-VALUES": "None", "HIGH-VALUE": "None"}
