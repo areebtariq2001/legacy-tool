@@ -1244,7 +1244,15 @@ def analyze_code(source):
     if re.search(r'\bexcept\s+\w+\s*,', source):
         issues.append("old except syntax found - use 'except X as e'")
     try:
-        _sqli_result = scan_sql_injection(source, "file.py")
+        # Bug (reported by the user, 24th bug of a later batch, PHP sibling): scan_sql_injection
+        # was always called with the RAW source, so an illustrative SQL-injection-looking line
+        # written inside a docstring purely as documentation ("Doc example only (NOT real
+        # code):") was scanned exactly like live code and reported as a real finding - the same
+        # root cause as Bug 15's docstring-rewrite bug, but for the SQL-injection scanner rather
+        # than the migration rewriter. Python already has a comment/docstring masker built for
+        # exactly this purpose (_mask_triple_quoted_strings, used by migrate_code) that keeps
+        # every line number stable via same-length placeholders - reuse it here too.
+        _sqli_result = scan_sql_injection(_mask_triple_quoted_strings(source)[0], "file.py")
         _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
         if _sqli_grouped:
             issues.append(_sqli_grouped)
@@ -2015,14 +2023,25 @@ def analyze_php(source):
             elif _c == "/" and _ci + 1 < len(_ln) and _ln[_ci + 1] == "/" and not _in_str:
                 return _ln[:_ci]
         return _ln
-    _source_no_comments = chr(10).join(_php_strip_line_comment(_l) for _l in source.split(chr(10)))
+    # Bug (reported by the user, 24th bug of a later batch): _source_no_comments only stripped
+    # //  / # line comments - a /* ... */ (or /** ... */ PHPDoc) block comment was left
+    # completely untouched, so an illustrative SQL-injection-looking line written purely as
+    # documentation inside one ("Doc example only (NOT real code): ...") was scanned exactly
+    # like live code by the checks below (and by scan_sql_injection) and reported as a real
+    # finding - the same root cause as Bug 15's docstring-rewrite bug, here hitting a security
+    # finding instead of a cosmetic rewrite. _mask_c_block_comments (already used by
+    # migrate_php for the same reason) blanks out block comments while keeping every line
+    # number stable via same-length placeholders - apply it BEFORE stripping line comments so
+    # both comment styles are gone before anything scans this text for "live code" patterns.
+    _source_no_block_comments = _mask_c_block_comments(source)[0]
+    _source_no_comments = chr(10).join(_php_strip_line_comment(_l) for _l in _source_no_block_comments.split(chr(10)))
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _source_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     for _compiled_pattern, msg in PHP_CHECKS_COMPILED:
         if _compiled_pattern.search(_source_no_comments):
             issues.append(msg)
     try:
-        _sqli_result = scan_sql_injection(source, "file.php")
+        _sqli_result = scan_sql_injection(_source_no_comments, "file.php")
         _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
         if _sqli_grouped:
             issues.append(_sqli_grouped)
@@ -6456,6 +6475,27 @@ def scan_sql_injection(source, filename):
         if "{" not in line or not _fstring_start.search(line):
             return False
         return any(_sql_shape[k].search(line) for k in ("SELECT", "INSERT", "UPDATE", "DELETE", "WHERE"))
+    # Bug (reported by the user, 25th bug of a later batch): PHP double-quoted strings
+    # interpolate a "$variable" directly - `"...'$name'..."` is exactly as dangerous as the
+    # already-detected `"..." . $name . "..."` concatenation form, since untrusted data still
+    # flows straight into the query text with no separate parameter binding. None of the
+    # existing checks fire for this: there is no "+"/"%"/".format"/" . " operator anywhere on
+    # the line for _danger_present to find, and _fstring_sql only looks for Python's f-string
+    # prefix. Detect it directly: a double-quoted string literal (PHP strings only interpolate
+    # inside double quotes, never single quotes) that both has real SQL statement shape and
+    # contains a bare "$identifier".
+    _php_dquoted_re = _sq.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+    _php_var_re = _sq.compile(r"\$[a-zA-Z_]\w*")
+    def _php_interpolation_sql(line):
+        if not filename.lower().endswith(".php"):
+            return False
+        for _m in _php_dquoted_re.finditer(line):
+            _seg = _m.group(1)
+            if "$" not in _seg:
+                continue
+            if _php_var_re.search(_seg) and any(_sql_shape[k].search(_seg) for k in ("SELECT", "INSERT", "UPDATE", "DELETE", "WHERE")):
+                return True
+        return False
     def _extract_tainted_var(line):
         m = _sq.search(r"['\"]\s*[%+]\s*([a-zA-Z_][\w\.\[\]]*)(?!['\"])", line)
         if m:
@@ -6469,6 +6509,9 @@ def scan_sql_injection(source, filename):
         m2 = _sq.search(r"\{\s*([a-zA-Z_][\w\.\[\]]*)\s*\}", line)
         if m2:
             return m2.group(1).strip()
+        m3 = _sq.search(r"(\$[a-zA-Z_]\w*)", line)  # PHP: bare interpolated $var inside a "..." string
+        if m3:
+            return m3.group(1).strip()
         return None
     _percent_operator_re = _sq.compile(r"[\"\x27]\s*%\s*[\(\{a-zA-Z_]")
     def _danger_present(danger, line):
@@ -6499,6 +6542,11 @@ def scan_sql_injection(source, filename):
             _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
             _tainted = _extract_tainted_var(line)
             issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
+            _matched_this_line = True
+        if not _matched_this_line and _php_interpolation_sql(line):
+            _redacted = _redact_inline_secrets(line.strip()[:150])
+            _tainted = _extract_tainted_var(line)
+            issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with PHP double-quoted string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries. 'likely_source_variable' is a best-effort guess from the matched line, not a verified data-flow trace across the file."}
 
 def score_zero_trust(source, filename):
