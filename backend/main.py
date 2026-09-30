@@ -3453,6 +3453,45 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} - could not auto-resolve (no parent field found); manual review recommended.")
                 changes.append(f"REVIEW NEEDED: Level-88 condition name {_cond_name_raw} could not be auto-resolved - noted as a comment only. Any use of {_cond_name_raw.replace('-', '_')} as a condition will raise a NameError until fixed manually.")
             continue
+        # Bug #28 (reported by the user): a REDEFINES field declaration ("01 WS-DATE-X
+        # REDEFINES WS-DATE PIC X(8).") was not recognized by var_m below at all - its regex
+        # requires PIC to come immediately after the field name, and "REDEFINES WS-DATE" sits
+        # in between - nor by group_m (which only matches a bare "<level> <name>." with nothing
+        # else). So the whole line fell through to the generic TODO/manual-review fallback,
+        # meaning the redefining field NEVER got a Python variable at all. That's silent while
+        # the field is declared, but the instant the PROCEDURE DIVISION references it (as the
+        # user's report does: "DISPLAY WS-DATE-X"), it's a NameError - the field name simply
+        # doesn't exist as a Python name.
+        # Real COBOL REDEFINES makes two (or more) names share the exact same physical storage,
+        # so a write through either name is instantly visible through the other - there's no
+        # direct Python equivalent of that (already flagged as a 15-point complexity item
+        # elsewhere in this file), and truly replicating it would need a shared mutable cell
+        # with custom read/write interception for every reference to both names, which this
+        # migration does not implement. The pragmatic, crash-avoiding fix: still create a real
+        # Python variable for the redefining name (so no NameError), initialized to a one-time
+        # SNAPSHOT of the redefined field's current value - and disclose clearly that the two
+        # variables are independent from that point on (writes to one will NOT be reflected in
+        # the other), unlike real REDEFINES, so anyone relying on the aliasing behavior knows to
+        # review it manually instead of trusting silently-wrong output.
+        redefines_m = re.match(r"^(\d+)\s+([\w-]+)\s+REDEFINES\s+([\w-]+)\s+PIC\s+(\S+?)" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+        if redefines_m and in_working_storage:
+            _level_num_int = int(redefines_m.group(1))
+            while _group_stack and _group_stack[-1][0] >= _level_num_int:
+                _group_stack.pop()
+            raw_name = redefines_m.group(2).upper().replace("-", "_")
+            redefined_raw = redefines_m.group(3).upper().replace("-", "_")
+            if _group_stack:
+                var_name = f"{_group_stack[-1][1]}_{raw_name}" if _ws_elementary_name_counts.get(raw_name, 0) > 1 else raw_name
+            else:
+                var_name = raw_name
+            _alpha_len = _cobol_alpha_pic_len(redefines_m.group(4))
+            if _alpha_len is not None:
+                _ws_alpha_len[var_name] = _alpha_len
+            out_lines.append(f"{var_name} = {redefined_raw}  # REDEFINES {redefines_m.group(3)} - independent snapshot only, NOT a true memory-overlay alias; see comment above")
+            changes.append(f"REVIEW NEEDED: field {redefines_m.group(2)} REDEFINES {redefines_m.group(3)} - Python has no direct equivalent of COBOL's memory-overlay REDEFINES (both names would share the same physical storage in real COBOL, so a write through either is instantly visible through the other). This migration instead creates {var_name} as an INDEPENDENT variable, initialized once to {redefined_raw}'s value at declaration time. If the program writes to either {redefines_m.group(3)} or {redefines_m.group(2)} afterward expecting the other to reflect it, the two Python variables will silently drift out of sync - manual review required.")
+            _ws_vars.append(var_name)
+            _last_elementary_var = var_name
+            continue
         var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+(\S+?)" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             level_num = var_m.group(1)
