@@ -1379,6 +1379,29 @@ def _mask_triple_quoted_strings(source):
     return _TRIPLE_QUOTED_RE.sub(_repl, source), literals
 
 
+def _func_source_code_only(func_source):
+    """Bug #55 (reported by the user): ast.get_source_segment() returns a function's FULL source
+    text, including its own docstring - which is DATA (illustrative example text, a "TODO: add
+    audit logging here" note), not evidence that a control genuinely exists in the function's
+    real code. check_audit_maker_checker, check_cnic_validation_quality, check_structuring_
+    patterns, check_unusual_hours_flag, check_geo_anomaly_detection, and the shared
+    _scan_functions_for_keyword_and_checks() all ran their control/keyword-detection regexes
+    directly against this raw function source after only stripping lines starting with "#" -
+    missing the docstring entirely - so a docstring merely mentioning "TODO: add audit logging
+    and maker-checker approval here" was scanned exactly like the control actually being
+    implemented, silently hiding a real compliance gap (a false NEGATIVE - the opposite,
+    higher-stakes direction from most bugs in this family, which fabricate findings rather than
+    hide them). The three "_file_has_dedicated_*_control" file-wide helpers had the same gap in
+    an even more naive form: they ran their comparison/flag-pattern regexes against the fully raw
+    function source with no comment filtering at all (not even "#"), so a plain comment would
+    already have triggered the same false suppression.
+
+    Fix: mask triple-quoted string literals first - reusing _mask_triple_quoted_strings(), the
+    same helper migrate_code() already uses for the same reason (an example shown inside a
+    docstring is not real code) - before stripping "#" comment lines."""
+    return chr(10).join(l for l in _mask_triple_quoted_strings(func_source)[0].split(chr(10)) if not l.strip().startswith("#"))
+
+
 def _restore_triple_quoted_strings(migrated, literals):
     for _i, _lit in enumerate(literals):
         # the placeholder was followed by padding newlines (added to keep every later line
@@ -10071,8 +10094,7 @@ def check_audit_maker_checker(source, filename):
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _sensitive_name_pattern.search(node.name):
             func_source = ast.get_source_segment(source, node) or ""
-            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
-            _code_only = chr(10).join(_code_only_lines)
+            _code_only = _func_source_code_only(func_source)
             has_audit_log = bool(_audit_call_pattern.search(_code_only))
             has_approval_check = bool(_approval_check_pattern.search(_code_only))
             issues = []
@@ -10121,7 +10143,7 @@ def check_cnic_validation_quality(source, filename):
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             func_source = ast.get_source_segment(source, node) or ""
-            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            _code_only = _func_source_code_only(func_source)
             if not _cnic_var_pattern.search(_code_only):
                 continue
             _raw_cnic_matches = [m for m in _cnic_var_pattern.finditer(_code_only) if not _boolean_flag_pattern.search(_code_only[max(0,m.start()-25):m.end()+25])]
@@ -10220,12 +10242,11 @@ def check_structuring_patterns(source, filename):
     _velocity_control_func_pattern = re.compile(r"(?i)(structur|smurf|velocity.?check|check.*velocity)")
     _velocity_body_signal_pattern = re.compile(r"(>=|<=|>|<|==|\+=)")
     _velocity_flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|structur|smurf)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|structur|smurf)")
-    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) and (_velocity_body_signal_pattern.search(ast.get_source_segment(source, n) or "") or _velocity_flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
+    _file_has_dedicated_velocity_control = any(isinstance(n, ast.FunctionDef) and _velocity_control_func_pattern.search(n.name) and (_velocity_body_signal_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or "")) or _velocity_flag_signal_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or ""))) for n in ast.walk(tree))
     findings = []
     for node in _sensitive_functions:
         func_source = ast.get_source_segment(source, node) or ""
-        _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
-        _code_only = chr(10).join(_code_only_lines)
+        _code_only = _func_source_code_only(func_source)
         has_velocity_check = bool(_velocity_pattern.search(_code_only)) or _file_has_dedicated_velocity_control
         has_suspicious_hint = bool(_suspicious_split_pattern.search(func_source))
         issues = []
@@ -10309,13 +10330,12 @@ def check_unusual_hours_flag(source, filename):
     _time_control_func_pattern = re.compile(r"(?i)(check.*hour|hour.*check|unusual.?hour|time.?of.?day|transaction.?time)")
     _comparison_op_pattern = re.compile(r"(>=|<=|>|<|==)\s*\d")
     _flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|unusual|anomaly|suspicious)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|unusual|anomaly)")
-    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) and (_comparison_op_pattern.search(ast.get_source_segment(source, n) or "") or _flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
+    _file_has_dedicated_time_control = any(isinstance(n, ast.FunctionDef) and _time_control_func_pattern.search(n.name) and (_comparison_op_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or "")) or _flag_signal_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or ""))) for n in ast.walk(tree))
     findings = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _txn_name_pattern.search(node.name):
             func_source = ast.get_source_segment(source, node) or ""
-            _code_only_lines = [l for l in func_source.split(chr(10)) if not l.strip().startswith("#")]
-            _code_only = chr(10).join(_code_only_lines)
+            _code_only = _func_source_code_only(func_source)
             has_time_check = bool(_time_check_pattern.search(_code_only)) or _file_has_dedicated_time_control
             if not has_time_check:
                 findings.append({"function": node.name, "line": node.lineno, "issue": "MISSING CONTROL (not a detected anomaly): This function has no time-of-day check - it does not flag transactions outside normal banking hours. No unusual-hours activity was found in this code - this is a recommendation to ADD a control."})
@@ -10421,7 +10441,7 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             func_source = ast.get_source_segment(source, node) or ""
-            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            _code_only = _func_source_code_only(func_source)
             if not keyword_pattern.search(_code_only):
                 continue
             if context_filter is not None and not context_filter(func_source):
@@ -10452,14 +10472,14 @@ def check_geo_anomaly_detection(source, filename):
     _geo_control_func_pattern = re.compile(r"(?i)(check.*geo|geo.*check|geo.?location|cross.?border|location.?check)")
     _geo_body_signal_pattern = re.compile(r"(?i)(!=|==|not\s+in|in\s+\[)")
     _geo_flag_signal_pattern = re.compile(r"(?i)(flag(ged)?|anomaly|cross.?border)\s*[=:]|return\s+[\"\x27][^\"\x27]*(flag|anomaly|cross.?border)")
-    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) and (_geo_body_signal_pattern.search(ast.get_source_segment(source, n) or "") or _geo_flag_signal_pattern.search(ast.get_source_segment(source, n) or "")) for n in ast.walk(tree))
+    _file_has_dedicated_geo_control = any(isinstance(n, ast.FunctionDef) and _geo_control_func_pattern.search(n.name) and (_geo_body_signal_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or "")) or _geo_flag_signal_pattern.search(_func_source_code_only(ast.get_source_segment(source, n) or ""))) for n in ast.walk(tree))
     findings = []
     functions_found = 0
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and _txn_pattern.search(node.name):
             functions_found += 1
             func_source = ast.get_source_segment(source, node) or ""
-            _code_only = chr(10).join(l for l in func_source.split(chr(10)) if not l.strip().startswith("#"))
+            _code_only = _func_source_code_only(func_source)
             has_geo_check = bool(_geo_pattern.search(_code_only)) or _file_has_dedicated_geo_control
             if not has_geo_check:
                 findings.append({"function": node.name, "line": node.lineno, "issue": "MISSING CONTROL (not a detected anomaly): This function has no geo-location/IP check - it does not flag transactions from unexpected locations. No geo-anomaly activity was found in this code - this is a recommendation to ADD a control."})
