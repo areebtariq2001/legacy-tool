@@ -1370,6 +1370,40 @@ def _restore_triple_quoted_strings(migrated, literals):
     return migrated
 
 
+def _calculate_rule_based_confidence(changes, is_valid):
+    """Bug #37 (reported by the user): migrate_code/migrate_php/migrate_java/migrate_cobol - the
+    RULE-BASED engines, which are the default/dominant mode for all four languages - never
+    returned a confidence_score at all; only ai_advanced_migrate's AI-mode path did (via
+    calculate_confidence/calculate_confidence_java). The frontend (app.html) had already worked
+    around this by computing its own confidence client-side for rule-mode: base 90 (or 25 if the
+    migrated output failed its own syntax/structure check), minus 8 points per "REVIEW NEEDED"
+    item in `changes` (every migrate_* function already uses that exact "REVIEW NEEDED:" prefix
+    for anything it flags as needing manual review - confirmed across all four). That real,
+    per-migration score already varies file to file (decisively verified: a REDEFINES field
+    drops it from 90 to 82) - it was never just two fixed constants - but it only existed in the
+    frontend's JS, duplicated from nothing on the backend side, so any caller of migrate_cobol/
+    migrate_php/migrate_java/migrate_code directly (or through a future, non-app.html client)
+    got no confidence signal at all for rule-mode, and a frontend bug could silently drift from
+    the "real" formula with no backend value to catch it against.
+    This moves that exact formula here as the one source of truth; app.html's confPct
+    calculation now reads confidence_score from the response directly instead of recomputing it,
+    so both layers can never disagree."""
+    review_count = len([c for c in changes if isinstance(c, str) and c.startswith("REVIEW NEEDED")])
+    base = 90 if is_valid else 25
+    score = max(0, base - review_count * 8)
+    if score >= 90:
+        level = "High confidence"
+    elif score >= 60:
+        level = "Medium confidence - review recommended"
+    else:
+        level = "Low confidence - manual review required"
+    if review_count:
+        reason = f"{review_count} item(s) flagged for manual review (-{review_count * 8} points)"
+    else:
+        reason = "all checks passed" if is_valid else "migrated output failed its syntax/structure check"
+    return {"confidence_score": score, "confidence_level": level, "confidence_reason": reason}
+
+
 def migrate_code(source):
     changes = []
     migrated, _triple_quoted_literals = _mask_triple_quoted_strings(source)
@@ -1556,7 +1590,8 @@ def migrate_code(source):
     _validity["migration_ready"] = _validity["syntax_valid"] and len(_validity["broken_py3_imports"]) == 0
     if not _validity["syntax_valid"] and changes:
         changes = ["NOTE: The changes below were attempted, but the resulting code has a syntax error - it may not have applied correctly. Review the migrated code directly."] + changes
-    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source), "migration_validity": _validity}
+    _conf = _calculate_rule_based_confidence(changes, _validity["syntax_valid"])
+    return {"migrated_code": migrated, "changes": changes, "why_explanations": get_why_explanations(source), "dependencies": check_dependencies(source), "migration_validity": _validity, "confidence_score": _conf["confidence_score"], "confidence_level": _conf["confidence_level"], "confidence_reason": _conf["confidence_reason"]}
 
 # ---------- VALIDATOR (PYTHON) ----------
 def validate_php(code):
@@ -2362,7 +2397,8 @@ def migrate_php(source):
             changes.append("var -> public (PHP officially treats 'var' as a synonym for 'public' - this is not a guess, it is the documented PHP behavior)")
     migrated = _restore_c_block_comments(migrated, _php_block_comments)
     check = validate_php(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php")}
+    _conf = _calculate_rule_based_confidence(changes, check["valid"])
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "php"), "confidence_score": _conf["confidence_score"], "confidence_level": _conf["confidence_level"], "confidence_reason": _conf["confidence_reason"]}
 
 # ---------- JAVA ----------
 JAVA_CHECKS_COMPILED_RAW = [
@@ -2505,7 +2541,8 @@ def migrate_java(source):
         if re.search(pattern, _migrated_no_comments):
             changes.append(f"REVIEW NEEDED: {msg}")
     check = validate_java(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "java")}
+    _conf = _calculate_rule_based_confidence(changes, check["valid"])
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "java"), "confidence_score": _conf["confidence_score"], "confidence_level": _conf["confidence_level"], "confidence_reason": _conf["confidence_reason"]}
 
 # ---------- COBOL ----------
 COBOL_CHECKS_COMPILED_RAW = [
@@ -4425,7 +4462,8 @@ def migrate_cobol(source, filename="file.cbl"):
         out_lines.append("    main()")
     migrated = chr(10).join(out_lines)
     check = validate_migrated_cobol_output(migrated)
-    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "cobol")}
+    _conf = _calculate_rule_based_confidence(changes, check["valid"])
+    return {"migrated_code": migrated, "changes": changes, "validation": check, "why_explanations": get_why_explanations(migrated, "cobol"), "confidence_score": _conf["confidence_score"], "confidence_level": _conf["confidence_level"], "confidence_reason": _conf["confidence_reason"]}
 
 
 # ---------- AI ----------
