@@ -1,0 +1,27 @@
+# Bug #35 (reported by the user): backend/ accumulated 86 one-off debug/verification scripts
+# from earlier development sessions (checksecret.py, checkdburl.py, fixlogin.py, diag.py, and
+# similar - none of them part of the actual application), committed alongside main.py with no
+# .dockerignore in place to filter them out. The Dockerfile's "COPY . ." (see Dockerfile)
+# copies the ENTIRE build context with no filtering, so every one of those scripts baked
+# straight into the production image - confirmed decisively: 89 .py files under backend/, only
+# 3 of which (main.py and the two test_*.py suites) are real application code.
+# Impact beyond image bloat: some of these scripts print or write out real internal
+# implementation details - e.g. one dumps the full body of _check_user_auth() to a result
+# file, another checks whether DATABASE_URL is set - and one even has a hardcoded local
+# Windows path to this project baked in. None of that belongs in a container image that could
+# ever be pushed to a registry, inspected via `docker save`/layer analysis, or reached via
+# `docker exec`.
+# This does not change anything the application needs: main.py imports nothing from these
+# scripts (they were never part of its own import graph), so excluding them changes nothing
+# about how the app runs - decisively confirmed by starting the full test suite and the
+# FastAPI app itself with none of these files present (see the verification done alongside
+# this fix).
+*.py
+!main.py
+!test_*.py
+*_result.txt
+*.diff
+*.txt
+!requirements.txt
+__pycache__/
+.pytest_cache/
