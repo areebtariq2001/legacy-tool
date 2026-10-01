@@ -2167,7 +2167,18 @@ def analyze_php(source):
     except Exception:
         issues.append("SQL injection sub-check could not complete - review manually for string-built queries")
     try:
-        _sens_result = scan_sensitive_data(source)
+        # Bug #43 (reported by the user): this used to call scan_sensitive_data(source) - the
+        # RAW, unmasked source - while the hardcoded-password regex check a few lines above and
+        # scan_sql_injection just above both already use `_source_no_comments` (block + line
+        # comments stripped). scan_sensitive_data() has its own comment-skip, but it only
+        # recognizes a comment when the WHOLE line starts with #, //, /*, or * - so a trailing
+        # inline comment (`$x = 1; // ... password = "..."`) or a block-comment continuation line
+        # that doesn't happen to start with `*` both slipped through untouched, and any
+        # password/secret-looking example text written there (a TODO, a doc example) was reported
+        # as a real "Hardcoded password/credential" finding. Using the same `_source_no_comments`
+        # text this function's other checks already rely on fixes both cases consistently, and
+        # line numbers stay correct since comment-stripping preserves the line count.
+        _sens_result = scan_sensitive_data(_source_no_comments)
         for _sens_finding in _sens_result.get("findings", []):
             _sens_issue_lower = _sens_finding["issue"].lower()
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
