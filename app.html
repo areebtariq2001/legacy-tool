@@ -1614,13 +1614,22 @@ async function runAnalysis() {
     const r = await fetchRetry(BACKEND + ep, { method: 'POST', body: fd2 });
     R.migrate = await r.json();
     if (!r.ok) throw new Error(R.migrate?.error || ('Server error ' + r.status));
+    // Bug #37 (reported by the user): migrate_code/migrate_php/migrate_java/migrate_cobol now
+    // return their own confidence_score directly (backend fix - see main.py's
+    // _calculate_rule_based_confidence), computed with this exact same "-8 per REVIEW NEEDED
+    // item" formula already baked in. Previously rule-mode had NO confidence_score from the
+    // backend at all, so this file computed an equivalent score client-side from a 90/25 base
+    // constant; now that the backend returns the real, already-penalized number, re-applying the
+    // same -8-per-item penalty here on top of it would double-count every review item for
+    // rule-mode. AI-mode's confidence_score (from calculate_confidence/calculate_confidence_java)
+    // never included a review-item penalty, so that path's existing behavior is unchanged.
     const _ruleModeDefaultConf1 = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
     const conf = R.migrate.confidence_score ?? R.migrate.confidence ?? _ruleModeDefaultConf1;
     const changeCount = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes.length : 0;
     const allChanges = (R.migrate && Array.isArray(R.migrate.changes)) ? R.migrate.changes : [];
     const reviewNeededCount = allChanges.filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
     const autoAppliedCount = allChanges.length - reviewNeededCount;
-    const _adjustedConf = conf != null ? Math.max(0, conf - (reviewNeededCount * 8)) : null;
+    const _adjustedConf = conf != null ? (mode === 'rule' ? conf : Math.max(0, conf - (reviewNeededCount * 8))) : null;
     const _aiFellBack = mode === 'ai' && R.migrate?.fallback_used === true;
     // Bug 3: when the migration produced zero changes, there is no produced migration to be
     // "confident" in - show the plain finding instead of a precision-looking percentage.
@@ -1763,10 +1772,15 @@ function renderResults(R, original, fname, totalMs) {
   const reviewNeededCountForConf = (R.migrate?.changes || []).filter(c =>typeof c === 'string' && c.startsWith('REVIEW NEEDED')).length;
   const _ruleModeDefaultConf = (mode === 'rule' && R.migrate?.migration_validity && R.migrate.migration_validity.syntax_valid === false) ? 25 : (mode === 'rule' ? 90 : null);
   const baseConf = R.migrate?.confidence_score ?? R.migrate?.confidence ?? _ruleModeDefaultConf;
-  const conf = baseConf != null ? Math.max(0, baseConf - (reviewNeededCountForConf * 8)) : null;
+  // Bug #37 (reported by the user): for rule-mode, R.migrate.confidence_score is now the
+  // backend's own _calculate_rule_based_confidence result (main.py) - the exact "-8 per REVIEW
+  // NEEDED item" penalty is already applied there, so re-applying it here would double-count
+  // every review item. AI-mode's confidence_score never included that penalty, so its behavior
+  // (subtract reviewNeededCountForConf*8 here) is unchanged.
+  const conf = baseConf != null ? (mode === 'rule' ? baseConf : Math.max(0, baseConf - (reviewNeededCountForConf * 8))) : null;
   const _noChangesNeeded = isNoChangeMigration(R.migrate);
   window.lastNoChangesNeeded = _noChangesNeeded;
-  window.lastConfBreakdown = baseConf != null ? { base: Math.round(baseConf), review: reviewNeededCountForConf } : null;
+  window.lastConfBreakdown = baseConf != null ? { base: Math.round(baseConf), review: reviewNeededCountForConf, alreadyApplied: mode === 'rule' } : null;
   // Bug 3: no percentage when the migration changed nothing - there is nothing to be confident in.
   const confPct = (!_noChangesNeeded && conf != null) ? Math.round(conf) : null;
   const cColor = confPct == null ? '#64748b' : confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--amber)' : 'var(--red)';
@@ -1776,7 +1790,9 @@ function renderResults(R, original, fname, totalMs) {
   document.getElementById('confPct').style.color = cColor;
   document.getElementById('confPct').title = _noChangesNeeded ? 'The rule-based migration found nothing to convert: the migrated output is identical to the original and passes a syntax check. No confidence percentage is shown because no migration was produced.' : '';
   if (confPct != null) {
-    document.getElementById('confPct').title = 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 0%';
+    document.getElementById('confPct').title = mode === 'rule'
+      ? 'Confidence: ' + Math.round(baseConf) + '% (computed by the backend: starts at 90%, or 25% if the migrated output failed its syntax/structure check, minus 8 points per item flagged for manual review - ' + reviewNeededCountForConf + ' such item(s) here)'
+      : 'Base confidence: ' + Math.round(baseConf) + '%\n' + 'Items flagged for manual review: ' + reviewNeededCountForConf + ' (each reduces confidence by up to 8 points)\n' + 'Formula: base - (review-items × 8), floored at 0%';
   }
   document.getElementById('sv-conf').textContent = _noChangesNeeded ? 'No changes' : (confPct != null ? confPct + '%' : 'N/A');
   migrated = R.migrate?.migrated_code ?? R.migrate?.migrated ?? R.migrate?.result ?? R.migrate?.output ?? 'No migration output received.';
@@ -3259,7 +3275,13 @@ function renderExecSummary(critCount, warnCount, confPct, fixHours, R, passedFna
             const summary = beh.behavioral_summary || '';
             return '<span style="color:' + color + '" title="' + escapeHtml(summary) + '">Behavioral: ' + escapeHtml(status) + '</span>';
           })()}
-          <div style="margin-top:3px">${window.lastNoChangesNeeded ? 'The migration made no changes, so there is no migration confidence to report.' : (window.lastConfBreakdown && confPct != null ? 'How the overall figure is calculated: base confidence ' + window.lastConfBreakdown.base + '% − 8 points × ' + window.lastConfBreakdown.review + ' manual-review item' + (window.lastConfBreakdown.review === 1 ? '' : 's') + ' = ' + confPct + '%. Understanding, Transformation and Behavioral are shown for context and are not averaged into it.' : '')}</div>
+          <div style="margin-top:3px">${window.lastNoChangesNeeded ? 'The migration made no changes, so there is no migration confidence to report.' : (window.lastConfBreakdown && confPct != null ? (window.lastConfBreakdown.alreadyApplied
+            // Bug #37 (reported by the user): for rule-mode, confPct IS window.lastConfBreakdown.base
+            // (the backend already applied the -8/item penalty before returning it) - showing
+            // "base − 8×N = confPct" here would be wrong (confPct - 8*N, not confPct) now that the
+            // subtraction isn't re-applied client-side. Describe it as already-included instead.
+            ? 'How the overall figure is calculated: ' + confPct + '% (computed by the backend - already accounts for ' + window.lastConfBreakdown.review + ' manual-review item' + (window.lastConfBreakdown.review === 1 ? '' : 's') + ' at 8 points each). Understanding, Transformation and Behavioral are shown for context and are not averaged into it.'
+            : 'How the overall figure is calculated: base confidence ' + window.lastConfBreakdown.base + '% − 8 points × ' + window.lastConfBreakdown.review + ' manual-review item' + (window.lastConfBreakdown.review === 1 ? '' : 's') + ' = ' + confPct + '%. Understanding, Transformation and Behavioral are shown for context and are not averaged into it.') : '')}</div>
         </div>
         ${topRuleService ? '<div style="grid-column:1/3">Recommended Starting Point: <strong style="color:#0f1115">' + topRuleService + '</strong></div>' : ''}
       </div>
