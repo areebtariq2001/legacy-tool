@@ -1397,10 +1397,19 @@ def _calculate_rule_based_confidence(changes, is_valid):
         level = "Medium confidence - review recommended"
     else:
         level = "Low confidence - manual review required"
+    # Bug #38 (reported by the user): this used to be an if/else - the review_count branch never
+    # checked is_valid at all, so when BOTH a syntax/structure failure (base 90 -> 25, a -65
+    # point drop - by far the bigger factor) AND review items were present, the review_count
+    # branch won and the reason text reported only the much smaller -8-per-item penalty,
+    # completely hiding the real, dominant cause of a low score (e.g. "17% confidence" explained
+    # as only "1 item flagged (-8 points)" with no mention that the output is syntactically
+    # invalid). Both reasons are now independent and both appear whenever both apply.
+    reasons = []
+    if not is_valid:
+        reasons.append(f"migrated output failed its syntax/structure check (-{90 - 25} points)")
     if review_count:
-        reason = f"{review_count} item(s) flagged for manual review (-{review_count * 8} points)"
-    else:
-        reason = "all checks passed" if is_valid else "migrated output failed its syntax/structure check"
+        reasons.append(f"{review_count} item(s) flagged for manual review (-{review_count * 8} points)")
+    reason = "; ".join(reasons) if reasons else "all checks passed"
     return {"confidence_score": score, "confidence_level": level, "confidence_reason": reason}
 
 
