@@ -8821,7 +8821,14 @@ def detect_code_smells(source, filename):
         smells.append({"type": "Analysis Incomplete", "location": "N/A", "detail": f"Deep-nesting check could not complete: {_e_nest}", "severity": "Low"})
     _trivial_lines = {"}", "};", "pass", "return None", "return none", "break", "continue", "else:", "else {", "} else {", "end.", "end if.", "next", "}}", "});", "});", "return true;", "return false;", "return true", "return false"}
     line_counts = {}
-    for i, line in enumerate(lines):
+    # Bug #50 (reported by the user, same family as Bug #48/#49 but Low severity): this used to
+    # build the duplicate-line map directly from the raw `lines`, with a hand-rolled, "/*"-blind
+    # comment filter that couldn't recognize a /* ... */ block comment - so a repeated copyright
+    # header or license block (very common, one per file) was reported as a false-positive
+    # "Duplicate Code" finding, as if it were duplicated business logic. Use the shared
+    # _code_only_source() helper instead, same fix shape as Bug #48/#49.
+    _code_only_lines_for_dup = _code_only_source(source).split(chr(10))
+    for i, line in enumerate(_code_only_lines_for_dup):
         stripped = line.strip()
         if len(stripped) > 15 and stripped.lower() not in _trivial_lines and not stripped.startswith(("#", "//", "*")):
             line_counts.setdefault(stripped, []).append(i+1)
@@ -9466,7 +9473,11 @@ def detect_legacy_ghosts(source, filename):
                 "note": "Likely an entry point (main/handler/test) - probably NOT dead code, just uncalled from within this file." if is_entrypoint_like else ("Found referenced elsewhere in the file outside any function definition (e.g. module-level script code) - likely in genuine use, do NOT delete without checking." if called_outside_own_def else "No internal callers found - review before removing.")
             })
     duplicate_lines = {}
-    for i, line in enumerate(source.split(chr(10))):
+    # Bug #50 (reported by the user, same family as Bug #48/#49 but Low severity): same hand-rolled,
+    # "/*"-blind comment filter as detect_code_smells's Duplicate Code check - a repeated comment
+    # (e.g. a TODO note copy-pasted a few times) was reported as a false-positive "Duplicate
+    # Business Rule Candidate". Use the shared _code_only_source() helper instead.
+    for i, line in enumerate(_code_only_source(source).split(chr(10))):
         stripped = line.strip()
         if len(stripped) > 20 and not stripped.startswith(("#", "//", "*")):
             duplicate_lines.setdefault(stripped, []).append(i + 1)
