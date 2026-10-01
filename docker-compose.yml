@@ -37,6 +37,11 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Bug/gap (requested by the user, Fail2Ban addition): nginx's access log previously only
+      # ever existed INSIDE this container's own filesystem - nothing on the host, and no other
+      # container, could read it. The fail2ban service below needs to tail this exact file to
+      # do anything at all, so it's put on a named volume both containers share.
+      - nginx_logs:/var/log/nginx
     deploy:
       resources:
         limits:
@@ -51,3 +56,53 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # Fail2Ban (requested by the user): watches nginx's JSON access log (via the shared
+  # nginx_logs volume above) for repeated 401/403/429 responses from the same IP - see
+  # fail2ban/filter.d/nginx-starsage.conf and fail2ban/jail.d/nginx-starsage.conf - and
+  # auto-bans that IP at the firewall level. This is a HOST-level ban (iptables), a different,
+  # coarser layer than the backend's own in-process _AUTO_BLOCK_EVENT_TYPES auto-block (main.py)
+  # - fail2ban can see a scan nginx itself logged even if it never reaches an application-level
+  # "suspicious event", while main.py's auto-block can see AI-output/application-level signals
+  # fail2ban has no visibility into. Keep both.
+  #
+  # IMPORTANT - this needs real host privileges that could not be fully exercised/validated
+  # inside this migration's own test sandbox (no Docker daemon available there), so verify
+  # these specifically once deployed on your actual server:
+  #   - network_mode: host is required so the iptables rules fail2ban installs land in the
+  #     HOST's own netfilter tables (where traffic actually needs to be dropped), not an
+  #     isolated per-container network namespace where a DROP rule would have no effect on
+  #     real incoming traffic.
+  #   - cap_add NET_ADMIN/NET_RAW is required for fail2ban to call iptables at all; running
+  #     without these capabilities will make every ban action fail silently (bans logged,
+  #     traffic not actually blocked) - check `docker compose logs fail2ban` for
+  #     "Starting new jail 'nginx-starsage'" and, after triggering a real test ban, confirm
+  #     with `sudo iptables -L -n` on the HOST that a DROP rule for that IP actually exists.
+  #   - The filter regex (fail2ban/filter.d/nginx-starsage.conf) was decisively verified with
+  #     fail2ban's own `fail2ban-regex` tool against real sample JSON log lines matching this
+  #     file's log_format json_combined (401/403/429 lines matched, a 200 OK line correctly
+  #     did not) - but the end-to-end ban/firewall behavior itself could only be verified on a
+  #     real host with Docker + iptables access, which this sandbox does not have.
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=UTC
+      - F2B_LOG_TARGET=STDOUT
+      - F2B_LOG_LEVEL=INFO
+      - F2B_DB_PURGE_AGE=7d
+    volumes:
+      - nginx_logs:/var/log/nginx:ro
+      - ./fail2ban/jail.d:/data/jail.d:ro
+      - ./fail2ban/filter.d:/data/filter.d:ro
+      - fail2ban_data:/data
+
+volumes:
+  nginx_logs:
+  fail2ban_data:

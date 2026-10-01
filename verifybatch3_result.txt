@@ -1,0 +1,26 @@
+=== 1. logout endpoint exists? ===
+'/logout' or '/auth/logout' present: False
+
+=== 2. PBKDF2 iterations ===
+ pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200000).hex()
+    return salt + "$" + pwd_hash
+
+def _verify_password(password, s
+---
+ 32 + "$" + hashlib.pbkdf2_hmac("sha256", b"dummy_password_for_timing", ("0" * 32).encode("utf-8"), 200000).hex()
+
+def _create_users_table_if_needed(cur):
+    cur.execute
+---
+
+=== 3. file.read() before size check pattern (safe_read_file) ===
+def safe_read_file(content_bytes, filename):
+    if filename and re.search(r'[<>:"/\\|?*\x00-\x1f]', filename):
+        return None, "Filename contains invalid characters."
+    if len(content_bytes) > MAX_FILE_SIZE:
+        return None, f"File too large ({len(content_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes."
+    if len(content_bytes) == 0:
+        return None, "File is empty."
+    for _magic, _desc in _DANGEROUS_MAGIC_BYTES:
+        if content_bytes.startswith(_magic):
+            return None, f"File content does not match its extension (detected: {_desc}). Only plain text source code

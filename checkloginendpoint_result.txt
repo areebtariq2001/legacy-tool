@@ -1,0 +1,12 @@
+@app.post("/auth/login")
+async def auth_login_endpoint(req: AuthRequest):
+    result = login_user(req.email, req.password)
+    if not result.get("success"):
+        return JSONResponse(status_code=401, content=result)
+    return result
+
+class ApprovalRequest(BaseModel):
+    filename: str = Field(default="unknown", max_length=500)
+    decision: str = Field(default="Approved", max_length=50)
+    reviewer_notes: str = Field(default="", max_length=5000)
+    action_type: str = Field(default="migration", max_length=50)

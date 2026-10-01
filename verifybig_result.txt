@@ -1,0 +1,48 @@
+=== 1. sanitize_ai_output function ===
+def sanitize_ai_output(text):
+    if not text or not isinstance(text, str):
+        return text
+    text = re.sub(r"<script[^>]*>.*?</script>", "[removed: script tag]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<iframe[^>]*>.*?</iframe>", "[removed: iframe tag]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<(object|embed)[^>]*>.*?</\1>", "[removed: embedded object]", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'on\w+\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
+    text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
+    return text
+
+
+_JAILBREAK_INDICATORS = [
+    "i cannot follow",
+    "as an ai without restrictions",
+    "dan mode",
+    "ignore my training",
+    "i will help you hack",
+    "developer mode enabled",
+    "i am now unrestricted",
+    "jailbroken",
+]
+
+
+
+=== 2. urllib import check ===
+'import urllib' count: 2
+'urlparse(' count: 1
+
+=== 4. rate limit endpoint keys ===
+_ENDPOINT_SPECIFIC_LIMITS = {
+    "/ai-migrate": (5, 60),
+    "/scan-sensitive": (10, 60),
+    "/generate-tests": (5, 60),
+    "/login": (5, 300),
+    "/register": (3, 300),
+}
+
+'/auth/login' route exists: True
+'@app.post("/login"' exists: False
+: (10, 60),
+    "/generate-tests": (5, 60),
+    "/login": (5, 300),
+    "/register": (3, 300),
+}
+
+
+def _check_endpoint_specific_limit(endpoint, identi

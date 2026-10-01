@@ -1,0 +1,7 @@
+Fix critical code-corruption bug in sanitize_ai_output
+
+The XSS-protection regex on\w+\s*=\s*["'][^"']*["'] had no word-boundary before "on", so it matched the literal substring "on" anywhere followed by more word chars, an equals sign, and a quoted string - not just genuine HTML event handlers. Since this function runs centrally on every AI-generated code output, common variable assignments were being silently destroyed: condition = "active" became just "c", person_name = 'Ali' became "pers", phone = "0300" became "ph". This was silent corruption of the tool's core migration output.
+
+Fixed by replacing the broad on\w+ pattern with an explicit list of genuine HTML event-handler names (onclick, onload, onerror, onmouseover, etc) anchored with \b.
+
+Verified with 2 tests: a code-preservation test confirming condition, person_name, phone, connection, and even a legitimate onSuccess variable name all pass through unchanged; and an XSS test confirming a genuine onclick="alert(1)" payload is still correctly stripped. Full 23-test regression suite passes with zero failures.

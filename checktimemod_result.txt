@@ -1,0 +1,5 @@
+_time_mod-usage-count: 3
+local-var-named-'time'-count: 0
+     import time as _time_mod |         _scan_start_
+ _scan_start_time = _time_mod.time() |         _time
+les: |             if _time_mod.time() - _scan_start

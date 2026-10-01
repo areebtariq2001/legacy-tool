@@ -1,0 +1,24 @@
+=== BUG-1: get_summary indentation ===
+None
+
+    def get_summary(self):
+       
+
+=== BUG-2: PROMPT_INJECTION_PATTERNS naming ===
+_PROMPT_INJECTION_PATTERNS (with underscore) count: 2
+e)
+
+_PROMPT_INJECTION_PATTERNS = [
+    r
+
+=== BUG-5: WAF_HEADER_PATTERNS location ===
+ f"user-agent matched known scanner tool: {_user_agent[:100]}")
+        return JSONResponse(status_code=403, content={"error": "Forbidden"}, headers={"Access-Control-Allow-Origin": allow_origin})
+    _WAF_HEADER_PATTERNS = [
+     
+
+Occurrences of '_WAF_HEADER_PATTERNS = [': 1
+
+=== BUG-7: usage_log table names ===
+write_audit_log inserts into: usage_log
+track_usage inserts into: usage_log

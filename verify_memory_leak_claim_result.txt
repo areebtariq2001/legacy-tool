@@ -1,0 +1,26 @@
+=== anti_bot_patterns block ===
+ss-Control-Allow-Origin": allow_origin})
+    _now_ts = time.time()
+    with _anti_bot_lock:
+        _recent_bot_pattern = [t for t in _anti_bot_patterns.get(client_ip, []) if _now_ts - t < 10]
+        _anti_bot_patterns[client_ip] = _recent_bot_pattern + [_now_ts]
+        if len(_recent_bot_pattern) > 20:
+            _record_security_event("bot_pattern_detected", client_ip, f">20 requests in 10 seconds ({len(_recent_bot_pattern)} detected) - like
+
+=== _check_rate_limit_keyed (used for token store) ===
+_check_rate_limit_keyed(store, key, max_requests=60, window_seconds=60):
+    now = time.time()
+    entry = store.get(key, [])
+    entry = [t for t in entry if now - t < window_seconds]
+    if len(entry) >= max_requests:
+        store[key] = entry
+        return False
+    entry.append(now)
+    store[key] = entry
+    if len(store) > 5000:
+        _cutoff = now - window_seconds
+        for _k in list(store.keys()):
+            if not store[_k] or max(store[_k]) < _cutoff:
+                del store[_k]
+    return True
+

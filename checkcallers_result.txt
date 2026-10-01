@@ -1,0 +1,52 @@
+=== save-approval endpoint (caller) ===
+"/save-approval")
+async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
+    _user_email = _check_user_auth(request)
+    if not _user_email:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to approve or reject migrations"})
+    if req is not None:
+        filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
+    try:
+        result = save_approval_decision(filename, decision, reviewer_notes, action_type)
+        result["approved_by"] = _user_email
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Approval save failed safely: {e}"})
+
+
+=== find_similar_files FULL ===
+def find_similar_files(source, limit=3, exclude_filename=None):
+    conn = _get_db_connection()
+    if not conn:
+        return []
+    cur = None
+    try:
+        cur = conn.cursor()
+        _query_freq = _extract_term_frequencies(source)
+        cur.execute("SELECT filename, term_freq_json, source_excerpt FROM analyzed_files ORDER BY id DESC LIMIT 500")
+        rows = cur.fetchall()
+        _scored = []
+        for _fname, _tf_json, _excerpt in rows:
+            if exclude_filename and _fname == exclude_filename:
+                continue
+            try:
+                _tf = json.loads(_tf_json)
+            except Exception:
+                continue
+            _score = _cosine_similarity_termfreq(_query_freq, _tf)
+            if _score > 0.1:
+                _scored.append({"filename": _fname, "similarity": round(_score, 3), "excerpt": _excerpt})
+        _scored.sort(key=lambda x: -x["similarity"])
+        return _scored[:limit]
+    except Exception:
+        return []
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
+
+
+=== INSERT into approval_log columns ===
+T)")
+            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp) VALUES (%s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"]))
+            c

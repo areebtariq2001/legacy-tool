@@ -1,0 +1,11 @@
+Genuinely-safe_log_message-used-inside-_record_security_event: False
+
+def _record_security_event(event_type, ip, detail):
+    with _security_log_lock:
+        _prev_hash = _security_log[0]["entry_hash"] if _security_log else "0" * 64
+        _timestamp = datetime.now().isoformat()
+        _entry_content = f"{_timestamp}|{event_type}|{ip}|{detail}|{_prev_hash}"
+        _entry_hash = hashlib.sha256(_entry_content.encode("utf-8")).hexdigest()
+        _security_log.insert(0, {"timestamp": _timestamp, "type": event_type, "ip": ip, "detail": detail, "prev_hash": _prev_hash, "entry_hash": _entry_hash})
+        del _security_log[200:]
+    if event_type in _AUTO_BLOCK_EV

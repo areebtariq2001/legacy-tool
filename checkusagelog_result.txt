@@ -1,0 +1,35 @@
+Genuinely-'CREATE TABLE IF NOT EXISTS usage_log'-count: 0
+Genuinely-'INSERT INTO usage_log'-count: 2
+
+def write_audit_log(action, filename, result_summary, user_email=None, ip=None):
+    global _audit_log_failure_count
+    result_summary = safe_log_message(result_summary)
+    _user_email = user_email or "anonymous"
+    _ip = ip or "unknown"
+    try:
+        audit_blockchain.add_block(action, filename, _user_email, _ip, result_summary)
+    except Exception:
+        pass
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = _get_db_connection()
+        if conn:
+            cur = None
+            try:
+                cur = conn.cursor()
+                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
+                cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
+                cur.execute("INSERT INTO usage_log (action, filename, result_summary, user_email, ip) VALUES (%s, %s, %s, %s, %s)", (action, filename, result_summary, _user_email, _ip))
+                conn.commit()
+                return
+            except Exception:
+                pass
+            finally:
+                if cur:
+                    cur.close()
+                conn.close()
+        with _stats_lock:
+            _in_memory_audit_log.insert(0, {"timestamp": timestamp, "action": action, "file": filename, "result": result_summary, "user_email": _user_email, "ip": _ip})
+            del _in_memory_audit_log[50:]
+    except Exception:
+        _audit_log_failure_count += 1

@@ -1,0 +1,21 @@
+class StarBuildBlockchain:
+    """
+    NOTE: this is a single-process, in-memory hash chain with a proof-of-work
+    step for demonstration purposes - not a distributed/decentralized blockchain
+    (no multiple nodes, no network consensus). Its genuine security property is
+    identical to the hash-chained _security_log elsewhere in this file: any edit
+    to a past block changes that block's hash, which breaks the chain link to
+    every block after it, making tampering detectable via verify_chain(). Like
+    the in-memory security log, this chain resets on server restart.
+    """
+    def __init__(self):
+        self.chain = []
+        self._lock = threading.Lock()
+        self._create_genesis_block()
+
+    def _create_genesis_block(self):
+        genesis = AuditBlock(0, time.time(), "GENESIS", "system", "system", "0.0.0.0", "StarBuild Audit Chain Initialized", "0" * 64)
+        genesis.mine(difficulty=2)
+        self.chain.append(genesis)
+
+    

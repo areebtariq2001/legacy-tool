@@ -1,0 +1,29 @@
+=== 1. deep_verify_python compile usage ===
+has-compile-call: True
+has-exec-of-compiled-result: False
+
+=== 2. chain trimming direction ===
+_block)
+            del self.chain[:-2000]
+       
+
+=== 6. pan regex ===
+double-backslash-found: True
+single-backslash-bpan-count: 1
+
+=== 8. assess_dependency_risk call in scan_repo ===
+assess_dependency_risk(source)-no-filename-count: 2
+rts": _imports}
+    risk = assess_dependency_risk(source, filename)
+    debt = c
+
+=== 5. /download endpoint ===
+@app.post("/download")
+async def download(file: UploadFile = File(...)):
+    content_bytes = await file.read()
+    source, error = safe_read_file(content_bytes, file.filename)
+    if error:
+        return Response(content=error.encode('utf-8'), media_type='text/plain', status_code=400)
+    lang = detect_language(file.filename)
+    if lang == "unknown":
+        return Response(content=b"Unsupported file type. Supported extensions: .py, .java, .php/.php3/.php5/.phtml, .cbl/.cob/.cobol", media_type

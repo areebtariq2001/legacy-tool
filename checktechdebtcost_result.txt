@@ -1,0 +1,18 @@
+@app.post("/tech-debt-cost")
+async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = calculate_tech_debt_cost(source, file.filename, region, custom_rate)
+        result["filename"] = file.filename
+        track_usage("tech-debt-cost", file.filename)
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"filename": file.filename, "error": f"Tech debt cost calculation failed safely: {e}"})
+
+def generate_code_dna(source, filename):
+    quality = calculate_code_quality(source, filename)
+    debt = calculate_tech_debt(source, filename)
+    cry

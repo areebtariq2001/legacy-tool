@@ -1,0 +1,12 @@
+=== 7. py_issue_checks pattern-matching logic ===
+for pattern, msg in py_issue_checks:
+if pattern in source:
+
+=== 12. endpoints returning plain dict without JSONResponse on error ===
+--- /ai-native-readiness ---
+has-JSONResponse-with-error: True
+--- /predict-risk ---
+has-JSONResponse-with-error: True
+--- /cicd NOT-FOUND ---
+--- /db-schema NOT-FOUND ---
+--- /api-deps NOT-FOUND ---

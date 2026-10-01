@@ -1,0 +1,33 @@
+=== @app.post("/generate-docs" ===
+@app.post("/generate-docs")
+async def generate_docs_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = generate_documentation(source, file.filename)
+        track_usage("generate-docs", file.filename)
+        write_audit_log("generate-docs", file.filename, "doc generated")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Doc generation failed safely: {e}"})
+
+
+=== @app.post("/ai-consistency-check" ===
+@app.post("/ai-consistency-check")
+async def ai_consistency_check_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        language = detect_language(file.filename)
+        result = verify_ai_output_consistency(source, language)
+        result["filename"] = file.filename
+        track_usage("ai-consistency-check", file.filename)
+        write_audit_log("ai-consistency-check", file.filename, "checked")
+        return result
+    except Exception as e:
+        return JSONResponse
+

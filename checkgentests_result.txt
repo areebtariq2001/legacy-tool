@@ -1,0 +1,15 @@
+@app.post("/generate-tests")
+async def generate_tests_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        _gt_lang = detect_language(file.filename)
+        result = ai_generate_tests(source, _gt_lang)
+        result["filename"] = file.filename
+        track_usage("generate-tests", file.filename)
+        write_audit_log("generate-tests", file.filename, f"lang={_gt_lang}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content=

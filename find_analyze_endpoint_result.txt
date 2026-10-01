@@ -1,0 +1,22 @@
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        _lang = detect_language(file.filename)
+        if _lang == "java":
+            result = analyze_java(source, file.filename)
+        elif _lang == "php":
+            result = analyze_php(source)
+        elif _lang == "cobol":
+            result = analyze_cobol(source, file.filename)
+        else:
+            result = analyze_code(source)
+        result["filename"] = file.filename
+        track_usage("analyze", file.filename)
+        write_audit_log("analyze", file.filename, f"issues={len(result.get('issues', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Analysis failed safely: {str(e)}"})

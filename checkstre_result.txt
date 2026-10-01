@@ -1,0 +1,12 @@
+=== login_user exception handler ===
+oken": token, "email": email}
+    except Exception as e:
+        return {"success": False, "error": f"Login failed: {e}"}
+    finally:
+        if cur:
+
+=== register_user exception handler ===
+age": "Account created - you can now log in"}
+    except Exception as e:
+        write_audit_log("register-error", email, str(e))
+        return {"success": False, "error": "Registration failed - plea

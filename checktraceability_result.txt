@@ -1,0 +1,4 @@
+stion, say so honestly rather than guessing. Keep your answer to 4-6 sentences.'''
+        result = call_ai_provider(prompt, max_tokens=600)
+        if result.startswith("AI_ERROR:") or result.startswith("AI service error:"):
+            return JSONResponse(status_code=400, content={"error": f"Trace

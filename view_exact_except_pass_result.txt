@@ -1,0 +1,36 @@
+=== Found at line 708 ===
+LINE 703: '        for _sqli_issue in _sqli_result.get("sqli_issues", []):\n'
+LINE 704: '            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])\n'
+LINE 705: '    except Exception:\n'
+LINE 706: '        pass\n'
+LINE 707: '    try:\n'
+LINE 708: '        _sens_result = scan_sensitive_data(source)\n'
+LINE 709: '        for _sens_finding in _sens_result.get("findings", []):\n'
+
+=== Found at line 1236 ===
+LINE 1231: '        for _sqli_issue in _sqli_result.get("sqli_issues", []):\n'
+LINE 1232: '            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])\n'
+LINE 1233: '    except Exception:\n'
+LINE 1234: '        issues.append("SQL injection sub-check could not complete - review manually for string-built queries")\n'
+LINE 1235: '    try:\n'
+LINE 1236: '        _sens_result = scan_sensitive_data(source)\n'
+LINE 1237: '        for _sens_finding in _sens_result.get("findings", []):\n'
+
+=== Found at line 1340 ===
+LINE 1335: '        for _sqli_issue in _sqli_result.get("sqli_issues", []):\n'
+LINE 1336: '            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])\n'
+LINE 1337: '    except Exception:\n'
+LINE 1338: '        pass\n'
+LINE 1339: '    try:\n'
+LINE 1340: '        _sens_result = scan_sensitive_data(source)\n'
+LINE 1341: '        for _sens_finding in _sens_result.get("findings", []):\n'
+
+=== Found at line 1441 ===
+LINE 1436: '        for _sqli_issue in _sqli_result.get("sqli_issues", []):\n'
+LINE 1437: '            issues.append("SQL injection risk (line " + str(_sqli_issue["line"]) + "): " + _sqli_issue["issue"])\n'
+LINE 1438: '    except Exception:\n'
+LINE 1439: '        pass\n'
+LINE 1440: '    try:\n'
+LINE 1441: '        _sens_result = scan_sensitive_data(source)\n'
+LINE 1442: '        for _sens_finding in _sens_result.get("findings", []):\n'
+

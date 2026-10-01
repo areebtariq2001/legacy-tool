@@ -1,0 +1,7 @@
+=== migrate_java disclaimer/return ===
+       (r'\bACCEPT\b', "ACCEPT found - use input()"),
+        (r'STOP\s+RUN', "STOP RUN found - use return/exit"),
+        (r'WORKING-STORAGE', "WORKING-STORAGE section - convert to variables"),
+        (r'REDEFINES', "REDEFINES found - memory overlay reinterpretation, needs manual review (no direct Python equivalent)"),
+        (r'OCCURS', "OCCURS found - array/table definition, convert to a Python list"),
+        (r'\bCOPY\b', "COPY statement found - copybook dependency, resolve/inline the cop

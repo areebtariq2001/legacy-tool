@@ -1,0 +1,12 @@
+=== BUG-3: ENDPOINT_SPECIFIC_LIMITS dict end + function def ===
+}
+
+
+def _check_endpoint_specific_limit(endpoint, identifier):
+    if endpoint no
+
+=== BUG-4: token_rate_limit_store + function def ===
+_token_rate_limit_store = {}
+
+
+def _check_rate_limit_keyed(store, key, max_reque

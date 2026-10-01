@@ -1,0 +1,51 @@
+=== 1. save-approval / approval_log ===
+def save_approval_decision(filename, decision, reviewer_notes, action_type):
+    _allowed_decisions = {"approved", "rejected", "modified", "Approved", "Rejected", "Modified"}
+    if decision not in _allowed_decisions:
+        return {"log_saved": False, "error": "Invalid decision: " + str(decision), "filename": filename}
+    if reviewer_notes and len(reviewer_notes) > 5000:
+        reviewer_notes = reviewer_notes[:5000] + " [... truncated ...]"
+    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat()}
+    conn = _get_db_connection()
+    if conn:
+        cur = None
+        try:
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMAR
+
+=== 2. similar_files ===
+)
+        return True
+    except Exception:
+        return False
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
+
+
+def find_similar_files(source, limit=3, exclude_filename=None):
+    conn = _get_db_connection()
+    if not co
+---
+split(chr(10))[:250]
+    numbered_source = chr(10).join(str(i + 1) + ": " + ln for i, ln in enumerate(source_lines))
+    try:
+        _similar = find_similar_files(source, limit=2, exclude_filename=filename)
+    except Exception:
+        _similar = [
+---
+
+=== 3. str(e) count ===
+str(e)-occurrences: 144
+
+=== 4. compilation passed / execution-ready claim ===
+ify_python(code):
+    try:
+        ast.parse(code)
+    except SyntaxError as e:
+        return {"verified": False, "verify_message": f"Compilation failed: syntax error on line {e.lineno}. Code is not execution-ready."}
+    try:
+        compile(code, "<migrated>", "exec")
+    except Exception as e:
+ 

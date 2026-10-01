@@ -1,0 +1,25 @@
+=== Occurrence-1 (score-90) ===
+sed due to AI error.", "vars_ok": True, "var_message": "Rule-based migration preserves all names.", "confidence_score": 90, "confidence_level": "High confidence", "confidence_reason": "AI service error (" + result.replace("AI_ERROR: ","").replace("AI service error: ","")[:80] + "); switched to deterministic rule-based migration", "fallback_used": True, "why_explanations": get_why_explanations(sour
+
+=== Occurrence-2 (score-95, first) ===
+ compiles successfully (rule-based fallback used)."
+                output["vars_ok"] = True
+                output["var_message"] = "Rule-based migration preserves all names."
+                output["confidence_score"] = 95
+                output["confidence_level"] = "High confidence"
+                output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
+                output["fallback_used"] = True
+        try:
+            output.update(compare_complexity(source, output.get("migrated_code", source)))
+        except Exception as e:
+         
+
+=== Occurrence-3 (score-95, second) ===
+lidation_message"] = "Output is valid Java syntax."
+                output["vars_ok"] = True
+                output["var_message"] = "Rule-based migration preserves all names."
+                output["confidence_score"] = 95
+                output["confidence_level"] = "High confidence"
+                output["confidence_reason"] = "AI output was unreliable; switched to deterministic rule-based migration"
+                output["fallback_used"] = True
+        output["note_java"] = "Java guardrails use syntax-level (AST) verification. Compile-level verification requires a full JDK and is planne

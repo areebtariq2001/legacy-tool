@@ -1,0 +1,17 @@
+async def scan_repo_endpoint(req: RepoRequest):
+    try:
+        url = req.repo_url.strip().rstrip("/")
+        if not re.match(r"^https://github\.com/[\w\-\.]+/[\w\-\.]+$", url):
+            return JSONResponse(status_code=400, content={"error": "Please provide a valid HTTPS GitHub repo URL like https://github.com/owner/repo"})
+        parts = url.replace("https://github.com/", "").split("/")
+   
+...[TRUNCATED-MIDDLE]...
+GITHUB_TOKEN configured on the server - limited to 60 GitHub API requests/hour, shared across all users."
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": "Repo scan failed safely: " + str(e)})
+
+ARCH_DB_KEYWORDS = {"sqlite3", "mysqldb", "pymysql", "psycopg2", "sqlalchemy", "pymongo", "cx_oracle", "pyodbc", "asyncpg", "motor", "redis"}
+
+
+Genuinely-total-length: 8281

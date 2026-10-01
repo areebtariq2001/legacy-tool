@@ -1,0 +1,57 @@
+=== "/ai-suggest" ===
+"/ai-suggest")
+async def ai_suggest_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = ai_suggest(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("ai-suggest", file.filename)
+        write_audit_log("ai-suggest", file.filename, "ok")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"AI suggestion failed safely: {e}"})
+
+
+=== "/explain" ===
+"/explain")
+async def explain_endpoint(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        result = ai_explain(source, detect_language(file.filename))
+        result["filename"] = file.filename
+        track_usage("explain", file.filename)
+        write_audit_log("explain", file.filename, "ok")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"Explanation failed safely: {e}"})
+
+
+=== "/generate-tests" ===
+"/generate-tests": (5, 60),
+    "/auth/login": (5, 300),
+    "/auth/register": (3, 300),
+}
+
+
+def _check_endpoint_specific_limit(endpoint, identifier):
+    if endpoint not in _ENDPOINT_SPECIFIC_LIMITS:
+        return True
+    max_reqs, window = _ENDPOINT_SPECIFIC_LIMITS[endpoint]
+    key = endpoint + "|" + identifier
+    now = time.time()
+    with _endpoint_rate_lock:
+        entry = [t for t in _endpoint_rate_store.get(key, []) if now - t < window]
+        if len(entry) >= max_reqs:
+            _endpoint_rate_store[key] = entry
+            return False
+        entry.append(now)
+        _endpoint_rate_store[key] = entry
+        if len(_endpoint_rate_store) > 5000:
+            _cutoff = now - 
+

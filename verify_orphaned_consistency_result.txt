@@ -1,0 +1,10 @@
+Genuinely-'verify_ai_output_consistency'-occurrences: 1
+Genuinely-count-should-be-1-if-orphaned-(only-def), 2+-if-called-somewhere
+
+--- occurrence at index 166910 ---
+ return _intersection / _union if _union > 0 else 1.0
+
+
+def verify_ai_output_consistency(source, language):
+    _src_tru
+

@@ -1,0 +1,28 @@
+=== 1. fake confidence search ===
+"confidence": 90 -> count: 0
+'confidence': 90 -> count: 0
+"High confidence" -> count: 5
+confidence_score.*90 -> count: 0
+valid.*True.*verified.*True -> count: 0
+
+=== 2. per-request DDL (_create_users_table_if_needed calls) ===
+Total-calls: 4
+_create_users_table_if_needed(cur):
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER, email TEXT, created_at TEXT, expires_at TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS analyzed_files (id SERIAL P
+
+=== 3. file.read() before safe_read_file pattern ===
+await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        _lang = detect_language(file.filename)
+  
+---
+await file.read()
+        source, error = safe_read_file(content, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        _mig_lang = detect_language(file.filename
+---

@@ -637,7 +637,15 @@ def sanitize_ai_output(text):
     text = re.sub(r"<script[^>]*>.*?</script>", "[removed: script tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<iframe[^>]*>.*?</iframe>", "[removed: iframe tag]", text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r"<(object|embed)[^>]*>.*?</\1>", "[removed: embedded object]", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*["\x27][^"\x27]*["\x27]', "", text, flags=re.IGNORECASE)
+    # Bug (reported by the user, 30th bug): this regex only matched a QUOTED event-handler
+    # attribute value ("...=" or '...='). HTML allows an unquoted attribute value too (a
+    # classic XSS technique specifically used to dodge naive quote-based sanitizers), so
+    # `<img src=x onerror=alert(1)>` passed straight through untouched - the sanitizer's
+    # entire purpose (stripping malicious on* handlers from AI output before it reaches the
+    # user, on the /ai-suggest, /explain and /generate-tests endpoints) was bypassed by simply
+    # not quoting the payload. Fixed by also matching an unquoted value: one or more
+    # characters that aren't whitespace or ">" (where an unquoted HTML attribute value ends).
+    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*("[^"]*"|\x27[^\x27]*\x27|[^\s>]+)', "", text, flags=re.IGNORECASE)
     text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
     return text
 
@@ -2146,13 +2154,46 @@ def _restore_c_block_comments(migrated, literals):
 def migrate_php(source):
     changes = []
     migrated, _php_block_comments = _mask_c_block_comments(source)
-    def _fix_php4_constructor(m):
-        return f"{m.group(1)}__construct{m.group(3)}"
-    _ctor_pattern = re.compile(r'(class\s+(\w+)\s*\{[^}]*?function\s+)\2(\s*\()')
-    _ctor_match = _ctor_pattern.search(migrated)
-    if _ctor_match:
-        migrated = _ctor_pattern.sub(_fix_php4_constructor, migrated, count=1)
-        changes.append("PHP 4-style constructor (method name matched class name) -> __construct()")
+    # Bug #33 (reported by the user): the old single regex
+    # r'(class\s+(\w+)\s*\{[^}]*?function\s+)\2(\s*\()' used [^}]*? to reach from the class's
+    # opening brace to the constructor - a character class that explicitly EXCLUDES '}'. That
+    # means the regex can only bridge the gap when NO '}' appears anywhere in between - the
+    # instant the class has even one earlier method with its own {...} body (the normal case;
+    # a constructor being literally the first method in a class is the exception, not the
+    # rule), that earlier method's closing '}' stops the match dead, so the constructor is
+    # never found at all - no fix, no REVIEW NEEDED warning, nothing. Since PHP 8 removed
+    # PHP4-style constructors entirely (a method matching its class name is just an ordinary
+    # method there), the migrated code silently loses its real constructor with no warning:
+    # `new Foo($x)` would never run the body that used to set $this->x.
+    # Fixed by finding each class's opening '{' and its true matching '}' via brace-depth
+    # counting (so nested braces from any number of earlier methods are handled correctly),
+    # then searching for "function <ClassName>(" only within that exact class body slice -
+    # instead of relying on a regex span that a single earlier method's closing brace could
+    # cut short.
+    def _find_matching_brace(text, open_pos):
+        depth = 0
+        for _i in range(open_pos, len(text)):
+            if text[_i] == "{":
+                depth += 1
+            elif text[_i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return _i
+        return None
+    _ctor_class_pattern = re.compile(r'class\s+(\w+)\s*\{')
+    for _cls_m in _ctor_class_pattern.finditer(migrated):
+        _cls_name = _cls_m.group(1)
+        _brace_open = _cls_m.end() - 1
+        _brace_close = _find_matching_brace(migrated, _brace_open)
+        if _brace_close is None:
+            continue
+        _ctor_body_pattern = re.compile(r'(function\s+)' + re.escape(_cls_name) + r'(\s*\()')
+        _body = migrated[_brace_open + 1:_brace_close]
+        if _ctor_body_pattern.search(_body):
+            _new_body = _ctor_body_pattern.sub(lambda m: f"{m.group(1)}__construct{m.group(2)}", _body, count=1)
+            migrated = migrated[:_brace_open + 1] + _new_body + migrated[_brace_close:]
+            changes.append("PHP 4-style constructor (method name matched class name) -> __construct()")
+            break
     rules = [
         (r'\bmysql_close\b', 'mysqli_close', "mysql_close -> mysqli_close"),
         (r'\bmysql_error\b', 'mysqli_error', "mysql_error -> mysqli_error"),
@@ -2774,6 +2815,47 @@ def _cobol_alpha_pic_len(pic_token):
         return _total
     return None
 
+def _cobol_pad_literal_for_alpha_comparison(cond, ws_alpha_len):
+    """Bug #20 (remaining part, reported by the user): a fixed-length alphanumeric field is
+    already correctly space-padded to its declared PIC length by MOVE/VALUE (per the fix in
+    _cobol_alpha_pic_len above), but a later comparison against a STRING LITERAL of a
+    different length was never padded to match - e.g. "01 WS-NAME PIC X(10)." /
+    'MOVE "JOHN" TO WS-NAME.' correctly leaves WS_NAME holding "JOHN      " (10 chars), but
+    'IF WS-NAME = "JOHN"' (4 chars) was converted to the bare Python
+    "WS_NAME == \"JOHN\"" - always False, even though real COBOL treats this as a MATCH
+    (COBOL alphanumeric comparison right-pads whichever operand, field or literal, is SHORTER
+    with spaces before comparing). Silently wrong with no crash and no REVIEW NEEDED note,
+    exactly like the already-fixed MOVE-padding gaps this shares its root cause with.
+
+    Pads a string literal being compared (==/!=) against a known-length alphanumeric field (as
+    recorded in ws_alpha_len, built while parsing WORKING-STORAGE) up to that field's declared
+    length, on whichever side of the comparison it appears, before the comparison is emitted -
+    so the generated Python reproduces COBOL's own space-padded comparison semantics instead of
+    silently depending on the literal happening to already be the right width. A literal that
+    is already at least as long as the field is left untouched (COBOL only pads the SHORTER
+    side; a too-long literal is a separate, pre-existing "REVIEW NEEDED" scenario elsewhere).
+    Only used where a field's alpha length is actually known - a field this migration didn't
+    see declared (e.g. LINKAGE SECTION parameters) or a numeric field is left completely
+    unaffected, matching prior behavior exactly.
+    """
+    if not ws_alpha_len:
+        return cond
+    def _pad_field_op_lit(m):
+        _field, _op, _quote, _lit = m.group(1), m.group(2), m.group(3), m.group(4)
+        _alpha_len = ws_alpha_len.get(_field)
+        if _alpha_len is None or len(_lit) >= _alpha_len:
+            return m.group(0)
+        return f"{_field} {_op} {_quote}{_lit.ljust(_alpha_len)}{_quote}"
+    def _pad_lit_op_field(m):
+        _quote, _lit, _op, _field = m.group(1), m.group(2), m.group(3), m.group(4)
+        _alpha_len = ws_alpha_len.get(_field)
+        if _alpha_len is None or len(_lit) >= _alpha_len:
+            return m.group(0)
+        return f"{_quote}{_lit.ljust(_alpha_len)}{_quote} {_op} {_field}"
+    cond = re.sub(r'\b(\w+)\s*(==|!=)\s*(["\'])((?:(?!\3).)*)\3', _pad_field_op_lit, cond)
+    cond = re.sub(r'(["\'])((?:(?!\1).)*)\1\s*(==|!=)\s*(\w+)\b', _pad_lit_op_field, cond)
+    return cond
+
 def _cobol_expand_abbreviated_relation_conditions(cond):
     """Expand an abbreviated combined relation condition by re-inserting the implied subject
     before a bare relational operator that directly follows AND/OR with no operand of its own
@@ -2842,7 +2924,7 @@ def _resolve_cobol_condition_names(text, cond_names):
         text = re.sub(r"\b" + re.escape(_name) + r"\b", cond_names[_name], text, flags=re.IGNORECASE)
     return text
 
-def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None):
+def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None, ws_alpha_len=None):
     """Convert a raw COBOL PERFORM ... UNTIL condition (or a PERFORM VARYING ... UNTIL
     condition, which uses the exact same grammar) into a Python boolean expression string.
 
@@ -2931,6 +3013,14 @@ def _cobol_perform_until_condition_to_python(cond_raw, cond_names=None):
     cond = re.sub(r"\bNOT\s*=", "!=", cond, flags=re.IGNORECASE)
     cond = re.sub(r"\bNOT\b", "not", cond, flags=re.IGNORECASE)
     cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
+    # Bug #20 (remaining part, reported by the user): same fixed-length-alphanumeric-vs-literal
+    # comparison padding gap as IF/EVALUATE - see _cobol_pad_literal_for_alpha_comparison's
+    # docstring. Here it's worse than a wrong branch: "PERFORM UNTIL WS-NAME = "JOHN"" (with
+    # WS-NAME a PIC X(10) field actually holding "JOHN      ") never becomes True without this,
+    # so the loop never terminates - an infinite loop in the migrated code, not just a wrong
+    # answer.
+    if ws_alpha_len:
+        cond = _cobol_pad_literal_for_alpha_comparison(cond, ws_alpha_len)
     return cond
 
 def migrate_cobol(source, filename="file.cbl"):
@@ -3108,6 +3198,7 @@ def migrate_cobol(source, filename="file.cbl"):
             for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
                 _when_cond = _compiled_pat.sub(_repl, _when_cond)
             _when_cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", _when_cond)
+            _when_cond = _cobol_pad_literal_for_alpha_comparison(_when_cond, _ws_alpha_len)
             return _when_cond
         # Bug (reported by the user, 24th bug): the subscripted/OCCURS-indexed-operand fix
         # just above only covers the "EVALUATE TRUE" form. The far more common non-TRUE form
@@ -3141,9 +3232,9 @@ def migrate_cobol(source, filename="file.cbl"):
                 _when_op_py = _when_op_map.get(_when_op_m.group(1).upper().replace("  ", " "), "==")
                 _when_rhs_raw = _when_op_m.group(2).strip()
                 _when_rhs = _when_figurative_map.get(_when_rhs_raw.upper(), _cobol_hyphen_fix(_when_rhs_raw))
-                return f"{eval_subject} {_when_op_py} {_when_rhs}"
+                return _cobol_pad_literal_for_alpha_comparison(f"{eval_subject} {_when_op_py} {_when_rhs}", _ws_alpha_len)
             _when_val_py = _when_figurative_map.get(_wv.upper(), _cobol_hyphen_fix(_wv) if not (_wv.startswith(chr(34)) or _wv.startswith(chr(39))) else _wv)
-            return f"{eval_subject} == {_when_val_py}"
+            return _cobol_pad_literal_for_alpha_comparison(f"{eval_subject} == {_when_val_py}", _ws_alpha_len)
 
         # Bug (reported by the user, 13th bug of this round): a combined AND/OR WHEN condition
         # in a non-TRUE EVALUATE ("EVALUATE WS-A WHEN GREATER THAN 10 AND LESS THAN 20") was
@@ -3445,6 +3536,45 @@ def migrate_cobol(source, filename="file.cbl"):
                 out_lines.append(f"# Condition name: {_cond_name_raw.replace('-', '_')} VALUE {_cond_val_raw or '(unspecified)'} - could not auto-resolve (no parent field found); manual review recommended.")
                 changes.append(f"REVIEW NEEDED: Level-88 condition name {_cond_name_raw} could not be auto-resolved - noted as a comment only. Any use of {_cond_name_raw.replace('-', '_')} as a condition will raise a NameError until fixed manually.")
             continue
+        # Bug #28 (reported by the user): a REDEFINES field declaration ("01 WS-DATE-X
+        # REDEFINES WS-DATE PIC X(8).") was not recognized by var_m below at all - its regex
+        # requires PIC to come immediately after the field name, and "REDEFINES WS-DATE" sits
+        # in between - nor by group_m (which only matches a bare "<level> <name>." with nothing
+        # else). So the whole line fell through to the generic TODO/manual-review fallback,
+        # meaning the redefining field NEVER got a Python variable at all. That's silent while
+        # the field is declared, but the instant the PROCEDURE DIVISION references it (as the
+        # user's report does: "DISPLAY WS-DATE-X"), it's a NameError - the field name simply
+        # doesn't exist as a Python name.
+        # Real COBOL REDEFINES makes two (or more) names share the exact same physical storage,
+        # so a write through either name is instantly visible through the other - there's no
+        # direct Python equivalent of that (already flagged as a 15-point complexity item
+        # elsewhere in this file), and truly replicating it would need a shared mutable cell
+        # with custom read/write interception for every reference to both names, which this
+        # migration does not implement. The pragmatic, crash-avoiding fix: still create a real
+        # Python variable for the redefining name (so no NameError), initialized to a one-time
+        # SNAPSHOT of the redefined field's current value - and disclose clearly that the two
+        # variables are independent from that point on (writes to one will NOT be reflected in
+        # the other), unlike real REDEFINES, so anyone relying on the aliasing behavior knows to
+        # review it manually instead of trusting silently-wrong output.
+        redefines_m = re.match(r"^(\d+)\s+([\w-]+)\s+REDEFINES\s+([\w-]+)\s+PIC\s+(\S+?)" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
+        if redefines_m and in_working_storage:
+            _level_num_int = int(redefines_m.group(1))
+            while _group_stack and _group_stack[-1][0] >= _level_num_int:
+                _group_stack.pop()
+            raw_name = redefines_m.group(2).upper().replace("-", "_")
+            redefined_raw = redefines_m.group(3).upper().replace("-", "_")
+            if _group_stack:
+                var_name = f"{_group_stack[-1][1]}_{raw_name}" if _ws_elementary_name_counts.get(raw_name, 0) > 1 else raw_name
+            else:
+                var_name = raw_name
+            _alpha_len = _cobol_alpha_pic_len(redefines_m.group(4))
+            if _alpha_len is not None:
+                _ws_alpha_len[var_name] = _alpha_len
+            out_lines.append(f"{var_name} = {redefined_raw}  # REDEFINES {redefines_m.group(3)} - independent snapshot only, NOT a true memory-overlay alias; see comment above")
+            changes.append(f"REVIEW NEEDED: field {redefines_m.group(2)} REDEFINES {redefines_m.group(3)} - Python has no direct equivalent of COBOL's memory-overlay REDEFINES (both names would share the same physical storage in real COBOL, so a write through either is instantly visible through the other). This migration instead creates {var_name} as an INDEPENDENT variable, initialized once to {redefined_raw}'s value at declaration time. If the program writes to either {redefines_m.group(3)} or {redefines_m.group(2)} afterward expecting the other to reflect it, the two Python variables will silently drift out of sync - manual review required.")
+            _ws_vars.append(var_name)
+            _last_elementary_var = var_name
+            continue
         var_m = re.match(r"^(\d+)\s+([\w-]+)\s+PIC\s+(\S+?)" + _COBOL_USAGE_CLAUSE_TEXT + r"(?:\s+VALUE\s+(.+?))?\.?$", line, re.IGNORECASE)
         if var_m and in_working_storage:
             level_num = var_m.group(1)
@@ -3527,6 +3657,25 @@ def migrate_cobol(source, filename="file.cbl"):
                     _disp_val = _disp_val[:_dci].rstrip()
                     break
             _tokens = re.findall(r'"[^"]*"|\x27[^\x27]*\x27|\S+', _disp_val)
+            # Bug (reported by the user, 22nd bug): "DISPLAY ... WITH NO ADVANCING" (or the
+            # equally-legal "DISPLAY ... NO ADVANCING", WITH is optional in real COBOL)
+            # suppresses the trailing newline COBOL would otherwise add, so the NEXT DISPLAY
+            # continues on the same line (used for prompts like "Enter name: " followed by a
+            # value on the same line). This wasn't recognized as a clause at all - WITH/NO/
+            # ADVANCING were tokenized as three more literal operands to print, producing
+            # print("Enter name: ", WITH, NO, ADVANCING, sep="") - a NameError at runtime,
+            # since WITH/NO/ADVANCING were never real Python names. Checked here (quote-aware,
+            # via the already-tokenized list, so a literal that happens to CONTAIN the words
+            # "no advancing" is never touched) and stripped from the operand list; the clause's
+            # effect (no trailing newline) is reproduced with print(..., end="").
+            _no_advancing = False
+            _disp_up_tokens = [_t.upper() for _t in _tokens]
+            if len(_tokens) >= 3 and _disp_up_tokens[-3:] == ["WITH", "NO", "ADVANCING"]:
+                _no_advancing = True
+                _tokens = _tokens[:-3]
+            elif len(_tokens) >= 2 and _disp_up_tokens[-2:] == ["NO", "ADVANCING"]:
+                _no_advancing = True
+                _tokens = _tokens[:-2]
             # Bug (reported by the user): an OCCURS/subscripted table reference
             # ("DISPLAY WS-ITEM(1)") is unsupported here, same as it is for MOVE below - but
             # unlike MOVE (whose destination regex can't match text containing parentheses at
@@ -3561,8 +3710,9 @@ def migrate_cobol(source, filename="file.cbl"):
             # Fix: pass sep="" so print() reproduces COBOL's no-separator concatenation.
             disp_content = ", ".join(_parts) if len(_parts) > 1 else (_parts[0] if _parts else '""')
             _disp_sep_kw = ', sep=""' if len(_parts) > 1 else ""
-            out_lines.append(f"{cur_indent()}print({disp_content}{_disp_sep_kw})")
-            changes.append("DISPLAY -> print()")
+            _disp_end_kw = ', end=""' if _no_advancing else ""
+            out_lines.append(f"{cur_indent()}print({disp_content}{_disp_sep_kw}{_disp_end_kw})")
+            changes.append("DISPLAY -> print()" + (" (WITH NO ADVANCING -> end=\"\", no trailing newline)" if _no_advancing else ""))
             continue
         move_m = re.match(r'^MOVE\s+((?:"[^"]*"|\x27[^\x27]*\x27|\S+))\s+TO\s+([\w\s-]+?)\.?$', line, re.IGNORECASE)
         if move_m:
@@ -3863,7 +4013,7 @@ def migrate_cobol(source, filename="file.cbl"):
             # other PERFORM-UNTIL-shaped construct. Now extracted into a shared helper (see
             # _cobol_perform_until_condition_to_python above) so the inline PERFORM UNTIL and
             # PERFORM VARYING handlers below get the same, always-in-sync conversion.
-            cond = _cobol_perform_until_condition_to_python(cond_raw, _cond_names)
+            cond = _cobol_perform_until_condition_to_python(cond_raw, _cond_names, _ws_alpha_len)
             if test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 out_lines.append(f"{cur_indent()}    {para_name}()")
@@ -3908,7 +4058,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 changes.append(f"REVIEW NEEDED: {line.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The loop condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so the loop was converted to never execute its body - verify the real condition manually and fix it in the migrated code.")
                 _vary_cond = "True"
             else:
-                _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw, _cond_names)
+                _vary_cond = _cobol_perform_until_condition_to_python(_vary_cond_raw, _cond_names, _ws_alpha_len)
             _vary_incr_stmt = f"{_vary_var} = {_vary_var} + ({_vary_step})"
             out_lines.append(f"{cur_indent()}{_vary_var} = {_vary_start}")
             if _vary_test_after_m:
@@ -3945,7 +4095,7 @@ def migrate_cobol(source, filename="file.cbl"):
                 changes.append(f"REVIEW NEEDED: {line.strip()} - contains what looks like a subscripted/OCCURS table reference, which this migration does not support. The loop condition could not be safely converted (it would otherwise be misread as a Python function call and crash), so the loop was converted to never execute its body - verify the real condition manually and fix it in the migrated code.")
                 _inline_cond = "True"
             else:
-                _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw, _cond_names)
+                _inline_cond = _cobol_perform_until_condition_to_python(_inline_cond_raw, _cond_names, _ws_alpha_len)
             if _inline_test_after_m:
                 out_lines.append(f"{cur_indent()}while True:")
                 _perform_loop_stack.append(("test_after", _inline_cond))
@@ -4155,6 +4305,12 @@ def migrate_cobol(source, filename="file.cbl"):
             for _compiled_pat, _repl in COBOL_IF_OPS_COMPILED:
                 cond = _compiled_pat.sub(_repl, cond)
             cond = re.sub(r"(?<![=!<>])\s=\s(?!=)", " == ", cond)
+            # Bug #20 (remaining part, reported by the user): see
+            # _cobol_pad_literal_for_alpha_comparison's docstring - a comparison against a
+            # string literal of a different length than a known alphanumeric field's declared
+            # PIC length silently produced a wrong "no match", since real COBOL right-pads the
+            # shorter operand with spaces before comparing.
+            cond = _cobol_pad_literal_for_alpha_comparison(cond, _ws_alpha_len)
             out_lines.append(f"{cur_indent()}if {cond}:")
             if_depth += 1
             _scope_kinds.append("if")

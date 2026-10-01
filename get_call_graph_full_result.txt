@@ -1,0 +1,89 @@
+def analyze_call_graph(source):
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return {"call_graph_error": "This feature only supports Python files. If this is a Python file, it may have Python 2 syntax - try migrating it to Python 3 first."}
+
+    _qualified_nodes = []
+
+    def _walk_with_class_context(n, class_stack):
+        if isinstance(n, ast.ClassDef):
+            for child in n.body:
+                _walk_with_class_context(child, class_stack + [n.name])
+            return
+        if isinstance(n, ast.FunctionDef):
+            _qname = (".".join(class_stack) + "." + n.name) if class_stack else n.name
+            _qualified_nodes.append((_qname, n))
+            for child in ast.iter_child_nodes(n):
+                _walk_with_class_context(child, class_stack)
+            return
+        for child in ast.iter_child_nodes(n):
+            _walk_with_class_context(child, class_stack)
+
+    _walk_with_class_context(tree, [])
+    defined_functions = [qn for qn, _n in _qualified_nodes]
+    _bare_to_qualified = {}
+    for qn in defined_functions:
+        _bare = qn.split(".")[-1]
+        _bare_to_qualified.setdefault(_bare, []).append(qn)
+
+    def _collect_direct_calls(fn_node):
+        collected = []
+        def _visit(n, is_root):
+            if not is_root and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                return
+            if isinstance(n, ast.Call):
+                fname = None
+                if isinstance(n.func, ast.Name):
+                    fname = n.func.id
+                elif isinstance(n.func, ast.Attribute):
+                    fname = n.func.attr
+                if fname:
+                    collected.append(fname)
+            for child in ast.iter_child_nodes(n):
+                _visit(child, False)
+        _visit(fn_node, True)
+        return collected
+
+    calls_map = {}
+    for _qname, node in _qualified_nodes:
+        raw_calls = _collect_direct_calls(node)
+        inner_calls = []
+        for fname in raw_calls:
+            for _target_qn in _bare_to_qualified.get(fname, []):
+                if _target_qn != _qname and _target_qn not in inner_calls:
+                    inner_calls.append(_target_qn)
+        calls_map[_qname] = inner_calls
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                imports.append(a.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.append(node.module.split(".")[0])
+    imports = sorted(set(imports))
+    lib_usage = {}
+    for lib in imports:
+        usage = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name):
+                        if sub.value.id == lib and node.name not in usage:
+                            usage.append(node.name)
+                    elif isinstance(sub, ast.Name) and sub.id == lib and node.name not in usage:
+                        usage.append(node.name)
+        if usage:
+            lib_usage[lib] = usage
+    entry_points = [f for f in defined_functions if all(f not in calls for calls in calls_map.values())]
+    return {
+        "defined_functions": defined_functions,
+        "calls_map": calls_map,
+        "imports": imports,
+        "lib_usage": lib_usage,
+        "entry_points": entry_points,
+        "total_functions": len(defined_functions)
+    }
+
+# ---------- KNOWLEDGE TRANSFER (KT) DOC GENERATOR ----------

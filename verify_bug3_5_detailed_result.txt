@@ -1,0 +1,69 @@
+=== BUG-3: def call_groq full model-line ===
+"model": "openai/gpt-oss-20b",
+
+=== BUG-5: FULL assess_dependency_risk ===
+def assess_dependency_risk(source, filename="file.py"):
+    fname_lower = filename.lower()
+    if fname_lower.endswith(".cbl") or fname_lower.endswith(".cob"):
+        return {"findings": [], "overall_risk": "Not Analyzed", "total_issues": 0, "not_analyzed_reason": "Dependency risk analysis does not apply to COBOL in the same way as library-based languages - COBOL does not have an equivalent package/import ecosystem to scan. This file was not analyzed - do not interpret this as a low-risk result."}
+    imported = set()
+    if fname_lower.endswith(".py"):
+        active_rules = RISK_RULES
+        try:
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for a in node.names:
+                        imported.add(a.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imported.add(node.module.split(".")[0])
+        except Exception:
+            imported = set()
+    elif fname_lower.endswith(".java"):
+        active_rules = JAVA_RISK_RULES
+    elif fname_lower.endswith(".php"):
+        active_rules = PHP_RISK_RULES
+    else:
+        active_rules = RISK_RULES
+    findings = []
+    seen = set()
+    for pattern, category, level, desc, rec in active_rules:
+        in_imports = pattern in imported
+        if pattern[-1].isalnum():
+            in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+        elif pattern.endswith("(") or pattern.endswith("_"):
+            in_source = re.search(r'\b' + re.escape(pattern), source) is not None
+        else:
+            in_source = re.search(re.escape(pattern), source) is not None
+        if (in_imports or in_source) and pattern not in seen:
+            seen.add(pattern)
+            findings.append({
+                "dependency": pattern,
+                "category": category,
+                "risk_level": level,
+                "description": desc,
+                "recommendation": rec
+            })
+    high = sum(1 for f in findings if f["risk_level"] == "High")
+    medium = sum(1 for f in findings if f["risk_level"] == "Medium")
+    low = sum(1 for f in findings if f["risk_level"] == "Low")
+    if high > 0:
+        overall = "High risk"
+    elif medium > 0:
+        overall = "Medium risk"
+    elif low > 0:
+        overall = "Low risk"
+    else:
+        overall = "No known external dependency risks detected"
+    return {
+        "findings": findings,
+        "high_count": high,
+        "medium_count": medium,
+        "low_count": low,
+        "total_findings": len(findings),
+        "overall_risk": overall,
+        "disclaimer": "This is a static assessment based on known library compatibility. It flags dependencies that commonly break during migration. Always validate against your live systems before deploying."
+    }
+
+# ---------- DEEP VERIFICATION (PYTHON) ----------

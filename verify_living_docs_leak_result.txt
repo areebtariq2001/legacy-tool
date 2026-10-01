@@ -1,0 +1,14 @@
+def get_living_documentation_history(filename):
+    conn = _get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT version, doc_content, created_at FROM docs_registry WHERE filename = %s ORDER BY version DESC", (filename,))
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            return [{"version": r[0], "doc_content": r[1], "created_at": r[2]} for r in rows]
+        except Exception as e:
+            print("get_living_documentation_history failed: " + str(e))
+            return []
+    return []

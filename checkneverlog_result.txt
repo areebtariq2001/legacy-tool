@@ -1,0 +1,2 @@
+_NEVER_LOG_PATTERNS = [
+    re.compile(r"(sk_live|sk_test|AKIA|ghp_|xox[a-z]
