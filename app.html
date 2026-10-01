@@ -1382,7 +1382,14 @@ function onFileInput(fs) {
   }
   if (files.length > 0) {
     const ext = files[0].name.split('.').pop().toLowerCase();
-    const extMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
+    // Bug #30 (reported by the user): supportedExt (above) already accepts a bare ".cobol"
+    // extension, but this map - used right here to auto-detect/switch the selected language from
+    // the uploaded file's extension - never had a "cobol" entry, only "cbl"/"cob". A .cobol file
+    // silently fell through with detected === undefined, so `lang` was left at whatever it was
+    // before (often the default "python") and the file got analyzed through the WRONG pipeline
+    // (/analyze instead of /analyze-cobol) with no warning at all. Same fix applied to
+    // _batchExtMap below (Bug #30 also affected "Analyze All Files").
+    const extMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' };
     const detected = extMap[ext];
     if (detected && detected !== lang) {
       lang = detected;
@@ -1483,7 +1490,11 @@ async function runAnalysisOrBatch() {
       progBar.innerHTML = '<div style="font-size:11px;color:#4b5563;margin-bottom:6px">Analyzing file ' + (i + 1) + ' of ' + allFiles.length + ': <span style="color:#0f1115;font-family:monospace">' + escapeHtml(allFiles[i].name) + '</span></div><div style="height:6px;background:#e5e8ee;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#3b82f6;transition:width 0.3s"></div></div>';
       files = [allFiles[i]];
       const _batchExt = allFiles[i].name.split('.').pop().toLowerCase();
-      const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol' };
+      // Bug #30 (reported by the user): same missing "cobol" entry as the single-file extMap
+      // above - without it, a ".cobol" file in a batch run got analyzed through the wrong
+      // pipeline (lang left at whatever the previous file in the batch set it to) with no error
+      // or warning raised anywhere.
+      const _batchExtMap = { py: 'python', java: 'java', php: 'php', cbl: 'cobol', cob: 'cobol', cobol: 'cobol' };
       if (_batchExtMap[_batchExt]) lang = _batchExtMap[_batchExt];
       try {
         await runAnalysis();
@@ -3122,6 +3133,15 @@ function viewFileReport(idx) {
   const diffNote = document.getElementById('batchDiffNote');
   if (diffNote) diffNote.style.display = 'none';
   if (e.snapshot.fileObj) files = [e.snapshot.fileObj];
+  // Bug #32 (reported by the user): renderResults (and renderBusinessRuleSpec, which it calls)
+  // read the global `lang` variable directly to decide COBOL-specific rendering (the "Business
+  // Logic Specification" label, the business-rule-spec card). After a mixed-language batch run,
+  // `lang` is left at whatever the LAST analyzed file's language was - viewFileReport never
+  // restored it to the language of the entry actually being viewed, so clicking "View Report" on
+  // an earlier file in the Repository Summary list rendered it with the WRONG language's UI (a
+  // Python file shown with COBOL-specific labels/cards, or a COBOL file missing them entirely,
+  // depending on what the last file in the batch happened to be).
+  if (e.lang) lang = e.lang;
   renderResults(e.snapshot.R, e.snapshot.original, e.snapshot.fname, e.snapshot.totalMs);
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
