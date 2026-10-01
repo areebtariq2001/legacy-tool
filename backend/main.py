@@ -8020,32 +8020,65 @@ async def db_debug_endpoint(request: Request):
         conn.close()
     return {"connected": _is_connected, "last_error": _LAST_DB_ERROR}
 
-def save_approval_decision(filename, decision, reviewer_notes, action_type, approved_by=None):
+def _ensure_approval_log_schema(cur):
+    """Create/upgrade the approval_log table. Originally this DDL only ran from inside
+    save_approval_decision() gated by _approval_log_schema_ready - fine for approved_by, since a
+    write always happens before anyone reads it in a given process's lifetime in practice, but it
+    meant get_approval_history() could run its SELECT (including columns added by a later
+    deploy) BEFORE any save() call in this process had run the ALTER TABLE ADD COLUMN for them,
+    on a table created by an older deploy - e.g. right after this feature ships, a restarted
+    process whose first request is a history/rejection-clusters/confidence-calibration read
+    (no save yet) would hit a bare 'column rule_tags does not exist' DB error and silently fall
+    back to the (likely empty/stale) approval_log.json instead of the real data. Both functions
+    now call this same gated helper first, so whichever one runs first in a process brings the
+    schema up to date for both."""
+    global _approval_log_schema_ready
+    if _approval_log_schema_ready:
+        return
+    with _schema_lock:
+        if _approval_log_schema_ready:
+            return
+        cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TIMESTAMPTZ)")
+        cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
+        # Bug 5: upgrade a table created before this fix, from TEXT to TIMESTAMPTZ
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'approval_log' AND column_name = 'timestamp' AND data_type = 'text'")
+        if cur.fetchone():
+            cur.execute("ALTER TABLE approval_log ALTER COLUMN timestamp TYPE TIMESTAMPTZ USING NULLIF(timestamp, '')::timestamptz")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_approved_by ON approval_log(approved_by)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_timestamp ON approval_log(timestamp)")
+        # Rejection-clustering/confidence-calibration feedback loop: rule_tags is stored as a
+        # JSON-encoded TEXT column (not a Postgres ARRAY) so the JSON-file fallback path and the
+        # DB path serialize/deserialize identically, and so a DB previously provisioned without
+        # array-adapter extras keeps working with plain psycopg2.
+        cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS rule_tags TEXT")
+        cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS confidence_score INTEGER")
+        _approval_log_schema_ready = True  # Bug 4: DDL once per process
+
+def save_approval_decision(filename, decision, reviewer_notes, action_type, approved_by=None, rule_tags=None, confidence_score=None):
     _allowed_decisions = {"approved", "rejected", "modified", "Approved", "Rejected", "Modified"}
     if decision not in _allowed_decisions:
         return {"log_saved": False, "error": "Invalid decision: " + str(decision), "filename": filename}
     decision = decision.capitalize()  # one canonical form; the UI sends "approved"/"rejected"
     if reviewer_notes and len(reviewer_notes) > 5000:
         reviewer_notes = reviewer_notes[:5000] + " [... truncated ...]"
-    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat(), "approved_by": approved_by}
+    # Feedback-loop fields (both optional/best-effort - older callers that don't send them still
+    # work; see ApprovalRequest's comment for why they're needed for rejection-clustering and
+    # confidence-calibration). Defensively re-clamp here too, since Pydantic's Field(max_length=20)
+    # on ApprovalRequest.rule_tags only caps the LIST length, not each tag's own string length.
+    rule_tags = [str(t)[:100] for t in (rule_tags or [])][:20]
+    if confidence_score is not None:
+        try:
+            confidence_score = max(0, min(100, int(confidence_score)))
+        except (TypeError, ValueError):
+            confidence_score = None
+    entry = {"filename": filename, "decision": decision, "reviewer_notes": reviewer_notes, "action_type": action_type, "timestamp": datetime.now().isoformat(), "approved_by": approved_by, "rule_tags": rule_tags, "confidence_score": confidence_score}
     conn = _get_db_connection()
     if conn:
         cur = None
         try:
             cur = conn.cursor()
-            global _approval_log_schema_ready
-            if not _approval_log_schema_ready:
-                with _schema_lock:
-                    cur.execute("CREATE TABLE IF NOT EXISTS approval_log (id SERIAL PRIMARY KEY, filename TEXT, decision TEXT, reviewer_notes TEXT, action_type TEXT, timestamp TIMESTAMPTZ)")
-                    cur.execute("ALTER TABLE approval_log ADD COLUMN IF NOT EXISTS approved_by TEXT")
-                    # Bug 5: upgrade a table created before this fix, from TEXT to TIMESTAMPTZ
-                    cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'approval_log' AND column_name = 'timestamp' AND data_type = 'text'")
-                    if cur.fetchone():
-                        cur.execute("ALTER TABLE approval_log ALTER COLUMN timestamp TYPE TIMESTAMPTZ USING NULLIF(timestamp, '')::timestamptz")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_approved_by ON approval_log(approved_by)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_log_timestamp ON approval_log(timestamp)")
-                    _approval_log_schema_ready = True  # Bug 4: DDL once per process
-            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp, approved_by) VALUES (%s, %s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"], approved_by or "anonymous"))
+            _ensure_approval_log_schema(cur)
+            cur.execute("INSERT INTO approval_log (filename, decision, reviewer_notes, action_type, timestamp, approved_by, rule_tags, confidence_score) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (filename, decision, reviewer_notes, action_type, entry["timestamp"], approved_by or "anonymous", json.dumps(rule_tags), confidence_score))
             conn.commit()
             entry["log_saved"] = True
             return entry
@@ -8084,15 +8117,27 @@ def get_approval_history(user_email=None, limit=500):
         cur = None
         try:
             cur = conn.cursor()
+            _ensure_approval_log_schema(cur)
             if user_email is not None:
-                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log WHERE approved_by = %s ORDER BY id DESC LIMIT %s", (user_email, limit))
+                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by, rule_tags, confidence_score FROM approval_log WHERE approved_by = %s ORDER BY id DESC LIMIT %s", (user_email, limit))
             else:
-                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by FROM approval_log ORDER BY id DESC LIMIT %s", (limit,))
+                cur.execute("SELECT filename, decision, reviewer_notes, action_type, timestamp, approved_by, rule_tags, confidence_score FROM approval_log ORDER BY id DESC LIMIT %s", (limit,))
             rows = cur.fetchall()
             # timestamp is TIMESTAMPTZ in the DB (Bug 5) but every caller here still expects an
             # ISO string (they slice/sort it as text), so normalise it back at the read boundary
-            # instead of changing every consumer.
-            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4].isoformat() if hasattr(r[4], "isoformat") else r[4], "approved_by": r[5]} for r in rows]
+            # instead of changing every consumer. rule_tags is stored as a JSON-encoded TEXT
+            # column (see _ensure_approval_log_schema) - decode it back to a list here, and
+            # tolerate rows written before this feature shipped (rule_tags NULL) or any stray
+            # malformed JSON by falling back to an empty list rather than raising.
+            def _decode_rule_tags(raw):
+                if not raw:
+                    return []
+                try:
+                    decoded = json.loads(raw)
+                    return decoded if isinstance(decoded, list) else []
+                except (TypeError, json.JSONDecodeError):
+                    return []
+            return [{"filename": r[0], "decision": r[1], "reviewer_notes": r[2], "action_type": r[3], "timestamp": r[4].isoformat() if hasattr(r[4], "isoformat") else r[4], "approved_by": r[5], "rule_tags": _decode_rule_tags(r[6]), "confidence_score": r[7]} for r in rows]
         except Exception as e:
             print("get_approval_history DB read failed: " + str(e))
         finally:
@@ -8104,6 +8149,12 @@ def get_approval_history(user_email=None, limit=500):
             _entries = json.load(f)
         if user_email is not None:
             _entries = [e for e in _entries if isinstance(e, dict) and e.get("approved_by") == user_email]
+        # Older entries (written before this feature shipped) have neither key at all - normalise
+        # them here so every consumer of get_approval_history can rely on both keys being present.
+        for _e in _entries:
+            if isinstance(_e, dict):
+                _e.setdefault("rule_tags", [])
+                _e.setdefault("confidence_score", None)
         return _entries[-limit:][::-1] if isinstance(_entries, list) else []
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -8154,6 +8205,16 @@ class ApprovalRequest(BaseModel):
     decision: str = Field(default="Approved", max_length=50)
     reviewer_notes: str = Field(default="", max_length=5000)
     action_type: str = Field(default="migration", max_length=50)
+    # Added for the rejection-clustering/confidence-calibration feedback loop: the frontend can
+    # (optionally - both default to "no data", so older frontend builds keep working unchanged)
+    # pass which named rules/patterns actually fired for this migration (e.g. the short tags in
+    # the `changes`/`issues` lists migrate_cobol/migrate_php/migrate_java and analyze_* already
+    # produce, such as "REDEFINES" or "PHP4_CONSTRUCTOR") and the confidence_score the migration
+    # was given, captured at decision time. Without recording what rule fired and what confidence
+    # was shown, a rejection or an approval can't be linked back to "which rule" or "was this
+    # confidence score right" after the fact - see get_rejection_clusters/get_confidence_calibration.
+    rule_tags: list[str] = Field(default_factory=list, max_length=20)
+    confidence_score: int | None = Field(default=None, ge=0, le=100)
 
 @app.post("/save-approval")
 async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, filename: str = "unknown", decision: str = "Approved", reviewer_notes: str = "", action_type: str = "migration"):
@@ -8163,10 +8224,12 @@ async def save_approval_endpoint(request: Request, req: ApprovalRequest = None, 
     # is saved as "anonymous" (save_approval_decision's existing approved_by-or-"anonymous"
     # fallback) instead of being blocked with a 401.
     _user_email = await run_in_threadpool(_check_user_auth, request)
+    rule_tags, confidence_score = [], None
     if req is not None:
         filename, decision, reviewer_notes, action_type = req.filename, req.decision, req.reviewer_notes, req.action_type
+        rule_tags, confidence_score = req.rule_tags, req.confidence_score
     try:
-        result = await run_in_threadpool(save_approval_decision, filename, decision, reviewer_notes, action_type, approved_by=_user_email)
+        result = await run_in_threadpool(save_approval_decision, filename, decision, reviewer_notes, action_type, approved_by=_user_email, rule_tags=rule_tags, confidence_score=confidence_score)
         result["approved_by"] = _user_email
         # Same silent-200 bug class as the other endpoints fixed above:
         # save_approval_decision() returns a plain dict with log_saved=False (and either an
@@ -8273,6 +8336,131 @@ async def migration_dashboard_endpoint(request: Request):
         return result
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Dashboard load failed safely: {e}"})
+
+def get_rejection_clusters(user_email=None, min_rejections=2):
+    """Idea proposed by the user: approval_log already records every reviewer decision plus
+    free-text reviewer_notes, but that data was never used for anything besides a flat audit
+    trail/history list - nobody could see "which rule/pattern gets rejected the most" without
+    manually reading every entry. Groups REJECTED entries by each tag in their rule_tags list
+    (see ApprovalRequest - the frontend/caller tags a migration with which rule(s) it matched,
+    e.g. "REDEFINES" or "PHP4_CONSTRUCTOR"), counts rejections per tag, and surfaces a few sample
+    reviewer_notes per tag so a maintainer can see WHY, not just how often.
+
+    This can only cluster by tags that were actually recorded - rows saved before this feature
+    shipped (or by any caller that doesn't send rule_tags) have none, and are reported separately
+    under "untagged_rejections" rather than silently dropped, so this isn't mistaken for "no
+    rejections happened" when really the data just isn't tagged."""
+    history = get_approval_history(user_email)
+    rejected = [h for h in history if (h.get("decision") or "").lower() == "rejected"]
+    if not rejected:
+        return {"total_rejections": 0, "clusters": [], "untagged_rejections": 0,
+                "summary": "No rejected migrations logged yet."}
+    by_tag = {}
+    untagged = 0
+    for h in rejected:
+        tags = h.get("rule_tags") or []
+        if not tags:
+            untagged += 1
+            continue
+        for tag in tags:
+            bucket = by_tag.setdefault(tag, {"rule_tag": tag, "rejection_count": 0, "sample_reviewer_notes": [], "sample_filenames": []})
+            bucket["rejection_count"] += 1
+            if h.get("reviewer_notes") and len(bucket["sample_reviewer_notes"]) < 3:
+                bucket["sample_reviewer_notes"].append(h["reviewer_notes"])
+            if h.get("filename") and len(bucket["sample_filenames"]) < 3:
+                bucket["sample_filenames"].append(h["filename"])
+    clusters = sorted(by_tag.values(), key=lambda c: c["rejection_count"], reverse=True)
+    flagged = [c for c in clusters if c["rejection_count"] >= min_rejections]
+    return {
+        "total_rejections": len(rejected),
+        "untagged_rejections": untagged,
+        "clusters": clusters,
+        "flagged_for_review": flagged,
+        "summary": (f"{len(flagged)} rule(s) rejected {min_rejections}+ times - look at these first" if flagged
+                    else f"No single rule has {min_rejections}+ rejections yet ({len(rejected)} total rejections across {len(clusters)} tagged rule(s))"),
+        "clustering_disclaimer": "Only covers migrations whose approval/rejection was submitted with rule_tags identifying which rule(s) matched; untagged_rejections counts the rest so they aren't mistaken for zero activity.",
+    }
+
+@app.get("/rejection-clusters")
+async def rejection_clusters_endpoint(request: Request):
+    _user_email = _check_user_auth(request)
+    if not _user_email:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to view rejection clusters"})
+    try:
+        _is_admin = _check_admin_auth(request)
+        result = await run_in_threadpool(get_rejection_clusters, None if _is_admin else _user_email)
+        result["scope"] = "all reviewers (admin)" if _is_admin else "your decisions only"
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Rejection-cluster analysis failed safely: {e}"})
+
+def get_confidence_calibration(user_email=None, min_sample_size=5):
+    """Idea proposed by the user: confidence_score (calculate_confidence/calculate_confidence_java)
+    is a fixed penalty formula that has never been checked against what reviewers actually decide
+    - a migration could show "95% confidence" and still get rejected most of the time, and nothing
+    would ever surface that. Buckets every approval_log entry that has a confidence_score (entries
+    saved before this feature shipped, or by a caller that doesn't send one, have none and are
+    excluded - reported separately rather than silently treated as 0% confidence) into the same
+    High/Medium/Low bands calculate_confidence already uses (>=90 / 60-89 / <60), and reports the
+    ACTUAL approval rate within each band.
+
+    A well-calibrated High band should see a high approval rate; if it doesn't, that's a concrete,
+    measurable signal the formula's penalties are miscalibrated for real reviewer judgment - not a
+    final verdict, since a small sample can easily look miscalibrated by chance, which is why each
+    band is flagged "insufficient_sample" below min_sample_size instead of asserting miscalibration
+    off of e.g. 2 data points."""
+    history = get_approval_history(user_email)
+    scored = [h for h in history if h.get("confidence_score") is not None]
+    unscored = len(history) - len(scored)
+    bands = {
+        "High (90-100)": {"min": 90, "max": 100},
+        "Medium (60-89)": {"min": 60, "max": 89},
+        "Low (0-59)": {"min": 0, "max": 59},
+    }
+    results = []
+    for label, bounds in bands.items():
+        in_band = [h for h in scored if bounds["min"] <= h["confidence_score"] <= bounds["max"]]
+        total = len(in_band)
+        if total == 0:
+            results.append({"band": label, "total_decisions": 0, "approval_rate_percent": None, "insufficient_sample": True})
+            continue
+        approved = len([h for h in in_band if (h.get("decision") or "").lower() == "approved"])
+        approval_rate = round((approved / total) * 100, 1)
+        results.append({
+            "band": label,
+            "total_decisions": total,
+            "approved": approved,
+            "approval_rate_percent": approval_rate,
+            "insufficient_sample": total < min_sample_size,
+        })
+    # A simple, explicit miscalibration check: a higher-confidence band should not show a LOWER
+    # approval rate than a lower-confidence band once both have enough samples to trust.
+    miscalibration_notes = []
+    trustworthy = [r for r in results if not r["insufficient_sample"] and r["approval_rate_percent"] is not None]
+    for i in range(len(trustworthy) - 1):
+        higher, lower = trustworthy[i], trustworthy[i + 1]  # results is already High -> Medium -> Low
+        if higher["approval_rate_percent"] < lower["approval_rate_percent"]:
+            miscalibration_notes.append(f"{higher['band']} has a LOWER approval rate ({higher['approval_rate_percent']}%) than {lower['band']} ({lower['approval_rate_percent']}%) - confidence_score's penalties may be miscalibrated.")
+    return {
+        "bands": results,
+        "unscored_decisions": unscored,
+        "miscalibration_notes": miscalibration_notes,
+        "summary": "; ".join(miscalibration_notes) if miscalibration_notes else "No miscalibration detected in bands with enough samples (or not enough scored data yet to tell).",
+        "calibration_disclaimer": "Only covers migrations whose approval/rejection was submitted with a confidence_score; unscored_decisions counts the rest. A band below the minimum sample size is flagged insufficient_sample rather than used to draw conclusions.",
+    }
+
+@app.get("/confidence-calibration")
+async def confidence_calibration_endpoint(request: Request):
+    _user_email = _check_user_auth(request)
+    if not _user_email:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized - please log in to view confidence calibration"})
+    try:
+        _is_admin = _check_admin_auth(request)
+        result = await run_in_threadpool(get_confidence_calibration, None if _is_admin else _user_email)
+        result["scope"] = "all reviewers (admin)" if _is_admin else "your decisions only"
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Confidence calibration failed safely: {e}"})
 
 def generate_migration_roadmap(repo_result):
     if not isinstance(repo_result, dict):
