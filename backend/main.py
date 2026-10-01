@@ -1283,7 +1283,16 @@ def analyze_code(source):
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
-        _sens_result = scan_sensitive_data(source)
+        # Bug #44 (reported by the user): same root cause as the scan_sql_injection fix just
+        # above (and PHP's Bug #43 sibling) - this used to call scan_sensitive_data(source) with
+        # the RAW source, so password/secret-looking example text written purely as illustration
+        # inside a triple-quoted docstring (e.g. "Example config (not real code): password =
+        # \"...\"") was scanned like live code and reported as a real "Hardcoded password"
+        # finding. scan_sensitive_data()'s own naive comment-skip happens to catch a leading "#"
+        # by coincidence, but it has no awareness of triple-quoted strings at all. Reuse the same
+        # _mask_triple_quoted_strings() masking already used for scan_sql_injection just above -
+        # it keeps every line number stable via same-length placeholders.
+        _sens_result = scan_sensitive_data(_mask_triple_quoted_strings(source)[0])
         for _sens_finding in _sens_result.get("findings", []):
             _sens_issue_lower = _sens_finding["issue"].lower()
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
@@ -2517,24 +2526,66 @@ JAVA_CHECKS_COMPILED_RAW = [
 JAVA_CHECKS_COMPILED = [(re.compile(p), m) for p, m in JAVA_CHECKS_COMPILED_RAW]
 
 
+def _java_strip_line_comment(_ln):
+    """Java analog of PHP's _php_strip_line_comment (post Bug #40 fix): strip a trailing `//`
+    line comment while staying aware of string/char literals, using full backslash-run parity
+    (not a single-character lookback) to decide whether a quote is escaped - a closing quote is
+    only "escaped" when preceded by an ODD number of consecutive backslashes."""
+    _in_str = False
+    _str_ch = None
+    for _ci in range(len(_ln)):
+        _c = _ln[_ci]
+        if _in_str:
+            if _c == chr(92):
+                continue
+            if _c == _str_ch:
+                _bs_count = 0
+                _bj = _ci - 1
+                while _bj >= 0 and _ln[_bj] == chr(92):
+                    _bs_count += 1
+                    _bj -= 1
+                if _bs_count % 2 == 1:
+                    continue
+                _in_str = False
+        elif _c in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _c
+        elif _c == "/" and _ci + 1 < len(_ln) and _ln[_ci + 1] == "/" and not _in_str:
+            return _ln[:_ci]
+    return _ln
+
+
 def analyze_java(source):
     issues = []
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"issues": ["File too large - analysis skipped"], "java_summary": "File too large to analyze."}
+    # Bug #45 (reported by the user): analyze_java() had NO comment-stripping anywhere - every
+    # check below (JAVA_CHECKS_COMPILED, the hardcoded-password regex, scan_sql_injection,
+    # scan_sensitive_data) ran directly on the raw `source`. A `//` line comment or a `/* ... */`
+    # block comment merely MENTIONING a risky pattern (e.g. a TODO quoting a password, or a doc
+    # example) was scanned exactly like live code and reported as a real finding - the same
+    # "comment treated as code" bug class already fixed for PHP (Bug #15/#34/#40/#43), COBOL
+    # (Bug #46) and Python (Bug #44), but Java never had the stripping machinery at all. Build it
+    # the same way PHP's analyze_php() does: mask block comments first (_mask_c_block_comments,
+    # already language-agnostic - it just looks for /* ... */ with string-literal awareness),
+    # then strip `//` line comments per line (_java_strip_line_comment, the Java analog of PHP's
+    # already-fixed _php_strip_line_comment).
+    _java_no_block_comments = _mask_c_block_comments(source)[0]
+    _java_no_comments = chr(10).join(_java_strip_line_comment(_l) for _l in _java_no_block_comments.split(chr(10)))
     for _compiled_pattern, msg in JAVA_CHECKS_COMPILED:
-        if _compiled_pattern.search(source):
+        if _compiled_pattern.search(_java_no_comments):
             issues.append(msg)
-    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", source):
+    if re.search(r"(?i)\b(password|passwd|pwd|pass|api_key|apikey|secret)\b\s*=\s*[\x22\x27][^\x22\x27]{3,}[\x22\x27]", _java_no_comments):
         issues.append("Hardcoded password/credential found - move to environment variable")
     try:
-        _sqli_result = scan_sql_injection(source, "file.java")
+        _sqli_result = scan_sql_injection(_java_no_comments, "file.java")
         _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
         if _sqli_grouped:
             issues.append(_sqli_grouped)
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
-        _sens_result = scan_sensitive_data(source)
+        _sens_result = scan_sensitive_data(_java_no_comments)
         for _sens_finding in _sens_result.get("findings", []):
             _sens_issue_lower = _sens_finding["issue"].lower()
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
@@ -2780,6 +2831,34 @@ COBOL_IF_OPS_COMPILED = [(re.compile(p, re.IGNORECASE), r) for p, r in COBOL_IF_
 _COBOL_DIVISIONS = frozenset({"IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "WORKING-STORAGE", "FILE", "LINKAGE", "COMMUNICATION", "REPORT", "SCREEN"})
 
 
+def _cobol_strip_inline_free_format_comment(_ln):
+    """Bug #46 (reported by the user): _code_only_source()/_blank_c_style_comments() only knows
+    the COBOL column-7 full-line comment-indicator convention (an '*' or '/' in column 7) - it
+    has no idea that free-format COBOL (COBOL 2002+) also allows a `*>` inline comment marker
+    ANYWHERE on a line, not just as a whole-line comment. A line that starts with real code and
+    only turns into a comment partway through (e.g. `DISPLAY "HELLO". *> TODO: password =
+    "..."`) was left completely untouched by that shared helper, so this function's own
+    COBOL_CHECKS_COMPILED keyword scan (mentioned in the comment above) and, more seriously, its
+    scan_sql_injection/scan_sensitive_data calls could all still be fooled by inline `*>`
+    comment text. This is scoped to analyze_cobol only (not the shared _blank_c_style_comments,
+    which many other languages' business-rule/compliance checks also use) since `*>` has no
+    special meaning outside COBOL."""
+    _in_str = False
+    _str_ch = None
+    for _ci in range(len(_ln)):
+        _c = _ln[_ci]
+        if _in_str:
+            if _c == _str_ch:
+                _in_str = False
+            continue
+        if _c in (chr(34), chr(39)):
+            _in_str = True
+            _str_ch = _c
+        elif _c == "*" and _ci + 1 < len(_ln) and _ln[_ci + 1] == ">":
+            return _ln[:_ci]
+    return _ln
+
+
 def analyze_cobol(source, filename="file.cbl"):
     issues = []
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
@@ -2789,8 +2868,12 @@ def analyze_cobol(source, filename="file.cbl"):
     # comment merely MENTIONING a risky construct ("* GO TO and PERFORM VARYING were removed in
     # 2019") was enough to make analyze_cobol wrongly flag it as still present in the code. Scan
     # the comment-blanked source instead - _code_only_source() already knows the COBOL
-    # column-7 comment-indicator convention (see _blank_c_style_comments).
-    _cobol_code_only = _code_only_source(source)
+    # column-7 comment-indicator convention (see _blank_c_style_comments), and
+    # _cobol_strip_inline_free_format_comment (Bug #46) additionally strips a free-format `*>`
+    # inline comment appearing anywhere on a line.
+    _cobol_code_only = chr(10).join(
+        _cobol_strip_inline_free_format_comment(_l) for _l in _code_only_source(source).split(chr(10))
+    )
     for _compiled_pattern, msg in COBOL_CHECKS_COMPILED:
         if _compiled_pattern.search(_cobol_code_only):
             issues.append(msg)
@@ -2799,14 +2882,28 @@ def analyze_cobol(source, filename="file.cbl"):
     if re.search(r"(?i)\b(password|passwd|pwd|pass|api-key|apikey|secret)\b[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", _cobol_code_only):
         issues.append("Hardcoded password/credential found in COBOL VALUE clause - move to environment/config")
     try:
-        _sqli_result = scan_sql_injection(source, filename)
+        # Bug #46 (reported by the user): this used to call scan_sql_injection(source, ...) with
+        # the RAW source, even though this function already builds `_cobol_code_only` (comments
+        # blanked out, column-7 AND free-format inline `*>` comments both handled) for its own
+        # checks just above. A COBOL comment merely mentioning an "EXEC SQL ... WHERE ... =
+        # 'literal' ... END-EXEC" shape (e.g. a TODO or illustrative example) was scanned like
+        # real embedded SQL and reported as a false-positive "SQL injection risk" finding.
+        _sqli_result = scan_sql_injection(_cobol_code_only, filename)
         _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
         if _sqli_grouped:
             issues.append(_sqli_grouped)
     except Exception:
         issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
     try:
-        _sens_result = scan_sensitive_data(source)
+        # Bug #46 (reported by the user): same root cause as the scan_sql_injection fix just
+        # above - this used to call scan_sensitive_data(source) with the RAW source.
+        # scan_sensitive_data()'s own comment-skip only recognizes a line starting with "*", so a
+        # free-format COBOL line that starts with real code and only has an inline `*>` comment
+        # partway through (e.g. `DISPLAY "HELLO". *> TODO remove -- password = "..."`) slipped
+        # through untouched, and any password/secret-looking example text in that comment was
+        # reported as a real "Hardcoded password" finding. Use the already-built
+        # `_cobol_code_only` instead, same as this function's other checks.
+        _sens_result = scan_sensitive_data(_cobol_code_only)
         for _sens_finding in _sens_result.get("findings", []):
             _sens_issue_lower = _sens_finding["issue"].lower()
             if "sql injection" in _sens_issue_lower or "md5" in _sens_issue_lower or "sha1" in _sens_issue_lower or "hashing" in _sens_issue_lower:
