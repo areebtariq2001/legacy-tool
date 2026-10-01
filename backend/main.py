@@ -6373,15 +6373,23 @@ def scan_crypto(source):
     findings = []
     pqc_needed = False
     source_lines = source.split(chr(10))
+    # Bug #48/#49 (reported by the user): this used to skip only lines starting with "#" or
+    # "//" - it didn't even recognize a bare "*" continuation line, let alone a "/*" block
+    # comment opener, so a crypto algorithm name merely MENTIONED in a /* ... */ comment (a
+    # changelog note, historical context) was scanned exactly like real code and reported as a
+    # real "broken algorithm" finding. Use the shared _code_only_source() helper (already used
+    # elsewhere, e.g. score_zero_trust) to correctly blank out comments/docstrings for ALL
+    # supported languages before matching, while keeping the original line for the evidence text
+    # shown in the finding.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for pattern, label, severity, recommendation in CRYPTO_PATTERNS_COMPILED:
         count = 0
         line_nums = []
         for i, ln in enumerate(source_lines):
-            if ln.strip().startswith(("#", "//")):
-                continue
+            _check_ln = _code_only_lines[i] if i < len(_code_only_lines) else ln
             if len(ln) > 2000:
                 continue
-            _m = pattern.findall(ln)
+            _m = pattern.findall(_check_ln)
             if _m:
                 count += 1
                 line_nums.append(str(i+1))
@@ -7245,8 +7253,18 @@ def score_zero_trust(source, filename):
 VENDOR_LOCKIN_PATTERNS = {"Oracle": re.compile(r"(?i)(cx_oracle|oracledb|oracle\.jdbc)"), "IBM DB2": re.compile(r"(?i)(ibm_db|db2\.jcc|db2connect)"), "SAP": re.compile(r"(?i)(pyrfc|sap\.rfc|hdbcli)"), "Microsoft SQL Server": re.compile(r"(?i)(pymssql|sqlserver|mssql)"), "AWS-specific": re.compile(r"(?i)(boto3|aws_lambda|dynamodb)"), "Azure-specific": re.compile(r"(?i)(azure\.storage|azure\.identity|azureml)"), "Salesforce": re.compile(r"(?i)(simple_salesforce|salesforce_api)"), "Mainframe/COBOL": re.compile(r"(?i)(\bjcl\b|\bvsam\b|\bcics\b)")}
 
 def analyze_vendor_lockin(source, filename):
-    code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
-    code_only = chr(10).join(code_only_lines)
+    # Bug #48 (reported by the user): this used to filter comments with its own hand-rolled,
+    # whole-line-only check (skip a line starting with "#", "//", or "*") instead of the shared
+    # _code_only_source() helper that score_zero_trust() already uses just above. That filter has
+    # no idea about "/*" (a block comment OPENER whose own first line doesn't start with a bare
+    # "*") at all, so a single-line or multi-line /* ... */ comment whose first line starts with
+    # "/*" was never recognized as a comment - any vendor-specific library name merely MENTIONED
+    # there as a documentation/example (e.g. "/* vendor example, not real: uses boto3 for storage
+    # */") was scanned exactly like a real import and reported as a real vendor-lock-in finding,
+    # indistinguishable from an actual `import boto3` statement. _code_only_source() (as of Bug
+    # #47) already correctly handles /* */, //, #, COBOL column-7, and COBOL's free-format *>
+    # inline comments - reuse it here instead of re-implementing a narrower, buggy version.
+    code_only = _code_only_source(source)
     findings = []
     for vendor, pat in VENDOR_LOCKIN_PATTERNS.items():
         matches = len(pat.findall(code_only))
@@ -9652,7 +9670,11 @@ def generate_compatibility_matrix(source, filename):
     if not (is_python or is_java):
         return {"matrix_generated": False, "targets": [], "matrix_summary": "Only Python/Java supported."}
     targets = []
-    _code_lines_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*")))
+    # Bug #48/#49 (reported by the user): same hand-rolled, "/*"-blind comment filter as the other
+    # scanners in this family - a removed-import/API mentioned in a /* ... */ comment (a changelog
+    # note) was scanned like real code and reported as a real breaking-change finding. Use the
+    # shared _code_only_source() helper instead.
+    _code_lines_only = _code_only_source(source)
     if is_python:
         pairs = [("3.9", "3.12", ["distutils", "smtpd"])]
         for fv, tv, removed in pairs:
@@ -9934,15 +9956,21 @@ def scan_pci_dss_signals(source, filename):
         return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     findings = []
     lines = source.split(chr(10))
+    # Bug #48/#49 (reported by the user): this used its own hand-rolled comment filter that had
+    # no idea about "/*" (a block comment opener) at all, so a PCI-sensitive-looking example
+    # (e.g. a CVV value) merely mentioned in a /* ... */ comment was scanned like real code and
+    # reported as a real Critical-severity finding. Use the shared _code_only_source() helper
+    # (already correctly handling /* */, //, #, and COBOL comments) for detection, while keeping
+    # the original line text for the evidence shown in the finding.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith(("#", "//", "*")):
-            continue
-        if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]?\d{3,4}\b", line):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        if re.search(r"(?i)\b(cvv2?|cvc2?|card.?verification)\b\s*=\s*[\"\x27]?\d{3,4}\b", _check_line):
             findings.append({"line": i + 1, "issue": "Possible CVV/CVC storage", "severity": "Critical", "pci_requirement": "PCI-DSS Req 3.2 - CVV must NEVER be stored after authorization", "evidence": stripped[:100]})
-        if re.search(r"(?i)(card.?number|card.?num|\bpan\b|credit.?card)\s*=\s*[\"\x27]?\d{12,19}", line):
+        if re.search(r"(?i)(card.?number|card.?num|\bpan\b|credit.?card)\s*=\s*[\"\x27]?\d{12,19}", _check_line):
             findings.append({"line": i + 1, "issue": "Possible unmasked full card number (PAN)", "severity": "High", "pci_requirement": "PCI-DSS Req 3.3 - PAN must be masked when displayed (max first 6 / last 4 digits visible)", "evidence": stripped[:100]})
-        if re.search(r"(?i)http://[^\s\"\x27]*(?:pay|card|checkout|billing)", line):
+        if re.search(r"(?i)http://[^\s\"\x27]*(?:pay|card|checkout|billing)", _check_line):
             findings.append({"line": i + 1, "issue": "Unencrypted HTTP used for payment-related endpoint", "severity": "High", "pci_requirement": "PCI-DSS Req 4.1 - Strong cryptography (TLS) required for cardholder data transmission", "evidence": stripped[:100]})
     findings_full = findings
     findings = findings_full[:30]
@@ -10073,8 +10101,12 @@ async def cnic_validation_check_endpoint(file: UploadFile = File(...)):
 def check_data_localization(source, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"checked": False, "findings": [], "total_findings": 0, "summary": "File too large."}
-    _code_only_lines = [l for l in source.split(chr(10)) if not l.strip().startswith(("#", "//", "*"))]
-    _code_only = chr(10).join(_code_only_lines)
+    # Bug #48/#49 (reported by the user): this used its own hand-rolled comment filter (skip a
+    # line starting with "#", "//", or a bare "*") that had no idea about "/*" (a block comment
+    # opener) at all, so a foreign-cloud-region identifier merely mentioned in a /* ... */ comment
+    # (a changelog/historical note) was scanned like real code and reported as a real High-severity
+    # finding. Use the shared _code_only_source() helper instead, same as analyze_vendor_lockin.
+    _code_only = _code_only_source(source)
     findings = []
     _foreign_region_patterns = [
         (r"(?i)\bus-(east|west)-\d\b", "AWS US region"),
@@ -10397,17 +10429,22 @@ def scan_jwt_oauth_security(source, filename):
         return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
     findings = []
     lines = source.split(chr(10))
+    # Bug #48/#49 (reported by the user): same hand-rolled, "/*"-blind comment filter as the other
+    # scanners in this family - a JWT misconfiguration merely mentioned in a /* ... */ comment (a
+    # historical note) was scanned like real code and reported as a real Critical-severity finding.
+    # Use the shared _code_only_source() helper for detection, keeping the original line for
+    # evidence.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith(("#", "//", "*")):
-            continue
-        if re.search(r"(?i)(verify\s*=\s*False|[\"\x27]verify_signature[\"\x27]\s*:\s*False)", line) and re.search(r"(?i)jwt", line):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        if re.search(r"(?i)(verify\s*=\s*False|[\"\x27]verify_signature[\"\x27]\s*:\s*False)", _check_line) and re.search(r"(?i)jwt", _check_line):
             findings.append({"line": i + 1, "issue": "JWT signature verification explicitly disabled", "severity": "Critical", "evidence": stripped[:100]})
-        if re.search(r"(?i)algorithms?\s*=\s*[\[\"\x27][^)]*none", line):
+        if re.search(r"(?i)algorithms?\s*=\s*[\[\"\x27][^)]*none", _check_line):
             findings.append({"line": i + 1, "issue": "JWT algorithm set to none - allows unsigned token forgery", "severity": "Critical", "evidence": stripped[:100]})
-        if re.search(r"(?i)jwt\.(encode|decode)\([^)]*[\"\x27][A-Za-z0-9+/=_.\-]{8,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
+        if re.search(r"(?i)jwt\.(encode|decode)\([^)]*[\"\x27][A-Za-z0-9+/=_.\-]{8,}[\"\x27]", _check_line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", _check_line):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret key", "severity": "High", "evidence": stripped[:100]})
-        if re.search(r"(?i)\bjwt\w*(secret|key)\w*\s*=\s*[\"\x27][^\"\x27]{4,}[\"\x27]", line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", line):
+        if re.search(r"(?i)\bjwt\w*(secret|key)\w*\s*=\s*[\"\x27][^\"\x27]{4,}[\"\x27]", _check_line) and not re.search(r"(?i)os\.environ|getenv|settings\.|config\.", _check_line):
             findings.append({"line": i + 1, "issue": "Possible hardcoded JWT secret/key in a standalone variable assignment (not yet used in jwt.encode/decode, but hardcoding it here is still a risk once it is used)", "severity": "High", "evidence": stripped[:100]})
     findings_full = findings
     findings = findings_full[:30]
@@ -10509,13 +10546,18 @@ def scan_certificate_pinning(source, filename):
     has_pinning_signal = False
     _https_pattern = re.compile(r"(?i)(https://|requests\.(get|post)|urlopen|HttpsURLConnection|SSLContext|curl_setopt.*CURLOPT_URL)")
     _pinning_pattern = re.compile(r"(?i)(pin.?cert|cert.?pin|SSLPinning|TrustManager.*custom|checkServerTrusted|CURLOPT_PINNEDPUBLICKEY|public.?key.?pin|HPKP)")
+    # Bug #48/#49 (reported by the user): same hand-rolled, "/*"-blind comment filter as the other
+    # scanners in this family. Here the direction of the bug is a false NEGATIVE rather than a
+    # false positive: a pinning keyword merely mentioned in a /* ... */ comment (e.g. "we used to
+    # do cert_pin manually here, removed later") set has_pinning_signal=True even though the real
+    # code has no actual pinning, which silently SUPPRESSES the "missing control" warning this
+    # function exists to raise. Use the shared _code_only_source() helper for detection.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith(("#", "//", "*")):
-            continue
-        if _https_pattern.search(line):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        if _https_pattern.search(_check_line):
             has_https_call = True
-        if _pinning_pattern.search(line):
+        if _pinning_pattern.search(_check_line):
             has_pinning_signal = True
     if has_https_call and not has_pinning_signal:
         findings.append({"issue": "MISSING CONTROL (not a detected vulnerability): This file makes HTTPS/network calls but has no certificate-pinning signal detected anywhere in the file - consider adding certificate pinning for high-security connections (e.g. banking API endpoints) to reduce man-in-the-middle risk.", "severity": "Medium"})
