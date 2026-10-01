@@ -1604,8 +1604,22 @@ def migrate_code(source):
 
 # ---------- VALIDATOR (PYTHON) ----------
 def validate_php(code):
-    code_no_strings = re.sub(r'"(?:[^"\\\\]|\\\\.)*"', '""', code)
-    code_no_strings = re.sub(r"'(?:[^'\\\\]|\\\\.)*'", "''", code_no_strings)
+    # Bug #39 (reported by the user): these were raw strings with FOUR literal backslashes
+    # (r'...\\\\...'), which the regex engine reads as TWO escape tokens ("\\" "\\"), making
+    # "\\\\." mean "two literal backslashes, then any character" instead of the intended "one
+    # literal backslash, then any character" (the standard idiom for consuming an escaped
+    # character like \" inside a string). A single backslash-quote (\") - the extremely common
+    # case of an escaped quote inside a PHP string literal, e.g. echo "she said \"hi\"" - was
+    # therefore NOT consumed as part of the string, so the regex's string-literal match ended
+    # early at that first \", leaving the rest of the literal (which can contain { or } chars)
+    # unmasked and counted as real code. Decisively confirmed: a structurally valid PHP file
+    # containing exactly one real brace pair plus a string with an escaped quote was reported as
+    # "Mismatched braces: 2 open vs 1 close" - a false positive. Since Bug #37, this valid flag
+    # feeds directly into migrate_php's confidence_score (valid=True -> base 90, valid=False ->
+    # base 25), so this false positive was silently giving ordinary, correct PHP code containing
+    # an escaped quote (a very common pattern) a confidence_score of 25 instead of 90.
+    code_no_strings = re.sub(r'"(?:[^"\\]|\\.)*"', '""', code)
+    code_no_strings = re.sub(r"'(?:[^'\\]|\\.)*'", "''", code_no_strings)
     code_no_comments = re.sub(r'//.*', '', code_no_strings)
     code_no_comments = re.sub(r'/\*.*?\*/', '', code_no_comments, flags=re.DOTALL)
     open_braces = code_no_comments.count("{")
