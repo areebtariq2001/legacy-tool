@@ -1,8 +1,0 @@
-migrate_cobol: 0
-migrate_php: 0
-migrate_java: 0
-analyze_php: 0
-analyze_java: 0
-analyze_cobol: 0
-
-GRAND-TOTAL-REMAINING: 0

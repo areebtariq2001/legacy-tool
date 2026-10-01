@@ -1,8 +1,0 @@
-Genuinely-'findings_full'-total-occurrences (should be 9+ now, was 0 before all fixes): 42
-Genuinely-'findings_truncated'-total-occurrences: 8
-Genuinely-scan_cbs_integration_points-has-sum(counts.values()): 
-  -> 'sum(counts.values())' present: True
-Genuinely-process_github_webhook-has-total_changed_files_detected: 
-  -> 'total_changed_files_detected' present: True
-Genuinely-scan_entropy_secrets-high_count-uses-findings_full: 
-  -> 'sum(1 for f in findings_full if f["confidence"]' present: True

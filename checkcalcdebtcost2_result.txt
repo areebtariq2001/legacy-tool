@@ -1,6 +1,0 @@
-return {"debt_cost_usd": total_cost, "debt_hours": hours, "debt_days": days, "hourly_rate_used": hourly_rate, "region": region, "debt_cost_summary": f"${total_cost} estimated cost to fix ({hours} hours, ~{days} working days at ${hourly_rate}/hr)" if hours > 0 else "No technical debt cost - code appears clean", "debt_cost_disclaimer": "Rough estimate based on the Tech Debt Score hours and a placeholder hourly rate. Replace with your actual team cost for an accurate figure. A planning aid, not a guaranteed cost."}
-
-@app.post("/tech-debt-cost")
-async def tech_debt_cost_endpoint(file: UploadFile = File(...), region: str = "pakistan", custom_rate: float = None):
-    try:
-        content = await f

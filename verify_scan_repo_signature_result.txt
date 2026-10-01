@@ -1,8 +1,0 @@
-=== scan_repo_endpoint SIGNATURE ===
-async def scan_repo_endpoint(req: RepoRequest):
-    try:
-        url =
-
-=== CALL-SITE ===
-repo_result = await scan_repo_endpoint(req, request)
-        result = 

@@ -1,7 +1,0 @@
-Genuinely-scan_cbs_integration_points-occurrences: 2
-iled safely: " + str(e)})
-def scan_cbs_integration_points(source, filename):
-    if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
-        return {"scanned": False, "checked": False, "findings": [], "summary": "File too large."}
-    if not filename.lower().endswith(".py"):
-        return {"scanned": True, "checked": True, "findings": [], "total_findings": 0, "language_supported": False, "summary": "CBS integrati

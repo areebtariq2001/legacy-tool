@@ -1,7 +1,0 @@
-@app.post("/auth/register")
-async def au
-
-=== urlparse usage in scan_repo_endpoint ===
-ps://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + path
-            if urllib.parse.urlparse(raw_url).hostname != "raw.githubusercontent.com":
-                skipped_files.append({"file": path, "reason": "Invalid path (URL validation

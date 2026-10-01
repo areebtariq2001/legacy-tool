@@ -1,4 +1,0 @@
-Line 334: indent=0 spaces | class StarBuildBlockchain:
-Line 354: indent=4 spaces |     def add_block(self, action, filename, user_email, ip, result):
-Line 363: indent=4 spaces |     def verify_chain(self):
-Line 373: indent=4 spaces |     def get_summary(self):

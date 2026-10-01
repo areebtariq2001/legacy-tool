@@ -1,9 +1,0 @@
-def _verify_password(password, stored_hash):
-    try:
-        salt, _ = stored_hash.split("$", 1)
-    except Exception:
-        return False
-    return hmac.compare_digest(_hash_password(password, salt), stored_hash)
-
-
-_DUMMY_HASH_FOR_TIMING = "0" * 32 + "$" + hashlib.pbkdf2_hmac("sha256", b"dummy_password_for_timing", ("0" * 32).encode("utf-8"), 200000).hex()

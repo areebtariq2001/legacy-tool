@@ -1,5 +1,0 @@
-=== 1. hardcoded confidence 90 / High confidence ===
-NOT-FOUND-with-exact-string
-
-=== 2. write_audit_log call count ===
-Total-write_audit_log-calls: 166

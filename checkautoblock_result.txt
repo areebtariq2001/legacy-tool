@@ -1,6 +1,0 @@
-unts = {}
-_AUTO_BLOCK_EVENT_TYPES = {"honeypot_triggered", "scanner_signature_detected", "jailbreak_output_indicator"}
-
-
-def _is_ip_blocked(ip):
-    with _block
