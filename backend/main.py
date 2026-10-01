@@ -5904,7 +5904,20 @@ def _looks_like_python(source):
 
 def _blank_c_style_comments(source):
     """Java/PHP/COBOL: blank // ... , /* ... */ , PHP # ... and COBOL * comment lines,
-    never touching text inside '...' or "..." strings. Line/column positions are kept."""
+    never touching text inside '...' or "..." strings. Line/column positions are kept.
+
+    Bug #47 (reported by the user): this shared helper - used via _blank_comments_and_docstrings/
+    _code_only_source by detect_banking_patterns, _cnic_exposure_findings, scan_sensitive_data,
+    and every business-rule/compliance check that scans COBOL files - only recognized COBOL's
+    column-7 FULL-LINE comment convention. It had no idea free-format COBOL also allows a `*>`
+    inline comment marker anywhere on a line (the same gap independently found and fixed, scoped
+    to analyze_cobol only, as Bug #46's _cobol_strip_inline_free_format_comment). Decisively
+    confirmed here with two proofs: a `*>` comment merely illustrating "interest calculation"
+    produced a false-positive banking-pattern finding via detect_banking_patterns, and one
+    illustrating a CNIC-format sample produced a false-positive CRITICAL-severity PII-exposure
+    finding via scan_sensitive_data's CNIC check - both from documentation text, not real code.
+    Fixed the same way `//`/`#` are already handled: a `*>` sequence found outside a string (and
+    outside an already-open block comment) blanks the rest of the line."""
     out = []
     in_block = False
     for ln in source.split(chr(10)):
@@ -5940,7 +5953,7 @@ def _blank_c_style_comments(source):
                 buf[i] = buf[i + 1] = " "
                 i += 2
                 continue
-            elif ln.startswith("//", i) or ch == "#":
+            elif ln.startswith("//", i) or ch == "#" or ln.startswith("*>", i):
                 for k in range(i, len(ln)):
                     buf[k] = " "
                 break
