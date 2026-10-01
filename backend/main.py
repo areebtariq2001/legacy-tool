@@ -9887,10 +9887,18 @@ def scan_entropy_secrets(source, filename):
     string_pattern = re.compile(r"[\"\x27]([A-Za-z0-9+/=_.\-]{16,})[\"\x27]")
     findings = []
     lines2 = source.split(chr(10))
+    # Bug #54 (reported by the user, same family as Bug #48-53, but the most naive version yet):
+    # this used to skip only lines starting with "#", with no filename check at all - "//" and
+    # "/* */" (Java/PHP/COBOL's comment styles) got no protection whatsoever, so a sample/
+    # placeholder secret shown in a documentation comment (even explicitly labeled "not real")
+    # was scanned exactly like a real hardcoded secret and reported as a High-confidence finding,
+    # indistinguishable from the genuine case. Use the shared _code_only_source() helper instead -
+    # it already detects the right comment style per language, so no filename-based
+    # prefix-guessing is needed here either.
+    _code_only_lines2 = _code_only_source(source).split(chr(10))
     for i, line in enumerate(lines2):
-        if line.strip().startswith("#"):
-            continue
-        for m in string_pattern.finditer(line):
+        _check_line2 = _code_only_lines2[i] if i < len(_code_only_lines2) else line
+        for m in string_pattern.finditer(_check_line2):
             candidate = m.group(1)
             if len(candidate) > 200:
                 continue
