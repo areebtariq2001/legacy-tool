@@ -2104,9 +2104,29 @@ def analyze_php(source):
             if _in_str:
                 if _c == chr(92):
                     continue
-                if _ci > 0 and _ln[_ci - 1] == chr(92):
-                    continue
                 if _c == _str_ch:
+                    # Bug #40 (reported by the user): checking only the single character right
+                    # before the quote ("was the previous char a backslash?") gets this wrong for
+                    # TWO consecutive backslashes - an escaped backslash (\\, one literal
+                    # backslash in the real string) followed by a closing quote. The old check
+                    # saw "char before the quote is a backslash" and treated the quote itself as
+                    # escaped, so _in_str never went back to False and the rest of the line
+                    # (including any real // comment) stayed treated as "inside a string" and was
+                    # never scanned for comment-stripping. Decisively confirmed: '$x = "a\\\\";
+                    # // password = "hunter2345"' (a string ending in one escaped backslash, then
+                    # a trailing comment) produced an extra false-positive "Hardcoded
+                    # password/credential found" finding that an otherwise-identical line without
+                    # the escaped backslash did not. Fixed by counting the full run of consecutive
+                    # backslashes immediately before this character: the quote is only escaped if
+                    # that run has an ODD length (an even run, including zero, is pairs of
+                    # literal backslashes with no effect on the quote that follows).
+                    _bs_count = 0
+                    _bj = _ci - 1
+                    while _bj >= 0 and _ln[_bj] == chr(92):
+                        _bs_count += 1
+                        _bj -= 1
+                    if _bs_count % 2 == 1:
+                        continue
                     _in_str = False
             elif _c in (chr(34), chr(39)):
                 _in_str = True
