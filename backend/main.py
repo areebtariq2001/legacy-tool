@@ -944,8 +944,18 @@ def calculate_tech_debt(source, filename=""):
     total_count = 0
     total_minutes = 0
     active_rules = list(DEBT_RULES_COMPILED)
-    _debt_comment_prefix = "*" if (filename.lower().endswith(".cbl") or filename.lower().endswith(".cob")) else ("//" if (filename.lower().endswith(".java") or filename.lower().endswith(".php")) else "#")
-    _source_code_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(_debt_comment_prefix))
+    # Bug #52 (reported by the user, same family as Bug #48-50 but hitting a customer-facing
+    # metric directly): this used to build its own hand-rolled, single-prefix-per-language
+    # comment filter - "//" only for Java/PHP (no /* */ at all), "#" only for Python (no
+    # triple-quoted docstrings at all), "*" only for COBOL (no free-format *> inline comments,
+    # same gap as Bug #46/#47). A legacy pattern merely MENTIONED in a comment/docstring (a
+    # changelog note, a documentation example) was scanned like real code and inflated
+    # debt_score/estimated_minutes/estimated_hours - numbers shown directly to the customer as a
+    # "developer-hours" remediation-cost estimate, not just an internal issue list. Use the
+    # shared _code_only_source() helper instead, which already correctly handles /* */, //, #,
+    # COBOL column-7, and COBOL's free-format *> inline comments for every language this function
+    # supports.
+    _source_code_only = _code_only_source(source)
     if filename.lower().endswith(".java"):
         active_rules += JAVA_DEBT_RULES_COMPILED
     elif filename.lower().endswith(".php"):
@@ -8528,15 +8538,33 @@ async def approval_history_endpoint(request: Request):
 
 def calculate_code_quality(source, filename):
     source = source[:300000]
-    _ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-    _comment_prefixes = ("//", "#", "*", "/*") if _ext in ("java", "php", "cbl", "cob", "cobol") else ("#",)
     lines = [ln for ln in source.split(chr(10)) if ln.strip()]
     loc = len(lines)
     comp = calculate_complexity(source)
-    def _is_comment(ln):
-        return ln.strip().startswith(_comment_prefixes)
-    long_lines = len([ln for ln in lines if len(ln) > 100 and not _is_comment(ln)])
-    comment_lines = len([ln for ln in lines if _is_comment(ln)])
+    # Bug #53 (reported by the user, same root cause as Bug #51 but in a new function): the old
+    # _is_comment() checked each line INDEPENDENTLY ("//", "#", "*", or "/*" prefix) with no
+    # tracking of whether a multi-line /* ... */ block comment was still OPEN. A continuation
+    # line of a block comment whose own text doesn't start with "*" (plain prose, not Javadoc
+    # style) was therefore counted as real CODE, not a comment - inflating long_lines_over_100
+    # when such a continuation line happened to be long, and undercounting comment_ratio_percent
+    # (the line was never counted as a comment either). Both quality_score/readability feed
+    # directly into readability (readability -= min(30, long_lines * 3)) and the comment-ratio
+    # penalty, so this is a customer-facing metric. Fixed by masking every block comment out of
+    # the whole source FIRST (_code_only_source, same fix shape as Bug #48-52) and treating any
+    # line that came out blank (but wasn't blank in the original) as a comment line - so every
+    # line of a multi-line block comment is correctly counted as "comment", not "code", however
+    # its individual text is shaped.
+    _code_only_lines_by_orig_index = _code_only_source(source).split(chr(10))
+    _orig_lines_all = source.split(chr(10))
+    def _is_comment_line(_orig_index):
+        _orig = _orig_lines_all[_orig_index]
+        if not _orig.strip():
+            return False
+        _masked = _code_only_lines_by_orig_index[_orig_index] if _orig_index < len(_code_only_lines_by_orig_index) else _orig
+        return not _masked.strip()
+    _nonblank_indices = [i for i, ln in enumerate(_orig_lines_all) if ln.strip()]
+    long_lines = len([i for i in _nonblank_indices if len(_orig_lines_all[i]) > 100 and not _is_comment_line(i)])
+    comment_lines = len([i for i in _nonblank_indices if _is_comment_line(i)])
     comment_ratio = round((comment_lines / loc) * 100, 1) if loc > 0 else 0
     readability = 100
     if long_lines > 0:
