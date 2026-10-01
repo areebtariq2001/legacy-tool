@@ -3551,6 +3551,47 @@ function downloadAuditLog() {
   a.click();
   URL.revokeObjectURL(url);
 }
+// Bug #36 (reported by the user): doApprove/doReject called /save-approval with its arguments
+// in the URL QUERY STRING (new URLSearchParams(...) appended to the fetch URL), but the backend's
+// rule_tags/confidence_score feedback-loop fields (added for the rejection-clustering/confidence-
+// calibration feature) are ONLY read from req, which FastAPI only populates from a JSON request
+// BODY - a query-string-only POST makes `req` resolve to None server-side, so rule_tags/
+// confidence_score silently stayed at their [] / None defaults on every single request, forever,
+// no matter how many approvals/rejections happened. /rejection-clusters and /confidence-
+// calibration would never show anything but "untagged"/"unscored" - decisively confirmed by
+// re-reading this exact fetch call against the ApprovalRequest model backend/main.py defines.
+//
+// Fixed by switching to a JSON body (matching how /issue-migration-certificate already calls
+// save-approval's neighbor endpoint, just below) and collecting rule_tags/confidence_score here:
+// confidence_score reuses the already-displayed #confPct value (same source
+// /issue-migration-certificate's _confNum already trusts); rule_tags are a BEST-EFFORT signal
+// extracted from R.migrate.changes/R.analyze.issues, since the backend doesn't emit a separate
+// short rule-ID per change/issue - only a full English sentence. _normalizeRuleTag() strips out
+// the parts of that sentence that vary per-file (quoted field/variable names, COBOL-style
+// ALL-CAPS-WITH-HYPHENS identifiers, bare numbers) so the same underlying rule firing on
+// different files/fields produces the same tag text and actually clusters, instead of every
+// occurrence being its own unique tag because the field name differs.
+function _normalizeRuleTag(msg) {
+  if (typeof msg !== 'string') return null;
+  let t = msg
+    .replace(/'[^']*'|"[^"]*"/g, '')              // quoted field/variable/class names
+    .replace(/\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g, '')  // COBOL-style WS-FIELD-NAME identifiers
+    .replace(/\b\d+\b/g, '')                       // bare numbers (line numbers, lengths, etc.)
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t ? t.slice(0, 90) : null;
+}
+function _collectApprovalMetadata() {
+  const _snap = window.lastFileSnapshot || {};
+  const _msgs = [
+    ...((_snap.R && _snap.R.migrate && Array.isArray(_snap.R.migrate.changes)) ? _snap.R.migrate.changes : []),
+    ...((_snap.R && _snap.R.analyze && Array.isArray(_snap.R.analyze.issues)) ? _snap.R.analyze.issues : []),
+  ];
+  const _tags = [...new Set(_msgs.map(_normalizeRuleTag).filter(Boolean))].slice(0, 15);
+  const _confEl = document.getElementById('confPct');
+  const _confNum = _confEl ? parseInt(_confEl.textContent, 10) : NaN;
+  return { rule_tags: _tags, confidence_score: isNaN(_confNum) ? null : _confNum };
+}
 async function doApprove() {
   const _snap = window.lastFileSnapshot || {};
   const validity = (_snap.R && _snap.R.migrate && _snap.R.migrate.migration_validity) || null;
@@ -3565,7 +3606,10 @@ async function doApprove() {
   const box = document.getElementById('approvalBox');
   const statusMsg = document.getElementById('approvalStatusMsg');
   try {
-    const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    const _approveMeta = _collectApprovalMetadata();
+    const _approveHeaders = { 'Content-Type': 'application/json' };
+    if (authToken) _approveHeaders['x-session-token'] = authToken;
+    const _r = await fetch(BACKEND + '/save-approval', { method: 'POST', headers: _approveHeaders, body: JSON.stringify({ filename: fname, decision: 'approved', reviewer_notes: '', action_type: 'migration', rule_tags: _approveMeta.rule_tags, confidence_score: _approveMeta.confidence_score }) });
     if (_r.status === 401) { handleExpiredSession(statusMsg, 'Approval'); return; }
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
@@ -3613,7 +3657,10 @@ async function doReject() {
   const box = document.getElementById('approvalBox');
   const statusMsg = document.getElementById('approvalStatusMsg');
   try {
-    const _r = await fetch(BACKEND + '/save-approval?' + new URLSearchParams({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration' }), { method: 'POST', headers: authToken ? { 'x-session-token': authToken } : {} });
+    const _rejectMeta = _collectApprovalMetadata();
+    const _rejectHeaders = { 'Content-Type': 'application/json' };
+    if (authToken) _rejectHeaders['x-session-token'] = authToken;
+    const _r = await fetch(BACKEND + '/save-approval', { method: 'POST', headers: _rejectHeaders, body: JSON.stringify({ filename: fname, decision: 'rejected', reviewer_notes: '', action_type: 'migration', rule_tags: _rejectMeta.rule_tags, confidence_score: _rejectMeta.confidence_score }) });
     if (_r.status === 401) { handleExpiredSession(statusMsg, 'Rejection'); return; }
     if (!_r.ok) {
       let _errMsg = 'Server rejected the request (' + _r.status + ')';
