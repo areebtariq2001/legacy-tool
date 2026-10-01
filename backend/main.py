@@ -2018,7 +2018,18 @@ PHP_CHECKS_COMPILED_RAW = [
         (r'\bereg_replace\(', "CRITICAL (will not run): ereg_replace() was completely removed in PHP 7 - use preg_replace() (pattern needs delimiters added)"),
         (r'\bsql_regcase\b', "CRITICAL (will not run): sql_regcase() was completely removed in PHP 7"),
         (r'\bmoney_format\s*\(', "CRITICAL (will not run): money_format() was completely removed in PHP 8 - use NumberFormatter instead"),
-        (r'class\s+(\w+)\s*\{[^}]*?function\s+\1\s*\(', "PHP 4-style constructor (method name matches class name) found - removed in PHP 8, use __construct() instead"),
+        # Bug #34 (reported by the user): the PHP4-style-constructor check USED to live here as
+        # a regex, r'class\s+(\w+)\s*\{[^}]*?function\s+\1\s*\(' - the exact same [^}]*? bug as
+        # migrate_php's Bug #33 (see _php_find_php4_style_constructor's docstring): it can only
+        # match when NO '}' appears between the class's opening brace and the constructor, so
+        # the moment the class has even one earlier method (the normal case), this warning
+        # never fired at all - "Modernize Code"'s Issues list showed nothing wrong for a class
+        # whose real constructor migrate_php itself used to silently lose (before Bug #33's
+        # fix). migrate_php's brace-counting fix only fixed the MIGRATION; this analysis-only
+        # warning kept using the old broken regex independently and needed the same fix. Moved
+        # out of this regex-only list (a bare regex can't do brace-depth counting) and into its
+        # own check in analyze_php below, which reuses the exact same brace-counting helper
+        # migrate_php now uses, so both agree on what counts as a PHP4-style constructor.
     ]
 PHP_CHECKS_COMPILED = [(re.compile(p), m) for p, m in PHP_CHECKS_COMPILED_RAW]
 
@@ -2064,6 +2075,12 @@ def analyze_php(source):
     for _compiled_pattern, msg in PHP_CHECKS_COMPILED:
         if _compiled_pattern.search(_source_no_comments):
             issues.append(msg)
+    # Bug #34 (reported by the user): see _php_find_php4_style_constructor's docstring and the
+    # comment left in PHP_CHECKS_COMPILED_RAW where this check used to live as a broken regex.
+    # Brace-depth counting (shared with migrate_php's Bug #33 fix) finds a PHP4-style
+    # constructor correctly regardless of how many earlier methods the class has.
+    if _php_find_php4_style_constructor(_source_no_comments):
+        issues.append("PHP 4-style constructor (method name matches class name) found - removed in PHP 8, use __construct() instead")
     try:
         _sqli_result = scan_sql_injection(_source_no_comments, "file.php")
         _sqli_grouped = _grouped_sqli_issue(_sqli_result.get("sqli_issues", []))  # Bug 14: every SQLi line in one issue
@@ -2151,6 +2168,44 @@ def _restore_c_block_comments(migrated, literals):
     return migrated
 
 
+def _find_matching_brace(text, open_pos):
+    """Given the index of a '{' in `text`, return the index of its matching '}' via simple
+    brace-depth counting (so any number of nested/earlier-sibling brace pairs in between are
+    handled correctly), or None if unbalanced. Shared by migrate_php (Bug #33) and analyze_php
+    (Bug #34) for finding a PHP class's true body - see migrate_php's PHP4-constructor comment
+    for why a regex span (e.g. `[^}]*?`) can't safely do this instead."""
+    depth = 0
+    for _i in range(open_pos, len(text)):
+        if text[_i] == "{":
+            depth += 1
+        elif text[_i] == "}":
+            depth -= 1
+            if depth == 0:
+                return _i
+    return None
+
+
+_PHP_CTOR_CLASS_PATTERN = re.compile(r'class\s+(\w+)\s*\{')
+
+
+def _php_find_php4_style_constructor(source):
+    """Return (class_name, body_start, body_end) for the FIRST class in `source` that has a
+    PHP4-style constructor (a method whose name matches its own class name), found via
+    brace-depth counting rather than a regex span - or None if there is no such class. Shared
+    by migrate_php (Bug #33, which converts it to __construct()) and analyze_php (Bug #34,
+    which only needs to report it)."""
+    for _cls_m in _PHP_CTOR_CLASS_PATTERN.finditer(source):
+        _cls_name = _cls_m.group(1)
+        _brace_open = _cls_m.end() - 1
+        _brace_close = _find_matching_brace(source, _brace_open)
+        if _brace_close is None:
+            continue
+        _body = source[_brace_open + 1:_brace_close]
+        if re.search(r'function\s+' + re.escape(_cls_name) + r'\s*\(', _body):
+            return _cls_name, _brace_open, _brace_close
+    return None
+
+
 def migrate_php(source):
     changes = []
     migrated, _php_block_comments = _mask_c_block_comments(source)
@@ -2170,17 +2225,7 @@ def migrate_php(source):
     # then searching for "function <ClassName>(" only within that exact class body slice -
     # instead of relying on a regex span that a single earlier method's closing brace could
     # cut short.
-    def _find_matching_brace(text, open_pos):
-        depth = 0
-        for _i in range(open_pos, len(text)):
-            if text[_i] == "{":
-                depth += 1
-            elif text[_i] == "}":
-                depth -= 1
-                if depth == 0:
-                    return _i
-        return None
-    _ctor_class_pattern = re.compile(r'class\s+(\w+)\s*\{')
+    _ctor_class_pattern = _PHP_CTOR_CLASS_PATTERN
     for _cls_m in _ctor_class_pattern.finditer(migrated):
         _cls_name = _cls_m.group(1)
         _brace_open = _cls_m.end() - 1
@@ -3657,17 +3702,17 @@ def migrate_cobol(source, filename="file.cbl"):
                     _disp_val = _disp_val[:_dci].rstrip()
                     break
             _tokens = re.findall(r'"[^"]*"|\x27[^\x27]*\x27|\S+', _disp_val)
-            # Bug (reported by the user, 22nd bug): "DISPLAY ... WITH NO ADVANCING" (or the
-            # equally-legal "DISPLAY ... NO ADVANCING", WITH is optional in real COBOL)
-            # suppresses the trailing newline COBOL would otherwise add, so the NEXT DISPLAY
-            # continues on the same line (used for prompts like "Enter name: " followed by a
-            # value on the same line). This wasn't recognized as a clause at all - WITH/NO/
-            # ADVANCING were tokenized as three more literal operands to print, producing
-            # print("Enter name: ", WITH, NO, ADVANCING, sep="") - a NameError at runtime,
-            # since WITH/NO/ADVANCING were never real Python names. Checked here (quote-aware,
-            # via the already-tokenized list, so a literal that happens to CONTAIN the words
-            # "no advancing" is never touched) and stripped from the operand list; the clause's
-            # effect (no trailing newline) is reproduced with print(..., end="").
+            # Bug #22 (reported by the user): "DISPLAY <operand> WITH NO ADVANCING" (or the
+            # equally-legal "DISPLAY <operand> NO ADVANCING", WITH is optional in COBOL) is
+            # meant to suppress the trailing newline, but this handler had no special case for
+            # it at all - WITH/NO/ADVANCING just fell through to the generic operand tokenizer
+            # above and got hyphen-fixed/emitted as if they were plain variable references:
+            # print("Enter name: ", WITH, NO, ADVANCING, sep="") - a NameError at runtime, since
+            # no such Python names exist. Detect and strip a trailing WITH/NO ADVANCING clause
+            # from the already-tokenized (quote-aware) _tokens list, so a literal that happens
+            # to contain the words "no advancing" as ordinary text is never mistakenly stripped,
+            # and translate it to print(..., end="") instead of the default newline-terminated
+            # print() below.
             _no_advancing = False
             _disp_up_tokens = [_t.upper() for _t in _tokens]
             if len(_tokens) >= 3 and _disp_up_tokens[-3:] == ["WITH", "NO", "ADVANCING"]:
