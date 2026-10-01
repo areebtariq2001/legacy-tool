@@ -18,6 +18,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Bug/gap (reported by the user): this container ran as root the whole time - the default for
+# any Dockerfile with no USER directive. This process doesn't need root for anything it
+# actually does (it binds to port 8000, not a privileged port below 1024, and installs no
+# packages at runtime - pip install above already ran earlier in the build, while still root,
+# so switching users here doesn't block that). If the FastAPI app or a dependency were ever
+# exploited via a code-execution bug, a root process inside the container has a meaningfully
+# easier path to escalate further (container-escape CVEs, anything mounted into the
+# container) than an unprivileged one would - this is defense in depth, not a fix for any
+# specific known vulnerability. The one thing this app writes to disk at runtime
+# (approval_log.json, a relative path under WORKDIR /app - confirmed via the only local
+# "open(..., 'w')" call in main.py; everything else goes to an external Postgres DB via
+# DATABASE_URL) still needs to be writable, so /app is chown'd to the new user before
+# switching to it.
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
