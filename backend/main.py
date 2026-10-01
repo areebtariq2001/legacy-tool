@@ -2251,12 +2251,29 @@ def _find_matching_brace(text, open_pos):
     brace-depth counting (so any number of nested/earlier-sibling brace pairs in between are
     handled correctly), or None if unbalanced. Shared by migrate_php (Bug #33) and analyze_php
     (Bug #34) for finding a PHP class's true body - see migrate_php's PHP4-constructor comment
-    for why a regex span (e.g. `[^}]*?`) can't safely do this instead."""
+    for why a regex span (e.g. `[^}]*?`) can't safely do this instead.
+
+    Bug #41 (reported by the user): this used to brace-count directly on `text`, with no
+    awareness of PHP string literals - a plain-data '{' or '}' character INSIDE a string (e.g.
+    a property initialized to an error message or HTML/JSON-ish text containing a literal '}')
+    was counted exactly like a real structural brace. That could close the "match" early (or
+    keep it open too long), slicing the class body at the wrong offset - so a real PHP4-style
+    constructor appearing after such a string was silently missed by both analyze_php's warning
+    and migrate_php's __construct() rewrite, with no error or REVIEW NEEDED notice. Decisively
+    confirmed: a class whose body contains `public $msg = "unbalanced } in a string";` before
+    its `function Foo($x) {...}` constructor produced zero findings/changes, while an otherwise
+    identical class without the string-embedded brace was handled correctly.
+    Fixed by counting depth on a same-length "detection copy" of `text` with string-literal
+    contents blanked out (see _blank_php_string_literals_same_length, already used by
+    _mask_c_block_comments for the same reason) - since that copy is exactly the same length as
+    `text`, the index returned is a valid offset into `text` too, so real code is still sliced
+    out of the real, unmasked `text`."""
+    _masked = _blank_php_string_literals_same_length(text)
     depth = 0
     for _i in range(open_pos, len(text)):
-        if text[_i] == "{":
+        if _masked[_i] == "{":
             depth += 1
-        elif text[_i] == "}":
+        elif _masked[_i] == "}":
             depth -= 1
             if depth == 0:
                 return _i
