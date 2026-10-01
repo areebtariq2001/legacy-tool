@@ -2288,7 +2288,18 @@ def _php_find_php4_style_constructor(source):
     PHP4-style constructor (a method whose name matches its own class name), found via
     brace-depth counting rather than a regex span - or None if there is no such class. Shared
     by migrate_php (Bug #33, which converts it to __construct()) and analyze_php (Bug #34,
-    which only needs to report it)."""
+    which only needs to report it).
+
+    Bug #42 (reported by the user): Bug #41 made _find_matching_brace() string-literal-safe for
+    brace COUNTING, but the "does this class body contain a PHP4-style constructor" check right
+    below it still ran its `function\\s+ClassName\\(` regex directly on the raw, unmasked `_body`.
+    A string literal that merely MENTIONS the class's own name in that shape - a help/usage/doc
+    string like "Usage: function Foo( $x ) { ... }" - matched the regex exactly like real code,
+    producing a false-positive constructor-detected warning here (and, in migrate_php, actually
+    REWRITING that string's content to "function __construct(...)" - real data corruption, not
+    just a wrong warning). Fixed by running the detection regex on a same-length masked copy of
+    `_body` (_blank_php_string_literals_same_length, the same helper _find_matching_brace itself
+    uses) so a match can only come from real code, never from inside a string literal."""
     for _cls_m in _PHP_CTOR_CLASS_PATTERN.finditer(source):
         _cls_name = _cls_m.group(1)
         _brace_open = _cls_m.end() - 1
@@ -2296,7 +2307,8 @@ def _php_find_php4_style_constructor(source):
         if _brace_close is None:
             continue
         _body = source[_brace_open + 1:_brace_close]
-        if re.search(r'function\s+' + re.escape(_cls_name) + r'\s*\(', _body):
+        _masked_body = _blank_php_string_literals_same_length(_body)
+        if re.search(r'function\s+' + re.escape(_cls_name) + r'\s*\(', _masked_body):
             return _cls_name, _brace_open, _brace_close
     return None
 
@@ -2329,8 +2341,19 @@ def migrate_php(source):
             continue
         _ctor_body_pattern = re.compile(r'(function\s+)' + re.escape(_cls_name) + r'(\s*\()')
         _body = migrated[_brace_open + 1:_brace_close]
-        if _ctor_body_pattern.search(_body):
-            _new_body = _ctor_body_pattern.sub(lambda m: f"{m.group(1)}__construct{m.group(2)}", _body, count=1)
+        # Bug #42 (reported by the user): searching/substituting directly on the raw, unmasked
+        # `_body` meant a string literal that merely MENTIONS the class's own name in this shape
+        # (a help/usage/doc string like "Usage: function Foo( $x ) { ... }") matched the pattern
+        # exactly like real code - and .sub() then actually REWROTE that string's content to
+        # "function __construct(...)", corrupting data that was never real code at all. Find the
+        # match on a same-length masked copy of `_body` (so a match can only come from real code,
+        # never from inside a string literal) - the masked copy is byte-for-byte identical to the
+        # real body everywhere OUTSIDE a string literal, so the match's span and captured groups
+        # are valid to apply directly against the real, unmasked `_body`.
+        _masked_body = _blank_php_string_literals_same_length(_body)
+        _ctor_m = _ctor_body_pattern.search(_masked_body)
+        if _ctor_m:
+            _new_body = _body[:_ctor_m.start()] + _ctor_m.group(1) + "__construct" + _ctor_m.group(2) + _body[_ctor_m.end():]
             migrated = migrated[:_brace_open + 1] + _new_body + migrated[_brace_close:]
             changes.append("PHP 4-style constructor (method name matched class name) -> __construct()")
             break
