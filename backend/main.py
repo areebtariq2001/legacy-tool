@@ -2630,7 +2630,17 @@ def _split_inline_comment_php(_line):
 
 def migrate_java(source):
     changes = []
-    migrated = source
+    # Bug #51 (reported by the user): the rewrite loop just below checked each line
+    # INDEPENDENTLY for a comment start ("/*", "*", "//", "#") but never tracked whether a
+    # multi-line /* ... */ block comment was still OPEN - so a continuation line of a block
+    # comment whose own text doesn't start with "*" (plain prose documentation, not Javadoc
+    # style) was treated as live code. A changelog/historical note inside such a comment merely
+    # MENTIONING an old code pattern (e.g. "new Integer(5)") was rewritten exactly like real code
+    # ("Integer.valueOf(5)") - real data corruption, not just a false-positive warning. Mask every
+    # block comment out first (_mask_c_block_comments, already used the same way by migrate_php)
+    # so the rewrite loop can never see inside one, then restore the untouched original comment
+    # text once the rewrite loop is done.
+    migrated, _java_block_comments = _mask_c_block_comments(source)
     rules = [
         (r'\bnew\s+Integer\(', 'Integer.valueOf(', "new Integer() -> Integer.valueOf()"),
         (r'\bnew\s+Boolean\(', 'Boolean.valueOf(', "new Boolean() -> Boolean.valueOf()"),
@@ -2669,6 +2679,7 @@ def migrate_java(source):
         if _changed_this_rule:
             changes.append(label)
     migrated = chr(10).join(_mig_lines)
+    migrated = _restore_c_block_comments(migrated, _java_block_comments)
     review_rules = [
         (r'\bStringBuffer\b', "StringBuffer found - StringBuilder is the modern replacement, but StringBuffer is thread-safe and StringBuilder is NOT. Only switch if this code is genuinely single-threaded."),
         (r'import\s+java\.util\.Vector\b|\bnew\s+Vector\s*[<(]', "Vector found - ArrayList is the modern replacement, but Vector is synchronized (thread-safe) and ArrayList is NOT. Review for concurrent access before switching, or use Collections.synchronizedList()."),
