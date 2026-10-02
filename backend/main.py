@@ -9553,7 +9553,14 @@ def calculate_change_risk_radar(source, filename):
         fn = m.get("function", "")
         callers = m.get("affected_by_change", [])
         body, start_line = _get_func_body_with_line(source, fn, filename)
-        touches_db = bool(db_pattern.search(body))
+        # Bug #62 (reported by the user, same family as Bug #50/#57/#58/#59/#60/#61):
+        # _get_func_body_with_line() returns the function body WITH comments still in it
+        # (comment lines are only used to decide where the body ends, then kept in the returned
+        # text). Searching that raw body for db_pattern meant a comment like "this does NOT
+        # execute a db query or select from the database" was read as genuine DB-touching code,
+        # the opposite of what the comment says - giving a misleading "High" change-risk rating
+        # to a simple, non-DB function. Search the comment/docstring-masked body instead.
+        touches_db = bool(db_pattern.search(_code_only_source(body)))
         touches_security = False
         if start_line != -1:
             body_line_count = body.count(chr(10))
