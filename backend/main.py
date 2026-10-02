@@ -6876,19 +6876,26 @@ def generate_architecture(source, filename):
     }
 
 def map_api_dependencies(source, filename):
+    # Bug #67 (reported by the user, same family as Bug #50/#57/#58/#59/#60/#61/#62/#63/#64/#66):
+    # every regex search here ran directly on raw source, with no comment/docstring masking at
+    # all. A comment like "historical note: used to call requests.get(...) but no longer does"
+    # was read as a genuine library usage, HTTP call, and external URL all at once - three
+    # phantom findings from one comment, even though the real code is just "return 1". Strip
+    # comments/docstrings before every regex check below.
+    _code_only = _code_only_source(source)
     http_calls = []
     urls = []
     libraries = []
     endpoints = []
     lib_patterns = {"requests": r"(?i)\brequests\.(get|post|put|delete|patch)", "urllib": r"(?i)\burllib", "httpx": r"(?i)\bhttpx\.", "aiohttp": r"(?i)\baiohttp", "http.client": r"(?i)http\.client", "axios": r"(?i)\baxios", "fetch": r"(?i)\bawait\s+fetch\s*\(", "grpc": r"(?i)\bgrpc\b", "boto3": r"(?i)\bboto3\b", "azure sdk": r"(?i)\bazure\.(mgmt|storage|identity)\b", "google api client": r"(?i)\bgoogleapiclient\b", "websocket": r"(?i)\bwebsocket\b", "pika (rabbitmq)": r"(?i)\bpika\.", "kafka": r"(?i)\bkafka\b"}
     for lib, pat in lib_patterns.items():
-        if re.search(pat, source):
+        if re.search(pat, _code_only):
             libraries.append(lib)
-    for m in re.finditer(r"(?i)\b(?:requests|httpx|session|client|http)\.(get|post|put|delete|patch)\s*\(", source):
+    for m in re.finditer(r"(?i)\b(?:requests|httpx|session|client|http)\.(get|post|put|delete|patch)\s*\(", _code_only):
         http_calls.append(m.group(1).upper())
-    for m in re.finditer(r"[\x22\x27](https?://[^\x22\x27\s]+)[\x22\x27]", source):
+    for m in re.finditer(r"[\x22\x27](https?://[^\x22\x27\s]+)[\x22\x27]", _code_only):
         urls.append(m.group(1))
-    for m in re.finditer(r"[\x22\x27](/(?:api|v\d|rest)[/\w\-{}]*)[\x22\x27]", source):
+    for m in re.finditer(r"[\x22\x27](/(?:api|v\d|rest)[/\w\-{}]*)[\x22\x27]", _code_only):
         endpoints.append(m.group(1))
     http_calls = list(dict.fromkeys(http_calls))
     _all_urls = list(dict.fromkeys(urls))
