@@ -63,9 +63,22 @@ def _check_endpoint_specific_limit(endpoint, identifier):
         entry.append(now)
         _endpoint_rate_store[key] = entry
         if len(_endpoint_rate_store) > 5000:
-            _cutoff = now - window
+            # Bug (reported by the user): `window` here is only THIS call's endpoint window
+            # (e.g. 60s for /ai-migrate) - but _endpoint_rate_store holds keys for every
+            # endpoint in _ENDPOINT_SPECIFIC_LIMITS, including /auth/login and /auth/register
+            # which use a 300s window. Using the current call's 60s-based cutoff against ALL
+            # keys prematurely deleted other endpoints' entries that were still well within
+            # their own (longer) window - decisively confirmed: a /auth/login entry recorded
+            # only 100s ago (well inside its real 300s window) was wiped out by cleanup
+            # triggered from unrelated /ai-migrate traffic, silently resetting that
+            # identifier's login-attempt count early and weakening brute-force protection.
+            # Fix: look up each key's OWN endpoint window (parsed from the "endpoint|identifier"
+            # key format) instead of reusing this call's window for every key.
             for _k in list(_endpoint_rate_store.keys()):
-                if not _endpoint_rate_store[_k] or max(_endpoint_rate_store[_k]) < _cutoff:
+                _k_endpoint = _k.split("|", 1)[0]
+                _k_window = _ENDPOINT_SPECIFIC_LIMITS.get(_k_endpoint, (None, window))[1]
+                _k_cutoff = now - _k_window
+                if not _endpoint_rate_store[_k] or max(_endpoint_rate_store[_k]) < _k_cutoff:
                     del _endpoint_rate_store[_k]
     return True
 _suspicious_event_counts = {}
