@@ -866,9 +866,15 @@ DEPENDENCY_RULES = [
 ]
 
 def check_dependencies(source):
+    # Bug #68 (reported by the user, same family as Bug #50/.../#67/#69/.../#78): this searched
+    # raw source with no comment-filtering, so a comment saying a legacy library is no longer
+    # used (e.g. "MySQLdb ab use nahi hoti, removed after migration") was read as a genuine
+    # dependency, still producing a "migrate MySQLdb" recommendation. Search the
+    # comment/docstring-masked source instead.
     deps = []
+    _code_only = _code_only_source(source)
     for keyword, note in DEPENDENCY_RULES:
-        if re.search(r"\b" + re.escape(keyword) + r"\b", source):
+        if re.search(r"\b" + re.escape(keyword) + r"\b", _code_only):
             deps.append(note)
     return deps
 
@@ -945,14 +951,21 @@ def calculate_complexity(source):
         func_count = ast_result["func_count"]
         extra = {"max_function_complexity": ast_result["max"], "method": "ast (McCabe cyclomatic complexity, averaged per function)"}
     else:
+        # Bug #69 (reported by the user, same family as Bug #50/.../#67/#70/.../#78): the
+        # Java/PHP/COBOL (and unparseable-Python) fallback path counted "if "/"for "/"while "
+        # etc. keywords directly in the raw source, so a comment merely mentioning these words
+        # (e.g. "// if (x) for (y) while (z) handle legacy case") inflated the complexity score
+        # even though the real code has no such branches. Count keywords and function
+        # definitions against the comment/docstring-masked source instead.
+        _code_only = _code_only_source(source)
         keywords = ["if ", "elif ", "for ", "while ", "except", " and ", " or ", "case "]
         raw_score = 1
         for kw in keywords:
-            raw_score += source.count(kw)
+            raw_score += _code_only.count(kw)
         func_patterns = [r"\bdef\s+\w+\s*\(", r"\bfunction\s+\w+\s*\(", r"(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\("]
         func_count = 0
         for fp in func_patterns:
-            func_count += len(re.findall(fp, source))
+            func_count += len(re.findall(fp, _code_only))
         real_func_count = func_count
         divisor = max(1, func_count)
         score = round(raw_score / divisor, 1) if divisor > 1 else raw_score
@@ -6174,19 +6187,30 @@ SENSITIVE_PATTERNS = [
 SENSITIVE_PATTERNS_COMPILED = [(re.compile(p), label, sev) for p, label, sev in SENSITIVE_PATTERNS]
 
 def scan_sensitive_data(source):
+    # Bug #78 (reported by the user, same family as Bug #50/.../#67 - and the most critical
+    # instance since this hits the public /scan-sensitive endpoint directly with no pre-masking):
+    # the per-line comment-filter only skipped a line that ITSELF starts with "#"/"//"/"/*"/"*".
+    # A multi-line /* ... */ block whose continuation lines don't happen to start with "*" (a
+    # perfectly common style) was not recognized as a comment at all past its opening line - so
+    # secrets written only as commented-out example code (password = "hunter2" inside a /* */
+    # block) were scanned and reported as live hardcoded credentials. Build a comment/docstring-
+    # masked version of the source once and check/search against THAT, while still showing the
+    # real line text in the evidence snippet.
     findings = []
     source_lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for pattern, label, severity in SENSITIVE_PATTERNS_COMPILED:
         count = 0
         line_nums = []
         _sample_line = ""
         for i, ln in enumerate(source_lines):
-            _stripped_ln = ln.strip()
+            _check_ln = _code_only_lines[i] if i < len(_code_only_lines) else ln
+            _stripped_ln = _check_ln.strip()
             if _stripped_ln.startswith(("#", "//", "/*", "*")):
                 continue
             if len(ln) > 2000:
                 continue
-            _m = pattern.findall(ln)
+            _m = pattern.findall(_check_ln)
             if _m:
                 count += 1
                 line_nums.append(str(i+1))
@@ -6921,20 +6945,28 @@ DB_SCHEMA_SQL_KEYWORDS = {"SELECT", "WHERE", "SET", "VALUES", "LOGIC", "BALANCE"
 DB_SCHEMA_CONSTRAINT_KEYWORDS = {"PRIMARY", "FOREIGN", "KEY", "UNIQUE", "CHECK", "CONSTRAINT", "INDEX", "NOT", "NULL", "DEFAULT"}
 
 def analyze_db_schema(source, filename):
+    # Bug #70 (reported by the user, same family as Bug #50/.../#67/#72/#74/#75/#77/#78): every
+    # regex here (CREATE TABLE, FROM/JOIN/INTO, DB-driver imports, column extraction, WHERE
+    # clauses) ran against raw source. The only "comment filtering" in place was a naive
+    # single-line "#"/"//"/"*" prefix check that doesn't recognize a Python docstring or a
+    # multi-line /* */ block at all - so example SQL shown in documentation (a docstring saying
+    # "Example schema (not real): CREATE TABLE fake_users (...); SELECT ... FROM fake_users") was
+    # read as a genuine table/columns, generating a phantom entry in the schema report used for
+    # migration planning. Use the comment/docstring-masked source (_code_only_source()) for every
+    # check instead.
     _re = re
+    _code_only = _code_only_source(source)
     tables = []
     columns = []
     queries = []
     connections = []
     # 1. CREATE TABLE statements
-    for m in _re.finditer(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60\x22\x27\[]?(\w+)", source):
+    for m in _re.finditer(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60\x22\x27\[]?(\w+)", _code_only):
         tables.append(m.group(1))
     # 2. SQL queries (SELECT/INSERT/UPDATE/DELETE)
-    _code_only2 = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("//", "#", "*")))
-    for m in _re.finditer(r"(?i)\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b", _code_only2):
+    for m in _re.finditer(r"(?i)\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b", _code_only):
         queries.append(m.group(1).upper().replace("  ", " "))
     # 3. Table references in FROM / JOIN / INTO
-    _code_only = chr(10).join(l for l in source.split(chr(10)) if not l.strip().startswith(("//", "#", "*")))
     for m in _re.finditer(r"(?i)\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60\x22\x27\[]?(\w+)", _code_only):
         t = m.group(1)
         if t.upper() not in DB_SCHEMA_SQL_KEYWORDS and t not in tables:
@@ -6942,22 +6974,22 @@ def analyze_db_schema(source, filename):
     # 4. DB connection hints
     conn_patterns = {"MySQL": r"(?i)(mysql|MySQLdb|pymysql)", "PostgreSQL": r"(?i)(psycopg2|postgres)", "SQLite": r"(?i)(sqlite3|sqlite)", "Oracle": r"(?i)(cx_Oracle|oracle)", "SQL Server": r"(?i)(pyodbc|mssql|sqlserver)", "MongoDB": r"(?i)(pymongo|mongodb)"}
     for db, pat in conn_patterns.items():
-        if _re.search(pat, source):
+        if _re.search(pat, _code_only):
             connections.append(db)
     # 5. Column hints from CREATE TABLE bodies (simple)
-    for m in _re.finditer(r"(?i)CREATE\s+TABLE[^(]*\(([^;]*?)\)", source, _re.DOTALL):
+    for m in _re.finditer(r"(?i)CREATE\s+TABLE[^(]*\(([^;]*?)\)", _code_only, _re.DOTALL):
         body = m.group(1)
         for col in _re.findall(r"(?m)^\s*[\x60\x22\x27\[]?(\w+)[\x60\x22\x27\]]?\s+(?:INT|VARCHAR|CHAR|TEXT|DATE|DATETIME|TIMESTAMP|DECIMAL|NUMERIC|BOOLEAN|FLOAT|DOUBLE|BIGINT|SMALLINT|BLOB)", body):
             if col.upper() not in DB_SCHEMA_CONSTRAINT_KEYWORDS:
                 columns.append(col)
-    for select_match in _re.finditer(r"(?i)select\s+(.*?)\s+from", source, _re.DOTALL):
+    for select_match in _re.finditer(r"(?i)select\s+(.*?)\s+from", _code_only, _re.DOTALL):
         cols_part = select_match.group(1)
         if cols_part.strip() != "*" and len(cols_part) < 500:
             for c in cols_part.split(","):
                 c_clean = c.strip().split(".")[-1].split(" as ")[0].strip()
                 if c_clean and c_clean.replace("_","").isalnum() and not c_clean[0].isdigit() and c_clean.upper() not in DB_SCHEMA_SQL_KEYWORDS:
                     columns.append(c_clean)
-    where_matches = _re.findall(r"(?i)where\s+(\w+)\s*[=<>]", source)
+    where_matches = _re.findall(r"(?i)where\s+(\w+)\s*[=<>]", _code_only)
     for wm in where_matches:
         if wm.upper() not in DB_SCHEMA_SQL_KEYWORDS and not wm.isdigit() and wm.upper() not in ("TRUE", "FALSE"):
             columns.append(wm)
@@ -6985,8 +7017,13 @@ def generate_cicd_recommendations(source, filename):
     # Base recommendations for any migration
     recs.append({"stage": "Build", "recommendation": "Set up an automated build step that compiles/validates the migrated code on every commit.", "priority": "High"})
     recs.append({"stage": "Test", "recommendation": "Add an automated test stage - run unit tests before any deployment. Migration without tests is high risk.", "priority": "High"})
-    # Detect tests present
-    has_tests = bool(_re.search(r"(?i)(def test_|import unittest|import pytest|@pytest|class Test\w+|@Test\s+public|it\s*\([\x22\x27]|describe\s*\([\x22\x27]|assert\s+\w+)", source))
+    # Bug #71 (reported by the user, same family as Bug #50/.../#67/#70/#72/#74/#75/#77/#78):
+    # this checked raw source, so a comment merely MENTIONING "def test_"/"import unittest" (e.g.
+    # explicitly saying "abhi tak koi tests nahi hain") was read as genuine test code, suppressing
+    # the High-priority "No tests detected" warning - a false negative, the opposite of Bug #50's
+    # usual false-positive direction, but the same underlying comment-blindness. Check against the
+    # comment/docstring-masked source instead.
+    has_tests = bool(_re.search(r"(?i)(def test_|import unittest|import pytest|@pytest|class Test\w+|@Test\s+public|it\s*\([\x22\x27]|describe\s*\([\x22\x27]|assert\s+\w+)", _code_only_source(source)))
     if not has_tests:
         recs.append({"stage": "Test", "recommendation": "No tests detected in this code. Generate baseline tests before migrating so you can verify behavior is preserved.", "priority": "High"})
     # Security scanning
@@ -7147,13 +7184,20 @@ def detect_fraud_gaps(source, filename):
     return {"fraud_score": score, "fraud_gaps": gaps_sorted, "fraud_strengths": strengths, "fraud_summary": f"{len(gaps)} fraud-control gap(s) found; {len(strengths)} control(s) present - fraud-readiness {score}/100", "fraud_disclaimer": "Heuristic check for common fraud-control patterns (OTP, velocity, limits, MFA, flagging). Absence of a keyword does not always mean the control is missing - verify with a security review. This is a planning aid, not a certification."}
 
 def audit_key_management(source, filename):
+    # Bug #72 (reported by the user, same family as Bug #50/.../#67/#74/#78): checked raw lines
+    # with no comment-filtering - a comment like "# example: api_key = "sk_live_..."" was read as
+    # a genuine hardcoded key/secret, even though the real code never contains it. Check against
+    # a comment/docstring-masked version of the source instead, while still showing the real line
+    # text in the evidence snippet.
     _km = re
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     findings = []
     checks = [(r"(?i)(aes|des|rsa)_?key\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded encryption key", "High"), (r"(?i)\b(secret|secret_key|private_key)\s*=\s*[\"\x27][^\"\x27]{4,}", "Hardcoded secret/private key", "High"), (r"(?i)(api_key|apikey|access_key|access_token)\s*=\s*[\"\x27][^\"\x27]{6,}", "Hardcoded API key/token", "High"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]{3,}", "Hardcoded password", "High"), (r"(?i)(aws_secret|aws_access|azure_key|gcp_key)", "Hardcoded cloud provider credential", "Critical"), (r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----", "Embedded private key block", "Critical"), (r"(?i)\b(salt|iv)\b\s*=\s*[\"\x27][^\"\x27]{2,}", "Hardcoded salt/IV (should be random)", "Medium")]
     for i, line in enumerate(lines):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
         for pat, label, sev in checks:
-            if _km.search(pat, line):
+            if _km.search(pat, _check_line):
                 _redacted = _km.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:150])
                 findings.append({"line": i+1, "issue": label, "severity": sev, "code": _redact_inline_secrets(_redacted)})
     has_rotation = bool(_km.search(r"(?i)(rotate|rotation|key_expiry|expire|renew).{0,20}key", source))
@@ -7162,10 +7206,16 @@ def audit_key_management(source, filename):
 TECH_STACK_CATEGORIES = {"Web Framework": {"flask":"Flask","django":"Django","fastapi":"FastAPI","tornado":"Tornado","bottle":"Bottle","pyramid":"Pyramid","spring":"Spring"}, "Database": {"sqlite3":"SQLite","psycopg2":"PostgreSQL","pymysql":"MySQL","mysql":"MySQL","sqlalchemy":"SQLAlchemy","pymongo":"MongoDB","redis":"Redis","sql":"JDBC/SQL"}, "Data/ML": {"pandas":"Pandas","numpy":"NumPy","scipy":"SciPy","sklearn":"scikit-learn","tensorflow":"TensorFlow","torch":"PyTorch","matplotlib":"Matplotlib"}, "HTTP/API": {"requests":"Requests","urllib":"urllib","httpx":"HTTPX","aiohttp":"aiohttp","net":"Java Networking"}, "Security/Crypto": {"hashlib":"hashlib","cryptography":"cryptography","jwt":"JWT","bcrypt":"bcrypt","ssl":"SSL","security":"Java Security (MessageDigest/Crypto)"}, "Testing": {"pytest":"pytest","unittest":"unittest","nose":"nose","junit":"JUnit"}, "Collections": {"util":"Java Collections/Util"}}
 
 def detect_tech_stack(source, filename):
-    imports = re.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", source)
+    # Bug #73 (reported by the user, same family as Bug #50/.../#67/#70/#71/#72/#74/#75/#76/#78):
+    # this searched raw source for an "import ..."/"from ..." line shape, so a docstring's example
+    # usage ("Example usage:\n    import requests\n    r = requests.get(url)") was read as a
+    # genuine dependency, even though the real code never imports it. Search the
+    # comment/docstring-masked source instead.
+    _code_only = _code_only_source(source)
+    imports = re.findall(r"(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_\.]+)", _code_only)
     imports = list(dict.fromkeys([i.split(".")[0] for i in imports]))
     if filename.lower().endswith(".java"):
-        scan_targets = re.findall(r"(?:^|\n)\s*import\s+([\w\.\*]+);", source)
+        scan_targets = re.findall(r"(?:^|\n)\s*import\s+([\w\.\*]+);", _code_only)
     else:
         scan_targets = imports
     detected = []
@@ -7216,13 +7266,21 @@ def estimate_migration_cost(source, filename):
     return {"cost_hours": total_hours, "cost_days": days, "cost_effort": effort, "cost_breakdown": {"lines_of_code": loc, "functions": funcs, "classes": classes, "decision_points": branches, "security_items": security_hits, "python3_parseable": parseable}, "cost_summary": f"Estimated ~{total_hours} hours (~{days} working days) to migrate this file - {effort} effort", "cost_disclaimer": "Rough estimate based on code size, complexity, and security items. Actual effort depends on team experience, testing needs, and business requirements. Use for planning only."}
 
 def detect_pii(source, filename):
+    # Bug #74 (reported by the user, same family as Bug #50/.../#67/#78): this had NO
+    # comment-filtering at all - every line, comments and docstrings included, was searched
+    # directly. A comment like "# password = "hunter2", cnic = "..."" was read as genuine
+    # hardcoded PII/secrets, even though the real code never contains them. Check against a
+    # comment/docstring-masked version of the source instead, while still showing the real line
+    # text in the evidence snippet.
     _re9 = re
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     findings = []
     pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b(?:4[0-9]{3}|5[1-5][0-9]{2}|3[47][0-9]{2}|6(?:011|5[0-9]{2}))[-\s]?[0-9]{2,4}[-\s]?[0-9]{2,4}[-\s]?[0-9]{1,4}\b", "Possible card number (Visa/Mastercard/Amex/Discover pattern, with or without separators)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"\b(\+92|0)?3\d{9}\b", "Phone number (Pakistan mobile)"), (r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b", "Phone number (international/US-style format)"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded password (COBOL VALUE clause)"), (r"(?i)MOVE\s+[\"\x27][^\"\x27]{2,}[\"\x27]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username (COBOL VALUE clause)"), (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", "Hardcoded IP address"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Social security reference (hardcoded value)"), (r"(?i)(account_number|acct_no|iban|routing)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Bank account field (hardcoded value)")]
     for i, line in enumerate(lines):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
         for pat, label in pii_patterns:
-            if _re9.search(pat, line):
+            if _re9.search(pat, _check_line):
                 _redacted = _re9.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:150])
                 _redacted = _redact_inline_secrets(_re9.sub(pat, "***REDACTED***", _redacted))
                 findings.append({"line": i+1, "type": label, "code": _redacted, "evidence": "Line " + str(i+1) + " (" + label + "): " + _redacted})
@@ -7245,6 +7303,7 @@ class _SelectShape:
 def scan_sql_injection(source, filename):
     _sq = re
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     issues = []
     checks = [("execute", "+", "String concatenation inside execute() - SQL injection risk"), ("execute", "%", "String formatting inside execute() - SQL injection risk"), ("execute", ".format", "format() inside execute() - SQL injection risk"), ("SELECT", "+", "SQL SELECT built with + concatenation - injection risk"), ("INSERT", "+", "SQL INSERT built with + concatenation - injection risk"), ("UPDATE", "+", "SQL UPDATE built with + concatenation - injection risk"), ("DELETE", "+", "SQL DELETE built with + concatenation - injection risk"), ("WHERE", "+", "SQL WHERE clause built with + concatenation - injection risk"), ("SELECT", "%", "SQL SELECT built with % string formatting - injection risk"), ("INSERT", "%", "SQL INSERT built with % string formatting - injection risk"), ("UPDATE", "%", "SQL UPDATE built with % string formatting - injection risk"), ("DELETE", "%", "SQL DELETE built with % string formatting - injection risk"), ("WHERE", "%", "SQL WHERE clause built with % string formatting - injection risk"), ("SELECT", ".format", "SQL SELECT built with .format() - injection risk"), ("WHERE", ".format", "SQL WHERE clause built with .format() - injection risk")]
     if filename.lower().endswith(".php"):
@@ -7320,26 +7379,32 @@ def scan_sql_injection(source, filename):
         # closing quote (`"...%s..." % value`), not when "%s" is just placeholder text
         # inside the string.
         return bool(_percent_operator_re.search(line))
+    # Bug #75 (reported by the user, same family as Bug #50/.../#67/#72/#74/#78): every check in
+    # this loop ran on the raw line, comments included - a comment like "already removed: query =
+    # ... + user_id" was read as a genuine SQL-injection risk, even though the real code no
+    # longer contains it. Run all shape/danger/f-string/PHP-interpolation checks against the
+    # comment/docstring-masked line, while still showing the real line text as evidence.
     for i, line in enumerate(lines):
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
         _matched_this_line = False
         _dangers_reported_this_line = set()
         for kw, danger, msg in checks:
             if danger in _dangers_reported_this_line:
                 continue
-            if _sql_shape[kw.upper()].search(line) and _danger_present(danger, line):
+            if _sql_shape[kw.upper()].search(_check_line) and _danger_present(danger, _check_line):
                 _dangers_reported_this_line.add(danger)
                 _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
-                _tainted = _extract_tainted_var(line)
+                _tainted = _extract_tainted_var(_check_line)
                 issues.append({"line": i+1, "code": _redacted, "issue": msg, "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
                 _matched_this_line = True
-        if not _matched_this_line and _fstring_sql(line):
+        if not _matched_this_line and _fstring_sql(_check_line):
             _redacted = _redact_inline_secrets(_sq.sub(r"([\"\x27])[^\"\x27]*\{[^}]*\}[^\"\x27]*([\"\x27])", r"\1***\2", line.strip()[:150]))
-            _tainted = _extract_tainted_var(line)
+            _tainted = _extract_tainted_var(_check_line)
             issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with f-string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
             _matched_this_line = True
-        if not _matched_this_line and _php_interpolation_sql(line):
+        if not _matched_this_line and _php_interpolation_sql(_check_line):
             _redacted = _redact_inline_secrets(line.strip()[:150])
-            _tainted = _extract_tainted_var(line)
+            _tainted = _extract_tainted_var(_check_line)
             issues.append({"line": i+1, "code": _redacted, "issue": "SQL built with PHP double-quoted string interpolation - injection risk", "severity": "High", "likely_source_variable": _tainted, "evidence": (f"Untrusted value flows from variable '{_tainted}' directly into the SQL string on this line." if _tainted else "Untrusted value flows directly into the SQL string on this line.")})
     return {"sqli_safe": len(issues) == 0, "sqli_issues": issues, "sqli_summary": f"{len(issues)} potential SQL injection risk(s) found - review these lines" if issues else "No obvious SQL injection patterns detected in this file", "sqli_disclaimer": "Detects common SQL injection patterns. Pattern-based - always confirm with a security review and use parameterized queries. 'likely_source_variable' is a best-effort guess from the matched line, not a verified data-flow trace across the file."}
 
@@ -7538,9 +7603,16 @@ def map_regional_compliance(source, filename, region="Pakistan"):
     return _result
 
 def discover_business_rules_engine(source, filename):
+    # Bug #76 (reported by the user, same family as Bug #50/.../#67/#70/#71/#72/#74/#75/#77/#78):
+    # this parsed raw lines for if/elif conditions with no comment-masking (beyond COBOL
+    # sequence-number stripping) - a commented-out if-block inside a /* */ comment (e.g.
+    # "if (daily_limit > 50000) { block_transaction(); }") was read as a genuine business rule,
+    # even though it's dead/example code. Check against the comment/docstring-masked source
+    # instead, while still reporting the original line text as the rule's condition.
     _re7 = re
     rules = []
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     compliance_keywords = {"AML/KYC": r"(?i)(aml|kyc|launder|suspicious|verify.*identity|customer.*id|source.*of.*funds)", "Transaction Limit": r"(?i)(transaction.?limit|daily.?limit|max_amount|threshold.?exceed|spending.?limit)", "Balance/Funds": r"(?i)(balance|insufficient|minimum|overdraft)", "Authorization": r"(?i)(authoriz|access.?control|role.?based|permission.?check|approv)", "Interest/Fee": r"(?i)(interest|fee|charge|rate|penalty)", "Fraud/Risk": r"(?i)(fraud|risk.?score|risk.?flag|block.?transaction|freeze.?account|suspicious.?flag)"}
     # bare "approv" (approved/unapproved/approval) also matches ordinary non-financial workflow
     # words - e.g. `if leave_type == "unapproved":` in an HR function got tagged as a banking
@@ -7551,7 +7623,8 @@ def discover_business_rules_engine(source, filename):
     _authorization_strong_re = _re7.compile(r"(?i)(authoriz|access.?control|role.?based|permission.?check)")
     _banking_domain_re = _re7.compile(r"(?i)(transaction|transfer|payment|balance|account|withdraw|deposit|fund|loan|credit|debit)")
     for i, line in enumerate(lines):
-        stripped = line.strip()
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        stripped = _check_line.strip()
         if filename.lower().endswith((".cbl", ".cob", ".cobol")):
             _seqm7 = _re7.match(r"^(\d{6})\s+(.*)$", stripped)
             if _seqm7:
@@ -9029,11 +9102,17 @@ async def refactor_endpoint(file: UploadFile = File(...)):
 
 _PLATFORM_CHECKS_COMPILED = [(re.compile(p), n, note, sev) for p, n, note, sev in [(r"os\.system\s*\(", "os.system() call", "OS-level shell command - may not work identically across cloud/container OS variants", "Medium"), (r"[A-Za-z]:\\", "Hardcoded Windows path", "Absolute Windows-style path - will not work on Linux-based cloud/container platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27](cmd|powershell)", "Windows shell invocation", "cmd/powershell call - unavailable on Linux-based platforms", "High"), (r"subprocess\.(call|run|Popen)\s*\(\s*\[?[\x22\x27][^\x22\x27]*\.bat[\x22\x27]", "Batch file execution", ".bat files are Windows-only - will not run on Linux-based cloud/container platforms", "High"), (r"winreg|win32api|win32con", "Windows-only library", "Windows-specific library import - has no cloud/Linux equivalent", "High"), (r"os\.startfile", "os.startfile() call", "Windows-only file-opening function", "High"), (r"Runtime\.getRuntime\(\)\.exec\s*\(", "Runtime.exec() call", "OS-level shell command execution - may not work identically across cloud/container OS variants", "Medium"), (r"winsound", "Windows-only library", "Windows-specific audio library - has no cloud/Linux equivalent", "High"), (r"ProcessBuilder\s*\(\s*[\x22\x27](cmd|powershell)", "Windows shell invocation (ProcessBuilder)", "cmd/powershell call - unavailable on Linux-based platforms", "High")]]
 def check_platform_compatibility(source, filename):
+    # Bug #77 (reported by the user, same family as Bug #50/.../#67/#72/#74/#75/#78): checked raw
+    # lines with no comment-filtering - a comment mentioning a Windows-style path (or other
+    # platform-specific pattern) was read as genuine code, even though the real code no longer
+    # contains it. Check against a comment/docstring-masked version of the source instead.
     findings = []
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for pat, name, note, sev in _PLATFORM_CHECKS_COMPILED:
         for i, line in enumerate(lines):
-            if pat.search(line):
+            _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+            if pat.search(_check_line):
                 findings.append({"issue": name, "line": i+1, "note": note, "severity": sev})
     high_count = len([f for f in findings if f["severity"] == "High"])
     return {"platform_issues": findings, "total_issues": len(findings), "platform_summary": f"{len(findings)} platform-compatibility issue(s) found, {high_count} high-severity" if findings else "No obvious platform-compatibility issues detected - code appears portable", "platform_disclaimer": "Detects common OS-specific patterns (Windows paths, shell calls, Windows-only libraries). Pattern-based - a full compatibility audit should also test on the target platform."}
