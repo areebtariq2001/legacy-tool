@@ -13194,14 +13194,24 @@ async def behavior_snapshot_endpoint(original_file: UploadFile = File(...), migr
 
 def generate_strangler_fig_wrapper(source, filename):
     import keyword as _kw
+    # Bug #63 (reported by the user, same family as Bug #50/#57/#58/#59/#60/#61/#62): function
+    # names were extracted from the raw source, comments/docstrings included. Perfectly normal
+    # documentation - a module or function docstring showing example usage like
+    # "def example_usage(): pass" - was read as a real function definition. This is the most
+    # damaging variant of this bug family: it doesn't just produce a false finding, it generates
+    # a broken code artifact handed directly to the user - an "from foo import example_usage"
+    # line that raises ImportError (example_usage never really exists in foo.py), plus a facade
+    # method that delegates to example_usage(*args, **kwargs), which raises NameError if called.
+    # Strip comments/docstrings before extracting function names, in every language branch.
+    _code_only = _code_only_source(source)
     if filename.lower().endswith(".py"):
-        funcs = re.findall(r"^def\s+(\w+)\s*\(", source, re.MULTILINE)
+        funcs = re.findall(r"^def\s+(\w+)\s*\(", _code_only, re.MULTILINE)
     elif filename.lower().endswith(".java"):
-        funcs = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
+        funcs = re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", _code_only)
     elif filename.lower().endswith(".php"):
-        funcs = re.findall(r"function\s+(\w+)\s*\(", source)
+        funcs = re.findall(r"function\s+(\w+)\s*\(", _code_only)
     elif filename.lower().endswith((".cbl", ".cob")):
-        funcs_raw = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+        funcs_raw = re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", _code_only)
         _cobol_reserved_structural = {"IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "DIVISION", "CONFIGURATION", "INPUT-OUTPUT", "FILE", "WORKING-STORAGE", "LINKAGE", "SECTION", "STOP", "EXIT", "RUN", "GOBACK"}
         funcs = [f for f in funcs_raw if f.upper() not in _cobol_reserved_structural]
     else:
