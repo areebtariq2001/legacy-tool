@@ -7620,7 +7620,16 @@ def analyze_impact(source, filename):
         return {"impact_map": [], "impact_summary": "No functions found to analyze in this file.", "impact_disclaimer": "Shows which functions depend on each other. Changing a high-impact function may break its dependents - test those carefully. Based on static call analysis within this file."}
     impact_map = []
     for fn in funcs:
-        callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _get_func_body(source, o, filename))]
+        # Bug #61 (reported by the user, same family as Bug #50/#57/#58/#59/#60): _get_func_body()
+        # returns a function's body WITH comments still in it (comment lines are only used to
+        # decide where the body ends, then kept in the returned text). Searching that raw body
+        # for "fn_name(" meant a comment like "this does NOT call helper_b() - kept here only as
+        # historical documentation" was read as a genuine call to helper_b(), the opposite of
+        # what the comment says - inflating dependents_count/affected_by_change/change_risk for
+        # functions that are not actually called, with knock-on false negatives for
+        # detect_legacy_ghosts() and bad groupings in detect_service_boundaries(). Search the
+        # comment/docstring-masked body instead.
+        callers = [o for o in funcs if o != fn and _re3.search(r"\b" + _re3.escape(fn) + r"\s*\(", _code_only_source(_get_func_body(source, o, filename)))]
         risk = "High" if len(callers) >= 3 else "Medium" if len(callers) >= 1 else "Low"
         impact_map.append({"function": fn, "affected_by_change": callers, "dependents_count": len(callers), "change_risk": risk})
     impact_map.sort(key=lambda x: -x["dependents_count"])
