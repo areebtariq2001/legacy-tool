@@ -338,7 +338,9 @@ async def cors_handler(request: Request, call_next):
         del response.headers["x-powered-by"]
     return response
 
-import threading
+# Bug (reported by the user): `threading` was already imported once at the top of the file
+# (line 8) - this second `import threading` was a harmless but dead duplicate. Removed; the
+# module-level import above already covers every use of threading.Lock() below.
 _stats_lock = threading.Lock()
 _in_memory_stats = {"total_files": 0, "total_migrations": 0, "total_analyses": 0, "logs": []}
 _in_memory_audit_log = []
@@ -563,9 +565,19 @@ def _ensure_usage_log_schema(cur):
     with _schema_lock:
         if _usage_log_schema_ready:
             return
-        cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMP DEFAULT NOW())")
+        # Bug (reported by the user): created_at was TIMESTAMP (timezone-naive) here, while
+        # every other table with a created_at column (users, sessions, analyzed_files,
+        # docs_registry) uses TIMESTAMPTZ. NOW() in Postgres is timezone-aware; storing it in a
+        # naive TIMESTAMP column silently drops that offset information, so this table's
+        # timestamps could disagree with the others' if the database or session time zone ever
+        # changes. Fixed the CREATE TABLE for new deployments, and added an ALTER for databases
+        # that already created this table with the old TIMESTAMP type - Postgres's built-in
+        # TIMESTAMP->TIMESTAMPTZ cast (interpreting existing naive values in the session's
+        # current time zone) is the standard, safe way to upgrade an existing column in place.
+        cur.execute("CREATE TABLE IF NOT EXISTS usage_log (id SERIAL PRIMARY KEY, action TEXT, filename TEXT, result_summary TEXT, created_at TIMESTAMPTZ DEFAULT NOW())")
         cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS user_email TEXT")
         cur.execute("ALTER TABLE usage_log ADD COLUMN IF NOT EXISTS ip TEXT")
+        cur.execute("ALTER TABLE usage_log ALTER COLUMN created_at TYPE TIMESTAMPTZ")
         _usage_log_schema_ready = True
 
 def track_usage(action, filename):
@@ -802,7 +814,16 @@ COBOL_WHY_RULES = [
 ]
 
 def get_why_explanations(original_source, language="python"):
+    # Bug (reported by the user, same family as the comment/docstring-blindness bugs fixed
+    # throughout this codebase): every WHY_RULES/JAVA_WHY_RULES/PHP_WHY_RULES/COBOL_WHY_RULES
+    # loop below searched the raw original_source, so a legacy keyword merely MENTIONED in a
+    # comment or docstring ("# except ValueError: use this instead of old syntax") produced a
+    # "why was this changed" explanation for a change that was never actually made - misleading
+    # documentation-only text was indistinguishable from real legacy syntax. Use the shared
+    # _code_only_source() helper (already used throughout this file for exactly this reason) so
+    # only real code, not comment/docstring text, is searched.
     explanations = []
+    _code_only = _code_only_source(original_source)
     if language == "python":
         _py3_parses_ok = False
         try:
@@ -810,23 +831,22 @@ def get_why_explanations(original_source, language="python"):
             _py3_parses_ok = True
         except Exception:
             pass
-        _code_only_for_print_check = chr(10).join(l for l in original_source.split(chr(10)) if not l.strip().startswith("#"))
-        if not _py3_parses_ok and re.search(r"\bprint\s+[^(]", _code_only_for_print_check):
+        if not _py3_parses_ok and re.search(r"\bprint\s+[^(]", _code_only):
             explanations.append({"change": "print statement -> print()", "why": "In Python 3, print is a function, not a statement. It must be called with parentheses, e.g. print(x)."})
         for keyword, reason in WHY_RULES:
-            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", _code_only):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "java":
         for keyword, reason in JAVA_WHY_RULES:
-            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", _code_only):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "php":
         for keyword, reason in PHP_WHY_RULES:
-            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", _code_only):
                 explanations.append({"change": keyword, "why": reason})
     elif language == "cobol":
         for keyword, reason in COBOL_WHY_RULES:
-            if re.search(r"\b" + re.escape(keyword) + r"\b", original_source, re.IGNORECASE):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", _code_only, re.IGNORECASE):
                 explanations.append({"change": keyword, "why": reason})
     return explanations
 
