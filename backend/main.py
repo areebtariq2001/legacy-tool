@@ -10494,7 +10494,15 @@ def _scan_functions_for_keyword_and_checks(source, filename, keyword_pattern, ch
             _code_only = _func_source_code_only(func_source)
             if not keyword_pattern.search(_code_only):
                 continue
-            if context_filter is not None and not context_filter(func_source):
+            # Bug #58 (reported by the user): keyword_pattern and check_patterns above/below both
+            # search _code_only (the docstring-masked version, fixed as Bug #55), but
+            # context_filter was still being called on the raw func_source - a missed spot in the
+            # same function. A docstring explicitly saying a function has "nothing to do with
+            # individual customers" still matched _has_kyc_context()'s "customer" keyword, wrongly
+            # pulling an unrelated portfolio-level function into KYC-scoped checks (~15 compliance
+            # checks share this helper: signature verification, customer risk rating, HSM
+            # integration, EDD triggers, etc.). Search _code_only here too.
+            if context_filter is not None and not context_filter(_code_only):
                 continue
             functions_found += 1
             issues = []
