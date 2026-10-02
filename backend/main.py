@@ -12945,12 +12945,21 @@ def scan_cbs_integration_points(source, filename):
     findings = []
     lines_arr = source.split(chr(10))
     counts = {}
+    # Bug #57 (reported by the user, same family as this entire codebase's comment/docstring-
+    # blindness bugs): this only skipped a single-line "#" comment, with no awareness of
+    # triple-quoted docstrings/strings at all. A function whose docstring explicitly said it was
+    # "previously integrated with T24 (Temenos) but has since been fully migrated away from it -
+    # no T24 calls remain" was scanned like real code and produced 2 phantom CBS-integration
+    # findings (one per docstring line), identical in form to a genuine T24.post_transaction(data)
+    # call - a misleading phantom dependency in a migration-scoping inventory report. Use the
+    # shared _code_only_source() helper (already used throughout this file for exactly this
+    # reason) so only real code, not comment/docstring text, is searched.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for i, line in enumerate(lines_arr):
         stripped = line.strip()
-        if stripped.startswith("#"):
-            continue
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
         for category, pattern in _cbs_categories.items():
-            if pattern.search(line):
+            if pattern.search(_check_line):
                 counts[category] = counts.get(category, 0) + 1
                 if len(findings) < 40:
                     findings.append({"line": i + 1, "issue": category + " integration reference found - this is a legacy Core Banking System dependency that will need an API/data-mapping strategy when migrating away from this CBS.", "severity": "Info", "evidence": stripped[:100]})
