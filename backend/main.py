@@ -9571,9 +9571,17 @@ def detect_legacy_ghosts(source, filename):
     impact = analyze_impact(source, filename)
     impact_map = impact.get("impact_map", [])
     def _is_genuinely_called_outside_definitions(fn_name, full_source):
+        # Bug #60 (reported by the user, same family as Bug #50's sibling check just below): this
+        # searched the raw full_source for "fn_name(", comments included - so a TODO note like
+        # "nothing calls process_legacy_payment() anymore" (naturally containing the exact
+        # "fn_name(" shape while explicitly saying the function is UNUSED) was read as a genuine
+        # external call, flipping the confidence from "Medium - review before removing" to
+        # "Low - likely in genuine use, do NOT delete" - the opposite of what the comment itself
+        # says. Search the comment/docstring-masked source instead.
         call_pattern = re.compile(r"\b" + re.escape(fn_name) + r"\s*\(")
-        for cm in call_pattern.finditer(full_source):
-            preceding_text = full_source[:cm.start()].rstrip()
+        _code_only_full_source = _code_only_source(full_source)
+        for cm in call_pattern.finditer(_code_only_full_source):
+            preceding_text = _code_only_full_source[:cm.start()].rstrip()
             if preceding_text.endswith("def") or preceding_text.endswith("function") or re.search(r"(?i)(public|private|protected|static)\s*$", preceding_text):
                 continue
             return True
