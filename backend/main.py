@@ -9869,16 +9869,27 @@ def trace_data_lineage(source, field_name, filename):
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"lineage_generated": False, "touches": [], "lineage_summary": "File too large for lineage tracing."}
     lines = source.split(chr(10))
+    # Bug #64 (reported by the user, same family as Bug #50/#57/#58/#59/#60/#61/#62/#63): only a
+    # single-line "#" comment was skipped here - a Python triple-quoted docstring was not
+    # recognized at all, so read_pattern/write_pattern ran directly on raw docstring text. A
+    # docstring explicitly saying "this used to read account_balance... but no longer does" was
+    # read as 2 genuine "read" touches of account_balance, even though the real code never
+    # references the field - corrupting the data-lineage report used for migration/compliance
+    # tracing. Check against the comment/docstring-masked source (_code_only_source(), which
+    # preserves line count/numbers) instead of the raw line, while still reporting the original
+    # line text in code_snippet for readability.
+    _code_only_lines = _code_only_source(source).split(chr(10))
     write_pattern = re.compile(r"(?:self\.)?\b" + re.escape(field_name) + r"\s*(?:=(?!=)|[+\-*/%&|^]=|\*\*=|//=|>>=|<<=)")
     read_pattern = re.compile(r"\b" + re.escape(field_name) + r"\b")
     current_fn = None
     current_indent = -1
     touches = []
     for i, line in enumerate(lines):
-        stripped = line.strip()
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        stripped = _check_line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        fn_match = re.match(r"^\s*def\s+(\w+)\s*\(", line)
+        fn_match = re.match(r"^\s*def\s+(\w+)\s*\(", _check_line)
         line_indent = len(line) - len(line.lstrip())
         if fn_match:
             current_fn = fn_match.group(1)
@@ -9887,9 +9898,9 @@ def trace_data_lineage(source, field_name, filename):
         if current_fn is not None and line_indent <= current_indent and stripped:
             current_fn = None
             current_indent = -1
-        if read_pattern.search(line):
-            access_type = "write" if write_pattern.search(line) else "read"
-            touches.append({"line": i + 1, "function": current_fn or "(module level)", "access_type": access_type, "code_snippet": stripped[:100]})
+        if read_pattern.search(_check_line):
+            access_type = "write" if write_pattern.search(_check_line) else "read"
+            touches.append({"line": i + 1, "function": current_fn or "(module level)", "access_type": access_type, "code_snippet": line.strip()[:100]})
     write_count = sum(1 for t in touches if t["access_type"] == "write")
     read_count = sum(1 for t in touches if t["access_type"] == "read")
     return {"lineage_generated": True, "field_name": field_name, "touches": touches, "total_touches": len(touches), "write_count": write_count, "read_count": read_count, "lineage_summary": str(len(touches)) + " touch-point(s) found for '" + field_name + "' - " + str(write_count) + " write(s), " + str(read_count) + " read(s).", "lineage_disclaimer": "Static pattern-based trace within this single file only - does not track cross-file/cross-service data flow, aliasing, or indirect references (e.g. via dict/getattr). A starting point for data-flow review, not exhaustive."}
