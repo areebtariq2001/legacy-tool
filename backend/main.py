@@ -6829,21 +6829,29 @@ def generate_architecture(source, filename):
                 if n.module:
                     imports.append(n.module.split(".")[0])
     except Exception:
+        # Bug #66 (reported by the user, same family as Bug #50/#57/#58/#59/#60/#61/#62/#63/#64):
+        # the regex-fallback path (used for Java/PHP/COBOL, and for Python that fails to parse)
+        # ran directly on raw source with no comment-masking at all, unlike the AST path above
+        # which does real parsing. A comment like "import java.sql.Connection; -- removed after
+        # refactor, no longer used" was read as a genuine import, generating a phantom entry in
+        # the "Dependencies (Libraries)" layer of the architecture report even though the real
+        # code has no such import. Strip comments/docstrings before every regex call here.
+        _source_for_fallback = _code_only_source(source)
         if filename.lower().endswith((".cbl", ".cob")):
-            funcs = _re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", source)
+            funcs = _re.findall(r"(?mi)^(?:\d{6}\s+)?(?!END-)([\w-]+)\.\s*$", _source_for_fallback)
             classes = []
             imports = []
         elif filename.lower().endswith((".java",".php")):
             if filename.lower().endswith(".php"):
-                funcs = _re.findall(r"function\s+(\w+)\s*\([^)]*\)", source)
+                funcs = _re.findall(r"function\s+(\w+)\s*\([^)]*\)", _source_for_fallback)
             else:
-                funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", source)
-            classes = _re.findall(r"\bclass\s+(\w+)", source)
-            imports = _re.findall(r"import\s+([\w\.\*]+);", source)
+                funcs = _re.findall(r"(?:public|private|protected)\s+(?:static\s+)?(?:synchronized\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{", _source_for_fallback)
+            classes = _re.findall(r"\bclass\s+(\w+)", _source_for_fallback)
+            imports = _re.findall(r"import\s+([\w\.\*]+);", _source_for_fallback)
         else:
-            funcs = _re.findall(r"def\s+(\w+)\s*\(", source)
-            classes = _re.findall(r"class\s+(\w+)", source)
-            imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", source)
+            funcs = _re.findall(r"def\s+(\w+)\s*\(", _source_for_fallback)
+            classes = _re.findall(r"class\s+(\w+)", _source_for_fallback)
+            imports = _re.findall(r"(?m)^\s*(?:import|from)\s+(\w+)", _source_for_fallback)
     imports = list(dict.fromkeys(imports))
     # Classify imports into layers
     db_libs = [i for i in imports if i.lower() in ARCH_DB_KEYWORDS or "jdbc" in i.lower()]
