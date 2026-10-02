@@ -8916,15 +8916,24 @@ def detect_code_smells(source, filename):
                     smells.append({"type": "Long Function", "location": f"Function {func_name} (line {start_line}, approximate - could not fully parse)", "detail": f"Function is approximately {func_lines_est} lines long - consider splitting into smaller functions.", "severity": "Medium"})
     _is_cobol = filename.lower().endswith((".cbl", ".cob"))
     _indent_unit = 6 if _is_cobol else 4
+    # Bug #59 (reported by the user, same family as Bug #50 but for this function's OTHER check):
+    # Bug #50 already fixed the "Duplicate Code" check below to use _code_only_source(), but this
+    # "Deep Nesting" check still used its own naive filter - skipping only a single-line "#"/"//"/
+    # bare "*" comment, with no idea about a "/* ... */" block comment's continuation lines (or a
+    # Python triple-quoted docstring) at all. Commented-out, deeply-nested example code inside a
+    # /* ... */ block was indistinguishable from the same nesting in real, live code. Reuse the
+    # shared _code_only_source() helper here too.
+    _code_only_lines_for_nesting = _code_only_source(source).split(chr(10))
     try:
         for i, line in enumerate(lines):
-            stripped = line.lstrip()
+            _masked_line = _code_only_lines_for_nesting[i] if i < len(_code_only_lines_for_nesting) else line
+            stripped = _masked_line.lstrip()
             _seqm3 = re.match(r"^(\d{6})\s+(.*)$", stripped) if _is_cobol else None
             if _seqm3:
                 stripped = _seqm3.group(2)
-            if not stripped or stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("*"):
+            if not stripped:
                 continue
-            indent = len(line) - len(stripped)
+            indent = len(_masked_line) - len(stripped)
             if stripped.lower().startswith(("if ", "for ", "while ", "elif ")):
                 level = indent // _indent_unit
                 if level >= 3:
