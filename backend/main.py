@@ -1017,11 +1017,19 @@ def calculate_tech_debt(source, filename=""):
                 total_minutes -= _removed_item["estimated_minutes"]
         except Exception:
             pass
-    ISSUE_WEIGHT_PER_MINUTE = 8
+    MINUTES_PER_SCORE_POINT = 10
     MIN_SCORE_HIGH_COMPLEXITY = 25
     MIN_SCORE_MODERATE_COMPLEXITY = 15
     MIN_MINUTES_IF_COMPLEX = 60
-    debt_score = min(100, total_count * ISSUE_WEIGHT_PER_MINUTE)
+    # Bug (reported by the user): this used to be `min(100, total_count * ISSUE_WEIGHT_PER_MINUTE)`
+    # - named "PER_MINUTE" but actually multiplied against total_count (a raw ISSUE COUNT), never
+    # total_minutes. That meant a single trivial legacy pattern (e.g. one xrange() call, a 2-minute
+    # fix) produced the same baseline score as any other single-issue file regardless of its real
+    # remediation cost, while just 13 occurrences of anything capped the score at 100 - the
+    # headline debt_score (shown to the customer as a developer-hours-style metric) was
+    # disconnected from the actual estimated time investment it claims to summarize. Score off of
+    # total_minutes instead, which is what "developer-hours remediation cost" should mean.
+    debt_score = min(100, round(total_minutes / MINUTES_PER_SCORE_POINT))
     try:
         _comp = calculate_complexity(_source_code_only)
         if _comp["complexity_level"] in ["High complexity", "Very high complexity"] and debt_score < 20:
@@ -1324,7 +1332,12 @@ def analyze_code(source):
         if _sqli_grouped:
             issues.append(_sqli_grouped)
     except Exception:
-        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
+        # Bug (reported by the user): this except block belongs to the scan_sql_injection call
+        # above, but used the scan_sensitive_data block's message below ("Sensitive-data...
+        # secrets/PII") - so a failure in the SQL-injection sub-check told the user to go review
+        # for the wrong thing (secrets/PII instead of SQL injection). PHP's sibling check already
+        # has the correct, distinct message for this same try/except shape.
+        issues.append("SQL injection sub-check could not complete - review manually for SQL injection risks")
     try:
         # Bug #44 (reported by the user): same root cause as the scan_sql_injection fix just
         # above (and PHP's Bug #43 sibling) - this used to call scan_sensitive_data(source) with
@@ -2649,7 +2662,9 @@ def analyze_java(source):
         if _sqli_grouped:
             issues.append(_sqli_grouped)
     except Exception:
-        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
+        # Bug (reported by the user): same mislabeled-message bug as analyze_code()'s Python
+        # sibling - this except belongs to scan_sql_injection, not scan_sensitive_data.
+        issues.append("SQL injection sub-check could not complete - review manually for SQL injection risks")
     try:
         _sens_result = scan_sensitive_data(_java_no_comments)
         for _sens_finding in _sens_result.get("findings", []):
@@ -2970,7 +2985,9 @@ def analyze_cobol(source, filename="file.cbl"):
         if _sqli_grouped:
             issues.append(_sqli_grouped)
     except Exception:
-        issues.append("Sensitive-data sub-check could not complete - review manually for hardcoded secrets/PII")
+        # Bug (reported by the user): same mislabeled-message bug as analyze_code()'s Python
+        # sibling - this except belongs to scan_sql_injection, not scan_sensitive_data.
+        issues.append("SQL injection sub-check could not complete - review manually for SQL injection risks")
     try:
         # Bug #46 (reported by the user): same root cause as the scan_sql_injection fix just
         # above - this used to call scan_sensitive_data(source) with the RAW source.
