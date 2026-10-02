@@ -12440,7 +12440,18 @@ def check_riba_flag(source, filename):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if _islamic_name_pattern.search(node.name):
                 func_source = ast.get_source_segment(source, node) or ""
-                if _interest_pattern.search(func_source):
+                # Bug #56 (reported by the user, same family as Bug #55): this searched the raw
+                # func_source (including its own docstring) for interest-rate-style terminology -
+                # unlike check_sbp_circular_reference()'s intentionally comment-inclusive citation
+                # search just below, this one is NOT meant to match documentation text. A function
+                # whose docstring explicitly says it must NOT be confused with an interest_rate/
+                # APR calculation was flagged identically to one that genuinely computes
+                # `cost * interest_rate` in real code - a false positive that sends a compliant
+                # function to unnecessary Shariah-board review. Use the shared
+                # _func_source_code_only() helper (same fix shape as Bug #55) so only real code,
+                # not docstring text, counts as evidence.
+                _code_only = _func_source_code_only(func_source)
+                if _interest_pattern.search(_code_only):
                     findings.append({"line": node.lineno, "issue": "RED FLAG FOR SHARIAH REVIEW (not a determination of non-compliance): This function (" + node.name + ") is named as an Islamic-banking/Shariah product but also references interest-rate-style terminology in its body. This textual co-occurrence does not itself prove Riba (interest) is present - many Islamic-finance profit-rate calculations are legitimately expressed using similar variable names - but it is exactly the kind of code a Shariah board/compliance officer should independently review.", "severity": "Medium", "evidence": node.name})
     findings_full = findings
     findings = findings_full[:30]
