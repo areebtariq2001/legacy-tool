@@ -3264,8 +3264,30 @@ def _cobol_pad_literal_for_alpha_comparison(cond, ws_alpha_len):
         if _alpha_len is None or len(_lit) >= _alpha_len:
             return m.group(0)
         return f"{_quote}{_lit.ljust(_alpha_len)}{_quote} {_op} {_field}"
+    # Bug (found via direct execution while reviewing this function - same root cause/family as
+    # bug #20 above, a gap left by that fix rather than a regression): the two passes below only
+    # ever pad a STRING LITERAL operand to match a field's declared length. A comparison between
+    # TWO alphanumeric fields of DIFFERENT declared lengths ("01 WS-A PIC X(5)." / "01 WS-B PIC
+    # X(10)." / "IF WS-A = WS-B") was left completely unpadded: MOVE/VALUE already correctly
+    # stores each field space-padded to ITS OWN length (WS_A = "AB   ", WS_B = "AB        "), but
+    # comparing those two different-length Python strings directly is always False even when real
+    # COBOL - which right-pads whichever operand is SHORTER with spaces before comparing, exactly
+    # like the literal case above - would treat them as a MATCH. Silently wrong with no crash and
+    # no REVIEW NEEDED note. Pad the shorter field's value (via .ljust(), since both sides are
+    # variables whose runtime value isn't known at migration time, unlike a literal) up to the
+    # longer field's declared length before comparing. Fields of equal length need no change,
+    # and a field not recorded in ws_alpha_len (e.g. LINKAGE SECTION parameters) is left alone.
+    def _pad_field_op_field(m):
+        _field_a, _op, _field_b = m.group(1), m.group(2), m.group(3)
+        _len_a, _len_b = ws_alpha_len.get(_field_a), ws_alpha_len.get(_field_b)
+        if _len_a is None or _len_b is None or _len_a == _len_b:
+            return m.group(0)
+        if _len_a < _len_b:
+            return f"{_field_a}.ljust({_len_b}) {_op} {_field_b}"
+        return f"{_field_a} {_op} {_field_b}.ljust({_len_a})"
     cond = re.sub(r'\b(\w+)\s*(==|!=)\s*(["\'])((?:(?!\3).)*)\3', _pad_field_op_lit, cond)
     cond = re.sub(r'(["\'])((?:(?!\1).)*)\1\s*(==|!=)\s*(\w+)\b', _pad_lit_op_field, cond)
+    cond = re.sub(r'\b(\w+)\s*(==|!=)\s*(\w+)\b', _pad_field_op_field, cond)
     return cond
 
 def _cobol_expand_abbreviated_relation_conditions(cond):
