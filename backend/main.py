@@ -2307,8 +2307,13 @@ def analyze_php(source):
                 issues.append(f"{_sens_finding['issue']} (line(s): {_sens_finding.get('lines', '?')})")
     except Exception:
         pass
-    _php_funcs = list(dict.fromkeys(re.findall(r"function\s+(\w+)\s*\(", source)))
-    _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", source)))
+    # Bug #65 (reported by the user, same family as Bug #50/.../#84): this used to extract
+    # function/class names from the RAW `source` instead of `_source_no_comments` (which this
+    # function's other checks above already use), so a function or class only MENTIONED in a
+    # comment (e.g. "// function oldFunc() { ... } -- removed") was reported as a genuine
+    # method/class in the summary, even after it had been deleted from the live code.
+    _php_funcs = list(dict.fromkeys(re.findall(r"function\s+(\w+)\s*\(", _source_no_comments)))
+    _php_classes = list(dict.fromkeys(re.findall(r"\bclass\s+(\w+)", _source_no_comments)))
     return {"issues": issues, "classes": _php_classes, "methods": _php_funcs[:20], "total_methods": len(_php_funcs), "methods_truncated": len(_php_funcs) > 20, "php_summary": f"{len(_php_classes)} class(es), {len(_php_funcs)} function(s) found"}
 
 _C_BLOCK_COMMENT_RE = re.compile(r"(?s)/\*.*?\*/")
