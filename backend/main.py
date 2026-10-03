@@ -670,7 +670,19 @@ def sanitize_ai_output(text):
     # user, on the /ai-suggest, /explain and /generate-tests endpoints) was bypassed by simply
     # not quoting the payload. Fixed by also matching an unquoted value: one or more
     # characters that aren't whitespace or ">" (where an unquoted HTML attribute value ends).
-    text = re.sub(r'\bon(?:click|load|error|mouseover|mouseout|focus|blur|submit|change|keydown|keyup|keypress|mousedown|mouseup|dblclick|contextmenu|drag|drop|scroll|resize|abort|beforeunload|hashchange|input|invalid|toggle|wheel)\s*=\s*("[^"]*"|\x27[^\x27]*\x27|[^\s>]+)', "", text, flags=re.IGNORECASE)
+    #
+    # Bug #91 (reported by the user, follow-up to bug #30): that fix still only matched a
+    # hardcoded, ~27-name list of event-handler attributes (onclick, onload, onerror, ...).
+    # HTML defines FAR more than that (onpointerdown, onanimationstart, onpaste, onpageshow,
+    # onauxclick, ontouchstart, and others, with new ones added over time) - any handler name
+    # simply not present in the list passed straight through completely unsanitized, on every
+    # endpoint that returns AI-generated text to the user (/ai-suggest, /explain,
+    # /generate-tests, /verify-ai-output, /ask-codebase). Confirmed via direct execution: e.g.
+    # "<img src=x onpointerdown=alert(1)>" was left byte-for-byte unchanged. Fixed by matching
+    # the general shape of ANY on* attribute ("on" followed by letters, "=", then a quoted or
+    # unquoted value) instead of enumerating specific handler names, so no handler - known,
+    # obscure, or added to HTML in the future - can slip through unlisted.
+    text = re.sub(r'\bon[a-zA-Z]+\s*=\s*("[^"]*"|\x27[^\x27]*\x27|[^\s>]+)', "", text, flags=re.IGNORECASE)
     text = re.sub(r"javascript\s*:", "blocked-javascript:", text, flags=re.IGNORECASE)
     return text
 
