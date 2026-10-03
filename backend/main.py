@@ -3857,13 +3857,33 @@ def migrate_cobol(source, filename="file.cbl"):
                 _of_in_placeholders.append(_m.group(0))
                 return "\x00QSTR" + str(len(_of_in_placeholders) - 1) + "\x00"
             _line_quotes_stashed = re.sub(r'"[^"]*"|\x27[^\x27]*\x27', _of_in_stash, line)
+            # Bug #89 (reported by the user, found while verifying bug #14/#15): this used to
+            # ALWAYS strip an "OF"/"IN" qualifier down to the bare elementary name ("WS-CODE OF
+            # WS-GROUP-A" -> "WS_CODE"), on the assumption that real COBOL code never writes OF/
+            # IN for a field that's genuinely ambiguous. But that assumption is backwards -
+            # programmers write "X OF Y" EXACTLY when X is declared in more than one group (the
+            # ambiguous case _ws_elementary_name_counts already detects and flags above), and
+            # that is precisely the case where the bare name was never declared as a Python
+            # variable at all (only the group-prefixed names were, per bug #14/#15's own fix) -
+            # so stripping to the bare name generated code that crashed the instant it ran
+            # (NameError on a bare DISPLAY/IF read, UnboundLocalError on a MOVE where both sides
+            # are qualified, since Python then sees a local assignment to that name). Fix:
+            # resolve an OF/IN-qualified ambiguous field to its group-prefixed name
+            # ("WS_GROUP_A_WS_CODE"), matching what was actually declared; only a field that
+            # ISN'T ambiguous still collapses to its bare elementary name as before.
+            def _of_in_resolve(_m):
+                _field_raw = _m.group(1).upper().replace("-", "_")
+                _group_raw = _m.group(2).upper().replace("-", "_")
+                if _ws_elementary_name_counts.get(_field_raw, 0) > 1:
+                    return f"{_group_raw}_{_field_raw}"
+                return _m.group(1)
             # Repeated substitution handles chained qualifiers ("A OF B OF C" -> "A"), applied
             # only to the quote-stashed text so a string literal's actual contents (which
             # could themselves legitimately contain the words "of"/"in") are never touched.
             _prev = None
             while _prev != _line_quotes_stashed:
                 _prev = _line_quotes_stashed
-                _line_quotes_stashed = re.sub(r"\b([A-Za-z][\w-]*)\s+(?:OF|IN)\s+[A-Za-z][\w-]*\b", r"\1", _line_quotes_stashed, count=1, flags=re.IGNORECASE)
+                _line_quotes_stashed = re.sub(r"\b([A-Za-z][\w-]*)\s+(?:OF|IN)\s+([A-Za-z][\w-]*)\b", _of_in_resolve, _line_quotes_stashed, count=1, flags=re.IGNORECASE)
             for _qi, _qval in enumerate(_of_in_placeholders):
                 _line_quotes_stashed = _line_quotes_stashed.replace("\x00QSTR" + str(_qi) + "\x00", _qval)
             line = _line_quotes_stashed
