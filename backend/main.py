@@ -3871,19 +3871,34 @@ def migrate_cobol(source, filename="file.cbl"):
             # resolve an OF/IN-qualified ambiguous field to its group-prefixed name
             # ("WS_GROUP_A_WS_CODE"), matching what was actually declared; only a field that
             # ISN'T ambiguous still collapses to its bare elementary name as before.
+            #
+            # Bug #90 (reported by the user, incomplete-coverage follow-up to #89): the first
+            # fix above only ever prefixed the IMMEDIATE group in a chained qualifier ("WS-CODE
+            # OF WS-DETAIL OF WS-GROUP-A" -> "WS_DETAIL_WS_CODE"), one level per loop iteration,
+            # because each iteration matched and resolved only the leftmost "A OF B" pair before
+            # re-scanning. But a 3+ level declaration accumulates its FULL ancestor chain
+            # outermost-to-innermost ("WS_GROUP_A_WS_DETAIL_WS_CODE", built the same way the
+            # DATA DIVISION group-stack logic above builds it), so stopping at one level still
+            # referenced an undeclared name and still crashed with NameError. Fix: match the
+            # qualifier's ENTIRE "OF/IN" chain in one go and, for an ambiguous field, build the
+            # complete group-prefixed name by reversing the chain (outermost group first, then
+            # each nested group, then the field) instead of prefixing only the nearest group.
             def _of_in_resolve(_m):
-                _field_raw = _m.group(1).upper().replace("-", "_")
-                _group_raw = _m.group(2).upper().replace("-", "_")
+                _field_token = _m.group(1)
+                _field_raw = _field_token.upper().replace("-", "_")
+                _group_tokens = re.findall(r"(?:OF|IN)\s+([A-Za-z][\w-]*)", _m.group(2), re.IGNORECASE)
                 if _ws_elementary_name_counts.get(_field_raw, 0) > 1:
-                    return f"{_group_raw}_{_field_raw}"
-                return _m.group(1)
-            # Repeated substitution handles chained qualifiers ("A OF B OF C" -> "A"), applied
-            # only to the quote-stashed text so a string literal's actual contents (which
-            # could themselves legitimately contain the words "of"/"in") are never touched.
-            _prev = None
-            while _prev != _line_quotes_stashed:
-                _prev = _line_quotes_stashed
-                _line_quotes_stashed = re.sub(r"\b([A-Za-z][\w-]*)\s+(?:OF|IN)\s+([A-Za-z][\w-]*)\b", _of_in_resolve, _line_quotes_stashed, count=1, flags=re.IGNORECASE)
+                    _chain_raw = [g.upper().replace("-", "_") for g in reversed(_group_tokens)]
+                    return "_".join(_chain_raw + [_field_raw])
+                return _field_token
+            # The chain-capturing group ((?:\s+(?:OF|IN)\s+[A-Za-z][\w-]*)+) consumes every
+            # qualifier level in one match, so a single pass (not a repeated-substitution loop)
+            # correctly resolves "A OF B OF C ... OF Z" as a whole, while still handling several
+            # independent qualified references on the same line (e.g. a MOVE with both sides
+            # qualified) since each chain is matched and resolved separately. Applied only to
+            # the quote-stashed text so a string literal's actual contents (which could
+            # themselves legitimately contain the words "of"/"in") are never touched.
+            _line_quotes_stashed = re.sub(r"\b([A-Za-z][\w-]*)((?:\s+(?:OF|IN)\s+[A-Za-z][\w-]*)+)\b", _of_in_resolve, _line_quotes_stashed, flags=re.IGNORECASE)
             for _qi, _qval in enumerate(_of_in_placeholders):
                 _line_quotes_stashed = _line_quotes_stashed.replace("\x00QSTR" + str(_qi) + "\x00", _qval)
             line = _line_quotes_stashed
