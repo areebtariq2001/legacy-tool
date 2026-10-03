@@ -7101,9 +7101,16 @@ def predict_migration_risk(source, filename):
         _pred_py3_ok = True
     except Exception:
         pass
-    if not _pred_py3_ok and _re.search(r"(?<![a-zA-Z_])print\s+[^(]", source):
+    # Bug #84 (reported by the user, same family as Bug #50/.../#83): this fallback detects
+    # Py2-style `print`/`exec` statements to flag migration risk when ast.parse() fails (e.g.
+    # due to unrelated `except Exception, e:` syntax elsewhere in the file). It used to search
+    # the raw source, so a comment merely mentioning "print ..." or "exec ..." (e.g. "# print
+    # 'old debug statement, removed'") was misread as a live Py2 print/exec statement, inflating
+    # the migration risk score with a false-positive reason. Mask comments/docstrings first.
+    _code_only_pred = _code_only_source(source)
+    if not _pred_py3_ok and _re.search(r"(?<![a-zA-Z_])print\s+[^(]", _code_only_pred):
         found_libs.append("print statement (Py2 style)")
-    if _re.search(r"(?<![a-zA-Z_])exec\s+[^(]", source):
+    if _re.search(r"(?<![a-zA-Z_])exec\s+[^(]", _code_only_pred):
         found_libs.append("exec statement (Py2 style)")
     if found_libs:
         risk += min(len(found_libs) * 10, 40)
