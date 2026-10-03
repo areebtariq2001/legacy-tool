@@ -7389,11 +7389,24 @@ def detect_pii(source, filename):
     # hardcoded PII/secrets, even though the real code never contains them. Check against a
     # comment/docstring-masked version of the source instead, while still showing the real line
     # text in the evidence snippet.
+    # Bug #92 (reported by the user): the Pakistan-mobile pattern used a leading \b (word
+    # boundary) before the optional "+92" prefix. A word boundary requires a transition between
+    # a \w and a non-\w character, but "+" is itself non-\w - so in EVERY realistic context
+    # (a quoted string, right after "=", at the very start of a line) the character immediately
+    # before "+" is also non-word, meaning there is no boundary there at all and the whole match
+    # silently failed. Only the bare "0"-prefixed local format (0300...) ever matched, since "0"
+    # IS a word character and a boundary genuinely exists before it. The international "+92..."
+    # format - the standard way Pakistani numbers appear in banking APIs, KYC data, and COBOL
+    # MOVE statements - was missed 100% of the time, with no error, just silently no finding.
+    # Fixed by using a negative lookbehind for a word character instead of \b before the
+    # optional prefix: (?<!\w) still correctly rejects a number glued onto other digits/letters
+    # (e.g. "x99923001234567"), but no longer requires a nonexistent boundary transition before
+    # a non-word "+" character.
     _re9 = re
     lines = source.split(chr(10))
     _code_only_lines = _code_only_source(source).split(chr(10))
     findings = []
-    pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b(?:4[0-9]{3}|5[1-5][0-9]{2}|3[47][0-9]{2}|6(?:011|5[0-9]{2}))[-\s]?[0-9]{2,4}[-\s]?[0-9]{2,4}[-\s]?[0-9]{1,4}\b", "Possible card number (Visa/Mastercard/Amex/Discover pattern, with or without separators)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"\b(\+92|0)?3\d{9}\b", "Phone number (Pakistan mobile)"), (r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b", "Phone number (international/US-style format)"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded password (COBOL VALUE clause)"), (r"(?i)MOVE\s+[\"\x27][^\"\x27]{2,}[\"\x27]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username (COBOL VALUE clause)"), (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", "Hardcoded IP address"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Social security reference (hardcoded value)"), (r"(?i)(account_number|acct_no|iban|routing)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Bank account field (hardcoded value)")]
+    pii_patterns = [(r"\b\d{5}-\d{7}-\d\b", "CNIC number (Pakistan national ID)"), (r"\b(?:4[0-9]{3}|5[1-5][0-9]{2}|3[47][0-9]{2}|6(?:011|5[0-9]{2}))[-\s]?[0-9]{2,4}[-\s]?[0-9]{2,4}[-\s]?[0-9]{1,4}\b", "Possible card number (Visa/Mastercard/Amex/Discover pattern, with or without separators)"), (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "Email address"), (r"(?<!\w)(\+92|0)?3\d{9}\b", "Phone number (Pakistan mobile)"), (r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b", "Phone number (international/US-style format)"), (r"(?i)(password|passwd|pwd)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded password"), (r"(?i)(username|user_name|db_user|_user)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username"), (r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded password (COBOL VALUE clause)"), (r"(?i)MOVE\s+[\"\x27][^\"\x27]{2,}[\"\x27]\s+TO\s+[\w-]*(PASSWORD|PASSWD|PWD)[\w-]*", "Hardcoded password (COBOL MOVE statement)"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\"\x27][^\"\x27]{2,}[\"\x27]", "Hardcoded username (COBOL VALUE clause)"), (r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", "Hardcoded IP address"), (r"(?i)(api_key|apikey|secret|token)\s*=\s*[\"\x27][^\"\x27]+[\"\x27]", "Hardcoded API key/secret"), (r"(?i)(ssn|social_security)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Social security reference (hardcoded value)"), (r"(?i)(account_number|acct_no|iban|routing)\s*=\s*[\"\x27][^\"\x27]{2,}[\"\x27]", "Bank account field (hardcoded value)")]
     for i, line in enumerate(lines):
         _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
         for pat, label in pii_patterns:
