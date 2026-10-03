@@ -1118,6 +1118,14 @@ def assess_dependency_risk(source, filename="file.py"):
     fname_lower = filename.lower()
     if fname_lower.endswith(".cbl") or fname_lower.endswith(".cob"):
         return {"findings": [], "overall_risk": "Not Analyzed", "total_issues": 0, "not_analyzed_reason": "Dependency risk analysis does not apply to COBOL in the same way as library-based languages - COBOL does not have an equivalent package/import ecosystem to scan. This file was not analyzed - do not interpret this as a low-risk result."}
+    # Bug #85 (reported by the user, same family as Bug #50/.../#84): the `in_source` fallback
+    # check below, and the Java/PHP import-extraction regex loops, used to run on the raw
+    # `source`, so a dependency only MENTIONED in a comment (e.g. "# we used to use MySQLdb here
+    # but migrated away from it already") was reported as a genuine high-risk dependency even
+    # though it had already been removed. Python's ast-based import extraction is unaffected
+    # since the AST never sees comments. Mask comments/docstrings once up front and use that for
+    # all three regex-based checks.
+    _code_only = _code_only_source(source)
     imported = set()
     if fname_lower.endswith(".py"):
         active_rules = RISK_RULES
@@ -1134,14 +1142,14 @@ def assess_dependency_risk(source, filename="file.py"):
             imported = set()
     elif fname_lower.endswith(".java"):
         active_rules = JAVA_RISK_RULES
-        for _m in re.finditer(r"import\s+(?:static\s+)?([\w.]+)(?:\.\*)?\s*;", source):
+        for _m in re.finditer(r"import\s+(?:static\s+)?([\w.]+)(?:\.\*)?\s*;", _code_only):
             _parts = _m.group(1).split(".")
             imported.add(_parts[-1])
             if len(_parts) > 1:
                 imported.add(_parts[0])
     elif fname_lower.endswith(".php"):
         active_rules = PHP_RISK_RULES
-        for _m in re.finditer(r"use\s+([\w\\]+)(?:\s+as\s+\w+)?\s*;", source):
+        for _m in re.finditer(r"use\s+([\w\\]+)(?:\s+as\s+\w+)?\s*;", _code_only):
             imported.add(_m.group(1).split("\\")[-1])
     else:
         active_rules = RISK_RULES
@@ -1150,11 +1158,11 @@ def assess_dependency_risk(source, filename="file.py"):
     for pattern, category, level, desc, rec in active_rules:
         in_imports = pattern in imported
         if pattern[-1].isalnum():
-            in_source = re.search(r'\b' + re.escape(pattern) + r'\b', source) is not None
+            in_source = re.search(r'\b' + re.escape(pattern) + r'\b', _code_only) is not None
         elif pattern.endswith("(") or pattern.endswith("_"):
-            in_source = re.search(r'\b' + re.escape(pattern), source) is not None
+            in_source = re.search(r'\b' + re.escape(pattern), _code_only) is not None
         else:
-            in_source = re.search(re.escape(pattern), source) is not None
+            in_source = re.search(re.escape(pattern), _code_only) is not None
         if (in_imports or in_source) and pattern not in seen:
             seen.add(pattern)
             findings.append({
@@ -6454,6 +6462,14 @@ def generate_test_scenarios(source, filename):
 
 def check_parity(original, migrated):
     def count_defs(code):
+        # Bug #86 (reported by the user, same dangerous false-negative family as Bug #82/#83):
+        # when ast.parse(code) fails (common for legacy Python 2 source like `print "x"`), the
+        # regex-fallback below ran on the raw code, so a function/class only MENTIONED in a
+        # docstring (e.g. a leftover "Old removed function for reference: def
+        # calculate_interest(): pass") was counted as a genuine def/class - letting a function
+        # the migration actually REMOVED silently keep the same count and report "Structural
+        # parity preserved" even though real structure had changed. Mask comments/docstrings
+        # first so only live def/class lines are counted.
         funcs = 0
         classes = 0
         try:
@@ -6464,8 +6480,9 @@ def check_parity(original, migrated):
                 elif isinstance(node, ast.ClassDef):
                     classes += 1
         except Exception:
-            funcs = len(re.findall(r"^\s*def\s+\w+", code, re.MULTILINE))
-            classes = len(re.findall(r"^\s*class\s+\w+", code, re.MULTILINE))
+            _code_only = _code_only_source(code)
+            funcs = len(re.findall(r"^\s*def\s+\w+", _code_only, re.MULTILINE))
+            classes = len(re.findall(r"^\s*class\s+\w+", _code_only, re.MULTILINE))
         return funcs, classes
     o_funcs, o_classes = count_defs(original)
     m_funcs, m_classes = count_defs(migrated)
@@ -7890,12 +7907,20 @@ def check_ai_native_readiness(source, filename=""):
         else:
             findings.append({"issue": "Non-Python file - AI-native structural analysis limited to pattern-based checks below, review manually", "impact": "Low"})
     # 3. Hardcoded values / config (blocks flexible AI integration)
+    # Bug #87 (reported by the user, same family as Bug #50/.../#86): checks #3 (hardcoded
+    # password) and #5 (eval/exec) used to run re.search() directly on the raw `source`, so a
+    # comment merely mentioning a removed password or eval() call (e.g. "# password =
+    # 'hardcoded_example_removed'") was reported as a real finding and docked the AI-native
+    # score, even though no such code actually existed anymore. Check #4 (print) was already
+    # safe thanks to its `^\s*print\s*\(` anchor, which a `#`/`//` comment line can't match. Mask
+    # comments/docstrings for the checks that weren't anchored that way.
     _re = re
+    _code_only_ai = _code_only_source(source)
     _is_test_file = bool(_re.search(r"(?i)(test|spec)", filename))
-    if _re.search(r"(?i)(password\s*=\s*[\x22\x27]|\bpassword[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27])", source):
+    if _re.search(r"(?i)(password\s*=\s*[\x22\x27]|\bpassword[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27])", _code_only_ai):
         score -= 15
         findings.append({"issue": "Hardcoded config/credentials - blocks flexible deployment in AI environments", "impact": "Medium"})
-    elif not _is_test_file and _re.search(r"(?i)(localhost|127\.0\.0\.1)", source):
+    elif not _is_test_file and _re.search(r"(?i)(localhost|127\.0\.0\.1)", _code_only_ai):
         score -= 10
         findings.append({"issue": "Hardcoded localhost/IP address - blocks flexible deployment in AI environments", "impact": "Low"})
     # 4. print statements instead of logging (not observable for AI pipelines) - Python only
@@ -7903,7 +7928,7 @@ def check_ai_native_readiness(source, filename=""):
         score -= 10
         findings.append({"issue": "Uses print() instead of logging - AI pipelines need structured logs", "impact": "Low"})
     # 5. eval/exec (unsafe, blocks sandboxed AI use)
-    if _re.search(r"(?i)\b(eval|exec)\s*\(", source):
+    if _re.search(r"(?i)\b(eval|exec)\s*\(", _code_only_ai):
         score -= 15
         findings.append({"issue": "Uses eval/exec - unsafe for AI-native, sandboxed environments", "impact": "High"})
     # 6. No type hints (AI tooling benefits from types)
@@ -10080,9 +10105,15 @@ def check_threat_intelligence(source, filename):
         except Exception:
             pass
     elif filename.lower().endswith(".php"):
-        imported = set(re.findall(r"use\s+([\w\\]+)", source))
+        # Bug #88 (reported by the user, same family as Bug #50/.../#87): PHP/Java import
+        # extraction ran on the raw `source` (Python's ast-based extraction above is unaffected,
+        # since the AST never sees comments), so a library only MENTIONED in a comment (e.g.
+        # "// use SomeVendor\VulnerableLib; -- removed long ago") was treated as a real
+        # dependency and sent to the NIST NVD API as a phantom "third-party library detected"
+        # finding. Mask comments/docstrings first.
+        imported = set(re.findall(r"use\s+([\w\\]+)", _code_only_source(source)))
     elif filename.lower().endswith(".java"):
-        imported = set(m.split(".")[-2] if "." in m else m for m in re.findall(r"import\s+([\w.]+);", source))
+        imported = set(m.split(".")[-2] if "." in m else m for m in re.findall(r"import\s+([\w.]+);", _code_only_source(source)))
     _known_stdlib = {"os", "sys", "re", "json", "time", "math", "random", "collections", "itertools", "functools", "typing", "datetime", "io", "abc", "copy", "logging", "unittest", "string", "enum", "asyncio", "threading", "socket", "subprocess", "sqlite3"}
     third_party = [lib for lib in imported if lib and lib not in _known_stdlib][:5]
     if not third_party:
