@@ -1220,11 +1220,20 @@ def extract_java_names(code):
         except Exception:
             pass
     if not parsed_ok:
-        for _m in re.finditer(r"\b(?:class|interface|enum)\s+(\w+)", code):
+        # Bug #82 (reported by the user, same family as Bug #50/.../#78/#83, and the Java
+        # sibling of Bug #83 - both migration-verification functions share this root cause): when
+        # javalang can't parse the code, this regex-fallback ran on the raw code with no
+        # comment-masking. A method the migration actually REMOVED, but left mentioned in a
+        # comment (e.g. "// public int calculateInterest(...) { ... } -- old, removed"), was
+        # still "found" by these regexes, so check_java_integrity() silently reported the name as
+        # still present even though it had genuinely vanished from the migrated code. Run all
+        # three fallback regex passes against the comment-masked source instead.
+        _code_only = _code_only_source(code)
+        for _m in re.finditer(r"\b(?:class|interface|enum)\s+(\w+)", _code_only):
             names.add(_m.group(1))
-        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\(", code):
+        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\],\s]+?\s+(\w+)\s*\(", _code_only):
             names.add(_m.group(1))
-        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\]]+\s+(\w+)\s*[=;]", code):
+        for _m in re.finditer(r"(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?[\w<>\[\]]+\s+(\w+)\s*[=;]", _code_only):
             names.add(_m.group(1))
     return names
 
@@ -1766,18 +1775,28 @@ _PY_BUILTINS = set(dir(_builtins_module))
 _PY_BUILTINS |= {"True", "False", "None", "self", "cls"}
 
 def extract_variables(code):
+    # Bug #83 (reported by the user, same family as Bug #50/.../#78, high-severity since it's a
+    # migration-verification function): when ast.parse(code) fails - which is COMMON for legacy
+    # Python 2 source like `print "x"`, the core use case of this tool - the regex-fallback below
+    # ran on the raw code with no comment-masking. A function the migration actually REMOVED, but
+    # left mentioned in a comment (e.g. "# def calculate_interest(...): ... -- old, removed"),
+    # was still "found" by the fallback's def-name/def-params/assignment regexes, so
+    # check_variable_integrity() silently reported "All original variable names preserved" even
+    # though the function and its parameters had genuinely vanished from the migrated code. Run
+    # all three fallback regex passes against the comment/docstring-masked source instead.
     names = set()
     try:
         tree = ast.parse(code)
     except Exception:
-        for _m in re.finditer(r"^\s*(\w+)\s*=[^=]", code, re.MULTILINE):
+        _code_only = _code_only_source(code)
+        for _m in re.finditer(r"^\s*(\w+)\s*=[^=]", _code_only, re.MULTILINE):
             names.add(_m.group(1))
-        for _m in re.finditer(r"\bdef\s+\w+\s*\(([^)]*)\)", code):
+        for _m in re.finditer(r"\bdef\s+\w+\s*\(([^)]*)\)", _code_only):
             for _param in _m.group(1).split(","):
                 _p = _param.strip().split("=")[0].strip()
                 if _p and _p.isidentifier():
                     names.add(_p)
-        for _m in re.finditer(r"\bdef\s+(\w+)\s*\(", code):
+        for _m in re.finditer(r"\bdef\s+(\w+)\s*\(", _code_only):
             names.add(_m.group(1))
         return names - _PY_BUILTINS
     for node in ast.walk(tree):
@@ -9139,13 +9158,18 @@ def calculate_dependency_portability(source, filename=""):
     # NOTE: check_dependencies() covers Python 2->3 legacy-library renames via DEPENDENCY_RULES.
     # Windows-only libraries below are checked separately (not in DEPENDENCY_RULES) because they
     # are a different category of issue: platform incompatibility, not a legacy-vs-modern rename.
-    if re.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", source):
+    # Bug #80 (reported by the user, same family as Bug #50/.../#78/#79/#82/#83): these 4 checks
+    # ran on raw source, so a comment saying a Windows-only library is no longer used (e.g.
+    # "winreg ab use nahi hota, removed") was read as a genuine dependency. Check against the
+    # comment/docstring-masked source instead.
+    _code_only_deps = _code_only_source(source)
+    if re.search(r"\bwinreg\b|\bwin32api\b|\bwin32con\b", _code_only_deps):
         deps_found.append("winreg/win32api (Windows-only library) -> use platform-neutral alternatives or conditional imports")
-    if re.search(r"\bwinsound\b", source):
+    if re.search(r"\bwinsound\b", _code_only_deps):
         deps_found.append("winsound (Windows-only library) -> not available on Linux/cloud platforms")
-    if re.search(r"\bctypes\.windll\b", source):
+    if re.search(r"\bctypes\.windll\b", _code_only_deps):
         deps_found.append("ctypes.windll (Windows DLL access) -> not available on Linux/cloud platforms")
-    if re.search(r"\bmsvcrt\b", source):
+    if re.search(r"\bmsvcrt\b", _code_only_deps):
         deps_found.append("msvcrt (Windows C runtime) -> not available on Linux/cloud platforms")
     total_deps = len(deps_found)
     if total_deps == 0:
@@ -9183,10 +9207,16 @@ def suggest_config_migration(source, filename):
     hardcoded_patterns = list(_CONFIG_MIGRATION_PATTERNS_COMPILED)
     if filename.lower().endswith((".cbl", ".cob")):
         hardcoded_patterns += [(re.compile(p), n, s) for p, n, s in [(r"(?i)\b(password|passwd|pwd)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (password, COBOL VALUE clause)", "CRITICAL: Never hardcode passwords - move to a secrets manager or environment variable immediately"), (r"(?i)\b(username|user_name|db.?user)[\w-]*\s+PIC\s+X[^\n]{0,80}?VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded credential (username, COBOL VALUE clause)", "Move to environment variable (e.g. DB_USER)"), (r"(?i)[\w-]*(host|hostname|server)[\w-]*\s+PIC\s+X.*VALUE\s+[\x22\x27][^\x22\x27]{2,}[\x22\x27]", "Hardcoded host/server address (COBOL VALUE clause)", "Move to environment variable (e.g. DB_HOST) or a config file loaded at startup")]]
+    # Bug #81 (reported by the user, same family as Bug #50/.../#78/#79/#80/#82/#83): checked raw
+    # lines with no comment-filtering - a comment like "# old config: password = "hunter2""" was
+    # read as a genuine hardcoded config value. Check against a comment/docstring-masked version
+    # of the source instead, while still showing the real line text in the evidence snippet.
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     for pat, issue, suggestion in hardcoded_patterns:
         for i, line in enumerate(lines):
-            if pat.search(line):
+            _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+            if pat.search(_check_line):
                 _redacted = _redact_inline_secrets(re.sub(r"([=:]\s*[\"\x27])[^\"\x27]+([\"\x27])", r"\1***REDACTED***\2", line.strip()[:100]))
                 findings.append({"issue": issue, "line": i+1, "suggestion": suggestion, "code": _redacted})
     env_template_lines = []
@@ -9560,15 +9590,23 @@ def generate_autonomous_migration_plan(source, filename):
     return {"plan_generated": True, "phases": phase_list, "total_phases": len(phase_list), "plan_summary": f"{len(phase_list)}-phase dependency-ordered migration sequence generated for {len(edges)} function(s), based on actual in-file call relationships.", "plan_disclaimer": "Ordering is purely based on static call-graph dependency analysis within this single file - it does NOT factor in security risk when assigning phases. Functions flagged with extra_caution contain security-sensitive code nearby and deserve additional review regardless of their dependency-based phase. Does not account for cross-file dependencies, external callers, or business priority. A starting sequence, not a mandate."}
 
 def detect_hidden_business_logic(source, filename):
+    # Bug #79 (reported by the user, same family as Bug #50/.../#78/#82/#83): this matched
+    # if/elif/while conditions against the raw line. A "#" comment can't match (the "#" breaks
+    # the "^\s*if" shape), but a commented-out condition inside a /* */ block's non-"*"-prefixed
+    # continuation line (e.g. "if (a > 1 && b > 2 && c > 3) { ... }") was read as a genuine hidden
+    # business rule, even though it's dead/example code. Check against the comment/docstring-
+    # masked source instead.
     if len(source.encode("utf-8", errors="ignore")) > MAX_FILE_SIZE:
         return {"hidden_rules": [], "hidden_rules_summary": "File too large for hidden-business-logic analysis", "hidden_rules_disclaimer": "Skipped - file exceeds size limit."}
     lines = source.split(chr(10))
+    _code_only_lines = _code_only_source(source).split(chr(10))
     hidden_rules = []
     if_pattern = re.compile(r"(?i)^\s*(?:if|elif|while)\s*\(?(.+?)\)?\s*:?\s*(?:\{)?\s*$")
     and_split = re.compile(r"(?i)\s+and\s+|\s*&&\s*")
     comparison_pattern = re.compile(r"(==|!=|>=|<=|>|<|\bin\b|\bnot\s+in\b)")
     for i, line in enumerate(lines):
-        m = if_pattern.match(line)
+        _check_line = _code_only_lines[i] if i < len(_code_only_lines) else line
+        m = if_pattern.match(_check_line)
         if not m:
             continue
         condition = m.group(1).strip().rstrip(":").rstrip("{").strip()
