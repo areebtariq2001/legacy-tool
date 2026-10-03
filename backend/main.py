@@ -5329,21 +5329,34 @@ async def analyze_cobol_endpoint(file: UploadFile = File(...)):
 
 @app.post("/migrate-cobol")
 async def migrate_cobol_endpoint(file: UploadFile = File(...)):
-    content_bytes = await file.read()
-    source, error = safe_read_file(content_bytes, file.filename)
-    if error:
-        return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+    # Bug #76 (reported by the user): every sibling endpoint (/migrate-php, /analyze-java,
+    # /migrate-java, /analyze-cobol) wraps its whole body in try/except Exception and returns a
+    # consistent, friendly 500 JSON response ("<X> failed safely: <e>") if the underlying
+    # analysis/migration function raises. This endpoint only guarded the throwaway
+    # pre_analysis = analyze_cobol(...) call - the actual migrate_cobol(source, file.filename)
+    # call (the one that matters) was left completely unguarded, so any exception inside it
+    # (a regex edge case, a KeyError, anything) propagated straight past FastAPI's normal
+    # handling, hitting the caller with a raw, unformatted 500 instead of the same safe JSON
+    # error shape every other endpoint in this file gives. Confirmed by monkeypatching
+    # migrate_cobol to raise and observing the exception reach the test client unhandled.
     try:
-        pre_analysis = analyze_cobol(source, file.filename)
-        pre_issues = pre_analysis.get("issues", [])
-    except Exception:
-        pre_issues = []
-    result = migrate_cobol(source, file.filename)
-    result["filename"] = file.filename
-    result["pre_migration_issues"] = pre_issues
-    track_usage("migrate-cobol", file.filename)
-    write_audit_log("migrate-cobol", file.filename, f"changes={len(result.get('changes', []))}")
-    return result
+        content_bytes = await file.read()
+        source, error = safe_read_file(content_bytes, file.filename)
+        if error:
+            return JSONResponse(status_code=400, content={"filename": file.filename, "error": error})
+        try:
+            pre_analysis = analyze_cobol(source, file.filename)
+            pre_issues = pre_analysis.get("issues", [])
+        except Exception:
+            pre_issues = []
+        result = migrate_cobol(source, file.filename)
+        result["filename"] = file.filename
+        result["pre_migration_issues"] = pre_issues
+        track_usage("migrate-cobol", file.filename)
+        write_audit_log("migrate-cobol", file.filename, f"changes={len(result.get('changes', []))}")
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"filename": file.filename, "error": f"COBOL migration failed safely: {e}"})
 
 @app.post("/ai-suggest")
 async def ai_suggest_endpoint(file: UploadFile = File(...)):
