@@ -4357,7 +4357,7 @@ def migrate_cobol(source, filename="file.cbl"):
             if "/" in expr or "*" in expr:
                 changes.append(f"REVIEW NEEDED: line {_compute_line_no}: COMPUTE {var_name} = {expr} - COBOL fixed-point decimal arithmetic (based on the field's PIC clause) truncates by default unless ROUNDED is specified, which differs from Python's native arithmetic. Verify this calculation produces the intended result, especially for financial/numeric logic.")
             continue
-        add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)\.?$", line, re.IGNORECASE)
+        add_m = re.match(r"^ADD\s+(.+?)\s+TO\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?\.?$", line, re.IGNORECASE)
         if add_m and _cobol_has_unsupported_subscript(add_m.group(1)):
             out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
             changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
@@ -4379,10 +4379,23 @@ def migrate_cobol(source, filename="file.cbl"):
             _add_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", add_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_add_sources) if len(_add_sources) > 1 else (_add_sources[0] if _add_sources else "0")
             dst_var = add_m.group(2).upper().replace("-", "_")
-            out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
-            changes.append("ADD -> +=" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
+            # Bug #93 (reported by the user): "ADD a TO b GIVING c." is a separate, extremely
+            # common COBOL idiom (e.g. "ADD PRINCIPAL TO INTEREST GIVING TOTAL") where the result
+            # goes into c and b is left UNCHANGED - it is not the same as plain "ADD a TO b."
+            # (which accumulates into b). The old regex had no GIVING group at all, so its "$"
+            # anchor failed to match any GIVING-suffixed line and it fell through to the generic
+            # "# TODO: manual review" fallback, silently dropping the whole statement (c was
+            # never assigned). Handle GIVING explicitly: c = b + sources, b left untouched.
+            _add_giving_var = add_m.group(3)
+            if _add_giving_var:
+                _add_giving_dst = _add_giving_var.upper().replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_add_giving_dst} = {dst_var} + {src_val}")
+                changes.append(f"ADD {add_m.group(1).strip()} TO {add_m.group(2)} GIVING {_add_giving_var} -> assignment" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
+            else:
+                out_lines.append(f"{cur_indent()}{dst_var} += {src_val}")
+                changes.append("ADD -> +=" + (f" ({len(_add_sources)} sources summed)" if len(_add_sources) > 1 else ""))
             continue
-        sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)\.?$", line, re.IGNORECASE)
+        sub_m = re.match(r"^SUBTRACT\s+(.+?)\s+FROM\s+([\w-]+)(?:\s+GIVING\s+([\w-]+))?\.?$", line, re.IGNORECASE)
         if sub_m and _cobol_has_unsupported_subscript(sub_m.group(1)):
             out_lines.append(f"{cur_indent()}# TODO: manual review - {line}")
             changes.append(f"REVIEW NEEDED: {line.strip()} - subscripted/OCCURS-indexed source operand is not supported by this migration and was left for manual conversion (would otherwise be misread as a Python function call).")
@@ -4393,8 +4406,17 @@ def migrate_cobol(source, filename="file.cbl"):
             _sub_sources = [_cobol_hyphen_fix(s.strip()) for s in re.split(r"[\s,]+", sub_m.group(1).strip()) if s.strip()]
             src_val = " + ".join(_sub_sources) if len(_sub_sources) > 1 else (_sub_sources[0] if _sub_sources else "0")
             dst_var = sub_m.group(2).upper().replace("-", "_")
-            out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
-            changes.append("SUBTRACT -> -=" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
+            # Bug #93 (reported by the user): same GIVING gap as ADD above - "SUBTRACT a FROM b
+            # GIVING c." means c = b - a, with b left UNCHANGED. The old regex had no GIVING
+            # group, so this fell through to the generic TODO fallback and c was never assigned.
+            _sub_giving_var = sub_m.group(3)
+            if _sub_giving_var:
+                _sub_giving_dst = _sub_giving_var.upper().replace("-", "_")
+                out_lines.append(f"{cur_indent()}{_sub_giving_dst} = {dst_var} - ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{_sub_giving_dst} = {dst_var} - {src_val}")
+                changes.append(f"SUBTRACT {sub_m.group(1).strip()} FROM {sub_m.group(2)} GIVING {_sub_giving_var} -> assignment" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
+            else:
+                out_lines.append(f"{cur_indent()}{dst_var} -= ({src_val})" if len(_sub_sources) > 1 else f"{cur_indent()}{dst_var} -= {src_val}")
+                changes.append("SUBTRACT -> -=" + (f" ({len(_sub_sources)} sources summed then subtracted)" if len(_sub_sources) > 1 else ""))
             continue
         # Bug found (open-ended review): MULTIPLY and DIVIDE - two of COBOL's four core
         # arithmetic verbs, exactly as fundamental as ADD/SUBTRACT (both of which already have
